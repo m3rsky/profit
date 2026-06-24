@@ -2,7 +2,9 @@
 Testy automatyczne – PSH System Kontroli Jakości
 Uruchomienie: pytest tests/ -v
 """
+import os
 import pytest
+from sqlalchemy.pool import StaticPool
 from app import app as flask_app, db as _db
 from models import User, ChecklistTemplate, Category, Task, Report, ReportItem
 
@@ -12,10 +14,16 @@ def app():
     flask_app.config.update({
         'TESTING': True,
         'SQLALCHEMY_DATABASE_URI': 'sqlite:///:memory:',
+        'SQLALCHEMY_ENGINE_OPTIONS': {
+            'connect_args': {'check_same_thread': False},
+            'poolclass': StaticPool,
+        },
         'WTF_CSRF_ENABLED': False,
-        'UPLOAD_FOLDER': '/tmp/psh_test_uploads',
+        'UPLOAD_FOLDER': os.path.join(os.path.dirname(__file__), 'tmp_uploads'),
         'SECRET_KEY': 'test-secret',
     })
+    flask_app.extensions.pop("sqlalchemy", None)
+    _db.init_app(flask_app)
     with flask_app.app_context():
         _db.create_all()
         _seed()
@@ -25,7 +33,7 @@ def app():
 def _seed():
     admin = User(username='admin', email='admin@test.pl', role='admin')
     admin.set_password('Admin1234!')
-    user = User(username='oper', email='oper@test.pl', role='user')
+    user = User(username='oper', email='oper@test.pl', role='kontroler')
     user.set_password('Oper1234!')
     _db.session.add_all([admin, user])
     _db.session.flush()
@@ -47,12 +55,8 @@ def client(app):
 
 
 def _csrf(client):
-    """Fetch CSRF token from login page session."""
-    with client.session_transaction() as sess:
-        from app import _get_csrf_token
-        with flask_app.test_request_context():
-            pass
-    resp = client.get('/login')
+    """Fetch CSRF token — follow redirects so it works when already logged in."""
+    resp = client.get('/login', follow_redirects=True)
     assert resp.status_code == 200
     with client.session_transaction() as sess:
         return sess.get('_csrf_token', 'no-token')
@@ -152,7 +156,7 @@ class TestReports:
         assert resp.status_code == 200
 
     def test_reports_list(self, client):
-        login(client, 'oper', 'Oper1234!')
+        login(client, 'admin', 'Admin1234!')
         resp = client.get('/reports')
         assert resp.status_code == 200
 
