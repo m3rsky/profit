@@ -1,0 +1,128 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Szablony{% endblock %}
+{% block admin_content %}
+<div class="page-header">
+  <h1 class="page-title">Szablony checklisty</h1>
+  <a href="{{ url_for('admin_template_new') }}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Nowy szablon</a>
+</div>
+
+<div class="tpl-io-bar">
+  <form method="post" action="{{ url_for('admin_templates_import') }}"
+        enctype="multipart/form-data" id="import-form">
+    {{ csrf_input() }}
+    <input type="file" id="import-file" name="file" accept=".json" required
+           class="backup-file-input" onchange="this.form.submit()">
+    <label for="import-file" class="tpl-io-action tpl-io-import" title="Importuj szablony z pliku JSON">
+      <i class="bi bi-upload"></i>
+      <span>Importuj szablony</span>
+    </label>
+  </form>
+
+  <div class="tpl-io-divider"></div>
+
+  <a href="{{ url_for('admin_templates_export') }}" class="tpl-io-action tpl-io-export" title="Eksportuj szablony">
+    <i class="bi bi-download"></i>
+    <span>Eksportuj szablony</span>
+  </a>
+</div>
+
+<div class="filter-tabs">
+  <a href="{{ url_for('admin_templates') }}"
+     class="filter-tab {% if not type_filter %}active{% endif %}">Wszystkie</a>
+  <a href="{{ url_for('admin_templates', type='kontroler') }}"
+     class="filter-tab {% if type_filter == 'kontroler' %}active{% endif %}">
+    <span class="badge badge-info">Kontroler</span>
+  </a>
+  <a href="{{ url_for('admin_templates', type='monter') }}"
+     class="filter-tab {% if type_filter == 'monter' %}active{% endif %}">
+    <span class="badge badge-neutral">Monter</span>
+  </a>
+</div>
+
+{% if templates %}
+{% if current_user.is_admin %}
+<form method="post" action="{{ url_for('admin_templates_bulk_delete') }}" id="bulk-form">
+  {{ csrf_input() }}
+  <div class="bulk-bar" id="bulk-bar">
+    <span class="bulk-count" id="bulk-count">0 zaznaczonych</span>
+    <div class="bulk-actions">
+      <button type="button" id="btn-select-all" class="btn btn-outline btn-sm"
+              onclick="toggleSelectAll()">
+        Zaznacz wszystkie
+      </button>
+      <button type="submit" name="action" value="selected"
+              class="btn btn-danger btn-sm"
+              data-confirm="Usunąć zaznaczone szablony wraz ze wszystkimi kategoriami i zadaniami?"
+              id="btn-delete-selected" disabled>
+        <i class="bi bi-trash"></i> Usuń zaznaczone
+      </button>
+    </div>
+  </div>
+</form>
+{% endif %}
+
+<div class="template-grid">
+  {% for t in templates %}
+  <div class="template-card">
+    <div class="template-card-header">
+      {% if current_user.is_admin %}
+      <label class="tpl-card-check-label">
+        <input type="checkbox" name="tmpl_ids" value="{{ t.id }}"
+               class="row-check tpl-card-check" form="bulk-form"
+               aria-label="Zaznacz szablon {{ t.name }} do usunięcia">
+      </label>
+      {% endif %}
+      <span class="template-card-name">{{ t.name }}</span>
+      {% if t.template_type == 'monter' %}
+        <span class="badge badge-neutral">Monter</span>
+      {% else %}
+        <span class="badge badge-info">Kontroler</span>
+      {% endif %}
+      {% if t.is_active %}
+        <span class="badge badge-success">Aktywny</span>
+      {% else %}
+        <span class="badge badge-danger">Nieaktywny</span>
+      {% endif %}
+    </div>
+    {% if t.description %}
+    <p class="template-card-desc">{{ t.description }}</p>
+    {% endif %}
+    <div class="template-card-meta">
+      <span>{{ t.categories.count() }} kategorii</span>
+      <span>{{ t.task_count }} zadań</span>
+      <span>{{ t.categories.filter_by(is_active=True).count() }} aktywnych kategorii</span>
+    </div>
+    <div class="template-card-actions">
+      <a href="{{ url_for('admin_template_categories', tmpl_id=t.id) }}" class="btn btn-secondary btn-sm">Edytuj strukturę</a>
+      <a href="{{ url_for('admin_template_edit', tmpl_id=t.id) }}" class="btn btn-outline btn-sm">Ustawienia</a>
+      <form method="post" action="{{ url_for('admin_template_copy', tmpl_id=t.id) }}" class="form-inline">
+        {{ csrf_input() }}
+        <button type="submit" class="btn btn-ghost btn-sm">Kopiuj</button>
+      </form>
+      {% if current_user.is_admin %}
+      <button type="submit" name="action" value="selected"
+              class="btn btn-danger btn-sm"
+              form="bulk-form"
+              onclick="selectOnly({{ t.id }})"
+              data-confirm="Usunąć szablon „{{ t.name }}" wraz ze wszystkimi kategoriami i zadaniami?">
+        Usuń
+      </button>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card">
+  <div class="card-body card-body--empty">
+    {% if type_filter %}
+      Brak szablonów typu „{{ 'Kontroler' if type_filter == 'kontroler' else 'Monter' }}".
+      <a href="{{ url_for('admin_template_new') }}">Utwórz pierwszy</a> lub
+      <a href="{{ url_for('admin_templates') }}">pokaż wszystkie</a>.
+    {% else %}
+      Brak szablonów. <a href="{{ url_for('admin_template_new') }}">Utwórz pierwszy szablon</a>.
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

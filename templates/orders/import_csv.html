@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title %}Import CSV{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Import zamówień z CSV</h1>
+  <a href="{{ url_for('orders_list') }}" class="btn btn-ghost"><i class="bi bi-arrow-left"></i> Wstecz</a>
+</div>
+
+{% if not preview %}
+{# ── KROK 1: upload ── #}
+<div class="card import-upload-card">
+  <div class="card-body">
+    <form method="post" enctype="multipart/form-data" id="upload-form">
+      {{ csrf_input() }}
+      <input type="hidden" name="action" value="preview">
+
+      <div class="form-group">
+        <label class="form-label"><i class="bi bi-filetype-csv"></i> Plik CSV</label>
+        <div class="pdf-upload-zone" id="csv-zone">
+          <input type="file" id="csv_file" name="csv_file" accept=".csv" class="pdf-upload-input" required
+                 title="Wybierz plik CSV z zamówieniami">
+          <label for="csv_file" class="pdf-upload-label">
+            <i class="bi bi-cloud-arrow-up pdf-upload-icon"></i>
+            <span class="pdf-upload-text" id="csv-text">Kliknij lub przeciągnij plik CSV</span>
+            <span class="pdf-upload-hint">Plik eksportowany z systemu ERP, separator średnik (;)</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary"><i class="bi bi-eye"></i> Podgląd importu</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% else %}
+{# ── KROK 2: podgląd + potwierdzenie ── #}
+{% set ok_rows    = preview | selectattr('status', 'eq', 'ok')        | list %}
+{% set dup_rows   = preview | selectattr('status', 'eq', 'duplicate') | list %}
+{% set error_rows = preview | selectattr('status', 'eq', 'error')     | list %}
+
+<div class="import-summary-bar">
+  <span class="import-badge import-badge--ok"><i class="bi bi-check-circle-fill"></i> Do importu: {{ ok_rows | length }}</span>
+  {% if dup_rows %}<span class="import-badge import-badge--dup"><i class="bi bi-copy"></i> Duplikaty: {{ dup_rows | length }}</span>{% endif %}
+  {% if error_rows %}<span class="import-badge import-badge--err"><i class="bi bi-x-circle-fill"></i> Błędy: {{ error_rows | length }}</span>{% endif %}
+  <span class="import-badge import-badge--total">Łącznie wierszy: {{ preview | length }}</span>
+</div>
+
+<form method="post" enctype="multipart/form-data" id="import-form">
+  {{ csrf_input() }}
+  <input type="hidden" name="action" value="import">
+  <input type="hidden" name="csv_tmp" value="{{ csv_tmp }}">
+
+  <div class="import-toolbar">
+    <div class="import-toolbar-left">
+      <button type="button" class="btn btn-ghost btn-sm" id="btn-select-all">Zaznacz wszystkie OK</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="btn-deselect-all">Odznacz wszystkie</button>
+    </div>
+    <div class="import-toolbar-right">
+      <div class="form-group import-pdf-group">
+        <label class="form-label import-pdf-label" for="import-pdf"><i class="bi bi-file-earmark-pdf"></i> Wspólny PDF (opcjonalnie)</label>
+        <input type="file" id="import-pdf" name="pdf" accept=".pdf"
+               class="form-control form-control--sm"
+               title="Opcjonalny plik PDF dołączany do wszystkich importowanych zamówień">
+      </div>
+    </div>
+  </div>
+
+  <div class="card import-table-card">
+    <table class="data-table import-table">
+      <thead>
+        <tr>
+          <th class="import-col-cb">
+            <input type="checkbox" id="cb-all" title="Zaznacz/odznacz wszystkie">
+          </th>
+          <th>Numer zamówienia</th>
+          <th>Produkt</th>
+          <th>Klient</th>
+          <th class="import-col-qty">Ilość</th>
+          <th class="import-col-due">Termin</th>
+          <th>Szablon QA</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in preview %}
+        <tr class="import-row import-row--{{ row.status }}">
+          <td>
+            {% if row.status == 'ok' %}
+            <input type="checkbox" name="selected_numbers" value="{{ row.number }}"
+                   class="row-cb" checked title="Zaznacz do importu">
+            {% elif row.status == 'duplicate' %}
+            <input type="checkbox" name="selected_numbers" value="{{ row.number }}"
+                   class="row-cb" title="Duplikat – zaznacz aby nadpisać">
+            {% else %}
+            <input type="checkbox" disabled title="Wiersz z błędem – nie można zaimportować">
+            {% endif %}
+          </td>
+          <td><span class="order-num">{{ row.number }}</span></td>
+          <td>
+            <span class="order-product">{{ row.product }}</span>
+            {% if row.notes %}<br><small class="text-muted">Nr zew.: {{ row.notes }}</small>{% endif %}
+          </td>
+          <td><span class="order-client">{{ row.client }}</span></td>
+          <td>{{ row.quantity }}</td>
+          <td>{{ row.due or '—' }}</td>
+          <td>
+            {% if row.tpl %}
+              <span class="type-badge type-badge--qa">{{ row.tpl }}</span>
+              {% if row.monter_tpl %}
+              <span class="type-badge type-badge--monter">{{ row.monter_tpl }}</span>
+              {% endif %}
+            {% else %}
+              <span class="import-no-tpl">brak szablonu</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if row.status == 'ok' %}
+              <span class="badge badge-success">Gotowe</span>
+            {% elif row.status == 'duplicate' %}
+              <span class="badge badge-warning" title="Zamówienie o tym numerze już istnieje w bazie">Duplikat</span>
+            {% else %}
+              <span class="badge badge-error" title="{{ row.errors | join(', ') }}">Błąd</span>
+              <small class="import-error-detail">{{ row.errors | join(', ') }}</small>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="form-actions import-form-actions">
+    <button type="submit" class="btn btn-primary" id="btn-import">
+      <i class="bi bi-check-lg"></i> <span id="btn-import-label">Importuj zaznaczone</span>
+    </button>
+    <a href="{{ url_for('orders_import_csv') }}" class="btn btn-ghost"><i class="bi bi-arrow-counterclockwise"></i> Zacznij od nowa</a>
+  </div>
+</form>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var csvInput = document.getElementById('csv_file');
+  var csvText  = document.getElementById('csv-text');
+  var csvZone  = document.getElementById('csv-zone');
+  if (csvInput) {
+    csvInput.addEventListener('change', function () {
+      csvText.textContent = this.files[0] ? this.files[0].name : 'Kliknij lub przeciągnij plik CSV';
+      csvZone.classList.toggle('has-file', !!this.files[0]);
+    });
+  }
+
+  var allCb     = document.getElementById('cb-all');
+  var rowCbs    = document.querySelectorAll('.row-cb');
+  var btnImport = document.getElementById('btn-import');
+  var btnLabel  = document.getElementById('btn-import-label');
+
+  function updateImportBtn() {
+    if (!btnLabel) return;
+    var n = document.querySelectorAll('.row-cb:checked').length;
+    btnLabel.textContent = n > 0 ? 'Importuj zaznaczone (' + n + ')' : 'Importuj zaznaczone';
+    if (btnImport) btnImport.disabled = n === 0;
+  }
+
+  rowCbs.forEach(function (cb) { cb.addEventListener('change', updateImportBtn); });
+
+  if (allCb) {
+    allCb.addEventListener('change', function () {
+      rowCbs.forEach(function (cb) { if (!cb.disabled) cb.checked = allCb.checked; });
+      updateImportBtn();
+    });
+  }
+
+  var btnAll  = document.getElementById('btn-select-all');
+  var btnNone = document.getElementById('btn-deselect-all');
+  if (btnAll) {
+    btnAll.addEventListener('click', function () {
+      document.querySelectorAll('.import-row--ok .row-cb').forEach(function (cb) { cb.checked = true; });
+      updateImportBtn();
+    });
+  }
+  if (btnNone) {
+    btnNone.addEventListener('click', function () {
+      rowCbs.forEach(function (cb) { cb.checked = false; });
+      updateImportBtn();
+    });
+  }
+
+  updateImportBtn();
+})();
+</script>
+{% endblock %}

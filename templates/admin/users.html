@@ -1,0 +1,53 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Użytkownicy{% endblock %}
+{% block admin_content %}
+<div class="page-header">
+  <h1 class="page-title">Użytkownicy</h1>
+  <a href="{{ url_for('admin_user_new') }}" class="btn btn-primary"><i class="bi bi-person-plus-fill"></i> Dodaj użytkownika</a>
+</div>
+
+<div class="card">
+  <div class="card-body card-body--flush">
+    <table class="data-table tbl-cards">
+      <thead>
+        <tr><th>Login</th><th>Email</th><th>Rola</th><th>Od</th><th>Raporty</th><th class="th-actions"><span class="sr-only">Akcje</span></th></tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td data-label="Login"><strong>{{ u.username }}</strong></td>
+          <td data-label="Email">{{ u.email }}</td>
+          <td data-label="Rola">
+            {% if u.role == 'admin' %}
+              <span class="badge badge-secondary">Administrator</span>
+            {% elif u.role == 'kontroler' %}
+              <span class="badge badge-info">Kontroler</span>
+            {% elif u.role == 'monter' %}
+              <span class="badge badge-neutral">Monter</span>
+            {% elif u.role == 'order' %}
+              <span class="badge badge-warning">Zamawiający</span>
+            {% elif u.role == 'spawacz' %}
+              <span class="badge" style="background:var(--danger-bg);color:var(--danger-text);border-color:rgba(185,28,28,.3);">Spawacz</span>
+            {% else %}
+              <span class="badge badge-neutral">{{ u.role }}</span>
+            {% endif %}
+          </td>
+          <td data-label="Od">{{ u.created_at | localdt('%d.%m.%Y') }}</td>
+          <td data-label="Raporty">{{ u.reports.count() }}</td>
+          <td data-label="" class="td-actions">
+            <a href="{{ url_for('admin_user_edit', user_id=u.id) }}" class="btn btn-outline btn-sm">Edytuj</a>
+            {% if u.id != current_user.id %}
+            <form method="post" action="{{ url_for('admin_user_delete', user_id=u.id) }}" class="form-inline">
+              {{ csrf_input() }}
+              <button type="submit" class="btn btn-danger btn-sm"
+                      data-confirm="Usunąć użytkownika {{ u.username }}?">Usuń</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

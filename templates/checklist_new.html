@@ -1,0 +1,576 @@
+{% extends "base.html" %}
+{% block title %}Nowa kontrola{% endblock %}
+{% block head %}
+<style>
+.new-ctrl-tabs{display:flex;gap:.5rem;margin-bottom:1.25rem}
+.new-ctrl-tabs .btn{flex:1;max-width:200px}
+.new-ctrl-tabs .btn.active{font-weight:600}
+
+#qr-reader-wrap{position:relative;width:100%;max-width:480px;margin:0 auto}
+#qr-reader{width:100%;border-radius:var(--radius-md,8px);overflow:hidden;background:#000}
+#qr-reader video{width:100%!important;height:auto!important}
+#qr-reader img{display:none!important}
+
+.qr-confirm-card{max-width:480px;margin:1rem auto 0}
+.qr-confirm-card .qr-row{display:flex;gap:.75rem;align-items:baseline;padding:.35rem 0;border-bottom:1px solid var(--border,#e2e8f0)}
+.qr-confirm-card .qr-row:last-of-type{border-bottom:none}
+.qr-confirm-card .qr-label{color:var(--text-muted,#64748b);font-size:.85rem;min-width:100px}
+.qr-confirm-card .qr-val{font-weight:600;font-size:1rem}
+.qr-confirm-card .qr-tpl{color:var(--text-muted,#64748b);font-size:.85rem}
+
+.qr-status{max-width:480px;margin:.75rem auto 0;padding:.75rem 1rem;border-radius:var(--radius-md,8px);display:flex;align-items:center;gap:.6rem}
+.qr-status.error{background:var(--danger-bg,#fef2f2);color:var(--danger,#dc2626)}
+.qr-status.info{background:var(--info-bg,#eff6ff);color:var(--info,#2563eb)}
+.qr-actions{display:flex;gap:.75rem;max-width:480px;margin:.75rem auto 0;flex-wrap:wrap}
+.qr-actions .btn{flex:1}
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Nowa kontrola jakości</h1>
+</div>
+
+{# ── Przełącznik trybu ── #}
+<div class="new-ctrl-tabs">
+  <button type="button" class="btn btn-primary active" id="tab-manual">
+    <i class="bi bi-pencil-square"></i> Ręcznie
+  </button>
+  <button type="button" class="btn btn-secondary" id="tab-qr">
+    <i class="bi bi-qr-code-scan"></i> Skanuj QR
+  </button>
+</div>
+
+{# ══════════════════════════════════════════════════════════════════
+   TRYB RĘCZNY (istniejący formularz)
+══════════════════════════════════════════════════════════════════ #}
+<div id="section-manual">
+{% if templates %}
+<form method="post" id="new-checklist-form">
+  {{ csrf_input() }}
+
+  {# ── KROK 1: wybór szablonu ── #}
+  <div id="step-select">
+    <p class="section-hint">Wybierz szablon listy kontrolnej:</p>
+
+    <div class="tpl-phrases" id="tpl-phrases"></div>
+
+    <div class="tpl-filter-bar">
+      <div class="tpl-filter-wrap">
+        <i class="bi bi-search tpl-filter-icon"></i>
+        <input type="search" id="tpl-search" class="form-control tpl-filter-input"
+               placeholder="Szukaj szablonu…" autocomplete="off" aria-label="Filtruj szablony">
+      </div>
+      <div class="tpl-filter-row2">
+        <button type="button" class="btn btn-secondary tpl-save-btn" id="tpl-save-phrase"
+                title="Zapisz frazę wyszukiwania">
+          <i class="bi bi-bookmark-plus"></i> <span class="tpl-save-label">Zapisz frazę</span>
+        </button>
+        <span class="tpl-filter-count" id="tpl-count">{{ templates | length }} szablonów</span>
+      </div>
+    </div>
+
+    <div class="template-pick-grid" id="tpl-grid">
+      {% for t in templates %}
+      <label class="template-pick-card" for="tmpl-{{ t.id }}" data-tpl-name="{{ t.name | lower }}">
+        <input type="radio" id="tmpl-{{ t.id }}" name="template_id"
+               value="{{ t.id }}" required
+               data-tpl-name="{{ t.name }}"
+               data-tpl-meta="{{ t.categories.filter_by(is_active=True).count() }} kategorii · {{ t.task_count }} zadań"
+               data-tpl-desc="{{ t.description or '' }}">
+        <div class="template-pick-inner">
+          <div class="template-pick-name">{{ t.name }}</div>
+          {% if t.description %}
+          <div class="template-pick-desc">{{ t.description }}</div>
+          {% endif %}
+          <div class="template-pick-meta">
+            {{ t.categories.filter_by(is_active=True).count() }} kategorii &middot; {{ t.task_count }} zadań
+          </div>
+        </div>
+      </label>
+      {% endfor %}
+    </div>
+    <div id="tpl-empty" class="tpl-filter-empty" hidden>Brak szablonów pasujących do wyszukiwania.</div>
+  </div>
+
+  {# ── KROK 2: potwierdzenie + dane ── #}
+  <div id="step-fill" hidden>
+
+    <div class="tpl-selected-bar">
+      <div class="tpl-selected-info">
+        <span class="tpl-selected-label">Wybrany szablon:</span>
+        <span class="tpl-selected-name" id="sel-name"></span>
+        <span class="tpl-selected-meta" id="sel-meta"></span>
+      </div>
+      <button type="button" class="btn btn-ghost btn-sm" id="btn-change-tpl">
+        <i class="bi bi-arrow-left"></i> Zmień szablon
+      </button>
+    </div>
+
+    <div class="card card--form-narrow card--spaced-top">
+      <div class="card-body">
+
+        <div class="form-group">
+          <label class="form-label" for="quantity">Liczba sztuk do skontrolowania</label>
+          <input type="number" class="form-control quantity-input" id="quantity" name="quantity"
+                 min="1" max="99" value="1">
+          <small class="form-hint">Podaj 1 dla pojedynczej kontroli lub więcej — system utworzy serię i będzie otwierał kolejne listy automatycznie.</small>
+        </div>
+
+        {% if active_orders %}
+        <div class="form-group" id="order-group">
+          <label class="form-label" for="order_id">Zamówienie <span class="form-hint-inline">(opcjonalne)</span></label>
+          <select class="form-control" id="order_id" name="order_id">
+            <option value="">— brak powiązania —</option>
+            {% for o in active_orders %}
+            <option value="{{ o.id }}">{{ o.number }} – {{ o.product_name }} ({{ o.client }})</option>
+            {% endfor %}
+          </select>
+          <small class="form-hint">Wybierz zamówienie, do którego należy ta kontrola.</small>
+        </div>
+        <div id="batch-order-note" class="form-hint batch-mode-note" hidden>
+          <i class="bi bi-info-circle"></i> Tryb seryjny — kontrole nie są powiązane z zamówieniem.
+        </div>
+        {% endif %}
+
+        <div class="form-group">
+          <label class="form-label" for="title">Opis / oznaczenie <span class="form-hint-inline">(opcjonalne)</span></label>
+          <div class="title-input-group">
+            <span class="title-prefix" id="title-prefix"></span>
+            <span class="title-sep">–</span>
+            <input class="form-control title-suffix" type="text" id="title" name="title"
+                   placeholder="np. seria A, linia 2, zmiana 1…"
+                   autocomplete="off">
+          </div>
+          <small class="form-hint">Zostaw puste → bieżąca data i godzina.</small>
+          <div class="title-preview" id="title-preview"></div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-lg btn-block" id="btn-start">
+          Rozpocznij kontrolę <i class="bi bi-arrow-right"></i>
+        </button>
+      </div>
+    </div>
+
+  </div>
+</form>
+
+<script>
+(function () {
+  var PHRASES_KEY = 'qcp_tpl_phrases';
+  var stepSelect  = document.getElementById('step-select');
+  var stepFill    = document.getElementById('step-fill');
+  var selName     = document.getElementById('sel-name');
+  var selMeta     = document.getElementById('sel-meta');
+  var prefix      = document.getElementById('title-prefix');
+  var suffix      = document.getElementById('title');
+  var preview     = document.getElementById('title-preview');
+  var search      = document.getElementById('tpl-search');
+  var grid        = document.getElementById('tpl-grid');
+  var empty       = document.getElementById('tpl-empty');
+  var countEl     = document.getElementById('tpl-count');
+  var btnChange   = document.getElementById('btn-change-tpl');
+  var btnSave     = document.getElementById('tpl-save-phrase');
+  var phrasesEl   = document.getElementById('tpl-phrases');
+  var cards       = grid ? Array.from(grid.querySelectorAll('.template-pick-card')) : [];
+
+  function loadPhrases() {
+    try { return JSON.parse(localStorage.getItem(PHRASES_KEY) || '[]'); }
+    catch (e) { return []; }
+  }
+  function savePhrases(arr) {
+    try { localStorage.setItem(PHRASES_KEY, JSON.stringify(arr)); } catch (e) {}
+  }
+  function renderPhrases() {
+    if (!phrasesEl) return;
+    var phrases = loadPhrases();
+    phrasesEl.innerHTML = '';
+    phrases.forEach(function (p, i) {
+      var chip = document.createElement('span');
+      chip.className = 'tpl-phrase-chip';
+      chip.title = 'Kliknij, aby filtrować';
+      var label = document.createTextNode(p);
+      var del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'tpl-phrase-del';
+      del.title = 'Usuń frazę';
+      del.setAttribute('aria-label', 'Usuń frazę ' + p);
+      del.textContent = '×';
+      del.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var arr = loadPhrases();
+        arr.splice(i, 1);
+        savePhrases(arr);
+        renderPhrases();
+      });
+      chip.appendChild(label);
+      chip.appendChild(del);
+      chip.addEventListener('click', function () {
+        if (search) { search.value = p; filterTemplates(); search.focus(); }
+      });
+      phrasesEl.appendChild(chip);
+    });
+  }
+  if (btnSave) {
+    btnSave.addEventListener('click', function () {
+      if (!search) return;
+      var phrase = search.value.trim();
+      if (!phrase) return;
+      var arr = loadPhrases();
+      if (arr.indexOf(phrase) === -1) { arr.push(phrase); savePhrases(arr); renderPhrases(); }
+    });
+  }
+  renderPhrases();
+
+  function pad2(n) { return String(n).padStart(2, '0'); }
+  function nowStr() {
+    var d = new Date();
+    return pad2(d.getDate()) + '.' + pad2(d.getMonth() + 1) + '.' + d.getFullYear()
+         + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  }
+  function updateTitle() {
+    var checked = document.querySelector('input[name="template_id"]:checked');
+    var name = checked ? checked.dataset.tplName : '';
+    if (prefix) prefix.textContent = name;
+    var suf = suffix ? suffix.value.trim() : '';
+    if (preview) preview.textContent = name + ' – ' + (suf || nowStr());
+  }
+
+  function showFill(radio) {
+    radio.checked = true;
+    if (selName) selName.textContent = radio.dataset.tplName || '';
+    if (selMeta) selMeta.textContent = radio.dataset.tplMeta || '';
+    stepSelect.hidden = true;
+    stepFill.hidden   = false;
+    updateTitle();
+    if (suffix) setTimeout(function () { suffix.focus(); }, 50);
+  }
+  function showSelect() {
+    stepFill.hidden   = true;
+    stepSelect.hidden = false;
+    if (search) search.focus();
+  }
+  cards.forEach(function (card) {
+    card.addEventListener('click', function () {
+      var radio = card.querySelector('input[type="radio"]');
+      if (radio) showFill(radio);
+    });
+  });
+  if (btnChange) btnChange.addEventListener('click', showSelect);
+
+  function filterTemplates() {
+    var q = search ? search.value.trim().toLowerCase() : '';
+    var visible = 0;
+    cards.forEach(function (card) {
+      var show = !q || (card.dataset.tplName || '').includes(q);
+      card.style.display = show ? '' : 'none';
+      if (show) visible++;
+    });
+    if (countEl) countEl.textContent = visible + (visible === 1 ? ' szablon' : visible < 5 ? ' szablony' : ' szablonów');
+    if (empty) empty.style.display = visible > 0 ? 'none' : '';
+  }
+  if (search) search.addEventListener('input', filterTemplates);
+  if (suffix) suffix.addEventListener('input', updateTitle);
+
+  var qtyInput   = document.getElementById('quantity');
+  var orderGroup = document.getElementById('order-group');
+  var batchNote  = document.getElementById('batch-order-note');
+  var btnStart   = document.getElementById('btn-start');
+  function onQtyChange() {
+    if (!qtyInput) return;
+    var qty = parseInt(qtyInput.value, 10) || 1;
+    var batch = qty > 1;
+    if (orderGroup) orderGroup.hidden = batch;
+    if (batchNote)  batchNote.hidden  = !batch;
+    if (btnStart) {
+      btnStart.innerHTML = batch
+        ? 'Rozpocznij serię ' + qty + ' kontroli <i class="bi bi-arrow-right"></i>'
+        : 'Rozpocznij kontrolę <i class="bi bi-arrow-right"></i>';
+    }
+  }
+  if (qtyInput) { qtyInput.addEventListener('input', onQtyChange); onQtyChange(); }
+})();
+</script>
+
+{% else %}
+<div class="card">
+  <div class="card-body empty-state">
+    Brak aktywnych szablonów checklisty.<br>
+    {% if current_user.is_admin %}
+    <a href="{{ url_for('admin_template_new') }}" class="btn btn-primary btn--spaced-top">
+      Utwórz pierwszy szablon
+    </a>
+    {% else %}
+    Skontaktuj się z administratorem.
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+</div>{# /section-manual #}
+
+{# ══════════════════════════════════════════════════════════════════
+   TRYB QR
+══════════════════════════════════════════════════════════════════ #}
+<div id="section-qr" hidden>
+  <p class="section-hint">Skieruj kamerę na kod QR umieszczony na dokumencie lub produkcie.</p>
+
+  <div id="qr-reader-wrap">
+    <div id="qr-reader"></div>
+  </div>
+
+  {# Panel po udanym skanowaniu #}
+  <div id="qr-confirm" class="card qr-confirm-card" hidden>
+    <div class="card-body">
+      <h3 class="card-title" style="margin-bottom:.75rem">
+        <i class="bi bi-check-circle-fill" style="color:var(--success,#16a34a)"></i>
+        Zeskanowano
+      </h3>
+      <div class="qr-row">
+        <span class="qr-label">Produkt</span>
+        <span class="qr-val" id="qr-product-name"></span>
+      </div>
+      <div class="qr-row" id="qr-client-row" hidden>
+        <span class="qr-label">Klient</span>
+        <span class="qr-val" id="qr-client-val"></span>
+      </div>
+      <div class="qr-row" id="qr-order-row" hidden>
+        <span class="qr-label">Nr ZO</span>
+        <span class="qr-val" id="qr-order-val"></span>
+      </div>
+      <div class="qr-row">
+        <span class="qr-label">Ilość sztuk</span>
+        <span class="qr-val"><span id="qr-qty-val"></span> szt.</span>
+      </div>
+      <div class="qr-row" id="qr-tpl-row" hidden>
+        <span class="qr-label">Szablon</span>
+        <span class="qr-tpl" id="qr-tpl-name"></span>
+      </div>
+    </div>
+  </div>
+
+  {# Komunikat błędu #}
+  <div id="qr-error" class="qr-status error" hidden>
+    <i class="bi bi-exclamation-triangle-fill"></i>
+    <span id="qr-error-msg"></span>
+  </div>
+
+  {# Info podczas tworzenia #}
+  <div id="qr-info" class="qr-status info" hidden>
+    <i class="bi bi-hourglass-split"></i>
+    <span id="qr-info-msg">Tworzę listy kontrolne…</span>
+  </div>
+
+  {# Przyciski akcji #}
+  <div class="qr-actions" id="qr-actions" hidden>
+    <button type="button" class="btn btn-primary" id="btn-qr-create">
+      <i class="bi bi-play-fill"></i> Utwórz listy kontrolne
+    </button>
+    <button type="button" class="btn btn-secondary" id="btn-qr-rescan">
+      <i class="bi bi-arrow-repeat"></i> Skanuj ponownie
+    </button>
+  </div>
+</div>
+
+{# ══════════════════════════════════════════════════════════════════
+   JS: przełącznik zakładek + skaner QR
+══════════════════════════════════════════════════════════════════ #}
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+(function () {
+  var tabManual  = document.getElementById('tab-manual');
+  var tabQr      = document.getElementById('tab-qr');
+  var secManual  = document.getElementById('section-manual');
+  var secQr      = document.getElementById('section-qr');
+
+  var qrReader    = null;
+  var qrScanning  = false;
+  var scannedData = null;
+
+  var elConfirm    = document.getElementById('qr-confirm');
+  var elError      = document.getElementById('qr-error');
+  var elErrorMsg   = document.getElementById('qr-error-msg');
+  var elInfo       = document.getElementById('qr-info');
+  var elInfoMsg    = document.getElementById('qr-info-msg');
+  var elActions    = document.getElementById('qr-actions');
+  var elProduct    = document.getElementById('qr-product-name');
+  var elQty        = document.getElementById('qr-qty-val');
+  var elClientRow  = document.getElementById('qr-client-row');
+  var elClientVal  = document.getElementById('qr-client-val');
+  var elOrderRow   = document.getElementById('qr-order-row');
+  var elOrderVal   = document.getElementById('qr-order-val');
+  var elTplRow     = document.getElementById('qr-tpl-row');
+  var elTplName    = document.getElementById('qr-tpl-name');
+  var btnCreate    = document.getElementById('btn-qr-create');
+  var btnRescan    = document.getElementById('btn-qr-rescan');
+
+  var csrfToken = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+
+  // ── Przełącznik zakładek ───────────────────────────────────────
+  function showManual() {
+    stopScanner();
+    secManual.hidden = false;
+    secQr.hidden     = true;
+    tabManual.classList.add('active');
+    tabQr.classList.remove('active');
+    tabManual.classList.replace('btn-secondary', 'btn-primary');
+    tabQr.classList.replace('btn-primary', 'btn-secondary');
+  }
+
+  function showQr() {
+    secManual.hidden = true;
+    secQr.hidden     = false;
+    tabQr.classList.add('active');
+    tabManual.classList.remove('active');
+    tabQr.classList.replace('btn-secondary', 'btn-primary');
+    tabManual.classList.replace('btn-primary', 'btn-secondary');
+    resetQrUI();
+    startScanner();
+  }
+
+  tabManual.addEventListener('click', showManual);
+  tabQr.addEventListener('click', showQr);
+
+  // ── Skaner ────────────────────────────────────────────────────
+  function startScanner() {
+    if (qrScanning) return;
+    resetQrUI();
+    qrReader = new Html5Qrcode('qr-reader');
+    Html5Qrcode.getCameras().then(function (cameras) {
+      if (!cameras || cameras.length === 0) {
+        showError('Brak dostępnej kamery w urządzeniu.');
+        return;
+      }
+      // Preferuj tylną kamerę
+      var camId = cameras[cameras.length - 1].id;
+      qrReader.start(
+        camId,
+        { fps: 10, qrbox: { width: 280, height: 280 } },
+        onScanSuccess,
+        function () {}
+      ).then(function () {
+        qrScanning = true;
+      }).catch(function (err) {
+        showError('Nie można uruchomić kamery: ' + err);
+      });
+    }).catch(function (err) {
+      showError('Brak dostępu do kamery. Sprawdź uprawnienia przeglądarki.');
+    });
+  }
+
+  function stopScanner() {
+    if (qrReader && qrScanning) {
+      qrReader.stop().catch(function () {});
+      qrScanning = false;
+    }
+  }
+
+  // ── Obsługa zeskanowanego kodu ────────────────────────────────
+  function onScanSuccess(decodedText) {
+    stopScanner();
+    var data = parseQr(decodedText);
+    if (!data) {
+      showError('Nieprawidłowy format kodu QR. Oczekiwany JSON z polami „p" (produkt) i „q" (ilość).');
+      elActions.hidden = false;
+      btnCreate.hidden = true;
+      return;
+    }
+    scannedData = data;
+    elProduct.textContent = data.p;
+    elQty.textContent     = data.q;
+    if (data.c) { elClientVal.textContent = data.c; elClientRow.hidden = false; }
+    else { elClientRow.hidden = true; }
+    if (data.o) { elOrderVal.textContent = data.o; elOrderRow.hidden = false; }
+    else { elOrderRow.hidden = true; }
+    elTplRow.hidden  = true;
+    elConfirm.hidden = false;
+    elActions.hidden = false;
+    btnCreate.hidden = false;
+  }
+
+  function parseQr(text) {
+    text = text.trim();
+    try {
+      var obj = JSON.parse(text);
+      if (obj && obj.p && obj.q) {
+        return {
+          p: String(obj.p).trim(),
+          q: Math.max(1, Math.min(99, parseInt(obj.q, 10) || 1)),
+          c: obj.c ? String(obj.c).trim() : '',
+          o: obj.o ? String(obj.o).trim() : '',
+        };
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  // ── Tworzenie list kontrolnych ────────────────────────────────
+  btnCreate.addEventListener('click', function () {
+    if (!scannedData) return;
+    btnCreate.disabled = true;
+    elActions.hidden   = true;
+    elError.hidden     = true;
+    elInfo.hidden      = false;
+    elInfoMsg.textContent = 'Tworzę ' + (scannedData.q > 1 ? scannedData.q + ' list kontrolnych…' : 'listę kontrolną…');
+
+    fetch('/checklist/from-qr', {
+      method:  'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'X-CSRF-Token':  csrfToken,
+      },
+      body: JSON.stringify(scannedData),
+    })
+    .then(function (resp) { return resp.json().then(function (d) { return { ok: resp.ok, d: d }; }); })
+    .then(function (res) {
+      elInfo.hidden = true;
+      if (res.ok && res.d.ok) {
+        if (res.d.template) {
+          elTplName.textContent = res.d.template;
+          elTplRow.hidden = false;
+        }
+        elInfoMsg.textContent = res.d.msg || 'Gotowe!';
+        elInfo.hidden = false;
+        setTimeout(function () { window.location.href = res.d.redirect; }, 600);
+      } else {
+        showError(res.d.error || 'Wystąpił błąd podczas tworzenia list.');
+        btnCreate.disabled = false;
+        elActions.hidden   = false;
+      }
+    })
+    .catch(function () {
+      elInfo.hidden = true;
+      showError('Błąd sieci. Sprawdź połączenie i spróbuj ponownie.');
+      btnCreate.disabled = false;
+      elActions.hidden   = false;
+    });
+  });
+
+  btnRescan.addEventListener('click', function () {
+    scannedData = null;
+    resetQrUI();
+    startScanner();
+  });
+
+  // ── Helpers ───────────────────────────────────────────────────
+  function showError(msg) {
+    elErrorMsg.textContent = msg;
+    elError.hidden = false;
+    btnCreate.hidden = true;
+  }
+
+  function resetQrUI() {
+    elConfirm.hidden   = true;
+    elError.hidden     = true;
+    elInfo.hidden      = true;
+    elActions.hidden   = true;
+    elTplRow.hidden    = true;
+    elClientRow.hidden = true;
+    elOrderRow.hidden  = true;
+    btnCreate.disabled = false;
+    btnCreate.hidden   = false;
+  }
+
+  // Zatrzymaj kamerę przy opuszczeniu strony
+  window.addEventListener('beforeunload', stopScanner);
+})();
+</script>
+{% endblock %}

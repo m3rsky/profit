@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+{% block title %}Edycja {{ quote.number }}{% endblock %}
+{% block head %}
+<style>
+.section-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin: 24px 0 8px; }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.form-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.checkbox-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+.check-item { display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; }
+.check-item input { margin: 0; }
+</style>
+{% endblock %}
+{% block content %}
+{% set cfg = quote.config %}
+<div class="page-header">
+  <h1 class="page-title">Edycja: {{ quote.number }}</h1>
+  <a href="{{ url_for('kosztorys.detail_quote', quote_id=quote.id) }}" class="btn btn-outline">
+    <i class="bi bi-arrow-left"></i> Podgląd
+  </a>
+</div>
+
+<form method="post" id="editForm">
+  {{ csrf_input() }}
+  <input type="hidden" name="_action" value="save">
+
+  <div style="display:grid; grid-template-columns:1fr 280px; gap:24px">
+    <div>
+
+      <!-- Status + podstawowe -->
+      <div class="card">
+        <div class="card-header">Informacje podstawowe</div>
+        <div class="card-body">
+          <div class="form-grid">
+            <div>
+              <label class="label" for="edit_client">Klient</label>
+              <input type="text" id="edit_client" name="client_name" class="input"
+                     value="{{ quote.client_name }}" required title="Klient">
+            </div>
+            <div>
+              <label class="label" for="edit_cabinet">Typ szafy</label>
+              <select id="edit_cabinet" name="cabinet_type_id" class="input" title="Typ szafy">
+                {% for ct in cabinet_types %}
+                <option value="{{ ct.id }}"
+                  {% if ct.id == quote.cabinet_type_id %}selected{% endif %}>
+                  {{ ct.name }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="label" for="edit_status">Status</label>
+              <select id="edit_status" name="status" class="input" title="Status">
+                {% for val, label in [('draft','Szkic'),('sent','Wysłany'),('accepted','Zaakceptowany'),('closed','Zamknięty')] %}
+                <option value="{{ val }}" {% if val == quote.status %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div style="margin-top:12px">
+            <label class="label" for="edit_notes">Uwagi</label>
+            <textarea id="edit_notes" name="notes" class="input" rows="2" title="Uwagi">{{ quote.notes or '' }}</textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Wymiary -->
+      <p class="section-title">Wymiary (mm)</p>
+      <div class="card">
+        <div class="card-body">
+          <div class="form-grid form-grid-3">
+            <div>
+              <label class="label" for="e_width">Szerokość</label>
+              <input type="number" id="e_width" name="width" class="input" title="Szerokość (mm)"
+                     value="{{ cfg.width if cfg else 850 }}" min="200" required>
+            </div>
+            <div>
+              <label class="label" for="e_height">Wysokość</label>
+              <input type="number" id="e_height" name="height" class="input" title="Wysokość (mm)"
+                     value="{{ cfg.height if cfg else 1900 }}" min="200" required>
+            </div>
+            <div>
+              <label class="label" for="e_depth">Głębokość</label>
+              <input type="number" id="e_depth" name="depth" class="input" title="Głębokość (mm)"
+                     value="{{ cfg.depth if cfg else 600 }}" min="150" required>
+            </div>
+          </div>
+          <div class="form-grid form-grid-3" style="margin-top:12px">
+            <div>
+              <label class="label" for="e_tb">Grubość obudowy</label>
+              <input type="number" id="e_tb" name="thickness_body" class="input" step="0.1"
+                     title="Grubość obudowy (mm)" value="{{ cfg.thickness_body if cfg else 1.2 }}">
+            </div>
+            <div>
+              <label class="label" for="e_tp">Grubość płyty</label>
+              <input type="number" id="e_tp" name="thickness_plate" class="input" step="0.5"
+                     title="Grubość płyty montażowej (mm)" value="{{ cfg.thickness_plate if cfg else 3.0 }}">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Konfiguracja -->
+      <p class="section-title">Konfiguracja</p>
+      <div class="card">
+        <div class="card-body">
+          <div class="checkbox-grid">
+            {% set opts = [
+              ('has_mounting_plate','Płyta montażowa'),
+              ('back_welded','Tył spawany'),
+              ('back_screwed','Tył przykręcany'),
+              ('back_seal','Uszczelka tyłu'),
+              ('door_single','Drzwi pojedyncze'),
+              ('door_double','Drzwi podwójne'),
+              ('lock_three_point','Zamek trzypunktowy'),
+              ('lock_cam','Zamek krzywkowy'),
+              ('lock_standard','Zamek zwykły'),
+              ('plinth','Cokół'),
+              ('canopy','Daszek'),
+              ('non_standard_color','Kolor niestandardowy'),
+            ] %}
+            {% for key, label in opts %}
+            <label class="check-item">
+              <input type="checkbox" name="{{ key }}"
+                     {% if cfg and cfg|attr(key) %}checked{% endif %}>
+              <span>{{ label }}</span>
+            </label>
+            {% endfor %}
+          </div>
+          <div class="form-grid" style="margin-top:16px">
+            {% set num_opts = [
+              ('monoblok','Monoblok (szt)'),
+              ('door_reinforcement','Wzmocnienie drzwi (szt)'),
+              ('cable_entries','Kapa (szt)'),
+              ('vertical_beam','Belka pionowa (szt)'),
+              ('design_hours','Projektowanie (h)'),
+            ] %}
+            {% for key, label in num_opts %}
+            <div>
+              <label class="label" for="e_{{ key }}">{{ label }}</label>
+              <input type="number" id="e_{{ key }}" name="{{ key }}" class="input" min="0"
+                     title="{{ label }}" value="{{ cfg|attr(key) if cfg else 0 }}">
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Parametry wyceny -->
+      <p class="section-title">Parametry wyceny</p>
+      <div class="card">
+        <div class="card-body">
+          <div class="form-grid form-grid-3">
+            <div>
+              <label class="label" for="e_margin">Marża</label>
+              <input type="number" id="e_margin" name="margin" class="input" step="0.01"
+                     title="Marża (mnożnik ceny)" value="{{ cfg.margin if cfg else 2.15 }}">
+            </div>
+            <div>
+              <label class="label" for="e_disc">Rabat (%)</label>
+              <input type="number" id="e_disc" name="discount_pct" class="input" step="0.5"
+                     title="Rabat procentowy" value="{{ cfg.discount_pct if cfg else 0 }}">
+            </div>
+            <div>
+              <label class="label" for="e_bonus">Bonus (%)</label>
+              <input type="number" id="e_bonus" name="bonus_pct" class="input" step="0.5"
+                     title="Bonus procentowy" value="{{ cfg.bonus_pct if cfg else 0 }}">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:16px;display:flex;gap:8px">
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-floppy"></i> Zapisz i przelicz
+        </button>
+        <a href="{{ url_for('kosztorys.detail_quote', quote_id=quote.id) }}"
+           class="btn btn-outline">Anuluj</a>
+      </div>
+    </div>
+
+    <!-- Aktualne wyniki -->
+    <div style="position:sticky;top:80px">
+      {% set calc = quote.config.calculation if quote.config else {} %}
+      {% if calc %}
+      <div class="card">
+        <div class="card-header">Aktualna kalkulacja</div>
+        <div class="card-body" style="font-size:13px">
+          <div style="display:flex;justify-content:space-between;padding:4px 0">
+            <span>Koszt własny</span>
+            <strong>{{ '%.2f'|format(calc.cost_total) }} PLN</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0">
+            <span>Cena (po rabacie)</span>
+            <strong style="color:var(--color-primary)">
+              {{ '%.2f'|format(calc.price_discount) }} PLN
+            </strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0">
+            <span>Zyskowność</span>
+            <strong style="color:{% if calc.profitability > 0 %}var(--color-success){% else %}var(--color-danger){% endif %}">
+              {{ calc.profitability }}%
+            </strong>
+          </div>
+          <hr style="margin:8px 0">
+          <small class="text-muted">Po zapisaniu nastąpi przeliczenie z aktualnymi cenami.</small>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</form>
+{% endblock %}

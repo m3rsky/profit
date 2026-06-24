@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Podgląd motywu — KK Technical</title>
+  <link rel="stylesheet" href="/static/css/theme-kk.css">
+  <style>
+    /* tylko na potrzeby podglądu */
+    .preview-section { margin-bottom: 40px; }
+    .preview-label {
+      font-size: 0.6rem; letter-spacing: 0.2em; text-transform: uppercase;
+      color: #8fa3b1; margin-bottom: 12px; padding-bottom: 6px;
+      border-bottom: 1px dashed #ccc; font-family: 'Consolas', monospace;
+    }
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 720px) { .row2 { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body class="kk-shell">
+
+<!-- ══════════════════════════════════════════════════════════
+     TOPBAR
+══════════════════════════════════════════════════════════ -->
+<nav class="kk-topbar">
+  <a href="#" class="kk-topbar-brand">
+    <div class="kk-brand-box">
+      <span class="kk-brand-title">PSH&nbsp;&nbsp;QC</span>
+      <span class="kk-brand-sub">Kontrola Jakości</span>
+    </div>
+  </a>
+  <div class="kk-topbar-nav">
+    <a href="#" class="kk-nav-link active">Start</a>
+    <a href="#" class="kk-nav-link">+ Nowa kontrola</a>
+    <a href="#" class="kk-nav-link">Raporty</a>
+    <a href="#" class="kk-nav-link">Zamówienia</a>
+    <a href="#" class="kk-nav-link">Admin</a>
+  </div>
+  <div class="kk-topbar-right">
+    <a href="#" class="kk-nav-link">🔔</a>
+    <a href="#" class="kk-nav-link">jan.kowalski</a>
+    <a href="#" class="kk-nav-link">Wyloguj</a>
+  </div>
+</nav>
+
+<main class="kk-main">
+
+  <!-- ══════════════════════════════════════════════════════
+       PAGE HEADER
+  ══════════════════════════════════════════════════════ -->
+  <div class="preview-section">
+    <div class="preview-label">// page-header</div>
+
+    <div class="kk-page-header">
+      <div class="kk-page-meta">
+        <span class="kk-label-tag">Zamówienia aktywne</span>
+        <h1 class="kk-page-title">ZAM-2024-0042</h1>
+        <p class="kk-page-subtitle">RU-M 950×1950×250 &nbsp;·&nbsp; Firma ABC Sp. z o.o.</p>
+      </div>
+      <div class="kk-header-actions">
+        <a href="#" class="kk-btn kk-btn-ghost">← Zamówienia</a>
+        <button class="kk-btn kk-btn-danger kk-btn-sm">Usuń zamówienie</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════
+       STAT TILES
+  ══════════════════════════════════════════════════════ -->
+  <div class="preview-section">
+    <div class="preview-label">// dashboard stats</div>
+
+    <div class="kk-stat-row">
+      <div class="kk-stat kk-stat-accent">
+        <div class="kk-stat-num">18</div>
+        <div class="kk-stat-label">Twoje raporty</div>
+      </div>
+      <div class="kk-stat kk-stat-green">
+        <div class="kk-stat-num">12</div>
+        <div class="kk-stat-label">Ukończone</div>
+      </div>
+      <div class="kk-stat kk-stat-amber">
+        <div class="kk-stat-num">6</div>
+        <div class="kk-stat-label">W trakcie</div>
+      </div>
+      <div class="kk-stat kk-stat-red">
+        <div class="kk-stat-num">2</div>
+        <div class="kk-stat-label">Niezgodności NG</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════
+       TABLE — orders list
+  ══════════════════════════════════════════════════════ -->
+  <div class="preview-section">
+    <div class="preview-label">// orders / reports table</div>
+
+    <!-- Tabs -->
+    <div class="kk-tabs">
+      <a href="#" class="kk-tab active">Aktywne</a>
+      <a href="#" class="kk-tab">Gotowe do wysyłki</a>
+      <a href="#" class="kk-tab">Wysłane</a>
+    </div>
+
+    <div class="kk-card" style="margin-bottom:0">
+      <div class="kk-card-header">
+        Lista zamówień
+        <a href="#" class="kk-btn kk-btn-accent kk-btn-sm">+ Nowe zamówienie</a>
+      </div>
+      <table class="kk-table">
+        <thead>
+          <tr>
+            <th>Numer</th>
+            <th>Produkt</th>
+            <th>Klient</th>
+            <th>Ilość</th>
+            <th>Termin</th>
+            <th>Status</th>
+            <th>Postęp QA</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>ZAM-2024-0042</strong></td>
+            <td>RU-M 950×1950×250</td>
+            <td>Firma ABC Sp. z o.o.</td>
+            <td style="text-align:center">3</td>
+            <td>28.05.2024</td>
+            <td><span class="kk-badge kk-badge-control">W kontroli</span></td>
+            <td>
+              <div style="display:flex;align-items:center;gap:8px">
+                <div class="kk-progress" style="width:80px"><div class="kk-progress-bar" style="width:66%"></div></div>
+                <small>2/3</small>
+              </div>
+            </td>
+            <td>
+              <a href="#" class="kk-btn kk-btn-ghost kk-btn-sm">Szczegóły →</a>
+            </td>
+          </tr>
+          <tr>
+            <td><strong>ZAM-2024-0041</strong></td>
+            <td>RZ 4NN 2×12S</td>
+            <td>Klient XYZ</td>
+            <td style="text-align:center">5</td>
+            <td class="text-danger" style="color:var(--kk-red)">20.05.2024</td>
+            <td><span class="kk-badge kk-badge-ready">Gotowe</span></td>
+            <td>
+              <div style="display:flex;align-items:center;gap:8px">
+                <div class="kk-progress" style="width:80px"><div class="kk-progress-bar" style="width:100%;background:var(--kk-green)"></div></div>
+                <small>5/5</small>
+              </div>
+            </td>
+            <td>
+              <a href="#" class="kk-btn kk-btn-ghost kk-btn-sm">Szczegóły →</a>
+            </td>
+          </tr>
+          <tr>
+            <td><strong>ZAM-2024-0039</strong></td>
+            <td>PSH INOX 600×1800×200</td>
+            <td>Hurtownia DEF</td>
+            <td style="text-align:center">1</td>
+            <td>02.06.2024</td>
+            <td><span class="kk-badge kk-badge-active">Aktywne</span></td>
+            <td><small style="color:var(--kk-muted)">brak QA</small></td>
+            <td>
+              <a href="#" class="kk-btn kk-btn-ghost kk-btn-sm">Szczegóły →</a>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════
+       ORDER DETAIL — 2-col grid
+  ══════════════════════════════════════════════════════ -->
+  <div class="preview-section">
+    <div class="preview-label">// order detail</div>
+
+    <div class="kk-detail-grid">
+      <!-- Left: spec -->
+      <div class="kk-detail-pane">
+        <div class="kk-card-header">Dane zamówienia</div>
+        <table class="kk-spec">
+          <tr><td>Produkt</td><td>RU-M 950×1950×250</td></tr>
+          <tr><td>Klient</td><td>Firma ABC Sp. z o.o.</td></tr>
+          <tr><td>Ilość</td><td>3 szt.</td></tr>
+          <tr><td>Termin</td><td>28.05.2024</td></tr>
+          <tr><td>Zamawiający</td><td>admin</td></tr>
+          <tr><td>Data dodania</td><td>13.05.2024, 09:14</td></tr>
+          <tr><td>Szablon QA</td><td>RU-M</td></tr>
+        </table>
+      </div>
+      <!-- Right: status -->
+      <div class="kk-detail-pane">
+        <div class="kk-card-header">Status zamówienia</div>
+        <div class="kk-status-pane">
+          <span class="kk-badge kk-badge-control kk-status-big">W kontroli</span>
+          <div class="kk-progress" style="width:180px">
+            <div class="kk-progress-bar" style="width:66%"></div>
+          </div>
+          <div class="kk-progress-count">2 / 3</div>
+          <div class="kk-progress-label">list kontrolnych zakończono</div>
+          <p class="kk-ng-warn">⚠ Wykryto niezgodności (NG)</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════
+       FORM
+  ══════════════════════════════════════════════════════ -->
+  <div class="preview-section">
+    <div class="preview-label">// form — new order</div>
+
+    <div class="row2">
+      <div class="kk-card">
+        <div class="kk-card-header">Nowe zamówienie</div>
+        <div class="kk-card-body">
+          <form>
+            <div class="kk-form-group">
+              <label class="kk-label">Numer zamówienia</label>
+              <input class="kk-control" type="text" placeholder="np. ZAM-2024-0043" value="">
+            </div>
+            <div class="kk-form-group">
+              <label class="kk-label">Produkt</label>
+              <input class="kk-control" type="text" placeholder="np. RU-M 950×1950×250" value="">
+              <p class="kk-hint">Szablon QA zostanie dopasowany automatycznie po nazwie produktu</p>
+            </div>
+            <div class="kk-form-group">
+              <label class="kk-label">Klient</label>
+              <input class="kk-control" type="text" placeholder="Nazwa klienta">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+              <div class="kk-form-group">
+                <label class="kk-label">Ilość (szt.)</label>
+                <input class="kk-control" type="number" value="1" min="1">
+              </div>
+              <div class="kk-form-group">
+                <label class="kk-label">Termin</label>
+                <input class="kk-control" type="date">
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <button type="button" class="kk-btn kk-btn-primary">Zapisz zamówienie</button>
+              <a href="#" class="kk-btn kk-btn-ghost">Anuluj</a>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- ── Badges / alerts preview -->
+      <div>
+        <div class="preview-label">// badges</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px">
+          <span class="kk-badge kk-badge-active">Aktywne</span>
+          <span class="kk-badge kk-badge-control">W kontroli</span>
+          <span class="kk-badge kk-badge-ready">Gotowe do wysyłki</span>
+          <span class="kk-badge kk-badge-shipped">Wysłane</span>
+          <span class="kk-badge kk-badge-ng">NG</span>
+        </div>
+
+        <div class="preview-label">// alert messages</div>
+        <div class="kk-alert kk-alert-success">Zamówienie ZAM-2024-0042 dodane. Wygenerowano 3 listy kontrolne (szablon: RU-M).</div>
+        <div class="kk-alert kk-alert-warning">Termin zamówienia przekroczony o 3 dni.</div>
+        <div class="kk-alert kk-alert-error">Produkt nie pasuje do żadnego szablonu QA.</div>
+        <div class="kk-alert kk-alert-info">Brak szablonu QA — kontrola nie jest wymagana.</div>
+
+        <div class="preview-label" style="margin-top:20px">// buttons</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <button class="kk-btn kk-btn-primary">Zapisz</button>
+          <button class="kk-btn kk-btn-accent">+ Nowe</button>
+          <button class="kk-btn kk-btn-ghost">Anuluj</button>
+          <button class="kk-btn kk-btn-danger">Usuń</button>
+          <button class="kk-btn kk-btn-sm kk-btn-primary">Mały</button>
+          <button class="kk-btn kk-btn-lg kk-btn-accent">Duży</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════
+       CHECKLIST REPORTS TABLE
+  ══════════════════════════════════════════════════════ -->
+  <div class="preview-section">
+    <div class="preview-label">// checklist reports table</div>
+
+    <div class="kk-card">
+      <div class="kk-card-header">Listy kontrolne</div>
+      <table class="kk-table">
+        <thead>
+          <tr>
+            <th>Tytuł raportu</th>
+            <th>Postęp</th>
+            <th>Status</th>
+            <th>Zakończono przez</th>
+            <th>Data</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>RU-M 950×1950×250 – Firma ABC – szt. 1/3 (termin 28.05.2024)</td>
+            <td>
+              <div style="display:flex;align-items:center;gap:6px">
+                <div class="kk-progress" style="width:70px"><div class="kk-progress-bar" style="width:100%;background:var(--kk-green)"></div></div>
+                <small>100%</small>
+              </div>
+            </td>
+            <td><span class="kk-badge kk-badge-ready">Zamknięty</span></td>
+            <td>p.nowak</td>
+            <td>12.05.2024, 14:22</td>
+            <td><a href="#" class="kk-btn kk-btn-ghost kk-btn-sm">Podgląd</a></td>
+          </tr>
+          <tr>
+            <td>RU-M 950×1950×250 – Firma ABC – szt. 2/3 (termin 28.05.2024)</td>
+            <td>
+              <div style="display:flex;align-items:center;gap:6px">
+                <div class="kk-progress" style="width:70px"><div class="kk-progress-bar" style="width:45%"></div></div>
+                <small>45%</small>
+              </div>
+            </td>
+            <td><span class="kk-badge kk-badge-control">W trakcie</span></td>
+            <td>—</td>
+            <td>—</td>
+            <td><a href="#" class="kk-btn kk-btn-accent kk-btn-sm">Wypełnij</a></td>
+          </tr>
+          <tr>
+            <td>RU-M 950×1950×250 – Firma ABC – szt. 3/3 (termin 28.05.2024)</td>
+            <td>
+              <div style="display:flex;align-items:center;gap:6px">
+                <div class="kk-progress" style="width:70px"><div class="kk-progress-bar" style="width:0%"></div></div>
+                <small>0%</small>
+              </div>
+            </td>
+            <td><span class="kk-badge kk-badge-control">W trakcie</span></td>
+            <td>—</td>
+            <td>—</td>
+            <td><a href="#" class="kk-btn kk-btn-accent kk-btn-sm">Wypełnij</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="kk-footer">
+    <span>PSH QC · System Kontroli Jakości</span>
+    <span>Podgląd motywu · v2024</span>
+  </div>
+
+</main>
+</body>
+</html>

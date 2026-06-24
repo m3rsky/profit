@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Edytuj raport{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <a href="{{ url_for('report_detail', report_id=report.id) }}" class="breadcrumb-link"><i class="bi bi-arrow-left"></i> Raport</a>
+    <h1 class="page-title">Edytuj raport</h1>
+  </div>
+</div>
+
+<div class="card card--form-narrow">
+  <div class="card-body">
+    <form method="post">
+      {{ csrf_input() }}
+      <div class="form-group">
+        <label class="form-label" for="title">Tytuł raportu</label>
+        <input class="form-control" type="text" id="title" name="title"
+               value="{{ report.title }}" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="user_id">Przypisany operator</label>
+        <select class="form-control" id="user_id" name="user_id">
+          {% for u in users %}
+          <option value="{{ u.id }}" {% if u.id == report.user_id %}selected{% endif %}>
+            {{ u.username }}{% if u.role == 'admin' %} (admin){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="notes">Notatki admina (wewnętrzne)</label>
+        <textarea class="form-control" id="notes" name="notes"
+                  placeholder="Dodatkowe uwagi widoczne tylko dla admina…">{{ report.notes or '' }}</textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Status</label>
+        <div class="report-status-row">
+          {% if report.status == 'completed' %}
+            <span class="badge badge-success">Zamknięty</span>
+            <small class="form-hint">
+              Użyj przycisku „Wznów" aby umożliwić ponowną edycję.
+            </small>
+          {% else %}
+            <span class="badge badge-warning">W trakcie</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Zapisz zmiany</button>
+        <a href="{{ url_for('report_detail', report_id=report.id) }}" class="btn btn-ghost">Anuluj</a>
+      </div>
+    </form>
+    {% if report.status == 'completed' %}
+    <form method="post" action="{{ url_for('report_reopen', report_id=report.id) }}" class="form-reopen">
+      {{ csrf_input() }}
+      <button type="submit" class="btn btn-secondary"
+              data-confirm="Wznowić raport? Można będzie ponownie edytować checklistę.">
+        <i class="bi bi-arrow-counterclockwise"></i> Wznów raport
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

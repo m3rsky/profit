@@ -1,0 +1,581 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+
+{% if not current_user.is_admin %}
+{# ════════════════════════════════════════════════════
+   WORKER DASHBOARD — kafelki nawigacyjne
+   ════════════════════════════════════════════════════ #}
+
+<div class="wk-welcome">
+  <h1 class="wk-welcome-title">Witaj, {{ current_user.username }}</h1>
+  <p class="wk-welcome-sub">{{ current_user.role_label }} — wybierz akcję</p>
+</div>
+
+{% if current_user.role == 'kontroler' %}
+
+  {% if pending_order_reports %}
+  <div class="qa-dashboard-desktop">
+    <div class="wk-section-label">Zlecenia do wykonania</div>
+    <div class="card" style="border-left:4px solid #f59e0b;">
+      <div class="card-body--sm">
+        {% for r in pending_order_reports %}
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;{% if not loop.last %}border-bottom:1px solid var(--border){% endif %}">
+          <div>
+            <div style="font-weight:600;font-size:0.85rem;">{{ r.order.product_name if r.order else r.title }}</div>
+            <div style="font-size:0.75rem;color:var(--text-muted);">
+              {{ r.order.number if r.order else '—' }}
+              {% if r.order and r.order.client %} · {{ r.order.client }}{% endif %}
+              {% if r.order and r.order.due_date %} · Termin: {{ r.order.due_date.strftime('%d.%m.%Y') }}{% endif %}
+            </div>
+          </div>
+          <a href="{{ url_for('checklist_view', report_id=r.id) }}" class="btn btn-primary btn-sm" style="flex-shrink:0;">
+            <i class="bi bi-pencil-fill"></i> Wypełnij
+          </a>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="wk-section-label">Akcje</div>
+  <div class="wk-tiles">
+    <a href="{{ url_for('new_checklist') }}" class="wk-tile wk-tile--blue">
+      <div class="wk-tile-icon"><i class="bi bi-plus-circle-fill"></i></div>
+      <div class="wk-tile-label">Nowa<br>kontrola</div>
+    </a>
+    <a href="{{ url_for('reports_list') }}" class="wk-tile wk-tile--teal">
+      <div class="wk-tile-icon"><i class="bi bi-clipboard-check-fill"></i></div>
+      <div class="wk-tile-label">Raporty<br>QA</div>
+      {% if in_progress_count > 0 %}
+      <div class="wk-tile-count">{{ in_progress_count }} w trakcie</div>
+      {% endif %}
+    </a>
+    {% if pending_qa_count > 0 %}
+    <button type="button" class="wk-tile wk-tile--amber"
+            onclick="var b=document.getElementById('wk-qa-btn');if(b)b.click();">
+      <div class="wk-tile-icon"><i class="bi bi-clipboard-data-fill"></i></div>
+      <div class="wk-tile-label">Zlecenia<br>QA</div>
+      <div class="wk-tile-count">{{ pending_qa_count }} do zrobienia</div>
+    </button>
+    {% endif %}
+    <a href="{{ url_for('spawalnia.list_records') }}" class="wk-tile wk-tile--amber">
+      <div class="wk-tile-icon"><i class="bi bi-fire"></i></div>
+      <div class="wk-tile-label">Spawalnia</div>
+    </a>
+    <a href="{{ url_for('admin_templates') }}" class="wk-tile wk-tile--purple">
+      <div class="wk-tile-icon"><i class="bi bi-layout-text-sidebar-reverse"></i></div>
+      <div class="wk-tile-label">Szablony</div>
+    </a>
+    <a href="{{ url_for('alerts_list') }}" class="wk-tile wk-tile--rose">
+      <div class="wk-tile-icon"><i class="bi bi-bell-fill"></i></div>
+      <div class="wk-tile-label">Alerty</div>
+      {% if unread_alerts > 0 %}
+      <div class="wk-tile-count">{{ unread_alerts }} nowych</div>
+      {% endif %}
+    </a>
+  </div>
+
+{% elif current_user.role == 'order' %}
+
+  <div class="wk-tiles">
+    <a href="{{ url_for('orders_new') }}" class="wk-tile wk-tile--green">
+      <div class="wk-tile-icon"><i class="bi bi-plus-circle-fill"></i></div>
+      <div class="wk-tile-label">Nowe<br>zamówienie</div>
+    </a>
+    <a href="{{ url_for('orders_list') }}" class="wk-tile wk-tile--blue">
+      <div class="wk-tile-icon"><i class="bi bi-box-seam-fill"></i></div>
+      <div class="wk-tile-label">Lista<br>zamówień</div>
+    </a>
+    <a href="{{ url_for('orders_import_csv') }}" class="wk-tile wk-tile--gray">
+      <div class="wk-tile-icon"><i class="bi bi-filetype-csv"></i></div>
+      <div class="wk-tile-label">Import<br>CSV</div>
+    </a>
+    <a href="{{ url_for('kosztorys.list_quotes') }}" class="wk-tile wk-tile--indigo">
+      <div class="wk-tile-icon"><i class="bi bi-calculator-fill"></i></div>
+      <div class="wk-tile-label">Kosztorysy</div>
+    </a>
+    <a href="{{ url_for('alerts_list') }}" class="wk-tile wk-tile--rose">
+      <div class="wk-tile-icon"><i class="bi bi-bell-fill"></i></div>
+      <div class="wk-tile-label">Alerty</div>
+      {% if unread_alerts > 0 %}
+      <div class="wk-tile-count">{{ unread_alerts }} nowych</div>
+      {% endif %}
+    </a>
+  </div>
+
+{% elif current_user.role == 'spawacz' %}
+
+  <div class="wk-tiles">
+    <a href="{{ url_for('spawalnia.new_record') }}" class="wk-tile wk-tile--amber">
+      <div class="wk-tile-icon"><i class="bi bi-plus-circle-fill"></i></div>
+      <div class="wk-tile-label">Nowy<br>rekord</div>
+    </a>
+    <a href="{{ url_for('spawalnia.list_records') }}" class="wk-tile wk-tile--blue">
+      <div class="wk-tile-icon"><i class="bi bi-list-ul"></i></div>
+      <div class="wk-tile-label">Lista<br>rekordów</div>
+    </a>
+    <a href="{{ url_for('alerts_list') }}" class="wk-tile wk-tile--rose">
+      <div class="wk-tile-icon"><i class="bi bi-bell-fill"></i></div>
+      <div class="wk-tile-label">Alerty</div>
+      {% if unread_alerts > 0 %}
+      <div class="wk-tile-count">{{ unread_alerts }} nowych</div>
+      {% endif %}
+    </a>
+  </div>
+
+{% elif current_user.role == 'monter' %}
+
+  <div class="wk-tiles">
+    <a href="{{ url_for('monter_pool') }}" class="wk-tile wk-tile--blue">
+      <div class="wk-tile-icon"><i class="bi bi-tools"></i></div>
+      <div class="wk-tile-label">Pula<br>montaży</div>
+    </a>
+    <a href="{{ url_for('reports_list') }}" class="wk-tile wk-tile--green">
+      <div class="wk-tile-icon"><i class="bi bi-clipboard2-check-fill"></i></div>
+      <div class="wk-tile-label">Moje<br>listy</div>
+    </a>
+    <a href="{{ url_for('alerts_list') }}" class="wk-tile wk-tile--rose">
+      <div class="wk-tile-icon"><i class="bi bi-bell-fill"></i></div>
+      <div class="wk-tile-label">Alerty</div>
+      {% if unread_alerts > 0 %}
+      <div class="wk-tile-count">{{ unread_alerts }} nowych</div>
+      {% endif %}
+    </a>
+  </div>
+
+{% endif %}
+
+{% else %}
+{# ════════════════════════════════════════════════════
+   ADMIN DASHBOARD — pełne statystyki (bez zmian)
+   ════════════════════════════════════════════════════ #}
+
+<div class="page-header">
+  <h1 class="page-title">Witaj, {{ current_user.username }}</h1>
+</div>
+
+
+{# ── Stats grid ── #}
+{% set pct_done = ((completed_count / all_reports_count) if all_reports_count > 0 else 0) %}
+{% set pct_prog = ((in_progress_count / all_reports_count) if all_reports_count > 0 else 0) %}
+{% set pct_ship = ((orders_ready / orders_active) if current_user.is_admin and orders_active > 0 else 0) %}
+{% set circumference = 238.76 %}
+{% set ring_offset = circumference * (1 - pct_done) %}
+
+<div class="stats-grid">
+
+  {# Ring card – total reports #}
+  <div class="stat-card stat-card-all">
+    <div class="stat-ring-wrap">
+      <svg width="84" height="84" viewBox="0 0 88 88">
+        <circle cx="44" cy="44" r="38" fill="none" stroke="var(--ring-track)" stroke-width="7"/>
+        <circle cx="44" cy="44" r="38" fill="none" stroke="var(--ring-fill)" stroke-width="7"
+                stroke-linecap="round"
+                stroke-dasharray="{{ circumference }}"
+                stroke-dashoffset="{{ '%.2f' | format(ring_offset) }}"
+                transform="rotate(-90 44 44)"/>
+      </svg>
+      <div class="stat-ring-center">
+        <div class="stat-big-num">{{ all_reports_count }}</div>
+      </div>
+    </div>
+    <div>
+      <div class="stat-label">{% if current_user.is_admin %}Wszystkie<br>raporty{% else %}Twoje<br>raporty{% endif %}{% if date_from or date_to %} (filtr){% endif %}</div>
+    </div>
+  </div>
+
+  {# Completed #}
+  <div class="stat-card stat-card-mini accent-green">
+    <div class="stat-mini-top">
+      <div>
+        <div class="stat-mini-num text-stat-ok">{{ completed_count }}</div>
+        <div class="stat-mini-label">Ukończone</div>
+      </div>
+      <span class="stat-mini-icon text-stat-ok"><i class="bi bi-check-circle-fill"></i></span>
+    </div>
+    <div class="stat-mini-bar">
+      <div class="stat-mini-bar-fill" data-pct="{{ '%.1f' | format(pct_done * 100) }}"></div>
+    </div>
+  </div>
+
+  {# In progress #}
+  <a href="{{ url_for('reports_list', status='in_progress') }}" class="stat-card stat-card-mini accent-orange stat-card--link">
+    <div class="stat-mini-top">
+      <div>
+        <div class="stat-mini-num text-stat-prog">{{ in_progress_count }}</div>
+        <div class="stat-mini-label">W trakcie</div>
+      </div>
+      <span class="stat-mini-icon text-stat-prog"><i class="bi bi-arrow-repeat"></i></span>
+    </div>
+    <div class="stat-mini-bar">
+      <div class="stat-mini-bar-fill" data-pct="{{ '%.1f' | format(pct_prog * 100) }}"></div>
+    </div>
+  </a>
+
+  {% if current_user.is_admin %}
+  {# Orders ready to ship #}
+  <a href="{{ url_for('orders_list', status='ready') }}" class="stat-card stat-card-mini accent-cyan stat-card--link">
+    <div class="stat-mini-top">
+      <div>
+        <div class="stat-mini-num text-stat-ship">{{ orders_ready }}</div>
+        <div class="stat-mini-label">Gotowe do wysyłki</div>
+      </div>
+      <span class="stat-mini-icon text-stat-ship"><i class="bi bi-box-seam-fill"></i></span>
+    </div>
+    <div class="stat-mini-bar">
+      <div class="stat-mini-bar-fill" data-pct="{{ '%.1f' | format(pct_ship * 100) }}"></div>
+    </div>
+  </a>
+  {% else %}
+  <div class="stat-card stat-card-mini accent-cyan">
+    <div class="stat-mini-top">
+      <div>
+        <div class="stat-mini-num text-stat-ship">{{ (pct_done * 100) | round(0) | int }}%</div>
+        <div class="stat-mini-label">Skuteczność</div>
+      </div>
+      <span class="stat-mini-icon text-stat-ship"><i class="bi bi-graph-up-arrow"></i></span>
+    </div>
+    <div class="stat-mini-bar">
+      <div class="stat-mini-bar-fill" data-pct="{{ '%.1f' | format(pct_done * 100) }}"></div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if current_user.is_kontroler and pending_order_reports %}
+  <a href="#zlecenia-qa" class="stat-card stat-card-mini accent-orange stat-card--link">
+    <div class="stat-mini-top">
+      <div>
+        <div class="stat-mini-num text-stat-prog">{{ pending_order_reports | length }}</div>
+        <div class="stat-mini-label">Zlecenia QA</div>
+      </div>
+      <span class="stat-mini-icon text-stat-prog"><i class="bi bi-clipboard-check-fill"></i></span>
+    </div>
+    <div class="stat-mini-bar">
+      <div class="stat-mini-bar-fill" data-pct="100"></div>
+    </div>
+  </a>
+  {% endif %}
+
+</div>
+
+{# ── Active orders table (admin only) ── #}
+{% if current_user.is_admin and recent_orders %}
+<div>
+  <div class="section-title">Aktywne zamówienia</div>
+  <div class="card">
+    <table class="data-table tbl-cards">
+      <thead>
+        <tr>
+          <th>Numer</th>
+          <th>Produkt</th>
+          <th>Klient</th>
+          <th class="col-hide-sm">Termin</th>
+          <th>Status</th>
+          <th>Postęp QA</th>
+          <th class="th-actions"><span class="sr-only">Akcje</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for o in recent_orders %}
+        <tr>
+          <td data-label="Numer"><span class="order-num">{{ o.number }}</span></td>
+          <td data-label="Produkt"><span class="order-product">{{ o.product_name }}</span></td>
+          <td data-label="Klient"><span class="order-client">{{ o.client }}</span></td>
+          <td class="col-hide-sm" data-label="Termin">
+            <span class="order-date {% if o.due_date and o.due_date < today %}text-danger{% endif %}">
+              {{ o.due_date.strftime('%d.%m.%Y') if o.due_date else '—' }}
+            </span>
+          </td>
+          <td data-label="Status">
+            {% if o.status == 'active' %}
+              <span class="badge badge-info">Aktywne</span>
+            {% elif o.status == 'in_control' %}
+              <span class="badge badge-warning">W kontroli</span>
+            {% elif o.status == 'ready_to_ship' %}
+              <span class="badge badge-success">Gotowe</span>
+            {% endif %}
+          </td>
+          <td data-label="Postęp">
+            {% if o.reports_total > 0 %}
+            <div class="progress-cell">
+              <div class="progress progress--sm progress-cell-tbl">
+                <div class="progress-bar" data-pct="{{ o.progress_pct }}"></div>
+              </div>
+              <small class="text-muted-sm">{{ o.reports_done }}/{{ o.reports_total }}</small>
+            </div>
+            {% else %}
+            <small class="text-muted">brak QA</small>
+            {% endif %}
+          </td>
+          <td data-label="">
+            <a href="{{ url_for('orders_detail', order_id=o.id) }}" class="btn-link">Szczegóły <i class="bi bi-arrow-right"></i></a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="all-reports-bar">
+      <a href="{{ url_for('orders_list') }}" class="btn btn-ghost btn-sm">Wszystkie zamówienia <i class="bi bi-arrow-right"></i></a>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# ── Pending QA orders ── #}
+{% if pending_order_reports %}
+<div id="zlecenia-qa">
+  <div class="section-title">Zlecenia QA do wykonania</div>
+  <div class="card">
+    <div class="table-wrap">
+      <table class="data-table tbl-cards">
+        <thead>
+          <tr>
+            <th>Lista kontrolna</th>
+            <th>Zamówienie</th>
+            <th>Klient</th>
+            <th class="text-center">Ilość</th>
+            <th>Termin</th>
+            <th class="th-actions">Akcje</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in pending_order_reports %}
+          <tr>
+            <td data-label="Lista">
+              {{ r.order.product_name if r.order else r.title }}
+              {% if r.batch_total and r.batch_total > 1 %}
+              <br><span class="badge badge-neutral"><i class="bi bi-layers"></i> Seria {{ r.batch_total }} szt.</span>
+              {% endif %}
+            </td>
+            <td data-label="Zamówienie">
+              {% if r.order %}
+              <a href="{{ url_for('orders_detail', order_id=r.order.id) }}">{{ r.order.number }}</a>
+              {% endif %}
+            </td>
+            <td data-label="Klient">
+              {{ r.order.client if r.order else '—' }}
+            </td>
+            <td data-label="Ilość" class="text-center">
+              {% if r.order %}{{ r.order.quantity }} szt.{% else %}—{% endif %}
+            </td>
+            <td data-label="Termin" {% if r.order and r.order.due_date and r.order.due_date < today %}class="text-danger"{% endif %}>
+              {{ r.order.due_date.strftime('%d.%m.%Y') if r.order and r.order.due_date else '—' }}
+            </td>
+            <td data-label="" class="td-actions">
+              <a href="{{ url_for('checklist_view', report_id=r.id) }}" class="btn btn-primary btn-sm">
+                <i class="bi bi-pencil-fill"></i>
+                {% if r.batch_total and r.batch_total > 1 %}Wypełnij serię{% else %}Wypełnij{% endif %}
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# ── Recent reports ── #}
+<div>
+  <div class="section-title">{% if current_user.is_admin %}Ostatnie raporty (wszyscy){% else %}Ostatnie raporty{% endif %}</div>
+  <div class="card">
+    {% if recent_reports %}
+      {% for r in recent_reports %}
+      <div class="report-row"
+           data-batch-id="{{ r.batch_id or '' }}"
+           data-batch-index="{{ r.batch_index or '' }}"
+           data-batch-total="{{ r.batch_total or '' }}">
+        <div class="report-status-dot {% if r.status == 'completed' %}dot-ok{% else %}dot-warn{% endif %}">
+          {% if r.status == 'completed' %}
+            <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 5.5L4.5 8 8 3" stroke="var(--progress-ok)" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
+          {% else %}
+            <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="var(--progress-warn)"/></svg>
+          {% endif %}
+        </div>
+        <div class="report-info">
+          <div class="report-title-row">
+            <a href="{{ url_for('report_detail', report_id=r.id) }}" class="report-title link-inherit">{{ r.title }}</a>
+            {% if r.report_type == 'monter' %}
+              <span class="type-badge type-badge--monter">MONTAŻ</span>
+            {% else %}
+              <span class="type-badge type-badge--qa">KONTROLA QA</span>
+            {% endif %}
+          </div>
+          <div class="report-sub">{{ r.created_at | localdt }}</div>
+        </div>
+        <div class="report-status">
+          {% if r.status == 'completed' %}
+            <span class="badge badge-success">Ukończony</span>
+          {% else %}
+            <span class="badge badge-warning">W trakcie</span>
+          {% endif %}
+        </div>
+        <div class="report-progress">
+          <div class="progress-track">
+            <div class="progress-fill {% if r.status == 'completed' %}progress-fill-ok{% else %}progress-fill-warn{% endif %}"
+                 data-pct="{{ r.completion_percent }}"></div>
+          </div>
+          <div class="progress-pct">{{ r.completion_percent }}%</div>
+        </div>
+        {% if r.status == 'in_progress' %}
+        <a href="{{ url_for('checklist_view', report_id=r.id) }}" class="btn btn-primary btn-sm">Kontynuuj</a>
+        {% else %}
+        <a href="{{ url_for('report_detail', report_id=r.id) }}" class="btn btn-outline btn-sm"><i class="bi bi-eye"></i> Podgląd</a>
+        {% endif %}
+      </div>
+      {% endfor %}
+      {% if all_reports_count > 5 %}
+      <div class="all-reports-bar">
+        <a href="{{ url_for('reports_list') }}" class="btn btn-ghost btn-sm">Wszystkie raporty <i class="bi bi-arrow-right"></i></a>
+      </div>
+      {% endif %}
+    {% else %}
+    <div class="empty-state">
+      Nie masz jeszcze żadnych raportów.<br>
+      <a href="{{ url_for('new_checklist') }}" class="btn btn-primary btn--spaced-top"><i class="bi bi-plus-lg"></i> Rozpocznij pierwszą kontrolę</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% endif %}{# end worker/admin split #}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* Initialize stat-mini-bar-fill widths from data-pct (same pattern as progress-bar) */
+document.querySelectorAll('.stat-mini-bar-fill[data-pct]').forEach(function(el) {
+  el.style.width = el.dataset.pct + '%';
+});
+document.querySelectorAll('.progress-fill[data-pct]').forEach(function(el) {
+  el.style.width = el.dataset.pct + '%';
+});
+
+/* ── Grupowanie serii (batch) — report-row divs ── */
+(function () {
+  var allRows = Array.from(document.querySelectorAll('.report-row[data-batch-id]'));
+  var batches = {};
+
+  allRows.forEach(function (row) {
+    var bid = row.dataset.batchId;
+    if (!bid) return;
+    if (!batches[bid]) batches[bid] = [];
+    batches[bid].push(row);
+  });
+
+  Object.keys(batches).forEach(function (bid) {
+    var batchRows = batches[bid];
+    if (batchRows.length < 2) return;
+
+    batchRows.sort(function (a, b) {
+      return parseInt(a.dataset.batchIndex || 0) - parseInt(b.dataset.batchIndex || 0);
+    });
+
+    var leadRow  = batchRows[0];
+    var children = batchRows.slice(1);
+    var total    = parseInt(leadRow.dataset.batchTotal) || batchRows.length;
+
+    /* Przesuń w DOM: lead (szt. 1/N) na górę serii, dzieci bezpośrednio poniżej */
+    var parent   = leadRow.parentNode;
+    var siblings = Array.from(parent.children);
+    var firstPos = Math.min.apply(null, batchRows.map(function (r) { return siblings.indexOf(r); }));
+    parent.insertBefore(leadRow, siblings[firstPos]);
+    var afterEl = leadRow;
+    children.forEach(function (row) {
+      parent.insertBefore(row, afterEl.nextSibling);
+      afterEl = row;
+    });
+
+    /* Uprość tytuł — usuń " szt. N/M" i przyrostek daty */
+    var titleLink = leadRow.querySelector('.report-title');
+    if (titleLink) {
+      titleLink.textContent = titleLink.textContent
+        .replace(/\s*–?\s*szt\.\s*\d+\/\d+[^]*$/, '')
+        .replace(/\s*–\s*\d+\/\d+\s*$/, '')
+        .trim();
+    }
+
+    /* Badge "Seria N szt." */
+    var titleRow = leadRow.querySelector('.report-title-row');
+    if (titleRow) {
+      var badge = document.createElement('span');
+      badge.className = 'badge badge-neutral batch-series-badge';
+      badge.innerHTML = '<i class="bi bi-layers"></i> Seria ' + total + ' szt.';
+      titleRow.appendChild(badge);
+    }
+
+    /* Podsumowanie statusu serii */
+    var done = batchRows.filter(function (r) {
+      return r.querySelector('.badge-success');
+    }).length;
+    var statusEl = leadRow.querySelector('.report-status');
+    if (statusEl) {
+      statusEl.innerHTML = done === total
+        ? '<span class="badge badge-success">Ukończona</span>'
+        : '<span class="badge badge-warning">' + done + '/' + total + ' ukończone</span>';
+    }
+
+    /* Przycisk rozwijania */
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-ghost btn-sm batch-expand-btn';
+    btn.dataset.bid = bid;
+    btn.setAttribute('aria-expanded', 'false');
+    btn.title = 'Rozwiń serię';
+    btn.innerHTML = '<i class="bi bi-chevron-down"></i>';
+    leadRow.appendChild(btn);
+
+    /* Schowaj wiersze potomne i wstaw └ do linku tytułu */
+    children.forEach(function (row) {
+      row.classList.add('batch-child-row-div', 'batch-hidden');
+      var childLink = row.querySelector('.report-title');
+      if (childLink) {
+        var idx = parseInt(row.dataset.batchIndex) || '';
+        var tot = parseInt(row.dataset.batchTotal) || total;
+        childLink.textContent = '└ szt. ' + idx + '/' + tot;
+      }
+    });
+  });
+
+  /* Obsługa kliknięcia rozwijania */
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.batch-expand-btn');
+    if (!btn || !btn.closest('.report-row')) return;
+    var bid      = btn.dataset.bid;
+    var expanded = btn.getAttribute('aria-expanded') === 'true';
+    document.querySelectorAll('.report-row.batch-child-row-div[data-batch-id="' + bid + '"]')
+      .forEach(function (row) { row.classList.toggle('batch-hidden', expanded); });
+    btn.setAttribute('aria-expanded', String(!expanded));
+    btn.querySelector('i').className = expanded ? 'bi bi-chevron-down' : 'bi bi-chevron-up';
+    btn.title = expanded ? 'Rozwiń serię' : 'Zwiń serię';
+  });
+})();
+
+(function () {
+  var DELAY = 10 * 60 * 1000;
+  var timer = setTimeout(reload, DELAY);
+  function reload() {
+    if (document.visibilityState === 'visible') {
+      location.reload();
+    } else {
+      document.addEventListener('visibilitychange', function onShow() {
+        if (document.visibilityState === 'visible') {
+          document.removeEventListener('visibilitychange', onShow);
+          location.reload();
+        }
+      });
+    }
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') {
+      clearTimeout(timer);
+      timer = setTimeout(reload, DELAY);
+    }
+  });
+})();
+</script>
+{% endblock %}

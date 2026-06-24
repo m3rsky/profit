@@ -1,0 +1,566 @@
+{% extends "base.html" %}
+{% block title %}Kreator wyceny{% endblock %}
+{% block head %}
+<style>
+/* ── Kreator steps ── */
+.wizard-steps { display:flex; gap:0; margin-bottom:24px; }
+.wizard-step  { flex:1; text-align:center; padding:10px 4px; font-size:12px;
+                color:var(--text-muted); border-bottom:3px solid var(--border-color);
+                position:relative; cursor:default; }
+.wizard-step.active  { color:var(--color-primary); border-color:var(--color-primary); font-weight:600; }
+.wizard-step.done    { color:var(--color-success);  border-color:var(--color-success); }
+.wizard-step .step-n { display:inline-flex; align-items:center; justify-content:center;
+                        width:22px; height:22px; border-radius:50%; background:var(--border-color);
+                        color:#fff; font-size:11px; margin-bottom:4px; }
+.wizard-step.active .step-n { background:var(--color-primary); }
+.wizard-step.done   .step-n { background:var(--color-success); }
+
+/* ── Family cards ── */
+.family-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:16px; }
+.family-card { border:2px solid var(--border-color); border-radius:10px; padding:20px 16px;
+               cursor:pointer; text-align:center; transition:.15s; }
+.family-card:hover  { border-color:var(--color-primary); background:var(--bg-hover,#f8f9fa); }
+.family-card.selected { border-color:var(--color-primary); background:#ebf3ff; }
+.family-card input  { display:none; }
+.family-icon { font-size:32px; margin-bottom:8px; }
+.family-name { font-weight:600; margin-bottom:4px; }
+.family-desc { font-size:12px; color:var(--text-muted); }
+
+/* ── Catalog grid ── */
+.catalog-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:8px; margin-bottom:16px; }
+.cat-item { border:2px solid var(--border-color); border-radius:8px; padding:10px 8px;
+            text-align:center; cursor:pointer; font-size:12px; transition:.15s; }
+.cat-item:hover   { border-color:var(--color-primary); }
+.cat-item.selected{ border-color:var(--color-primary); background:#ebf3ff; }
+.cat-item input   { display:none; }
+.cat-dim  { font-weight:600; font-size:13px; margin-bottom:2px; }
+.cat-price{ color:var(--color-primary); font-size:11px; }
+
+/* ── Options grid ── */
+.opts-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:8px; }
+.opt-item  { display:flex; align-items:center; gap:8px; padding:8px; border:1px solid var(--border-color);
+             border-radius:6px; cursor:pointer; font-size:13px; }
+.opt-item input { margin:0; }
+.form-grid-3 { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+.form-grid   { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px,1fr)); gap:12px; }
+
+/* ── Preview panel ── */
+.preview-panel { background:var(--bg-card,#fff); border:1px solid var(--border-color);
+                 border-radius:8px; padding:16px; }
+.preview-row   { display:flex; justify-content:space-between; padding:5px 0; font-size:13px; }
+.preview-row strong { font-size:14px; }
+.preview-loading { text-align:center; color:var(--text-muted); padding:20px; }
+
+/* ── Step pages ── */
+.step-page { display:none; }
+.step-page.active { display:block; }
+.step-nav  { display:flex; gap:8px; margin-top:20px; }
+</style>
+{% endblock %}
+{% block content %}
+
+{# Map cabinet type codes to families for JS #}
+{% set type_family = {} %}
+{% for ct in cabinet_types %}
+  {% if ct.code == 'PSH_COMPACT' %}{% set _ = type_family.update({ct.id: 'compact'}) %}
+  {% elif ct.code == 'PSH_IP65'  %}{% set _ = type_family.update({ct.id: 'ip65'})    %}
+  {% elif ct.code == 'PSH_INOX'  %}{% set _ = type_family.update({ct.id: 'inox'})    %}
+  {% elif ct.code == 'PSH_MODULAR' %}{% set _ = type_family.update({ct.id: 'modular'}) %}
+  {% endif %}
+{% endfor %}
+
+<div class="page-header">
+  <h1 class="page-title">Kreator wyceny</h1>
+  <a href="{{ url_for('kosztorys.list_quotes') }}" class="btn btn-outline">
+    <i class="bi bi-list"></i> Lista wycen
+  </a>
+</div>
+
+<!-- Step indicator -->
+<div class="wizard-steps" id="wizardSteps">
+  <div class="wizard-step active" data-step="1">
+    <div class="step-n">1</div><div>Typ szafy</div>
+  </div>
+  <div class="wizard-step" data-step="2">
+    <div class="step-n">2</div><div>Wymiary</div>
+  </div>
+  <div class="wizard-step" data-step="3">
+    <div class="step-n">3</div><div>Opcje</div>
+  </div>
+  <div class="wizard-step" data-step="4">
+    <div class="step-n">4</div><div>Podsumowanie</div>
+  </div>
+</div>
+
+<form method="post" id="kreatorForm">
+  {{ csrf_input() }}
+
+  <!-- ═══════════════════════ KROK 1: TYP SZAFY ═══════════════════════ -->
+  <div class="step-page active" id="step1">
+    <div class="card">
+      <div class="card-header">Wybierz rodzaj szafy</div>
+      <div class="card-body">
+        <div class="family-grid">
+
+          {% for ct in cabinet_types %}
+          {% set family = type_family.get(ct.id, '') %}
+          {% if family == 'compact' %}
+            {% set icon = '🔲' %}{% set desc = 'Szafa ścienna IP65, 200–1200 mm, katalog standardowych rozmiarów' %}
+          {% elif family == 'ip65' %}
+            {% set icon = '🗄️' %}{% set desc = 'Szafa stojąca IP65, wymiary dowolne, spawana lub przykręcana' %}
+          {% elif family == 'inox' %}
+            {% set icon = '✨' %}{% set desc = 'Stal nierdzewna AISI 304, IP66, brak malowania' %}
+          {% elif family == 'modular' %}
+            {% set icon = '⚡' %}{% set desc = 'Szyny DIN 35mm, aparatura modułowa' %}
+          {% else %}
+            {% set icon = '📦' %}{% set desc = ct.description or '' %}
+          {% endif %}
+          <label class="family-card {% if loop.first %}selected{% endif %}"
+                 onclick="selectFamily(this, '{{ ct.id }}', '{{ family }}')">
+            <input type="radio" name="cabinet_type_id" value="{{ ct.id }}"
+                   {% if loop.first %}checked{% endif %}>
+            <div class="family-icon">{{ icon }}</div>
+            <div class="family-name">{{ ct.name }}</div>
+            <div class="family-desc">{{ desc }}</div>
+          </label>
+          {% endfor %}
+
+        </div>
+      </div>
+    </div>
+    <div class="step-nav">
+      <button type="button" class="btn btn-primary" onclick="goStep(2)">
+        Dalej <i class="bi bi-arrow-right"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ KROK 2: WYMIARY ═══════════════════════ -->
+  <div class="step-page" id="step2">
+
+    <!-- Katalog kompakt -->
+    <div id="catalog-section" style="display:none">
+      <div class="card">
+        <div class="card-header">Wybierz rozmiar z katalogu</div>
+        <div class="card-body">
+          <div class="catalog-grid">
+            {% if catalog_by_family.compact %}
+              {% for prod in catalog_by_family.compact %}
+              <label class="cat-item" onclick="selectCatalog(this, {{ prod.width }}, {{ prod.height }}, {{ prod.depth }})">
+                <input type="radio" name="_cat_sel" value="{{ prod.id }}">
+                <div class="cat-dim">{{ prod.width }}×{{ prod.height }}</div>
+                <div style="font-size:11px;color:var(--text-muted)">gł. {{ prod.depth }} mm</div>
+                <div class="cat-price">{{ '%.0f'|format(prod.catalog_price) }} PLN</div>
+              </label>
+              {% endfor %}
+            {% else %}
+              <p class="text-muted">Brak produktów w katalogu. <a href="{{ url_for('kosztorys.admin_catalog') }}">Dodaj w panelu admina.</a></p>
+            {% endif %}
+          </div>
+          <label style="display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer">
+            <input type="checkbox" id="customDims" onchange="toggleCustomDims(this.checked)">
+            <span style="font-size:13px">Wymiary niestandardowe</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Wymiary (custom / zawsze dla IP65/INOX/Modular) -->
+    <div class="card" id="dims-section">
+      <div class="card-header">Wymiary szafy (mm)</div>
+      <div class="card-body">
+        <div class="form-grid-3">
+          <div>
+            <label class="label" for="k_width">Szerokość</label>
+            <input type="number" id="k_width" name="width" class="input" required
+                   min="100" value="850" title="Szerokosc mm">
+          </div>
+          <div>
+            <label class="label" for="k_height">Wysokość</label>
+            <input type="number" id="k_height" name="height" class="input" required
+                   min="100" value="1900" title="Wysokosc mm">
+          </div>
+          <div>
+            <label class="label" for="k_depth">Głębokość</label>
+            <input type="number" id="k_depth" name="depth" class="input" required
+                   min="50" value="600" title="Glebokosc mm">
+          </div>
+        </div>
+        <div class="form-grid" style="margin-top:12px">
+          <div>
+            <label class="label" for="k_tb">Grubość obudowy (mm)</label>
+            <input type="number" id="k_tb" name="thickness_body" class="input"
+                   step="0.1" value="1.2" title="Grubosc obudowy">
+          </div>
+          <div>
+            <label class="label" for="k_tp">Grubość płyty (mm)</label>
+            <input type="number" id="k_tp" name="thickness_plate" class="input"
+                   step="0.5" value="3.0" title="Grubosc plyty montazowej">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step-nav">
+      <button type="button" class="btn btn-outline" onclick="goStep(1)">
+        <i class="bi bi-arrow-left"></i> Wstecz
+      </button>
+      <button type="button" class="btn btn-primary" onclick="goStep(3)">
+        Dalej <i class="bi bi-arrow-right"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ KROK 3: OPCJE ═══════════════════════ -->
+  <div class="step-page" id="step3">
+    <div class="card">
+      <div class="card-header">Opcje i wyposażenie</div>
+      <div class="card-body">
+
+        <!-- Tył -->
+        <p class="section-title" style="margin-top:0">Tył</p>
+        <div class="opts-grid">
+          <label class="opt-item">
+            <input type="checkbox" name="back_welded" checked>
+            <span>Tył spawany</span>
+          </label>
+          <label class="opt-item">
+            <input type="checkbox" name="back_screwed">
+            <span>Tył przykręcany</span>
+          </label>
+        </div>
+
+        <!-- Drzwi -->
+        <p class="section-title">Drzwi</p>
+        <div class="opts-grid">
+          <label class="opt-item">
+            <input type="checkbox" name="door_single" checked>
+            <span>Drzwi pojedyncze</span>
+          </label>
+          <label class="opt-item">
+            <input type="checkbox" name="door_double">
+            <span>Drzwi podwójne</span>
+          </label>
+          <label class="opt-item">
+            <input type="checkbox" name="lock_three_point">
+            <span>Zamek trzypunktowy</span>
+          </label>
+          <label class="opt-item">
+            <input type="checkbox" name="lock_cam">
+            <span>Zamek krzywkowy</span>
+          </label>
+        </div>
+
+        <!-- Wyposażenie -->
+        <p class="section-title">Wyposażenie</p>
+        <div class="opts-grid">
+          <label class="opt-item">
+            <input type="checkbox" name="has_mounting_plate" checked>
+            <span>Płyta montażowa</span>
+          </label>
+          <label class="opt-item">
+            <input type="checkbox" name="plinth">
+            <span>Cokół</span>
+          </label>
+          <label class="opt-item">
+            <input type="checkbox" name="canopy">
+            <span>Daszek</span>
+          </label>
+          <label class="opt-item">
+            <input type="checkbox" name="non_standard_color">
+            <span>Kolor niestandardowy</span>
+          </label>
+        </div>
+
+        <!-- Ilości -->
+        <p class="section-title">Ilości (szt / h)</p>
+        <div class="form-grid" style="max-width:600px">
+          <div>
+            <label class="label" for="k_reinf">Wzmocnienie drzwi (szt)</label>
+            <input type="number" id="k_reinf" name="door_reinforcement"
+                   class="input" min="0" value="0" title="Wzmocnienie drzwi">
+          </div>
+          <div>
+            <label class="label" for="k_cable">Kapa / przepust (szt)</label>
+            <input type="number" id="k_cable" name="cable_entries"
+                   class="input" min="0" value="0" title="Kapa na przewody">
+          </div>
+          <div id="din-row-field">
+            <label class="label" for="k_beam">
+              <span id="beam-label">Belka pionowa / rzędy DIN (szt)</span>
+            </label>
+            <input type="number" id="k_beam" name="vertical_beam"
+                   class="input" min="0" value="0" title="Belka pionowa lub rzedy szyn DIN">
+          </div>
+          <div>
+            <label class="label" for="k_design">Projektowanie (h)</label>
+            <input type="number" id="k_design" name="design_hours"
+                   class="input" min="0" value="0" title="Godziny projektowania">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step-nav">
+      <button type="button" class="btn btn-outline" onclick="goStep(2)">
+        <i class="bi bi-arrow-left"></i> Wstecz
+      </button>
+      <button type="button" class="btn btn-primary" onclick="goStep(4)">
+        Dalej <i class="bi bi-arrow-right"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ KROK 4: PODSUMOWANIE ═══════════════════════ -->
+  <div class="step-page" id="step4">
+    <div style="display:grid; grid-template-columns:1fr 300px; gap:20px">
+
+      <!-- Formularz klienta -->
+      <div>
+        <div class="card">
+          <div class="card-header">Dane wyceny</div>
+          <div class="card-body">
+            <div style="margin-bottom:12px">
+              <label class="label" for="k_client">Klient</label>
+              <input type="text" id="k_client" name="client_name" class="input"
+                     placeholder="Nazwa klienta" title="Klient">
+            </div>
+            <div style="margin-bottom:12px">
+              <label class="label" for="k_notes">Uwagi</label>
+              <textarea id="k_notes" name="notes" class="input" rows="2"
+                        title="Uwagi" placeholder="Opcjonalne uwagi..."></textarea>
+            </div>
+            <div class="form-grid-3">
+              <div>
+                <label class="label" for="k_margin">Marża</label>
+                <input type="number" id="k_margin" name="margin" class="input"
+                       step="0.01" value="2.15" title="Mnoznik marzy"
+                       oninput="schedulePreview()">
+              </div>
+              <div>
+                <label class="label" for="k_disc">Rabat (%)</label>
+                <input type="number" id="k_disc" name="discount_pct" class="input"
+                       step="0.5" value="0" title="Rabat procentowy"
+                       oninput="schedulePreview()">
+              </div>
+              <div>
+                <label class="label" for="k_bonus">Bonus (%)</label>
+                <input type="number" id="k_bonus" name="bonus_pct" class="input"
+                       step="0.5" value="0" title="Bonus procentowy"
+                       oninput="schedulePreview()">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:16px;display:flex;gap:8px">
+          <button type="button" class="btn btn-outline" onclick="goStep(3)">
+            <i class="bi bi-arrow-left"></i> Wstecz
+          </button>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-floppy"></i> Zapisz wycenę
+          </button>
+        </div>
+      </div>
+
+      <!-- Live preview -->
+      <div style="position:sticky;top:80px">
+        <div class="preview-panel">
+          <div style="font-weight:600;margin-bottom:12px">Kalkulacja</div>
+          <div id="previewContent">
+            <div class="preview-loading">Kliknij „Dalej" aby zobaczyć wyliczenie</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</form>
+
+<script>
+(function () {
+  var currentStep = 1;
+  var currentFamily = '{{ (cabinet_types[0].code|lower).replace("psh_","") if cabinet_types else "ip65" }}';
+  var previewTimer = null;
+
+  // ── Nawigacja krokow ─────────────────────────────────────────────────────
+
+  window.goStep = function (n) {
+    document.querySelectorAll('.step-page').forEach(function (el) { el.classList.remove('active'); });
+    document.getElementById('step' + n).classList.add('active');
+
+    document.querySelectorAll('.wizard-step').forEach(function (el) {
+      var s = parseInt(el.dataset.step);
+      el.classList.toggle('active', s === n);
+      el.classList.toggle('done',   s < n);
+    });
+
+    currentStep = n;
+    if (n === 4) { fetchPreview(); }
+  };
+
+  // ── Wybor rodziny ────────────────────────────────────────────────────────
+
+  window.selectFamily = function (label, typeId, family) {
+    document.querySelectorAll('.family-card').forEach(function (el) { el.classList.remove('selected'); });
+    label.classList.add('selected');
+    label.querySelector('input').checked = true;
+    currentFamily = family;
+    applyFamilyDefaults(family);
+  };
+
+  function applyFamilyDefaults(family) {
+    var catSection  = document.getElementById('catalog-section');
+    var dimsSection = document.getElementById('dims-section');
+    var dimsHeader  = dimsSection.querySelector('.card-header');
+    var beamLabel   = document.getElementById('beam-label');
+
+    if (family === 'compact') {
+      catSection.style.display = 'block';
+      dimsSection.style.display = 'none';
+      document.getElementById('customDims').checked = false;
+    } else {
+      catSection.style.display = 'none';
+      dimsSection.style.display = 'block';
+    }
+
+    // Domyslne wymiary i grubosci
+    if (family === 'compact') {
+      setDim(400, 400, 200, 1.2, 3.0);
+    } else if (family === 'ip65') {
+      setDim(850, 1900, 600, 1.2, 3.0);
+    } else if (family === 'inox') {
+      setDim(600, 800, 300, 1.5, 3.0);
+    } else if (family === 'modular') {
+      setDim(600, 400, 200, 1.2, 3.0);
+    }
+
+    // Etykieta belki/szyny
+    if (family === 'modular') {
+      beamLabel.textContent = 'Rzedy szyn DIN (szt)';
+    } else {
+      beamLabel.textContent = 'Belka pionowa / rzedy DIN (szt)';
+    }
+
+    // Domyslne opcje
+    var bw = document.querySelector('[name=back_welded]');
+    var bs = document.querySelector('[name=back_screwed]');
+    if (family === 'compact') {
+      if (bw) bw.checked = false;
+      if (bs) bs.checked = true;
+    } else {
+      if (bw) bw.checked = true;
+      if (bs) bs.checked = false;
+    }
+  }
+
+  function setDim(w, h, d, tb, tp) {
+    var el;
+    el = document.getElementById('k_width');  if (el) el.value = w;
+    el = document.getElementById('k_height'); if (el) el.value = h;
+    el = document.getElementById('k_depth');  if (el) el.value = d;
+    el = document.getElementById('k_tb');     if (el) el.value = tb;
+    el = document.getElementById('k_tp');     if (el) el.value = tp;
+  }
+
+  // ── Katalog (kompakt) ─────────────────────────────────────────────────────
+
+  window.selectCatalog = function (label, w, h, d) {
+    document.querySelectorAll('.cat-item').forEach(function (el) { el.classList.remove('selected'); });
+    label.classList.add('selected');
+    label.querySelector('input').checked = true;
+    setDim(w, h, d,
+           parseFloat(document.getElementById('k_tb').value) || 1.2,
+           parseFloat(document.getElementById('k_tp').value) || 3.0);
+  };
+
+  window.toggleCustomDims = function (show) {
+    var dimsSection = document.getElementById('dims-section');
+    dimsSection.style.display = show ? 'block' : 'none';
+  };
+
+  // ── Podglad live ─────────────────────────────────────────────────────────
+
+  window.schedulePreview = function () {
+    if (currentStep !== 4) return;
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(fetchPreview, 600);
+  };
+
+  function fetchPreview() {
+    var form = document.getElementById('kreatorForm');
+    var fd   = new FormData(form);
+    var obj  = {};
+    fd.forEach(function (v, k) { obj[k] = v; });
+
+    // Zbierz checkboxy (unchecked nie sa wysylane przez FormData)
+    ['back_welded','back_screwed','door_single','door_double',
+     'has_mounting_plate','lock_three_point','lock_cam',
+     'plinth','canopy','non_standard_color'].forEach(function (name) {
+      if (!obj[name]) obj[name] = '';
+    });
+
+    var csrfToken = document.querySelector('[name=_csrf_token]').value;
+
+    document.getElementById('previewContent').innerHTML =
+      '<div class="preview-loading"><i class="bi bi-arrow-repeat"></i> Przeliczanie...</div>';
+
+    fetch('{{ url_for("kosztorys.preview_calc") }}', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrfToken,
+      },
+      body: JSON.stringify(obj),
+    })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (data) {
+      if (!data || data.error) {
+        document.getElementById('previewContent').innerHTML =
+          '<p style="color:var(--color-danger);font-size:13px">Błąd kalkulacji – sprawdź wymiary.</p>';
+        return;
+      }
+      var prof = data.profitability || 0;
+      var profColor = prof > 0 ? 'var(--color-success)' : 'var(--color-danger)';
+      document.getElementById('previewContent').innerHTML =
+        '<div class="preview-row"><span>Koszt własny</span><strong>' + fmt(data.cost_total) + ' PLN</strong></div>' +
+        '<div class="preview-row"><span>Elementy blaszane</span><span>' + fmt(data.elements_cost) + ' PLN</span></div>' +
+        '<div class="preview-row"><span>Osprzęt</span><span>' + fmt(data.hardware_cost) + ' PLN</span></div>' +
+        '<div class="preview-row"><span>Robocizna + usługi</span><span>' + fmt(data.services_cost) + ' PLN</span></div>' +
+        '<hr style="margin:8px 0;border-color:var(--border-color)">' +
+        '<div class="preview-row"><span>Cena katalogowa</span><strong>' + fmt(data.price_catalog) + ' PLN</strong></div>' +
+        '<div class="preview-row"><span>Cena (po rabacie)</span>' +
+          '<strong style="color:var(--color-primary)">' + fmt(data.price_discount) + ' PLN</strong></div>' +
+        '<div class="preview-row"><span>Zyskowność</span>' +
+          '<strong style="color:' + profColor + '">' + prof + '%</strong></div>' +
+        '<hr style="margin:8px 0;border-color:var(--border-color)">' +
+        '<small style="color:var(--text-muted)">Obj. ' + (data.volume||0) + ' dm³ (' + (data.volume_range||'') + ')</small>';
+    })
+    .catch(function () {
+      document.getElementById('previewContent').innerHTML =
+        '<p style="color:var(--color-danger);font-size:13px">Brak połączenia z kalkulatorem.</p>';
+    });
+  }
+
+  function fmt(v) {
+    return parseFloat(v || 0).toFixed(2).replace('.', ',');
+  }
+
+  // ── Input listeners ──────────────────────────────────────────────────────
+
+  ['k_width','k_height','k_depth','k_tb','k_tp',
+   'k_reinf','k_cable','k_beam','k_design'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('input', window.schedulePreview);
+  });
+  document.querySelectorAll('[name^="back_"],[name^="door_"],[name^="lock_"],' +
+    '[name="has_mounting_plate"],[name="plinth"],[name="canopy"],[name="non_standard_color"]')
+    .forEach(function (el) {
+      el.addEventListener('change', window.schedulePreview);
+    });
+
+  // Init
+  applyFamilyDefaults(currentFamily);
+})();
+</script>
+{% endblock %}

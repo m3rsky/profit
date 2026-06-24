@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+{% block title %}Operatorzy – Spawalnia{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-person-badge"></i> Operatorzy spawalni</h1>
+  </div>
+  <div class="page-actions">
+    <a href="{{ url_for('spawalnia.list_records') }}" class="btn btn-outline">
+      <i class="bi bi-arrow-left"></i> Wróć do listy
+    </a>
+  </div>
+</div>
+
+{# ── SPAWACZ ── #}
+<div class="sp-ops-section">
+  <div class="sp-ops-section-hdr">
+    <i class="bi bi-fire"></i> Spawacz
+    <span class="badge badge-neutral">{{ spawacze|length }}</span>
+  </div>
+  <div class="sp-ops-grid">
+    <div class="card">
+      <div class="card-header">Dodaj spawacza</div>
+      <div class="card-body">
+        <form method="post">
+          {{ csrf_input() }}
+          <input type="hidden" name="action"  value="add">
+          <input type="hidden" name="op_type" value="spawacz">
+          <div class="form-group">
+            <label class="form-label" for="sp-initials">Inicjały <span class="sp-req">*</span></label>
+            <input type="text" id="sp-initials" name="initials" class="form-control"
+                   placeholder="np. MK" maxlength="10" style="max-width:120px;" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="sp-name">Imię i nazwisko <span class="sp-req">*</span></label>
+            <input type="text" id="sp-name" name="name" class="form-control"
+                   placeholder="np. Marek Kowalski" maxlength="128" required>
+          </div>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Dodaj</button>
+        </form>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">Lista spawaczy</div>
+      {% if spawacze %}
+      <div class="table-wrap">
+        <table class="data-table tbl-cards">
+          <thead><tr><th>Inicjały</th><th>Imię i nazwisko</th><th>Status</th><th class="th-actions"></th></tr></thead>
+          <tbody>
+            {% for op in spawacze %}
+            <tr>
+              <td data-label="Inicjały"><strong>{{ op.initials }}</strong></td>
+              <td data-label="Nazwisko">{{ op.name }}</td>
+              <td data-label="Status">
+                {% if op.is_active %}<span class="badge badge-ok">Aktywny</span>
+                {% else %}<span class="badge badge-neutral">Nieaktywny</span>{% endif %}
+              </td>
+              <td class="td-actions">
+                <form method="post" class="form-inline">
+                  {{ csrf_input() }}
+                  <input type="hidden" name="action"  value="toggle">
+                  <input type="hidden" name="op_type" value="spawacz">
+                  <input type="hidden" name="op_id"   value="{{ op.id }}">
+                  <button type="submit" class="btn btn-sm btn-outline"
+                          title="{{ 'Dezaktywuj' if op.is_active else 'Aktywuj' }}">
+                    <i class="bi bi-{{ 'pause' if op.is_active else 'play' }}-fill"></i>
+                  </button>
+                </form>
+                <form method="post" class="form-inline"
+                      onsubmit="return confirm('Usunąć spawacza {{ op.initials }}?')">
+                  {{ csrf_input() }}
+                  <input type="hidden" name="action"  value="delete">
+                  <input type="hidden" name="op_type" value="spawacz">
+                  <input type="hidden" name="op_id"   value="{{ op.id }}">
+                  <button type="submit" class="btn btn-sm btn-danger" title="Usuń">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="card-body--empty">Brak spawaczy. Dodaj pierwszego po lewej.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{# ── GIĘCIE ── #}
+<div class="sp-ops-section">
+  <div class="sp-ops-section-hdr">
+    <i class="bi bi-arrows-angle-contract"></i> Gięcie
+    <span class="badge badge-neutral">{{ giecie|length }}</span>
+  </div>
+  <div class="sp-ops-grid">
+    <div class="card">
+      <div class="card-header">Dodaj operatora gięcia</div>
+      <div class="card-body">
+        <form method="post">
+          {{ csrf_input() }}
+          <input type="hidden" name="action"  value="add">
+          <input type="hidden" name="op_type" value="giecie">
+          <div class="form-group">
+            <label class="form-label" for="gi-initials">Inicjały <span class="sp-req">*</span></label>
+            <input type="text" id="gi-initials" name="initials" class="form-control"
+                   placeholder="np. MK" maxlength="10" style="max-width:120px;" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="gi-name">Imię i nazwisko <span class="sp-req">*</span></label>
+            <input type="text" id="gi-name" name="name" class="form-control"
+                   placeholder="np. Marek Kowalski" maxlength="128" required>
+          </div>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Dodaj</button>
+        </form>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">Lista operatorów gięcia</div>
+      {% if giecie %}
+      <div class="table-wrap">
+        <table class="data-table tbl-cards">
+          <thead><tr><th>Inicjały</th><th>Imię i nazwisko</th><th>Status</th><th class="th-actions"></th></tr></thead>
+          <tbody>
+            {% for op in giecie %}
+            <tr>
+              <td data-label="Inicjały"><strong>{{ op.initials }}</strong></td>
+              <td data-label="Nazwisko">{{ op.name }}</td>
+              <td data-label="Status">
+                {% if op.is_active %}<span class="badge badge-ok">Aktywny</span>
+                {% else %}<span class="badge badge-neutral">Nieaktywny</span>{% endif %}
+              </td>
+              <td class="td-actions">
+                <form method="post" class="form-inline">
+                  {{ csrf_input() }}
+                  <input type="hidden" name="action"  value="toggle">
+                  <input type="hidden" name="op_type" value="giecie">
+                  <input type="hidden" name="op_id"   value="{{ op.id }}">
+                  <button type="submit" class="btn btn-sm btn-outline"
+                          title="{{ 'Dezaktywuj' if op.is_active else 'Aktywuj' }}">
+                    <i class="bi bi-{{ 'pause' if op.is_active else 'play' }}-fill"></i>
+                  </button>
+                </form>
+                <form method="post" class="form-inline"
+                      onsubmit="return confirm('Usunąć operatora {{ op.initials }}?')">
+                  {{ csrf_input() }}
+                  <input type="hidden" name="action"  value="delete">
+                  <input type="hidden" name="op_type" value="giecie">
+                  <input type="hidden" name="op_id"   value="{{ op.id }}">
+                  <button type="submit" class="btn btn-sm btn-danger" title="Usuń">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="card-body--empty">Brak operatorów gięcia. Dodaj pierwszego po lewej.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{# ── CIĘCIE ── #}
+<div class="sp-ops-section">
+  <div class="sp-ops-section-hdr">
+    <i class="bi bi-scissors"></i> Cięcie
+    <span class="badge badge-neutral">{{ ciecie|length }}</span>
+  </div>
+  <div class="sp-ops-grid">
+    <div class="card">
+      <div class="card-header">Dodaj operatora cięcia</div>
+      <div class="card-body">
+        <form method="post">
+          {{ csrf_input() }}
+          <input type="hidden" name="action"  value="add">
+          <input type="hidden" name="op_type" value="ciecie">
+          <div class="form-group">
+            <label class="form-label" for="ci-initials">Inicjały <span class="sp-req">*</span></label>
+            <input type="text" id="ci-initials" name="initials" class="form-control"
+                   placeholder="np. MK" maxlength="10" style="max-width:120px;" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="ci-name">Imię i nazwisko <span class="sp-req">*</span></label>
+            <input type="text" id="ci-name" name="name" class="form-control"
+                   placeholder="np. Marek Kowalski" maxlength="128" required>
+          </div>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Dodaj</button>
+        </form>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">Lista operatorów cięcia</div>
+      {% if ciecie %}
+      <div class="table-wrap">
+        <table class="data-table tbl-cards">
+          <thead><tr><th>Inicjały</th><th>Imię i nazwisko</th><th>Status</th><th class="th-actions"></th></tr></thead>
+          <tbody>
+            {% for op in ciecie %}
+            <tr>
+              <td data-label="Inicjały"><strong>{{ op.initials }}</strong></td>
+              <td data-label="Nazwisko">{{ op.name }}</td>
+              <td data-label="Status">
+                {% if op.is_active %}<span class="badge badge-ok">Aktywny</span>
+                {% else %}<span class="badge badge-neutral">Nieaktywny</span>{% endif %}
+              </td>
+              <td class="td-actions">
+                <form method="post" class="form-inline">
+                  {{ csrf_input() }}
+                  <input type="hidden" name="action"  value="toggle">
+                  <input type="hidden" name="op_type" value="ciecie">
+                  <input type="hidden" name="op_id"   value="{{ op.id }}">
+                  <button type="submit" class="btn btn-sm btn-outline"
+                          title="{{ 'Dezaktywuj' if op.is_active else 'Aktywuj' }}">
+                    <i class="bi bi-{{ 'pause' if op.is_active else 'play' }}-fill"></i>
+                  </button>
+                </form>
+                <form method="post" class="form-inline"
+                      onsubmit="return confirm('Usunąć operatora {{ op.initials }}?')">
+                  {{ csrf_input() }}
+                  <input type="hidden" name="action"  value="delete">
+                  <input type="hidden" name="op_type" value="ciecie">
+                  <input type="hidden" name="op_id"   value="{{ op.id }}">
+                  <button type="submit" class="btn btn-sm btn-danger" title="Usuń">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="card-body--empty">Brak operatorów cięcia. Dodaj pierwszego po lewej.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<style>
+.sp-ops-section {
+  margin-bottom: 1.5rem;
+}
+.sp-ops-section-hdr {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: .6rem;
+  padding-bottom: .4rem;
+  border-bottom: 2px solid var(--border);
+}
+.sp-ops-grid {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+.sp-req { color: var(--danger-text); }
+
+@media (max-width: 900px) {
+  .sp-ops-grid { grid-template-columns: 1fr; }
+}
+</style>
+{% endblock %}

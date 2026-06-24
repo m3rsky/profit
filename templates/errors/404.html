@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}404 Nie znaleziono{% endblock %}
+{% block content %}
+<div style="text-align:center; padding:var(--sp-lg)">
+  <div style="font-size:4rem; color:var(--secondary)">404</div>
+  <h1 class="page-title">Strona nie istnieje</h1>
+  <p style="color:var(--secondary); margin:var(--sp-md) 0">Żądany zasób nie został znaleziony.</p>
+  <a href="{{ url_for('dashboard') }}" class="btn btn-primary"><i class="bi bi-arrow-left"></i> Wróć do dashboardu</a>
+</div>
+{% endblock %}

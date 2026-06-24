@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Nowe zamówienie{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Nowe zamówienie</h1>
+  <a href="{{ url_for('orders_list') }}" class="btn btn-ghost"><i class="bi bi-arrow-left"></i> Wstecz</a>
+</div>
+
+<div class="card" style="max-width:580px">
+  <div class="card-body">
+    <form method="post" enctype="multipart/form-data">
+      {{ csrf_input() }}
+      <div class="form-group">
+        <label class="form-label" for="number">Numer zamówienia</label>
+        <input class="form-control" type="text" id="number" name="number"
+               placeholder="np. ZAM-2024-001" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="product_name">Produkt</label>
+        <input class="form-control" type="text" id="product_name" name="product_name"
+               placeholder="np. RU-M 750x1950x250" required>
+        {% if kontroler_tpls or monter_tpls %}
+        <span class="form-hint">
+          Szablony dopasowują się automatycznie po nazwie produktu.
+          Dostępne: {% for t in kontroler_tpls %}<strong>{{ t.name }}</strong>{% if not loop.last %}, {% endif %}{% endfor %}{% if monter_tpls %} · {% for t in monter_tpls %}<strong>{{ t.name }}</strong>{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}.
+        </span>
+        {% endif %}
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="client">Klient / odbiorca</label>
+        <input class="form-control" type="text" id="client" name="client"
+               placeholder="Nazwa firmy lub osoby" required>
+      </div>
+      <div class="form-row-2">
+        <div class="form-group">
+          <label class="form-label" for="quantity">Ilość (szt.)</label>
+          <input class="form-control" type="number" id="quantity" name="quantity"
+                 min="1" value="1" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="due_date">Termin realizacji</label>
+          <input class="form-control" type="date" id="due_date" name="due_date">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="notes">Uwagi <span class="form-hint">(opcjonalnie)</span></label>
+        <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label"><i class="bi bi-file-earmark-pdf"></i> Dokumentacja techniczna PDF <span class="form-hint">(opcjonalnie)</span></label>
+        <div class="pdf-upload-zone" id="pdf-zone">
+          <input type="file" id="pdf" name="pdf" accept=".pdf" class="pdf-upload-input">
+          <label for="pdf" class="pdf-upload-label">
+            <i class="bi bi-cloud-arrow-up pdf-upload-icon"></i>
+            <span class="pdf-upload-text" id="pdf-text">Kliknij lub przeciągnij plik PDF</span>
+            <span class="pdf-upload-hint">Rysunek techniczny, schemat lub zdjęcie produktu widoczne podczas kontroli</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Dodaj zamówienie</button>
+        <a href="{{ url_for('orders_list') }}" class="btn btn-ghost"><i class="bi bi-x-lg"></i> Anuluj</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var input = document.getElementById('pdf');
+  var text  = document.getElementById('pdf-text');
+  var zone  = document.getElementById('pdf-zone');
+  if (!input) return;
+
+  input.addEventListener('change', function () {
+    text.textContent = this.files[0] ? this.files[0].name : 'Kliknij lub przeciągnij plik PDF';
+    zone.classList.toggle('has-file', !!this.files[0]);
+  });
+
+  zone.addEventListener('dragover', function (e) { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', function ()  { zone.classList.remove('drag-over'); });
+  zone.addEventListener('drop', function (e) {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    var file = e.dataTransfer.files[0];
+    if (file && file.type === 'application/pdf') {
+      var dt = new DataTransfer();
+      dt.items.add(file);
+      input.files = dt.files;
+      text.textContent = file.name;
+      zone.classList.add('has-file');
+    }
+  });
+})();
+</script>
+{% endblock %}

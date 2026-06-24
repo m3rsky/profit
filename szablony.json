@@ -1,0 +1,2398 @@
+{
+  "templates": [
+    {
+      "name": "Kopia – TEST IMPEXP",
+      "description": "test",
+      "is_active": true,
+      "categories": [
+        {
+          "name": "PRZED ZŁOŻENIEM.",
+          "order": 0,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Lakier jest równy, bez zanieczyszczeń.",
+              "description": "Sprawdź malowanie elementów. Czy nie posiada prześwitów i niedomalowań.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Grubość lakieru jest prawidłowa.",
+              "description": "Sprawdź grubość miernikiem lakieru. Wynik zapisz w odnotacji.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po haczykach są poprawione.",
+              "description": "Sprawdź czy ślady po haczykach zostały zamalowane.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa w środku jest domalowana (narożniki)",
+              "description": "Sprawdź dokładnie malowanie wewnątrz elementu, jego narożniki i zagięcia.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa jest dobrze pospawana.",
+              "description": "Sprawdź spawy obudowy. Czy elementy nie posiadają pęknięć, odprysków spawu.",
+              "order": 4,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po szlifowaniu są równe.",
+              "description": "Sprawdź szlifowanie elementu.",
+              "order": 5,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "MONTAŻ PROFILI.",
+          "order": 1,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Profile są wygradowane.",
+              "description": "Sprawdź wygradowanie elementów.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Otwory w profilach są w poziomie.",
+              "description": "Sprawdź dokładne położenie otworów w profilach, czy są one umieszczone w poziomie.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa jest odkurzona.",
+              "description": "Sprawdź czy elementy nie są zakurzone, zanieczyszczone.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "MONTAŻ ŚRODKÓW.",
+          "order": 2,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Płyty montażowe są wygradowane.",
+              "description": "Sprawdź wygradowanie płyt montażowych",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Maskownice są dobrze pomalowane.",
+              "description": "Sprawdź malowanie maskownicy.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Maskownice są dobrze dopasowane.",
+              "description": "Sprawdź dopasowanie elementów do maskownicy.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Maskownice są proste.",
+              "description": "Sprawdź dokładnie narożniki maskownicy.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "DRZWI.",
+          "order": 3,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Lakier drzwi jest równy, bez zanieczyszczeń.",
+              "description": "Sprawdź lakier drzwi, czy jest równy i wolny od zanieczyszczeń.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi od środka są domalowane.",
+              "description": "Sprawdź malowanie drzwi wewnątrz.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po haczykach są poprawione.",
+              "description": "Sprawdź czy ślady po haczykach zostały zamalowane.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi mają prawidłową pozycję względem obudowy.",
+              "description": "Sprawdź ułożenie drzwi, czy ich położenie jest prawidłowe i nie ocierają sąsiednich elementów.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi nie są luźne.",
+              "description": "Sprawdź czy drzwi są dobrze zamontowane i czy nie są luźne.",
+              "order": 4,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Zamek działa poprawnie.",
+              "description": "Sprawdź prawidłowość działania zamka, czy otwiera się w odpowiednia stronę.",
+              "order": 5,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Zawiasy są dokręcone i posiadają zawleczki.",
+              "description": "Sprawdź czy zawiasy są prawidłowo dokręcone i posiadają zawleczki zabezpieczające.",
+              "order": 6,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "COKÓŁ.",
+          "order": 4,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Lakier jest równy bez zanieczyszczeń.",
+              "description": "Sprawdź malowanie elementu, czy lakier jest równo nałożony i jest wolny od zanieczyszczeń.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Cokół jest dobrze dopasowany.",
+              "description": "Sprawdź czy cokół jest odpowiednio dopasowany do elementu.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "INNE.",
+          "order": 5,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Szafa jest zgodna z rysunkiem.",
+              "description": "Sprawdź zgodność z rysunkiem technicznym.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Naklejka montera jest przyklejona.",
+              "description": "Sprawdź czy naklejka montera jest naklejona, widoczna i możliwa do odczytania.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Rozdzielnica IPS v1",
+      "description": "Odbiór techniczny rozdzielnicy IPS",
+      "is_active": true,
+      "categories": [
+        {
+          "name": "PRZED ZŁOŻENIEM.",
+          "order": 0,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Lakier jest równy, bez zanieczyszczeń.",
+              "description": "Sprawdź malowanie elementów. Czy nie posiada prześwitów i niedomalowań.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Grubość lakieru jest prawidłowa.",
+              "description": "Sprawdź grubość miernikiem lakieru. Wynik zapisz w odnotacji.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po haczykach są poprawione.",
+              "description": "Sprawdź czy ślady po haczykach zostały zamalowane.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa w środku jest domalowana (narożniki)",
+              "description": "Sprawdź dokładnie malowanie wewnątrz elementu, jego narożniki i zagięcia.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa jest dobrze pospawana.",
+              "description": "Sprawdź spawy obudowy. Czy elementy nie posiadają pęknięć, odprysków spawu.",
+              "order": 4,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po szlifowaniu są równe.",
+              "description": "Sprawdź szlifowanie elementu.",
+              "order": 5,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "MONTAŻ PROFILI.",
+          "order": 1,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Profile są wygradowane.",
+              "description": "Sprawdź wygradowanie elementów.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Otwory w profilach są w poziomie.",
+              "description": "Sprawdź dokładne położenie otworów w profilach, czy są one umieszczone w poziomie.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa jest odkurzona.",
+              "description": "Sprawdź czy elementy nie są zakurzone, zanieczyszczone.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "MONTAŻ ŚRODKÓW.",
+          "order": 2,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Płyty montażowe są wygradowane.",
+              "description": "Sprawdź wygradowanie płyt montażowych",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Maskownice są dobrze pomalowane.",
+              "description": "Sprawdź malowanie maskownicy.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Maskownice są dobrze dopasowane.",
+              "description": "Sprawdź dopasowanie elementów do maskownicy.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Maskownice są proste.",
+              "description": "Sprawdź dokładnie narożniki maskownicy.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "DRZWI.",
+          "order": 3,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Lakier drzwi jest równy, bez zanieczyszczeń.",
+              "description": "Sprawdź lakier drzwi, czy jest równy i wolny od zanieczyszczeń.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi od środka są domalowane.",
+              "description": "Sprawdź malowanie drzwi wewnątrz.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po haczykach są poprawione.",
+              "description": "Sprawdź czy ślady po haczykach zostały zamalowane.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi mają prawidłową pozycję względem obudowy.",
+              "description": "Sprawdź ułożenie drzwi, czy ich położenie jest prawidłowe i nie ocierają sąsiednich elementów.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi nie są luźne.",
+              "description": "Sprawdź czy drzwi są dobrze zamontowane i czy nie są luźne.",
+              "order": 4,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Zamek działa poprawnie.",
+              "description": "Sprawdź prawidłowość działania zamka, czy otwiera się w odpowiednia stronę.",
+              "order": 5,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Zawiasy są dokręcone i posiadają zawleczki.",
+              "description": "Sprawdź czy zawiasy są prawidłowo dokręcone i posiadają zawleczki zabezpieczające.",
+              "order": 6,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "COKÓŁ.",
+          "order": 4,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Lakier jest równy bez zanieczyszczeń.",
+              "description": "Sprawdź malowanie elementu, czy lakier jest równo nałożony i jest wolny od zanieczyszczeń.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Cokół jest dobrze dopasowany.",
+              "description": "Sprawdź czy cokół jest odpowiednio dopasowany do elementu.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "INNE.",
+          "order": 5,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Szafa jest zgodna z rysunkiem.",
+              "description": "Sprawdź zgodność z rysunkiem technicznym.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Naklejka montera jest przyklejona.",
+              "description": "Sprawdź czy naklejka montera jest naklejona, widoczna i możliwa do odczytania.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Rozdzielnica IPS v1",
+      "description": "Odbiór techniczny rozdzielnicy IPS",
+      "is_active": true,
+      "categories": [
+        {
+          "name": "PRZED ZŁOŻENIEM.",
+          "order": 0,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Lakier jest równy, bez zanieczyszczeń.",
+              "description": "Sprawdź malowanie elementów. Czy nie posiada prześwitów i niedomalowań.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Grubość lakieru jest prawidłowa.",
+              "description": "Sprawdź grubość miernikiem lakieru. Wynik zapisz w odnotacji.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po haczykach są poprawione.",
+              "description": "Sprawdź czy ślady po haczykach zostały zamalowane.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa w środku jest domalowana (narożniki)",
+              "description": "Sprawdź dokładnie malowanie wewnątrz elementu, jego narożniki i zagięcia.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa jest dobrze pospawana.",
+              "description": "Sprawdź spawy obudowy. Czy elementy nie posiadają pęknięć, odprysków spawu.",
+              "order": 4,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po szlifowaniu są równe.",
+              "description": "Sprawdź szlifowanie elementu.",
+              "order": 5,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "MONTAŻ PROFILI.",
+          "order": 1,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Profile są wygradowane.",
+              "description": "Sprawdź wygradowanie elementów.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Otwory w profilach są w poziomie.",
+              "description": "Sprawdź dokładne położenie otworów w profilach, czy są one umieszczone w poziomie.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa jest odkurzona.",
+              "description": "Sprawdź czy elementy nie są zakurzone, zanieczyszczone.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "MONTAŻ ŚRODKÓW.",
+          "order": 2,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Płyty montażowe są wygradowane.",
+              "description": "Sprawdź wygradowanie płyt montażowych",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Maskownice są dobrze pomalowane.",
+              "description": "Sprawdź malowanie maskownicy.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Maskownice są dobrze dopasowane.",
+              "description": "Sprawdź dopasowanie elementów do maskownicy.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Maskownice są proste.",
+              "description": "Sprawdź dokładnie narożniki maskownicy.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "DRZWI.",
+          "order": 3,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Lakier drzwi jest równy, bez zanieczyszczeń.",
+              "description": "Sprawdź lakier drzwi, czy jest równy i wolny od zanieczyszczeń.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi od środka są domalowane.",
+              "description": "Sprawdź malowanie drzwi wewnątrz.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po haczykach są poprawione.",
+              "description": "Sprawdź czy ślady po haczykach zostały zamalowane.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi mają prawidłową pozycję względem obudowy.",
+              "description": "Sprawdź ułożenie drzwi, czy ich położenie jest prawidłowe i nie ocierają sąsiednich elementów.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi nie są luźne.",
+              "description": "Sprawdź czy drzwi są dobrze zamontowane i czy nie są luźne.",
+              "order": 4,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Zamek działa poprawnie.",
+              "description": "Sprawdź prawidłowość działania zamka, czy otwiera się w odpowiednia stronę.",
+              "order": 5,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Zawiasy są dokręcone i posiadają zawleczki.",
+              "description": "Sprawdź czy zawiasy są prawidłowo dokręcone i posiadają zawleczki zabezpieczające.",
+              "order": 6,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "COKÓŁ.",
+          "order": 4,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Lakier jest równy bez zanieczyszczeń.",
+              "description": "Sprawdź malowanie elementu, czy lakier jest równo nałożony i jest wolny od zanieczyszczeń.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Cokół jest dobrze dopasowany.",
+              "description": "Sprawdź czy cokół jest odpowiednio dopasowany do elementu.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "INNE.",
+          "order": 5,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Szafa jest zgodna z rysunkiem.",
+              "description": "Sprawdź zgodność z rysunkiem technicznym.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Naklejka montera jest przyklejona.",
+              "description": "Sprawdź czy naklejka montera jest naklejona, widoczna i możliwa do odczytania.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Rozdzielnica PS v1",
+      "description": "Odbiór techniczny rozdzielnicy PS",
+      "is_active": true,
+      "categories": [
+        {
+          "name": "PRZED ZŁOŻENIEM.",
+          "order": 0,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Lakier jest równy, bez zanieczyszczeń.",
+              "description": "Sprawdź malowanie elementów. Czy nie posiada prześwitów i niedomalowań.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Grubość lakieru jest prawidłowa.",
+              "description": "Sprawdź grubość miernikiem lakieru. Wynik zapisz w odnotacji.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po haczykach są poprawione.",
+              "description": "Sprawdź czy ślady po haczykach zostały zamalowane.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa w środku jest domalowana (narożniki)",
+              "description": "Sprawdź dokładnie malowanie wewnątrz elementu, jego narożniki i zagięcia.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa jest dobrze zgrzana.",
+              "description": "Sprawdź miejsca zgrzewu obudowy. Czy elementy nie posiadają pęknięć.",
+              "order": 4,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po szlifowaniu są równe.",
+              "description": "Sprawdź szlifowanie elementu.",
+              "order": 5,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "MONTAŻ PROFILI.",
+          "order": 1,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Profile są wygradowane.",
+              "description": "Sprawdź wygradowanie elementów.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Otwory w profilach są w poziomie.",
+              "description": "Sprawdź dokładne położenie otworów w profilach, czy są one umieszczone w poziomie.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa jest odkurzona.",
+              "description": "Sprawdź czy elementy nie są zakurzone, zanieczyszczone.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "MONTAŻ ŚRODKÓW.",
+          "order": 2,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Płyty montażowe są wygradowane.",
+              "description": "Sprawdź wygradowanie płyt montażowych",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Maskownice są dobrze pomalowane.",
+              "description": "Sprawdź malowanie maskownicy.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Maskownice są dobrze dopasowane.",
+              "description": "Sprawdź dopasowanie elementów do maskownicy.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Maskownice są proste.",
+              "description": "Sprawdź dokładnie narożniki maskownicy.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Kasety licznikowe są dobrze dopasowane.",
+              "description": "Sprawdź czy kasety licznikowe są prawidłowo zamontowane i dopasowane.",
+              "order": 4,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "DRZWI.",
+          "order": 3,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Lakier drzwi jest równy, bez zanieczyszczeń.",
+              "description": "Sprawdź lakier drzwi, czy jest równy i wolny od zanieczyszczeń.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi od środka są domalowane.",
+              "description": "Sprawdź malowanie drzwi wewnątrz.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po haczykach są poprawione.",
+              "description": "Sprawdź czy ślady po haczykach zostały zamalowane.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi mają prawidłową pozycję względem obudowy.",
+              "description": "Sprawdź ułożenie drzwi, czy ich położenie jest prawidłowe i nie ocierają sąsiednich elementów.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi nie są luźne.",
+              "description": "Sprawdź czy drzwi są dobrze zamontowane i czy nie są luźne.",
+              "order": 4,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Zamek działa poprawnie.",
+              "description": "Sprawdź prawidłowość działania zamka, czy otwiera się w odpowiednia stronę.",
+              "order": 5,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Zawiasy są dokręcone i posiadają zawleczki.",
+              "description": "Sprawdź czy zawiasy są prawidłowo dokręcone i posiadają zawleczki zabezpieczające.",
+              "order": 6,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Odczyty pasują do tablic.",
+              "description": "Sprawdź czy miejsca na odczyty pasują do tablic.",
+              "order": 7,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Odczyty są równo przyklejone.",
+              "description": "Sprawdź nałożenie odczytów.",
+              "order": 8,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "COKÓŁ.",
+          "order": 4,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Lakier jest równy bez zanieczyszczeń.",
+              "description": "Sprawdź malowanie elementu, czy lakier jest równo nałożony i jest wolny od zanieczyszczeń.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Cokół jest dobrze dopasowany.",
+              "description": "Sprawdź czy cokół jest odpowiednio dopasowany do elementu.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "INNE.",
+          "order": 5,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Szafa jest zgodna z rysunkiem.",
+              "description": "Sprawdź zgodność z rysunkiem technicznym.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Naklejka montera jest przyklejona.",
+              "description": "Sprawdź czy naklejka montera jest naklejona, widoczna i możliwa do odczytania.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Rozdzielnica PS v1",
+      "description": "Odbiór techniczny rozdzielnicy PS",
+      "is_active": true,
+      "categories": [
+        {
+          "name": "PRZED ZŁOŻENIEM.",
+          "order": 0,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Lakier jest równy, bez zanieczyszczeń.",
+              "description": "Sprawdź malowanie elementów. Czy nie posiada prześwitów i niedomalowań.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Grubość lakieru jest prawidłowa.",
+              "description": "Sprawdź grubość miernikiem lakieru. Wynik zapisz w odnotacji.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po haczykach są poprawione.",
+              "description": "Sprawdź czy ślady po haczykach zostały zamalowane.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa w środku jest domalowana (narożniki)",
+              "description": "Sprawdź dokładnie malowanie wewnątrz elementu, jego narożniki i zagięcia.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa jest dobrze zgrzana.",
+              "description": "Sprawdź miejsca zgrzewu obudowy. Czy elementy nie posiadają pęknięć.",
+              "order": 4,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po szlifowaniu są równe.",
+              "description": "Sprawdź szlifowanie elementu.",
+              "order": 5,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "MONTAŻ PROFILI.",
+          "order": 1,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Profile są wygradowane.",
+              "description": "Sprawdź wygradowanie elementów.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Otwory w profilach są w poziomie.",
+              "description": "Sprawdź dokładne położenie otworów w profilach, czy są one umieszczone w poziomie.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa jest odkurzona.",
+              "description": "Sprawdź czy elementy nie są zakurzone, zanieczyszczone.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "MONTAŻ ŚRODKÓW.",
+          "order": 2,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Płyty montażowe są wygradowane.",
+              "description": "Sprawdź wygradowanie płyt montażowych",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Maskownice są dobrze pomalowane.",
+              "description": "Sprawdź malowanie maskownicy.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Maskownice są dobrze dopasowane.",
+              "description": "Sprawdź dopasowanie elementów do maskownicy.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Maskownice są proste.",
+              "description": "Sprawdź dokładnie narożniki maskownicy.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Kasety licznikowe są dobrze dopasowane.",
+              "description": "Sprawdź czy kasety licznikowe są prawidłowo zamontowane i dopasowane.",
+              "order": 4,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "DRZWI.",
+          "order": 3,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Lakier drzwi jest równy, bez zanieczyszczeń.",
+              "description": "Sprawdź lakier drzwi, czy jest równy i wolny od zanieczyszczeń.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi od środka są domalowane.",
+              "description": "Sprawdź malowanie drzwi wewnątrz.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po haczykach są poprawione.",
+              "description": "Sprawdź czy ślady po haczykach zostały zamalowane.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi mają prawidłową pozycję względem obudowy.",
+              "description": "Sprawdź ułożenie drzwi, czy ich położenie jest prawidłowe i nie ocierają sąsiednich elementów.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi nie są luźne.",
+              "description": "Sprawdź czy drzwi są dobrze zamontowane i czy nie są luźne.",
+              "order": 4,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Zamek działa poprawnie.",
+              "description": "Sprawdź prawidłowość działania zamka, czy otwiera się w odpowiednia stronę.",
+              "order": 5,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Zawiasy są dokręcone i posiadają zawleczki.",
+              "description": "Sprawdź czy zawiasy są prawidłowo dokręcone i posiadają zawleczki zabezpieczające.",
+              "order": 6,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Odczyty pasują do tablic.",
+              "description": "Sprawdź czy miejsca na odczyty pasują do tablic.",
+              "order": 7,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Odczyty są równo przyklejone.",
+              "description": "Sprawdź nałożenie odczytów.",
+              "order": 8,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "COKÓŁ.",
+          "order": 4,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Lakier jest równy bez zanieczyszczeń.",
+              "description": "Sprawdź malowanie elementu, czy lakier jest równo nałożony i jest wolny od zanieczyszczeń.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Cokół jest dobrze dopasowany.",
+              "description": "Sprawdź czy cokół jest odpowiednio dopasowany do elementu.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "INNE.",
+          "order": 5,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Szafa jest zgodna z rysunkiem.",
+              "description": "Sprawdź zgodność z rysunkiem technicznym.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Naklejka montera jest przyklejona.",
+              "description": "Sprawdź czy naklejka montera jest naklejona, widoczna i możliwa do odczytania.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Rozdzielnica PSH  INOX v1",
+      "description": "Odbiór techniczny rozdzielnicy PSH INOX",
+      "is_active": true,
+      "categories": [
+        {
+          "name": "PRZED ZŁOŻENIEM.",
+          "order": 0,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Obudowa jest dobrze pospawana.",
+              "description": "Sprawdź spawy obudowy. Czy elementy nie posiadają pęknięć, odprysków spawu.",
+              "order": 4,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po szlifowaniu są równe.",
+              "description": "Sprawdź szlifowanie elementu.",
+              "order": 5,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "MONTAŻ PROFILI.",
+          "order": 1,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Profile są wygradowane.",
+              "description": "Sprawdź wygradowanie elementów.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Otwory w profilach są w poziomie.",
+              "description": "Sprawdź dokładne położenie otworów w profilach, czy są one umieszczone w poziomie.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa jest odkurzona.",
+              "description": "Sprawdź czy elementy nie są zakurzone, zanieczyszczone.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "MONTAŻ ŚRODKÓW.",
+          "order": 2,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Płyty montażowe są wygradowane.",
+              "description": "Sprawdź wygradowanie płyt montażowych",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Maskownice są dobrze dopasowane.",
+              "description": "Sprawdź dopasowanie elementów do maskownicy.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Maskownice są proste.",
+              "description": "Sprawdź dokładnie narożniki maskownicy.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "DRZWI.",
+          "order": 3,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Drzwi mają prawidłową pozycję względem obudowy.",
+              "description": "Sprawdź ułożenie drzwi, czy ich położenie jest prawidłowe i nie ocierają sąsiednich elementów.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi nie są luźne.",
+              "description": "Sprawdź czy drzwi są dobrze zamontowane i czy nie są luźne.",
+              "order": 4,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Zamek działa poprawnie.",
+              "description": "Sprawdź prawidłowość działania zamka, czy otwiera się w odpowiednia stronę.",
+              "order": 5,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Zawiasy są dokręcone i posiadają zawleczki.",
+              "description": "Sprawdź czy zawiasy są prawidłowo dokręcone i posiadają zawleczki zabezpieczające.",
+              "order": 6,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "COKÓŁ.",
+          "order": 4,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Cokół jest dobrze dopasowany.",
+              "description": "Sprawdź czy cokół jest odpowiednio dopasowany do elementu.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "INNE.",
+          "order": 5,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Szafa jest zgodna z rysunkiem.",
+              "description": "Sprawdź zgodność z rysunkiem technicznym.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Naklejka montera jest przyklejona.",
+              "description": "Sprawdź czy naklejka montera jest naklejona, widoczna i możliwa do odczytania.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Rozdzielnica PSH  INOX v1",
+      "description": "Odbiór techniczny rozdzielnicy PSH INOX",
+      "is_active": true,
+      "categories": [
+        {
+          "name": "PRZED ZŁOŻENIEM.",
+          "order": 0,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Obudowa jest dobrze pospawana.",
+              "description": "Sprawdź spawy obudowy. Czy elementy nie posiadają pęknięć, odprysków spawu.",
+              "order": 4,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po szlifowaniu są równe.",
+              "description": "Sprawdź szlifowanie elementu.",
+              "order": 5,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "MONTAŻ PROFILI.",
+          "order": 1,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Profile są wygradowane.",
+              "description": "Sprawdź wygradowanie elementów.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Otwory w profilach są w poziomie.",
+              "description": "Sprawdź dokładne położenie otworów w profilach, czy są one umieszczone w poziomie.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa jest odkurzona.",
+              "description": "Sprawdź czy elementy nie są zakurzone, zanieczyszczone.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "MONTAŻ ŚRODKÓW.",
+          "order": 2,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Płyty montażowe są wygradowane.",
+              "description": "Sprawdź wygradowanie płyt montażowych",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Maskownice są dobrze dopasowane.",
+              "description": "Sprawdź dopasowanie elementów do maskownicy.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Maskownice są proste.",
+              "description": "Sprawdź dokładnie narożniki maskownicy.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "DRZWI.",
+          "order": 3,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Drzwi mają prawidłową pozycję względem obudowy.",
+              "description": "Sprawdź ułożenie drzwi, czy ich położenie jest prawidłowe i nie ocierają sąsiednich elementów.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi nie są luźne.",
+              "description": "Sprawdź czy drzwi są dobrze zamontowane i czy nie są luźne.",
+              "order": 4,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Zamek działa poprawnie.",
+              "description": "Sprawdź prawidłowość działania zamka, czy otwiera się w odpowiednia stronę.",
+              "order": 5,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Zawiasy są dokręcone i posiadają zawleczki.",
+              "description": "Sprawdź czy zawiasy są prawidłowo dokręcone i posiadają zawleczki zabezpieczające.",
+              "order": 6,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "COKÓŁ.",
+          "order": 4,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Cokół jest dobrze dopasowany.",
+              "description": "Sprawdź czy cokół jest odpowiednio dopasowany do elementu.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "INNE.",
+          "order": 5,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Szafa jest zgodna z rysunkiem.",
+              "description": "Sprawdź zgodność z rysunkiem technicznym.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Naklejka montera jest przyklejona.",
+              "description": "Sprawdź czy naklejka montera jest naklejona, widoczna i możliwa do odczytania.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Rozdzielnica PSH v1",
+      "description": "Odbiór techniczny rozdzielnicy PSH",
+      "is_active": true,
+      "categories": [
+        {
+          "name": "PRZED ZŁOŻENIEM.",
+          "order": 0,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Lakier jest równy, bez zanieczyszczeń.",
+              "description": "Sprawdź malowanie elementów. Czy nie posiada prześwitów i niedomalowań.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Grubość lakieru jest prawidłowa.",
+              "description": "Sprawdź grubość miernikiem lakieru. Wynik zapisz w odnotacji.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po haczykach są poprawione.",
+              "description": "Sprawdź czy ślady po haczykach zostały zamalowane.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa w środku jest domalowana (narożniki)",
+              "description": "Sprawdź dokładnie malowanie wewnątrz elementu, jego narożniki i zagięcia.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa jest dobrze pospawana.",
+              "description": "Sprawdź spawy obudowy. Czy elementy nie posiadają pęknięć, odprysków spawu.",
+              "order": 4,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po szlifowaniu są równe.",
+              "description": "Sprawdź szlifowanie elementu.",
+              "order": 5,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "MONTAŻ PROFILI.",
+          "order": 1,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Profile są wygradowane.",
+              "description": "Sprawdź wygradowanie elementów.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Otwory w profilach są w poziomie.",
+              "description": "Sprawdź dokładne położenie otworów w profilach, czy są one umieszczone w poziomie.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa jest odkurzona.",
+              "description": "Sprawdź czy elementy nie są zakurzone, zanieczyszczone.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "MONTAŻ ŚRODKÓW.",
+          "order": 2,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Płyty montażowe są wygradowane.",
+              "description": "Sprawdź wygradowanie płyt montażowych",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Maskownice są dobrze pomalowane.",
+              "description": "Sprawdź malowanie maskownicy.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Maskownice są dobrze dopasowane.",
+              "description": "Sprawdź dopasowanie elementów do maskownicy.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Maskownice są proste.",
+              "description": "Sprawdź dokładnie narożniki maskownicy.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "DRZWI.",
+          "order": 3,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Lakier drzwi jest równy, bez zanieczyszczeń.",
+              "description": "Sprawdź lakier drzwi, czy jest równy i wolny od zanieczyszczeń.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi od środka są domalowane.",
+              "description": "Sprawdź malowanie drzwi wewnątrz.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po haczykach są poprawione.",
+              "description": "Sprawdź czy ślady po haczykach zostały zamalowane.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi mają prawidłową pozycję względem obudowy.",
+              "description": "Sprawdź ułożenie drzwi, czy ich położenie jest prawidłowe i nie ocierają sąsiednich elementów.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi nie są luźne.",
+              "description": "Sprawdź czy drzwi są dobrze zamontowane i czy nie są luźne.",
+              "order": 4,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Zamek działa poprawnie.",
+              "description": "Sprawdź prawidłowość działania zamka, czy otwiera się w odpowiednia stronę.",
+              "order": 5,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Zawiasy są dokręcone i posiadają zawleczki.",
+              "description": "Sprawdź czy zawiasy są prawidłowo dokręcone i posiadają zawleczki zabezpieczające.",
+              "order": 6,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "COKÓŁ.",
+          "order": 4,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Lakier jest równy bez zanieczyszczeń.",
+              "description": "Sprawdź malowanie elementu, czy lakier jest równo nałożony i jest wolny od zanieczyszczeń.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Cokół jest dobrze dopasowany.",
+              "description": "Sprawdź czy cokół jest odpowiednio dopasowany do elementu.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "INNE.",
+          "order": 5,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Szafa jest zgodna z rysunkiem.",
+              "description": "Sprawdź zgodność z rysunkiem technicznym.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Naklejka montera jest przyklejona.",
+              "description": "Sprawdź czy naklejka montera jest naklejona, widoczna i możliwa do odczytania.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Rozdzielnica PSH v1",
+      "description": "Odbiór techniczny rozdzielnicy PSH",
+      "is_active": true,
+      "categories": [
+        {
+          "name": "PRZED ZŁOŻENIEM.",
+          "order": 0,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Lakier jest równy, bez zanieczyszczeń.",
+              "description": "Sprawdź malowanie elementów. Czy nie posiada prześwitów i niedomalowań.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Grubość lakieru jest prawidłowa.",
+              "description": "Sprawdź grubość miernikiem lakieru. Wynik zapisz w odnotacji.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po haczykach są poprawione.",
+              "description": "Sprawdź czy ślady po haczykach zostały zamalowane.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa w środku jest domalowana (narożniki)",
+              "description": "Sprawdź dokładnie malowanie wewnątrz elementu, jego narożniki i zagięcia.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa jest dobrze pospawana.",
+              "description": "Sprawdź spawy obudowy. Czy elementy nie posiadają pęknięć, odprysków spawu.",
+              "order": 4,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po szlifowaniu są równe.",
+              "description": "Sprawdź szlifowanie elementu.",
+              "order": 5,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "MONTAŻ PROFILI.",
+          "order": 1,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Profile są wygradowane.",
+              "description": "Sprawdź wygradowanie elementów.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Otwory w profilach są w poziomie.",
+              "description": "Sprawdź dokładne położenie otworów w profilach, czy są one umieszczone w poziomie.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa jest odkurzona.",
+              "description": "Sprawdź czy elementy nie są zakurzone, zanieczyszczone.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "MONTAŻ ŚRODKÓW.",
+          "order": 2,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Płyty montażowe są wygradowane.",
+              "description": "Sprawdź wygradowanie płyt montażowych",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Maskownice są dobrze pomalowane.",
+              "description": "Sprawdź malowanie maskownicy.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Maskownice są dobrze dopasowane.",
+              "description": "Sprawdź dopasowanie elementów do maskownicy.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Maskownice są proste.",
+              "description": "Sprawdź dokładnie narożniki maskownicy.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "DRZWI.",
+          "order": 3,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Lakier drzwi jest równy, bez zanieczyszczeń.",
+              "description": "Sprawdź lakier drzwi, czy jest równy i wolny od zanieczyszczeń.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi od środka są domalowane.",
+              "description": "Sprawdź malowanie drzwi wewnątrz.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po haczykach są poprawione.",
+              "description": "Sprawdź czy ślady po haczykach zostały zamalowane.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi mają prawidłową pozycję względem obudowy.",
+              "description": "Sprawdź ułożenie drzwi, czy ich położenie jest prawidłowe i nie ocierają sąsiednich elementów.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi nie są luźne.",
+              "description": "Sprawdź czy drzwi są dobrze zamontowane i czy nie są luźne.",
+              "order": 4,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Zamek działa poprawnie.",
+              "description": "Sprawdź prawidłowość działania zamka, czy otwiera się w odpowiednia stronę.",
+              "order": 5,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Zawiasy są dokręcone i posiadają zawleczki.",
+              "description": "Sprawdź czy zawiasy są prawidłowo dokręcone i posiadają zawleczki zabezpieczające.",
+              "order": 6,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "COKÓŁ.",
+          "order": 4,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Lakier jest równy bez zanieczyszczeń.",
+              "description": "Sprawdź malowanie elementu, czy lakier jest równo nałożony i jest wolny od zanieczyszczeń.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Cokół jest dobrze dopasowany.",
+              "description": "Sprawdź czy cokół jest odpowiednio dopasowany do elementu.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "INNE.",
+          "order": 5,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Szafa jest zgodna z rysunkiem.",
+              "description": "Sprawdź zgodność z rysunkiem technicznym.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Naklejka montera jest przyklejona.",
+              "description": "Sprawdź czy naklejka montera jest naklejona, widoczna i możliwa do odczytania.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Rozdzielnica RZ/RW v1",
+      "description": "Odbiór techniczny rozdzielnicy RZ/RW",
+      "is_active": true,
+      "categories": [
+        {
+          "name": "PRZED ZŁOŻENIEM.",
+          "order": 0,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Lakier jest równy, bez zanieczyszczeń.",
+              "description": "Sprawdź malowanie elementów. Czy nie posiada prześwitów i niedomalowań.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Grubość lakieru jest prawidłowa.",
+              "description": "Sprawdź grubość miernikiem lakieru. Wynik zapisz w odnotacji.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po haczykach są poprawione.",
+              "description": "Sprawdź czy ślady po haczykach zostały zamalowane.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa w środku jest domalowana (narożniki)",
+              "description": "Sprawdź dokładnie malowanie wewnątrz elementu, jego narożniki i zagięcia.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa jest dobrze zgrzana.",
+              "description": "Sprawdź miejsca zgrzewu obudowy. Czy elementy nie posiadają pęknięć.",
+              "order": 4,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po szlifowaniu są równe.",
+              "description": "Sprawdź szlifowanie elementu.",
+              "order": 5,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "MONTAŻ TABLICY.",
+          "order": 1,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Sprawdzenie zgodności elementów tablicy.",
+              "description": "Sprawdź czy tablica jest kompletna i dokładnie zamontowana.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "DRZWI.",
+          "order": 3,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Lakier drzwi jest równy, bez zanieczyszczeń.",
+              "description": "Sprawdź lakier drzwi, czy jest równy i wolny od zanieczyszczeń.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi od środka są domalowane.",
+              "description": "Sprawdź malowanie drzwi wewnątrz.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po haczykach są poprawione.",
+              "description": "Sprawdź czy ślady po haczykach zostały zamalowane.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi mają prawidłową pozycję względem obudowy.",
+              "description": "Sprawdź ułożenie drzwi, czy ich położenie jest prawidłowe i nie ocierają sąsiednich elementów.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi nie są luźne.",
+              "description": "Sprawdź czy drzwi są dobrze zamontowane i czy nie są luźne.",
+              "order": 4,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Zamek działa poprawnie.",
+              "description": "Sprawdź prawidłowość działania zamka, czy otwiera się w odpowiednia stronę.",
+              "order": 5,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Zawiasy są dokręcone i posiadają zawleczki.",
+              "description": "Sprawdź czy zawiasy są prawidłowo dokręcone i posiadają zawleczki zabezpieczające.",
+              "order": 6,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Dopasowanie wizjerów.",
+              "description": "Sprawdź czy okna wizyjne są prawidłowo położone, czy nie posiadają zarysowań.",
+              "order": 7,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "INNE.",
+          "order": 5,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Szafa jest zgodna z rysunkiem.",
+              "description": "Sprawdź zgodność z rysunkiem technicznym.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Naklejka montera jest przyklejona.",
+              "description": "Sprawdź czy naklejka montera jest naklejona, widoczna i możliwa do odczytania.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Rozdzielnica RZ/RW v1",
+      "description": "Odbiór techniczny rozdzielnicy RZ/RW",
+      "is_active": true,
+      "categories": [
+        {
+          "name": "PRZED ZŁOŻENIEM.",
+          "order": 0,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Lakier jest równy, bez zanieczyszczeń.",
+              "description": "Sprawdź malowanie elementów. Czy nie posiada prześwitów i niedomalowań.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Grubość lakieru jest prawidłowa.",
+              "description": "Sprawdź grubość miernikiem lakieru. Wynik zapisz w odnotacji.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po haczykach są poprawione.",
+              "description": "Sprawdź czy ślady po haczykach zostały zamalowane.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa w środku jest domalowana (narożniki)",
+              "description": "Sprawdź dokładnie malowanie wewnątrz elementu, jego narożniki i zagięcia.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa jest dobrze zgrzana.",
+              "description": "Sprawdź miejsca zgrzewu obudowy. Czy elementy nie posiadają pęknięć.",
+              "order": 4,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po szlifowaniu są równe.",
+              "description": "Sprawdź szlifowanie elementu.",
+              "order": 5,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "MONTAŻ TABLICY.",
+          "order": 1,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Sprawdzenie zgodności elementów tablicy.",
+              "description": "Sprawdź czy tablica jest kompletna i dokładnie zamontowana.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "DRZWI.",
+          "order": 3,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Lakier drzwi jest równy, bez zanieczyszczeń.",
+              "description": "Sprawdź lakier drzwi, czy jest równy i wolny od zanieczyszczeń.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi od środka są domalowane.",
+              "description": "Sprawdź malowanie drzwi wewnątrz.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po haczykach są poprawione.",
+              "description": "Sprawdź czy ślady po haczykach zostały zamalowane.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi mają prawidłową pozycję względem obudowy.",
+              "description": "Sprawdź ułożenie drzwi, czy ich położenie jest prawidłowe i nie ocierają sąsiednich elementów.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi nie są luźne.",
+              "description": "Sprawdź czy drzwi są dobrze zamontowane i czy nie są luźne.",
+              "order": 4,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Zamek działa poprawnie.",
+              "description": "Sprawdź prawidłowość działania zamka, czy otwiera się w odpowiednia stronę.",
+              "order": 5,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Zawiasy są dokręcone i posiadają zawleczki.",
+              "description": "Sprawdź czy zawiasy są prawidłowo dokręcone i posiadają zawleczki zabezpieczające.",
+              "order": 6,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Dopasowanie wizjerów.",
+              "description": "Sprawdź czy okna wizyjne są prawidłowo położone, czy nie posiadają zarysowań.",
+              "order": 7,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "INNE.",
+          "order": 5,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Szafa jest zgodna z rysunkiem.",
+              "description": "Sprawdź zgodność z rysunkiem technicznym.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Naklejka montera jest przyklejona.",
+              "description": "Sprawdź czy naklejka montera jest naklejona, widoczna i możliwa do odczytania.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "TEST IMPEXP",
+      "description": "test",
+      "is_active": true,
+      "categories": [
+        {
+          "name": "PRZED ZŁOŻENIEM.",
+          "order": 0,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Lakier jest równy, bez zanieczyszczeń.",
+              "description": "Sprawdź malowanie elementów. Czy nie posiada prześwitów i niedomalowań.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Grubość lakieru jest prawidłowa.",
+              "description": "Sprawdź grubość miernikiem lakieru. Wynik zapisz w odnotacji.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po haczykach są poprawione.",
+              "description": "Sprawdź czy ślady po haczykach zostały zamalowane.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa w środku jest domalowana (narożniki)",
+              "description": "Sprawdź dokładnie malowanie wewnątrz elementu, jego narożniki i zagięcia.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa jest dobrze pospawana.",
+              "description": "Sprawdź spawy obudowy. Czy elementy nie posiadają pęknięć, odprysków spawu.",
+              "order": 4,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po szlifowaniu są równe.",
+              "description": "Sprawdź szlifowanie elementu.",
+              "order": 5,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "MONTAŻ PROFILI.",
+          "order": 1,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Profile są wygradowane.",
+              "description": "Sprawdź wygradowanie elementów.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Otwory w profilach są w poziomie.",
+              "description": "Sprawdź dokładne położenie otworów w profilach, czy są one umieszczone w poziomie.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Obudowa jest odkurzona.",
+              "description": "Sprawdź czy elementy nie są zakurzone, zanieczyszczone.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "MONTAŻ ŚRODKÓW.",
+          "order": 2,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Płyty montażowe są wygradowane.",
+              "description": "Sprawdź wygradowanie płyt montażowych",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Maskownice są dobrze pomalowane.",
+              "description": "Sprawdź malowanie maskownicy.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Maskownice są dobrze dopasowane.",
+              "description": "Sprawdź dopasowanie elementów do maskownicy.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Maskownice są proste.",
+              "description": "Sprawdź dokładnie narożniki maskownicy.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "DRZWI.",
+          "order": 3,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Lakier drzwi jest równy, bez zanieczyszczeń.",
+              "description": "Sprawdź lakier drzwi, czy jest równy i wolny od zanieczyszczeń.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi od środka są domalowane.",
+              "description": "Sprawdź malowanie drzwi wewnątrz.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Ślady po haczykach są poprawione.",
+              "description": "Sprawdź czy ślady po haczykach zostały zamalowane.",
+              "order": 2,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi mają prawidłową pozycję względem obudowy.",
+              "description": "Sprawdź ułożenie drzwi, czy ich położenie jest prawidłowe i nie ocierają sąsiednich elementów.",
+              "order": 3,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Drzwi nie są luźne.",
+              "description": "Sprawdź czy drzwi są dobrze zamontowane i czy nie są luźne.",
+              "order": 4,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Zamek działa poprawnie.",
+              "description": "Sprawdź prawidłowość działania zamka, czy otwiera się w odpowiednia stronę.",
+              "order": 5,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Zawiasy są dokręcone i posiadają zawleczki.",
+              "description": "Sprawdź czy zawiasy są prawidłowo dokręcone i posiadają zawleczki zabezpieczające.",
+              "order": 6,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "COKÓŁ.",
+          "order": 4,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Lakier jest równy bez zanieczyszczeń.",
+              "description": "Sprawdź malowanie elementu, czy lakier jest równo nałożony i jest wolny od zanieczyszczeń.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Cokół jest dobrze dopasowany.",
+              "description": "Sprawdź czy cokół jest odpowiednio dopasowany do elementu.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        },
+        {
+          "name": "INNE.",
+          "order": 5,
+          "is_active": true,
+          "tasks": [
+            {
+              "title": "Szafa jest zgodna z rysunkiem.",
+              "description": "Sprawdź zgodność z rysunkiem technicznym.",
+              "order": 0,
+              "is_active": true,
+              "requires_photo": false
+            },
+            {
+              "title": "Naklejka montera jest przyklejona.",
+              "description": "Sprawdź czy naklejka montera jest naklejona, widoczna i możliwa do odczytania.",
+              "order": 1,
+              "is_active": true,
+              "requires_photo": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

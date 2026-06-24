@@ -1,0 +1,314 @@
+{% extends "base.html" %}
+{% block title %}Zamówienia{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Zamówienia</h1>
+  <a href="{{ url_for('orders_new') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nowe zamówienie</a>
+</div>
+
+{# ── Mini-dash ── #}
+{% set circumference = 238.76 %}
+{% set ring_offset   = circumference * (1 - pct_in_control / 100) %}
+<div class="stats-grid orders-stats-grid">
+
+  <div class="stat-card stat-card-all">
+    <div class="stat-ring-wrap">
+      <svg width="84" height="84" viewBox="0 0 88 88">
+        <circle cx="44" cy="44" r="38" fill="none" stroke="var(--ring-track)" stroke-width="7"/>
+        <circle cx="44" cy="44" r="38" fill="none" stroke="var(--ring-fill)" stroke-width="7"
+                stroke-linecap="round"
+                stroke-dasharray="{{ circumference }}"
+                stroke-dashoffset="{{ '%.2f' | format(ring_offset) }}"
+                transform="rotate(-90 44 44)"/>
+      </svg>
+      <div class="stat-ring-center">
+        <div class="stat-big-num">{{ cnt_active }}</div>
+      </div>
+    </div>
+    <div>
+      <div class="stat-label">Aktywne<br>zlecenia</div>
+    </div>
+  </div>
+
+  <div class="stat-card stat-card-mini accent-blue">
+    <div class="stat-mini-top">
+      <div>
+        <div class="stat-mini-num text-stat-blue">{{ cnt_in_control }}</div>
+        <div class="stat-mini-label">W kontroli QA</div>
+      </div>
+      <span class="stat-mini-icon text-stat-blue"><i class="bi bi-clipboard-check-fill"></i></span>
+    </div>
+    <div class="stat-mini-bar">
+      <div class="stat-mini-bar-fill accent-blue-fill" data-pct="{{ pct_in_control }}"></div>
+    </div>
+  </div>
+
+  <div class="stat-card stat-card-mini accent-green">
+    <div class="stat-mini-top">
+      <div>
+        <div class="stat-mini-num text-stat-ok">{{ cnt_ready }}</div>
+        <div class="stat-mini-label">Gotowe do wysyłki</div>
+      </div>
+      <span class="stat-mini-icon text-stat-ok"><i class="bi bi-box-seam-fill"></i></span>
+    </div>
+    <div class="stat-mini-bar">
+      <div class="stat-mini-bar-fill" data-pct="{{ ((cnt_ready / (cnt_active + cnt_ready)) * 100) | round | int if (cnt_active + cnt_ready) > 0 else 0 }}"></div>
+    </div>
+  </div>
+
+  <div class="stat-card stat-card-mini {% if cnt_overdue > 0 %}accent-red{% else %}accent-orange{% endif %}">
+    <div class="stat-mini-top">
+      <div>
+        <div class="stat-mini-num {% if cnt_overdue > 0 %}text-danger{% else %}text-stat-prog{% endif %}">{{ cnt_overdue }}</div>
+        <div class="stat-mini-label">Przeterminowane</div>
+      </div>
+      <span class="stat-mini-icon {% if cnt_overdue > 0 %}text-danger{% else %}text-stat-prog{% endif %}">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+      </span>
+    </div>
+    <div class="stat-mini-bar">
+      <div class="stat-mini-bar-fill {% if cnt_overdue > 0 %}stat-mini-bar-fill--danger{% endif %}"
+           data-pct="{{ ((cnt_overdue / cnt_active) * 100) | round | int if cnt_active > 0 else 0 }}"></div>
+    </div>
+  </div>
+
+</div>
+
+<form method="get" action="{{ url_for('orders_list') }}" class="filter-bar orders-filter-bar">
+  <input type="hidden" name="status" value="{{ active_tab }}">
+  <input class="form-control filter-input" type="search" name="q_number"
+         value="{{ q_number }}" placeholder="Numer zamówienia" aria-label="Filtruj po numerze">
+  <input class="form-control filter-input" type="search" name="q_product"
+         value="{{ q_product }}" placeholder="Produkt" aria-label="Filtruj po produkcie">
+  <input class="form-control filter-input" type="search" name="q_client"
+         value="{{ q_client }}" placeholder="Klient" aria-label="Filtruj po kliencie">
+  <button type="submit" class="btn btn-secondary btn-sm"><i class="bi bi-funnel"></i> Filtruj</button>
+  {% if q_number or q_product or q_client %}
+  <a href="{{ url_for('orders_list', status=active_tab) }}" class="btn btn-ghost btn-sm"><i class="bi bi-x-lg"></i> Wyczyść</a>
+  {% endif %}
+</form>
+
+<div class="tab-bar">
+  <a href="?status=active{% if q_number %}&q_number={{ q_number }}{% endif %}{% if q_product %}&q_product={{ q_product }}{% endif %}{% if q_client %}&q_client={{ q_client }}{% endif %}"
+     class="tab-link {% if active_tab=='active'  %}active{% endif %}">Aktywne</a>
+  <a href="?status=ready{% if q_number %}&q_number={{ q_number }}{% endif %}{% if q_product %}&q_product={{ q_product }}{% endif %}{% if q_client %}&q_client={{ q_client }}{% endif %}"
+     class="tab-link {% if active_tab=='ready'   %}active{% endif %}">Gotowe do wysyłki</a>
+  <a href="?status=shipped{% if q_number %}&q_number={{ q_number }}{% endif %}{% if q_product %}&q_product={{ q_product }}{% endif %}{% if q_client %}&q_client={{ q_client }}{% endif %}"
+     class="tab-link {% if active_tab=='shipped' %}active{% endif %}">Wysłane</a>
+</div>
+
+{% if orders %}
+<form method="post" action="{{ url_for('orders_bulk_delete') }}" id="orders-bulk-form">
+  {{ csrf_input() }}
+  <div class="bulk-bar" id="bulk-bar">
+    <span class="bulk-count" id="bulk-count">0 zaznaczonych</span>
+    <div class="bulk-actions">
+      <button type="button" id="btn-select-all" class="btn btn-outline btn-sm"
+              onclick="toggleSelectAll()">
+        Zaznacz wszystkie
+      </button>
+      <button type="submit" name="action" value="selected"
+              class="btn btn-danger btn-sm"
+              data-confirm="Usunąć zaznaczone zamówienia oraz wszystkie powiązane listy kontrolne?"
+              id="btn-delete-selected" disabled>
+        <i class="bi bi-trash"></i> Usuń zaznaczone
+      </button>
+      {% if current_user.is_admin %}
+      <button type="submit" name="action" value="all"
+              class="btn btn-danger btn-sm"
+              data-confirm="Usunąć WSZYSTKIE zamówienia? Operacji nie można cofnąć.">
+        Usuń wszystkie
+      </button>
+      {% endif %}
+    </div>
+  </div>
+</form>
+
+<div class="card">
+  <table class="table tbl-cards">
+    <thead>
+      <tr>
+        <th class="th-check">
+          <label class="sr-only" for="select-all">Zaznacz wszystkie</label>
+          <input type="checkbox" id="select-all" title="Zaznacz wszystkie">
+        </th>
+        <th>Numer</th>
+        <th>Produkt</th>
+        <th>Klient</th>
+        <th>Ilość</th>
+        <th>Termin</th>
+        <th>Status</th>
+        <th>Postęp QA</th>
+        <th class="th-actions"><span class="sr-only">Akcje</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for o in orders.items %}
+      <tr>
+        <td class="th-check">
+          <label class="sr-only" for="order-check-{{ o.id }}">Zaznacz zamówienie {{ o.number }}</label>
+          <input type="checkbox" id="order-check-{{ o.id }}" name="order_ids"
+                 value="{{ o.id }}" class="row-check" form="orders-bulk-form">
+        </td>
+        <td data-label="Numer"><strong>{{ o.number }}</strong></td>
+        <td data-label="Produkt">{{ o.product_name }}</td>
+        <td data-label="Klient">{{ o.client }}</td>
+        <td data-label="Ilość">{{ o.quantity }}</td>
+        <td data-label="Termin" {% if o.due_date and o.due_date < today %}class="text-danger"{% endif %}>
+          {{ o.due_date.strftime('%d.%m.%Y') if o.due_date else '—' }}
+        </td>
+        <td data-label="Status">
+          {% if o.status == 'ready_to_ship' %}
+          <form method="post" action="{{ url_for('orders_ship', order_id=o.id) }}" class="inline-form">
+            {{ csrf_input() }}
+            <button type="submit" class="status-badge status-success status-badge--link"
+                    onclick="return confirm('Oznaczyć {{ o.number }} jako wysłane?')">
+              {{ o.status_label }}
+            </button>
+          </form>
+          {% else %}
+          <span class="status-badge {{ o.status_css }}">{{ o.status_label }}</span>
+          {% endif %}
+        </td>
+        <td data-label="Postęp">
+          {% set prog = progress_map.get(o.id) %}
+          {% if prog and prog.total > 0 %}
+          <div class="progress-cell">
+            <div class="progress progress--sm">
+              <div class="progress-bar" data-pct="{{ prog.pct }}"></div>
+            </div>
+            <small>{{ prog.done }}/{{ prog.total }}</small>
+          </div>
+          {% else %}
+          <small class="text-muted">brak QA</small>
+          {% endif %}
+        </td>
+        <td class="td-actions" data-label="">
+          <a href="{{ url_for('orders_detail', order_id=o.id) }}" class="btn btn-ghost btn-sm">Szczegóły <i class="bi bi-arrow-right"></i></a>
+          <button type="submit" name="action" value="selected"
+                  class="btn btn-danger btn-sm"
+                  form="orders-bulk-form"
+                  onclick="selectOnly({{ o.id }})"
+                  data-confirm="Usunąć zamówienie {{ o.number }} oraz wszystkie powiązane listy kontrolne?">
+            <i class="bi bi-trash"></i> Usuń
+          </button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty-state">
+  <p>Brak zamówień w tej kategorii.</p>
+  {% if active_tab == 'active' %}
+  <a href="{{ url_for('orders_new') }}" class="btn btn-primary btn--spaced-top"><i class="bi bi-plus-lg"></i> Dodaj pierwsze zamówienie</a>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if orders.pages > 1 %}
+<div class="pagination-bar">
+  {% if orders.has_prev %}
+  <a href="{{ url_for('orders_list', page=orders.prev_num, status=active_tab, q_number=q_number, q_product=q_product, q_client=q_client) }}"
+     class="btn btn-ghost btn-sm">&laquo; Poprzednia</a>
+  {% endif %}
+  <span class="pagination-info">Strona {{ orders.page }}&nbsp;/&nbsp;{{ orders.pages }} &nbsp;&middot;&nbsp; {{ orders.total }} zamówień</span>
+  {% if orders.has_next %}
+  <a href="{{ url_for('orders_list', page=orders.next_num, status=active_tab, q_number=q_number, q_product=q_product, q_client=q_client) }}"
+     class="btn btn-ghost btn-sm">Następna &raquo;</a>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if order_reports %}
+<div class="card">
+  <div class="card-header">Raporty kontrolne do zamówień</div>
+  <table class="table tbl-cards">
+    <thead>
+      <tr>
+        <th>Zamówienie</th>
+        <th>Produkt</th>
+        <th>Tytuł raportu</th>
+        <th>Kontroler</th>
+        <th>Status</th>
+        <th>Postęp</th>
+        <th class="th-actions"><span class="sr-only">Akcje</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in order_reports %}
+      <tr>
+        <td data-label="Zamówienie">
+          <a href="{{ url_for('orders_detail', order_id=r.order.id) }}">
+            <strong>{{ r.order.number }}</strong>
+          </a>
+        </td>
+        <td data-label="Produkt">{{ r.order.product_name }}</td>
+        <td data-label="Raport">{{ r.title }}</td>
+        <td data-label="Kontroler">{{ r.author.username }}</td>
+        <td data-label="Status">
+          {% if r.status == 'completed' %}
+            <span class="status-badge status-success">
+              <i class="bi bi-check-circle-fill"></i> Zakończony{% if report_ng.get(r.id, 0) > 0 %} · NG: {{ report_ng.get(r.id) }}{% endif %}
+            </span>
+          {% else %}
+            <span class="status-badge status-warning">
+              <i class="bi bi-hourglass-split"></i> Rozpoczęty
+            </span>
+          {% endif %}
+        </td>
+        <td data-label="Postęp">
+          <div class="progress-cell">
+            <div class="progress progress--sm">
+              <div class="progress-bar" data-pct="{{ report_pct.get(r.id, 0) }}"></div>
+            </div>
+            <small>{{ report_pct.get(r.id, 0) }}%</small>
+          </div>
+        </td>
+        <td data-label="">
+          <a href="{{ url_for('report_detail', report_id=r.id) }}" class="btn btn-ghost btn-sm"><i class="bi bi-eye"></i> Podgląd</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.stat-mini-bar-fill[data-pct]').forEach(function (el) {
+  el.style.width = el.dataset.pct + '%';
+});
+document.querySelectorAll('.progress-bar[data-pct]').forEach(function (el) {
+  el.style.width = el.dataset.pct + '%';
+});
+
+
+(function () {
+  var DELAY = 10 * 60 * 1000;
+  var timer = setTimeout(reload, DELAY);
+  function reload() {
+    if (document.visibilityState === 'visible') {
+      location.reload();
+    } else {
+      document.addEventListener('visibilitychange', function onShow() {
+        if (document.visibilityState === 'visible') {
+          document.removeEventListener('visibilitychange', onShow);
+          location.reload();
+        }
+      });
+    }
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') {
+      clearTimeout(timer);
+      timer = setTimeout(reload, DELAY);
+    }
+  });
+})();
+</script>
+{% endblock %}

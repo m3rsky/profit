@@ -1,0 +1,79 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}{% if user %}Edytuj użytkownika{% else %}Nowy użytkownik{% endif %}{% endblock %}
+{% block admin_content %}
+<div class="page-header">
+  <h1 class="page-title">{% if user %}Edytuj: {{ user.username }}{% else %}Nowy użytkownik{% endif %}</h1>
+  <a href="{{ url_for('admin_users') }}" class="btn btn-ghost"><i class="bi bi-arrow-left"></i> Wróć</a>
+</div>
+
+<div class="card card--form-narrow">
+  <div class="card-body">
+    <form method="post">
+      {{ csrf_input() }}
+      {% if not user %}
+      <div class="form-group">
+        <label class="form-label" for="username">Nazwa użytkownika</label>
+        <input class="form-control" type="text" id="username" name="username"
+               autocomplete="username" required>
+      </div>
+      {% endif %}
+      <div class="form-group">
+        <label class="form-label" for="email">Email</label>
+        <input class="form-control" type="email" id="email" name="email" required
+               autocomplete="email"
+               value="{{ user.email if user else '' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="password">
+          {% if user %}Nowe hasło (zostaw puste, aby nie zmieniać){% else %}Hasło{% endif %}
+        </label>
+        <div class="password-row">
+          <input class="form-control" type="password" id="password" name="password"
+                 autocomplete="new-password"
+                 placeholder="min. 8 znaków"
+                 {% if not user %}required{% endif %}>
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-gen-pwd"
+                  title="Wygeneruj losowe hasło">&#x21BB;</button>
+        </div>
+        <span class="form-hint" id="pwd-preview" hidden></span>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="role">Rola</label>
+        <select class="form-control" id="role" name="role">
+          <option value="kontroler" {% if not user or user.role == 'kontroler' %}selected{% endif %}>Kontroler</option>
+          <option value="monter"    {% if user and user.role == 'monter'    %}selected{% endif %}>Monter</option>
+          <option value="order"     {% if user and user.role == 'order'     %}selected{% endif %}>Zamawiający</option>
+          <option value="spawacz"   {% if user and user.role == 'spawacz'   %}selected{% endif %}>Spawacz</option>
+          <option value="admin"     {% if user and user.role == 'admin'     %}selected{% endif %}>Administrator</option>
+        </select>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Zapisz</button>
+        <a href="{{ url_for('admin_users') }}" class="btn btn-ghost">Anuluj</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const btnGen  = document.getElementById('btn-gen-pwd');
+const pwdInput = document.getElementById('password');
+const pwdPreview = document.getElementById('pwd-preview');
+
+if (btnGen) {
+  btnGen.addEventListener('click', () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$';
+    let pwd = '';
+    for (let i = 0; i < 12; i++) {
+      pwd += chars[Math.floor(Math.random() * chars.length)];
+    }
+    pwdInput.value = pwd;
+    pwdInput.type  = 'text';
+    pwdPreview.textContent = 'Wygenerowane hasło: ' + pwd + ' (zapamiętaj je przed zapisem)';
+    pwdPreview.hidden = false;
+  });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,439 @@
+{% extends "base.html" %}
+{% block title %}Spawalnia{% endblock %}
+
+{% macro ok_ng_badge(val) %}
+  {% if val == 'OK' %}<span class="badge badge-ok">OK</span>
+  {% elif val == 'NG' %}<span class="badge badge-ng">NG</span>
+  {% else %}<span class="sp-dash">—</span>{% endif %}
+{% endmacro %}
+
+{% block content %}
+
+{# ── Górny pasek: filtr + nowy wpis ── #}
+<div class="sp-list-topbar">
+  <form method="get" class="sp-list-filter">
+    <input type="text" name="zo" value="{{ zo_filter }}"
+           placeholder="Filtruj po nr ZO…"
+           class="form-control sp-list-zo-input">
+    <button type="submit" class="btn btn-secondary" title="Szukaj">
+      <i class="bi bi-search"></i>
+    </button>
+    {% if zo_filter %}
+      <a href="{{ url_for('spawalnia.list_records') }}"
+         class="btn btn-outline" title="Wyczyść filtr">
+        <i class="bi bi-x-lg"></i>
+      </a>
+    {% endif %}
+  </form>
+
+  <div class="sp-list-actions">
+    {% if current_user.role in ('admin', 'kontroler') %}
+      <a href="{{ url_for('spawalnia.export_excel', zo=zo_filter) }}"
+         class="btn btn-outline sp-list-action-btn" title="Eksport Excel">
+        <i class="bi bi-file-earmark-excel"></i>
+      </a>
+      <a href="{{ url_for('spawalnia.export_pdf', zo=zo_filter) }}"
+         class="btn btn-outline sp-list-action-btn" title="Eksport PDF">
+        <i class="bi bi-file-earmark-pdf"></i>
+      </a>
+    {% endif %}
+    {% if current_user.is_admin %}
+      <a href="{{ url_for('spawalnia.admin_operators') }}"
+         class="btn btn-outline sp-list-action-btn" title="Operatorzy">
+        <i class="bi bi-person-badge"></i>
+      </a>
+    {% endif %}
+    <a href="{{ url_for('spawalnia.new_record') }}" class="btn btn-primary">
+      <i class="bi bi-plus-lg"></i><span class="sp-btn-txt"> Nowy wpis</span>
+    </a>
+  </div>
+</div>
+
+{# ── Grupy ZO ── #}
+{% if groups %}
+<div class="sp-groups-wrap">
+  {% for zo, grp, first_empty in groups %}
+  {% set has_ng     = grp | selectattr('has_ng')      | list | length > 0 %}
+  {% set empty_list = grp | selectattr('is_empty')    | list %}
+  {% set any_empty  = empty_list | length > 0 %}
+  {% set any_filled = grp | selectattr('otworowanie') | list | length > 0 %}
+  <details class="sp-group">
+
+    <summary class="sp-group-summary">
+      <div class="sp-group-summary-left">
+        <i class="bi bi-chevron-right sp-chevron"></i>
+        <strong class="sp-group-zo">{{ zo }}</strong>
+        <span class="badge badge-neutral sp-group-count">
+          {{ grp | length }}
+          {% if grp | length == 1 %}lista{% elif grp | length < 5 %}listy{% else %}list{% endif %}
+        </span>
+        {% if any_empty %}
+          <span class="badge sp-badge-todo-sm">
+            <i class="bi bi-pencil-fill"></i>
+            {{ empty_list | length }} do wypełnienia
+          </span>
+        {% endif %}
+        {% if has_ng %}
+          <span class="badge badge-ng">NG</span>
+        {% elif any_filled %}
+          <span class="badge badge-ok">OK</span>
+        {% endif %}
+      </div>
+      <div class="sp-group-summary-right">
+        <span class="sp-group-date">{{ grp[0].created_at|localdt('%d.%m.%Y') }}</span>
+
+        {# Jeden klik — otwiera pierwszy pusty rekord, auto-advance robi resztę #}
+        {% if first_empty %}
+        <a href="{{ url_for('spawalnia.edit_record', record_id=first_empty.id) }}"
+           class="btn btn-sm btn-primary sp-start-btn"
+           onclick="event.stopPropagation()"
+           title="Rozpocznij wypełnianie serii">
+          <i class="bi bi-play-fill"></i>
+          <span class="sp-start-label">
+            {% if empty_list | length > 1 %}Wypełnij serię{% else %}Wypełnij{% endif %}
+          </span>
+        </a>
+        {% endif %}
+
+        <a href="{{ url_for('spawalnia.new_record', zo=zo) }}"
+           class="btn btn-sm btn-outline sp-group-add-btn"
+           title="Dodaj kolejny wpis dla ZO {{ zo }}"
+           onclick="event.stopPropagation()">
+          <i class="bi bi-plus"></i>
+        </a>
+
+        {% if current_user.role in ('admin', 'kontroler') %}
+        <form method="post"
+              action="{{ url_for('spawalnia.delete_group') }}"
+              class="form-inline sp-del-group-form"
+              onsubmit="return confirm('Usunąć wszystkie {{ grp|length }} list{% if grp|length != 1 %}y{% endif %} dla ZO {{ zo }}?\n\nTej operacji nie można cofnąć.')">
+          {{ csrf_input() }}
+          <input type="hidden" name="zo_number" value="{{ zo }}">
+          <button type="submit"
+                  class="btn btn-sm btn-danger"
+                  title="Usuń całą serię ({{ grp|length }} list) dla ZO {{ zo }}"
+                  onclick="event.stopPropagation()">
+            <i class="bi bi-trash3-fill"></i>
+          </button>
+        </form>
+        {% endif %}
+      </div>
+    </summary>
+
+    <div class="sp-group-body">
+      {% for rec in grp %}
+      <div class="sp-rec {% if rec.is_empty %}sp-rec--todo{% elif rec.has_ng %}sp-rec--ng{% endif %}">
+
+        {# Lewa: numer listy + statusy #}
+        <div class="sp-rec-main">
+          {% if rec.batch_total and rec.batch_total > 1 %}
+          <span class="sp-rec-idx">
+            <i class="bi bi-layers"></i> {{ rec.batch_index }}/{{ rec.batch_total }}
+          </span>
+          {% endif %}
+          <div class="sp-rec-badges">
+            {% if rec.is_empty %}
+              <span class="badge sp-badge-todo">
+                <i class="bi bi-pencil-fill"></i> Do wypełnienia
+              </span>
+            {% else %}
+              <span class="sp-badge-item">
+                <span class="sp-badge-lbl">Otw</span>{{ ok_ng_badge(rec.otworowanie) }}
+              </span>
+              <span class="sp-badge-item">
+                <span class="sp-badge-lbl">Prz</span>{{ ok_ng_badge(rec.przekatna) }}
+                {% if rec.przekatna_odchylka is not none %}
+                <span class="sp-rec-odch">{{ '%.1f'|format(rec.przekatna_odchylka) }}mm</span>
+                {% endif %}
+              </span>
+              <span class="sp-badge-item">
+                <span class="sp-badge-lbl">Jak</span>{{ ok_ng_badge(rec.jakosc_wyciecia) }}
+              </span>
+              {% if rec.pomiar1 is not none %}
+              <span class="sp-badge-item sp-badge-meas">
+                <span class="sp-badge-lbl">cm</span>
+                {{ '%.1f'|format(rec.pomiar1) }}
+                {% if rec.pomiar2 is not none %} / {{ '%.1f'|format(rec.pomiar2) }}{% endif %}
+                {% if rec.pomiar3 is not none %} / {{ '%.1f'|format(rec.pomiar3) }}{% endif %}
+              </span>
+              {% endif %}
+              {% if rec.operator %}
+              <span class="sp-badge-item">
+                <span class="sp-badge-lbl">Sp</span>
+                <span class="sp-rec-op">{{ rec.operator.initials }}</span>
+              </span>
+              {% endif %}
+              {% if rec.giecie_operator %}
+              <span class="sp-badge-item">
+                <span class="sp-badge-lbl">Gi</span>
+                <span class="sp-rec-op">{{ rec.giecie_operator.initials }}</span>
+              </span>
+              {% endif %}
+              {% if rec.ciecie_operator %}
+              <span class="sp-badge-item">
+                <span class="sp-badge-lbl">Ci</span>
+                <span class="sp-rec-op">{{ rec.ciecie_operator.initials }}</span>
+              </span>
+              {% endif %}
+            {% endif %}
+          </div>
+        </div>
+
+        {# Prawa: data + akcje #}
+        <div class="sp-rec-right">
+          <span class="sp-rec-date">{{ rec.created_at|localdt('%d.%m.%Y') }}</span>
+          <div class="sp-rec-actions">
+            {% if rec.is_empty %}
+            <a href="{{ url_for('spawalnia.edit_record', record_id=rec.id) }}"
+               class="btn btn-sm btn-primary sp-btn-fill" title="Wypełnij listę">
+              <i class="bi bi-pencil-fill"></i> Wypełnij
+            </a>
+            {% else %}
+            <a href="{{ url_for('spawalnia.edit_record', record_id=rec.id) }}"
+               class="btn btn-sm btn-outline" title="Edytuj">
+              <i class="bi bi-pencil"></i>
+            </a>
+            {% endif %}
+            {% if current_user.role in ('admin', 'kontroler') %}
+            <form method="post"
+                  action="{{ url_for('spawalnia.delete_record', record_id=rec.id) }}"
+                  class="form-inline"
+                  onsubmit="return confirm('Usunąć wpis {{ rec.zo_number }}?')">
+              {{ csrf_input() }}
+              <button type="submit" class="btn btn-sm btn-danger" title="Usuń">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+
+      </div>{# /.sp-rec #}
+      {% endfor %}
+    </div>{# /.sp-group-body #}
+
+  </details>
+  {% endfor %}
+</div>
+
+<p class="text-muted-sm" style="margin-top:.4rem;">
+  Łącznie: {{ total }} wpisów w {{ groups|length }} grupach ZO
+  {%- if zo_filter %} (filtr: <em>{{ zo_filter }}</em>){% endif %}
+</p>
+
+{% else %}
+<div class="card">
+  <div class="card-body--empty">
+    <i class="bi bi-inbox" style="font-size:2rem;display:block;margin-bottom:.5rem;"></i>
+    Brak wpisów{% if zo_filter %} dla ZO <strong>{{ zo_filter }}</strong>{% endif %}.
+    <div style="margin-top:1rem;">
+      <a href="{{ url_for('spawalnia.new_record') }}" class="btn btn-primary">
+        <i class="bi bi-plus-lg"></i> Dodaj pierwszy wpis
+      </a>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<style>
+/* ── Spawalnia lista ───────────────────────────────────────────────── */
+
+/* Badges */
+.badge-ng { background: var(--danger-bg); color: var(--danger-text);
+            border-color: rgba(220,38,38,.3); }
+.sp-dash  { color: var(--text-muted); }
+
+/* ── Górny pasek ── */
+.sp-list-topbar {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-wrap: wrap;
+}
+.sp-list-filter {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  flex: 1 1 200px;
+}
+.sp-list-zo-input { flex: 1 1 140px; min-width: 100px; }
+.sp-list-actions  {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.sp-list-action-btn { padding: .4rem .55rem; }
+.sp-btn-txt { display: inline; }
+
+/* ── Grupy ZO ── */
+.sp-groups-wrap { display: flex; flex-direction: column; gap: .5rem; }
+
+.sp-group {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* Summary (klikalna główka grupy) */
+.sp-group-summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .75rem 1rem;
+  cursor: pointer;
+  user-select: none;
+  gap: .5rem;
+  min-height: 52px;
+}
+.sp-group-summary::-webkit-details-marker { display: none; }
+
+.sp-group-summary-left {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+.sp-group-summary-right {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-shrink: 0;
+}
+
+/* Chevron rotates on open */
+.sp-chevron {
+  font-size: .85rem;
+  color: var(--text-muted);
+  transition: transform .2s ease;
+  flex-shrink: 0;
+}
+.sp-group[open] .sp-chevron { transform: rotate(90deg); }
+
+.sp-group-zo   { font-size: 1rem; }
+.sp-group-count { font-size: .75rem; }
+.sp-group-date { font-size: .78rem; color: var(--text-muted); white-space: nowrap; }
+.sp-group-add-btn { padding: .25rem .5rem; line-height: 1; }
+
+/* Separator między summary a body */
+.sp-group[open] .sp-group-summary {
+  border-bottom: 1px solid var(--border);
+}
+
+/* Hover na summary */
+.sp-group-summary:hover { background: var(--hover-row, var(--border-lt)); }
+
+/* Body z listą wpisów */
+.sp-group-body { display: flex; flex-direction: column; }
+
+/* Pojedynczy wpis w grupie */
+.sp-rec {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .6rem 1rem;
+  border-bottom: 1px solid var(--border-lt, var(--border));
+  flex-wrap: wrap;
+}
+.sp-rec:last-child { border-bottom: none; }
+.sp-rec--ng   { background: rgba(185,28,28,.04);  border-left: 3px solid var(--danger-text); }
+.sp-rec--todo { background: rgba(234,179,8,.06); border-left: 3px solid #ca8a04; }
+
+.sp-rec-main {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.sp-rec-idx {
+  font-size: .75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.sp-rec-badges {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  flex-wrap: wrap;
+}
+.sp-badge-item {
+  display: flex;
+  align-items: center;
+  gap: .2rem;
+  background: var(--neutral-bg, var(--border-lt));
+  border-radius: 6px;
+  padding: .15rem .4rem;
+  font-size: .78rem;
+}
+.sp-badge-lbl {
+  font-size: .65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: .04em;
+}
+.sp-badge-meas { font-weight: 600; font-size: .78rem; color: var(--text); }
+.sp-rec-odch { font-size: .7rem; color: var(--text-muted); }
+.sp-rec-op     { font-weight: 700; }
+
+/* Badges "Do wypełnienia" */
+.sp-badge-todo {
+  background: rgba(234,179,8,.15);
+  color: #92400e;
+  border-color: rgba(234,179,8,.4);
+  font-size: .78rem;
+  font-weight: 700;
+}
+[data-theme=dark] .sp-badge-todo {
+  background: rgba(234,179,8,.12);
+  color: #fbbf24;
+  border-color: rgba(234,179,8,.3);
+}
+.sp-badge-todo-sm {
+  background: rgba(234,179,8,.12);
+  color: #92400e;
+  border-color: rgba(234,179,8,.35);
+  font-size: .72rem;
+  font-weight: 700;
+}
+[data-theme=dark] .sp-badge-todo-sm {
+  color: #fbbf24;
+  border-color: rgba(234,179,8,.3);
+}
+.sp-btn-fill  { white-space: nowrap; }
+.sp-start-btn { white-space: nowrap; gap: .3rem; }
+
+@media (max-width: 480px) {
+  .sp-start-label { display: none; }   /* na małym telefonie zostaje tylko ikona play */
+}
+
+.sp-rec-right {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-shrink: 0;
+}
+.sp-rec-date { font-size: .75rem; color: var(--text-muted); white-space: nowrap; }
+.sp-rec-actions { display: flex; gap: .3rem; align-items: center; }
+
+/* ── Responsywność ── */
+@media (max-width: 480px) {
+  .sp-list-action-btn { display: none; } /* chowamy Excel/PDF/Ops na telefonie */
+  .sp-btn-txt { display: none; }
+  .sp-group-date { display: none; }
+  .sp-rec-date   { display: none; }
+  .sp-badge-meas { display: none; } /* pomiary chowamy na telefonie, za dużo */
+}
+</style>
+{% endblock %}

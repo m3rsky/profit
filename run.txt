@@ -1,0 +1,1 @@
+cd C:\Users\palcz\OneDrive\Pulpit\qa_desc python main.py

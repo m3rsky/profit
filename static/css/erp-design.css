@@ -1,0 +1,827 @@
+/* ═══════════════════════════════════════════════════════
+   ERP Design System — wzorowany na Streamsoft PCBiznes
+   Nadpisuje main.css dla spójnego wyglądu Enterprise
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Design Tokens ── */
+:root {
+  --erp-blue:        #1565C0;
+  --erp-blue-dark:   #0D47A1;
+  --erp-blue-light:  #E3F0FF;
+  --erp-blue-mid:    #1976D2;
+  --erp-bg:          #F0F4F8;
+  --erp-panel:       #ffffff;
+  --erp-border:      #C5CDD7;
+  --erp-border-lt:   #DDE3EA;
+  --erp-text:        #1A2332;
+  --erp-muted:       #5A6779;
+  --erp-row-alt:     #F7F9FC;
+  --erp-row-hover:   #EBF2FB;
+  --erp-header-bg:   #1565C0;
+  --erp-header-text: #ffffff;
+  --erp-ok:          #1B6B3A;
+  --erp-ok-bg:       #E8F5EE;
+  --erp-ok-border:   #A8D5BC;
+  --erp-ng:          #C62828;
+  --erp-ng-bg:       #FDECEA;
+  --erp-ng-border:   #F0AAAA;
+  --erp-dw:          #E65100;
+  --erp-dw-bg:       #FFF3E0;
+  --erp-dw-border:   #FFCC80;
+  --erp-na:          #546E7A;
+  --erp-na-bg:       #ECEFF1;
+  --erp-shadow:      0 1px 3px rgba(0,0,0,.10), 0 0 0 1px rgba(0,0,0,.04);
+  --erp-shadow-md:   0 4px 12px rgba(0,0,0,.12), 0 1px 4px rgba(0,0,0,.06);
+  --erp-radius:      4px;
+  --erp-radius-lg:   6px;
+}
+
+body.dark {
+  --erp-blue:        #1976D2;
+  --erp-blue-light:  #1A2D4D;
+  --erp-bg:          #0B1220;
+  --erp-panel:       #111927;
+  --erp-border:      #1E2D3D;
+  --erp-border-lt:   #18263A;
+  --erp-text:        #D8E4F0;
+  --erp-muted:       #7A93AB;
+  --erp-row-alt:     #131E2D;
+  --erp-row-hover:   #1A2C42;
+  --erp-header-bg:   #0D47A1;
+  --erp-ok:          #34D399;
+  --erp-ok-bg:       rgba(52,211,153,.10);
+  --erp-ok-border:   rgba(52,211,153,.25);
+  --erp-ng:          #F87171;
+  --erp-ng-bg:       rgba(248,113,113,.10);
+  --erp-ng-border:   rgba(248,113,113,.25);
+  --erp-dw:          #FFA726;
+  --erp-dw-bg:       rgba(255,167,38,.10);
+  --erp-dw-border:   rgba(255,167,38,.25);
+  --erp-na:          #7A93AB;
+  --erp-na-bg:       rgba(122,147,171,.10);
+  --erp-shadow:      0 1px 4px rgba(0,0,0,.4);
+  --erp-shadow-md:   0 4px 16px rgba(0,0,0,.5);
+}
+
+/* ════════════════════════════════════════════════════════
+   GLOBALNE OVERRIDE — tło strony, linki, body
+   ════════════════════════════════════════════════════════ */
+body:not(.login-page) {
+  background: var(--erp-bg) !important;
+  color: var(--erp-text) !important;
+}
+
+/* ════════════════════════════════════════════════════════
+   KARTY / PANELE — zunifikowany styl
+   ════════════════════════════════════════════════════════ */
+.card {
+  background: var(--erp-panel) !important;
+  border: 1px solid var(--erp-border) !important;
+  border-radius: var(--erp-radius-lg) !important;
+  box-shadow: var(--erp-shadow) !important;
+}
+.card-header {
+  background: var(--erp-row-alt) !important;
+  border-bottom: 1px solid var(--erp-border) !important;
+  color: var(--erp-text) !important;
+  font-size: 0.72rem !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  font-weight: 700 !important;
+  padding: 10px 16px !important;
+}
+
+/* ════════════════════════════════════════════════════════
+   PAGE HEADER — nagłówek stron
+   ════════════════════════════════════════════════════════ */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 14px 18px;
+  background: var(--erp-panel);
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-lg);
+  box-shadow: var(--erp-shadow);
+  border-left: 3px solid var(--erp-blue);
+}
+.page-title {
+  font-size: 1.1rem !important;
+  font-weight: 700 !important;
+  color: var(--erp-text) !important;
+  letter-spacing: 0 !important;
+}
+
+/* ════════════════════════════════════════════════════════
+   TABELE DANYCH — ERP grid style
+   ════════════════════════════════════════════════════════ */
+table.table,
+table.data-table {
+  background: var(--erp-panel) !important;
+  border-collapse: collapse !important;
+  font-size: 0.85rem !important;
+}
+table.table th,
+table.data-table th {
+  background: var(--erp-row-alt) !important;
+  color: var(--erp-muted) !important;
+  font-size: 0.70rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  border-bottom: 2px solid var(--erp-border) !important;
+  padding: 9px 12px !important;
+  white-space: nowrap !important;
+}
+table.table td,
+table.data-table td {
+  border-bottom: 1px solid var(--erp-border-lt) !important;
+  padding: 9px 12px !important;
+  color: var(--erp-text) !important;
+  vertical-align: middle !important;
+}
+table.data-table tbody tr:nth-child(even) { background: var(--erp-row-alt) !important; }
+table.data-table tbody tr:hover { background: var(--erp-row-hover) !important; }
+
+/* ════════════════════════════════════════════════════════
+   PRZYCISKI — ERP button system
+   ════════════════════════════════════════════════════════ */
+.btn {
+  font-size: 0.82rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em !important;
+  border-radius: var(--erp-radius) !important;
+  padding: 7px 16px !important;
+  transition: all .15s !important;
+  border: 1px solid transparent !important;
+}
+.btn-primary {
+  background: var(--erp-blue) !important;
+  border-color: var(--erp-blue-dark) !important;
+  color: #fff !important;
+}
+.btn-primary:hover {
+  background: var(--erp-blue-dark) !important;
+  border-color: var(--erp-blue-dark) !important;
+}
+.btn-secondary {
+  background: var(--erp-row-alt) !important;
+  border-color: var(--erp-border) !important;
+  color: var(--erp-text) !important;
+}
+.btn-secondary:hover {
+  background: var(--erp-row-hover) !important;
+  border-color: var(--erp-blue) !important;
+  color: var(--erp-blue) !important;
+}
+.btn-ghost {
+  background: transparent !important;
+  border-color: var(--erp-border) !important;
+  color: var(--erp-muted) !important;
+}
+.btn-ghost:hover {
+  background: var(--erp-row-hover) !important;
+  border-color: var(--erp-blue) !important;
+  color: var(--erp-blue) !important;
+}
+.btn-success {
+  background: var(--erp-ok) !important;
+  border-color: var(--erp-ok) !important;
+  color: #fff !important;
+}
+.btn-success:hover { filter: brightness(.9) !important; }
+.btn-danger, .btn-delete {
+  background: var(--erp-ng) !important;
+  border-color: var(--erp-ng) !important;
+  color: #fff !important;
+}
+.btn-outline {
+  background: transparent !important;
+  border: 1px solid var(--erp-blue) !important;
+  color: var(--erp-blue) !important;
+}
+.btn-outline:hover {
+  background: var(--erp-blue-light) !important;
+}
+.btn-lg { padding: 10px 22px !important; font-size: 0.9rem !important; }
+.btn-sm { padding: 4px 10px !important; font-size: 0.78rem !important; }
+
+/* ════════════════════════════════════════════════════════
+   FORMULARZE — ERP form style
+   ════════════════════════════════════════════════════════ */
+.form-control, input.form-control, select.form-control, textarea.form-control {
+  background: var(--erp-panel) !important;
+  border: 1px solid var(--erp-border) !important;
+  border-radius: var(--erp-radius) !important;
+  color: var(--erp-text) !important;
+  font-size: 0.85rem !important;
+  padding: 7px 10px !important;
+}
+.form-control:focus {
+  border-color: var(--erp-blue) !important;
+  box-shadow: 0 0 0 3px rgba(21,101,192,.15) !important;
+  outline: none !important;
+}
+.form-label {
+  font-size: 0.78rem !important;
+  font-weight: 600 !important;
+  color: var(--erp-muted) !important;
+  margin-bottom: 4px !important;
+  display: block !important;
+}
+
+/* ════════════════════════════════════════════════════════
+   ODZNAKI / BADGES
+   ════════════════════════════════════════════════════════ */
+.badge {
+  font-size: 0.68rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.06em !important;
+  padding: 3px 8px !important;
+  border-radius: 3px !important;
+  text-transform: uppercase !important;
+}
+.badge-success, .badge-ok {
+  background: var(--erp-ok-bg) !important;
+  color: var(--erp-ok) !important;
+  border: 1px solid var(--erp-ok-border) !important;
+}
+.badge-danger, .badge-error {
+  background: var(--erp-ng-bg) !important;
+  color: var(--erp-ng) !important;
+  border: 1px solid var(--erp-ng-border) !important;
+}
+.badge-warning, .badge-warn {
+  background: var(--erp-dw-bg) !important;
+  color: var(--erp-dw) !important;
+  border: 1px solid var(--erp-dw-border) !important;
+}
+.badge-neutral {
+  background: var(--erp-na-bg) !important;
+  color: var(--erp-na) !important;
+  border: 1px solid var(--erp-border) !important;
+}
+.badge-blue, .badge-info {
+  background: var(--erp-blue-light) !important;
+  color: var(--erp-blue) !important;
+  border: 1px solid #BBDEFB !important;
+}
+
+/* ════════════════════════════════════════════════════════
+   CHECKLISTY — kluczowy widok dla kontrolerów
+   ════════════════════════════════════════════════════════ */
+
+/* Kategoria */
+.checklist-category {
+  background: var(--erp-panel);
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-lg);
+  overflow: hidden;
+  margin-bottom: 16px;
+  box-shadow: var(--erp-shadow);
+}
+
+/* Nagłówek kategorii — styl ERP ribbon */
+.category-header {
+  background: var(--erp-header-bg) !important;
+  color: var(--erp-header-text) !important;
+  padding: 10px 16px !important;
+  font-size: 0.73rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.10em !important;
+  text-transform: uppercase !important;
+  border-radius: 0 !important;
+  border-bottom: 2px solid rgba(255,255,255,.15) !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+}
+.category-header small {
+  font-size: 0.72rem !important;
+  opacity: .75 !important;
+  font-weight: 600 !important;
+  background: rgba(255,255,255,.15) !important;
+  padding: 2px 8px !important;
+  border-radius: 20px !important;
+}
+
+/* Element checklisty */
+.checklist-item {
+  background: var(--erp-panel) !important;
+  border: none !important;
+  border-top: 1px solid var(--erp-border-lt) !important;
+  border-radius: 0 !important;
+  padding: 14px 16px !important;
+  transition: background .1s !important;
+}
+.checklist-item:first-of-type { border-top: none !important; }
+.checklist-item:hover { background: var(--erp-row-hover) !important; }
+
+/* Stany wyniku — lewy pasek kolorowy zamiast tła */
+.checklist-item.result-ok {
+  background: var(--erp-ok-bg) !important;
+  border-left: 4px solid var(--erp-ok) !important;
+  padding-left: 12px !important;
+}
+.checklist-item.result-ng {
+  background: var(--erp-ng-bg) !important;
+  border-left: 4px solid var(--erp-ng) !important;
+  padding-left: 12px !important;
+}
+.checklist-item.result-na {
+  background: var(--erp-na-bg) !important;
+  border-left: 4px solid var(--erp-na) !important;
+  padding-left: 12px !important;
+}
+.checklist-item.result-dw {
+  background: var(--erp-dw-bg) !important;
+  border-left: 4px solid var(--erp-dw) !important;
+  padding-left: 12px !important;
+}
+
+/* Tytuł elementu */
+.item-title {
+  font-size: 0.88rem !important;
+  font-weight: 600 !important;
+  color: var(--erp-text) !important;
+  margin-bottom: 4px !important;
+}
+.item-description {
+  font-size: 0.80rem !important;
+  color: var(--erp-muted) !important;
+  margin-bottom: 8px !important;
+}
+
+/* Przyciski OK/NG/NA/DW — duże, wyraźne, tablet-friendly */
+.result-buttons {
+  display: flex !important;
+  gap: 8px !important;
+  margin-top: 10px !important;
+  flex-wrap: wrap !important;
+}
+.btn-result {
+  padding: 0 !important;
+  min-width: 72px !important;
+  min-height: 52px !important;
+  border-radius: var(--erp-radius) !important;
+  border: 2px solid transparent !important;
+  font-size: 0.85rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  cursor: pointer !important;
+  transition: all .12s !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+/* OK */
+.btn-ok {
+  background: var(--erp-ok-bg) !important;
+  border-color: var(--erp-ok-border) !important;
+  color: var(--erp-ok) !important;
+}
+.btn-ok.active {
+  background: var(--erp-ok) !important;
+  border-color: var(--erp-ok) !important;
+  color: #fff !important;
+  box-shadow: 0 2px 8px rgba(27,107,58,.35) !important;
+}
+.btn-ok:hover:not(.active) {
+  background: #C8E6C9 !important;
+  border-color: var(--erp-ok) !important;
+}
+/* NG */
+.btn-ng {
+  background: var(--erp-ng-bg) !important;
+  border-color: var(--erp-ng-border) !important;
+  color: var(--erp-ng) !important;
+}
+.btn-ng.active {
+  background: var(--erp-ng) !important;
+  border-color: var(--erp-ng) !important;
+  color: #fff !important;
+  box-shadow: 0 2px 8px rgba(198,40,40,.35) !important;
+}
+.btn-ng:hover:not(.active) {
+  background: #FFCDD2 !important;
+  border-color: var(--erp-ng) !important;
+}
+/* N/A */
+.btn-na {
+  background: var(--erp-na-bg) !important;
+  border-color: var(--erp-border) !important;
+  color: var(--erp-na) !important;
+}
+.btn-na.active {
+  background: var(--erp-na) !important;
+  border-color: var(--erp-na) !important;
+  color: #fff !important;
+}
+.btn-na:hover:not(.active) { background: #CFD8DC !important; }
+/* DW */
+.btn-dw {
+  background: var(--erp-dw-bg) !important;
+  border-color: var(--erp-dw-border) !important;
+  color: var(--erp-dw) !important;
+}
+.btn-dw.active {
+  background: var(--erp-dw) !important;
+  border-color: var(--erp-dw) !important;
+  color: #fff !important;
+  box-shadow: 0 2px 8px rgba(230,81,0,.35) !important;
+}
+.btn-dw:hover:not(.active) { background: #FFE0B2 !important; }
+
+/* Pasek postępu raportu */
+.progress {
+  background: var(--erp-border-lt) !important;
+  border-radius: 3px !important;
+  height: 8px !important;
+  overflow: hidden !important;
+}
+.progress-bar {
+  background: var(--erp-blue) !important;
+  height: 100% !important;
+  border-radius: 3px !important;
+  transition: width .4s ease !important;
+}
+
+/* Statystyki OK/NG/NA/DW */
+.report-stats {
+  display: flex !important;
+  gap: 10px !important;
+  flex-wrap: wrap !important;
+  margin-top: 6px !important;
+  font-size: 0.80rem !important;
+  font-weight: 700 !important;
+}
+.rs-ok    { color: var(--erp-ok) !important; }
+.rs-ng    { color: var(--erp-ng) !important; }
+.rs-na    { color: var(--erp-na) !important; }
+.rs-dw    { color: var(--erp-dw) !important; }
+.rs-total { color: var(--erp-muted) !important; }
+
+/* Wizard header */
+.wizard-header {
+  background: var(--erp-panel) !important;
+  border: 1px solid var(--erp-border) !important;
+  border-left: 4px solid var(--erp-blue) !important;
+  border-radius: var(--erp-radius-lg) !important;
+  padding: 12px 16px !important;
+  margin-bottom: 16px !important;
+  box-shadow: var(--erp-shadow) !important;
+}
+.wizard-counter {
+  font-size: 0.85rem !important;
+  font-weight: 700 !important;
+  color: var(--erp-blue) !important;
+}
+.wizard-cat-label {
+  font-size: 0.80rem !important;
+  color: var(--erp-muted) !important;
+  margin-top: 4px !important;
+}
+.wizard-bar-wrap {
+  background: var(--erp-border-lt) !important;
+  border-radius: 3px !important;
+  height: 6px !important;
+  overflow: hidden !important;
+  flex: 1 !important;
+}
+.wizard-bar-fill {
+  background: var(--erp-blue) !important;
+  height: 100% !important;
+  border-radius: 3px !important;
+  transition: width .3s !important;
+}
+
+/* Nawigacja wizard */
+.wizard-nav {
+  display: flex !important;
+  gap: 10px !important;
+  justify-content: space-between !important;
+  margin-top: 16px !important;
+  padding: 12px 16px !important;
+  background: var(--erp-panel) !important;
+  border: 1px solid var(--erp-border) !important;
+  border-radius: var(--erp-radius-lg) !important;
+  box-shadow: var(--erp-shadow) !important;
+}
+
+/* Dolny pasek checklisty */
+.checklist-bottom-bar {
+  position: sticky !important;
+  bottom: 0 !important;
+  background: var(--erp-panel) !important;
+  border-top: 2px solid var(--erp-blue) !important;
+  border-radius: var(--erp-radius-lg) var(--erp-radius-lg) 0 0 !important;
+  padding: 12px 16px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  box-shadow: 0 -4px 16px rgba(0,0,0,.10) !important;
+  z-index: 100 !important;
+}
+
+/* Sekcja DW */
+.dw-section {
+  background: var(--erp-dw-bg) !important;
+  border: 1px solid var(--erp-dw-border) !important;
+  border-radius: var(--erp-radius-lg) !important;
+  padding: 14px 16px !important;
+  margin: 16px 0 !important;
+}
+.dw-section-title {
+  font-size: 0.80rem !important;
+  font-weight: 700 !important;
+  color: var(--erp-dw) !important;
+  margin-bottom: 10px !important;
+}
+.dw-item {
+  background: var(--erp-panel) !important;
+  border: 1px solid var(--erp-dw-border) !important;
+  border-radius: var(--erp-radius) !important;
+  padding: 8px 12px !important;
+  margin-bottom: 8px !important;
+  font-size: 0.82rem !important;
+}
+.dw-item:last-child { margin-bottom: 0 !important; }
+.dw-item-title { font-weight: 600 !important; color: var(--erp-text) !important; }
+.dw-item-note { color: var(--erp-muted) !important; margin-top: 4px !important; }
+
+/* Upload zone */
+.upload-zone {
+  margin-top: 8px !important;
+  border: 2px dashed var(--erp-border) !important;
+  border-radius: var(--erp-radius) !important;
+  padding: 10px 14px !important;
+  color: var(--erp-muted) !important;
+  font-size: 0.78rem !important;
+  cursor: pointer !important;
+  transition: border-color .15s, background .15s !important;
+}
+.upload-zone:hover {
+  border-color: var(--erp-blue) !important;
+  background: var(--erp-blue-light) !important;
+  color: var(--erp-blue) !important;
+}
+
+/* Notatki */
+textarea.item-notes {
+  margin-top: 8px !important;
+  border-color: var(--erp-border-lt) !important;
+  font-size: 0.82rem !important;
+  border-radius: var(--erp-radius) !important;
+}
+textarea.item-notes:focus { border-color: var(--erp-blue) !important; }
+
+/* ════════════════════════════════════════════════════════
+   WORKER MAIN — obszar treści pracownika
+   ════════════════════════════════════════════════════════ */
+.wk-main {
+  background: var(--erp-bg) !important;
+  padding: 20px 16px !important;
+}
+
+/* Kafelki worker */
+.wk-tile {
+  background: var(--erp-panel) !important;
+  border: 1px solid var(--erp-border) !important;
+  border-radius: var(--erp-radius-lg) !important;
+  box-shadow: var(--erp-shadow) !important;
+}
+.wk-tile-label {
+  color: var(--erp-text) !important;
+  font-weight: 700 !important;
+}
+/* Kolory kafelków — pasek akcentowy na górze zamiast pełnego tła */
+.wk-tile--blue   { border-top: 3px solid #1565C0 !important; }
+.wk-tile--teal   { border-top: 3px solid #00695C !important; }
+.wk-tile--amber  { border-top: 3px solid #E65100 !important; }
+.wk-tile--purple { border-top: 3px solid #6A1B9A !important; }
+.wk-tile--green  { border-top: 3px solid #2E7D32 !important; }
+.wk-tile--gray   { border-top: 3px solid #546E7A !important; }
+.wk-tile--indigo { border-top: 3px solid #283593 !important; }
+.wk-tile--rose   { border-top: 3px solid #C62828 !important; }
+.wk-tile--cyan   { border-top: 3px solid #00838F !important; }
+
+/* Ikony kafelków */
+.wk-tile--blue   .wk-tile-icon { color: #1565C0 !important; }
+.wk-tile--teal   .wk-tile-icon { color: #00695C !important; }
+.wk-tile--amber  .wk-tile-icon { color: #E65100 !important; }
+.wk-tile--purple .wk-tile-icon { color: #6A1B9A !important; }
+.wk-tile--green  .wk-tile-icon { color: #2E7D32 !important; }
+.wk-tile--gray   .wk-tile-icon { color: #546E7A !important; }
+.wk-tile--indigo .wk-tile-icon { color: #283593 !important; }
+.wk-tile--rose   .wk-tile-icon { color: #C62828 !important; }
+.wk-tile--cyan   .wk-tile-icon { color: #00838F !important; }
+.wk-tile:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: var(--erp-shadow-md) !important;
+  border-color: var(--erp-blue) !important;
+}
+
+/* ════════════════════════════════════════════════════════
+   ADMIN MAIN — obszar treści admina
+   ════════════════════════════════════════════════════════ */
+.main-content {
+  background: var(--erp-bg) !important;
+}
+
+/* ════════════════════════════════════════════════════════
+   ALERTY / FLASH MESSAGES
+   ════════════════════════════════════════════════════════ */
+.alert {
+  border-radius: var(--erp-radius) !important;
+  font-size: 0.85rem !important;
+  padding: 10px 14px !important;
+  border: 1px solid transparent !important;
+  margin-bottom: 12px !important;
+}
+.alert-success {
+  background: var(--erp-ok-bg) !important;
+  border-color: var(--erp-ok-border) !important;
+  color: var(--erp-ok) !important;
+}
+.alert-error, .alert-danger {
+  background: var(--erp-ng-bg) !important;
+  border-color: var(--erp-ng-border) !important;
+  color: var(--erp-ng) !important;
+}
+.alert-warning {
+  background: var(--erp-dw-bg) !important;
+  border-color: var(--erp-dw-border) !important;
+  color: var(--erp-dw) !important;
+}
+.alert-info {
+  background: var(--erp-blue-light) !important;
+  border-color: #BBDEFB !important;
+  color: var(--erp-blue) !important;
+}
+
+/* ════════════════════════════════════════════════════════
+   FILTER BAR — pasek filtrów
+   ════════════════════════════════════════════════════════ */
+.filter-bar {
+  background: var(--erp-panel) !important;
+  border: 1px solid var(--erp-border) !important;
+  border-radius: var(--erp-radius-lg) !important;
+  padding: 12px 16px !important;
+  margin-bottom: 16px !important;
+  box-shadow: var(--erp-shadow) !important;
+}
+
+/* ════════════════════════════════════════════════════════
+   STATYSTYKI
+   ════════════════════════════════════════════════════════ */
+.stat-card {
+  background: var(--erp-panel) !important;
+  border: 1px solid var(--erp-border) !important;
+  border-radius: var(--erp-radius-lg) !important;
+  box-shadow: var(--erp-shadow) !important;
+}
+.stat-card:hover {
+  box-shadow: var(--erp-shadow-md) !important;
+  transform: translateY(-2px) !important;
+}
+
+/* ════════════════════════════════════════════════════════
+   SIDEBAR (admin) — odcienie ERP
+   ════════════════════════════════════════════════════════ */
+.sidebar { background: #0D1B2E !important; }
+.sidebar-logo { border-bottom: 1px solid rgba(255,255,255,.08) !important; }
+.sidebar-nav a {
+  color: #9DB4CC !important;
+  border-radius: 4px !important;
+  margin: 1px 8px !important;
+}
+.sidebar-nav a:hover { color: #fff !important; background: rgba(255,255,255,.08) !important; }
+.sidebar-nav a.active {
+  background: var(--erp-blue) !important;
+  color: #fff !important;
+}
+.sidebar-section-label {
+  color: rgba(255,255,255,.35) !important;
+  font-size: 0.60rem !important;
+  letter-spacing: 0.14em !important;
+  padding: 14px 16px 4px !important;
+}
+.sidebar-footer { border-top: 1px solid rgba(255,255,255,.08) !important; }
+
+/* ════════════════════════════════════════════════════════
+   WORKER TOP-BAR — odcień ERP
+   ════════════════════════════════════════════════════════ */
+.wk-header {
+  background: #0D1B2E !important;
+  border-bottom: 2px solid var(--erp-blue) !important;
+}
+.wk-nav-link {
+  color: #9DB4CC !important;
+  border-radius: 4px !important;
+}
+.wk-nav-link:hover { color: #fff !important; background: rgba(255,255,255,.08) !important; }
+.wk-nav-link.active {
+  background: var(--erp-blue) !important;
+  color: #fff !important;
+}
+
+/* ════════════════════════════════════════════════════════
+   WZOROWANIE LIST KONTROLNYCH — WYBÓR SZABLONU
+   ════════════════════════════════════════════════════════ */
+.template-pick-card {
+  background: var(--erp-panel) !important;
+  border: 1px solid var(--erp-border) !important;
+  border-radius: var(--erp-radius-lg) !important;
+  box-shadow: var(--erp-shadow) !important;
+  cursor: pointer !important;
+  transition: all .12s !important;
+}
+.template-pick-card:hover {
+  border-color: var(--erp-blue) !important;
+  box-shadow: var(--erp-shadow-md) !important;
+  transform: translateY(-2px) !important;
+}
+.template-pick-card:has(input:checked) {
+  border-color: var(--erp-blue) !important;
+  border-width: 2px !important;
+  background: var(--erp-blue-light) !important;
+}
+.template-pick-name {
+  font-weight: 700 !important;
+  color: var(--erp-text) !important;
+  font-size: 0.92rem !important;
+}
+.template-pick-meta {
+  color: var(--erp-muted) !important;
+  font-size: 0.75rem !important;
+}
+
+/* ════════════════════════════════════════════════════════
+   FOTO MINIATURKI
+   ════════════════════════════════════════════════════════ */
+.photo-thumb {
+  border: 1px solid var(--erp-border) !important;
+  border-radius: var(--erp-radius) !important;
+  overflow: hidden !important;
+}
+.delete-photo {
+  background: var(--erp-ng) !important;
+  border: none !important;
+  color: #fff !important;
+  border-radius: 50% !important;
+  width: 20px !important; height: 20px !important;
+  font-size: 14px !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* ════════════════════════════════════════════════════════
+   RESPONSIVE — tablet & mobile
+   ════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+  .btn-result {
+    min-height: 56px !important;
+    min-width: 60px !important;
+    font-size: 0.82rem !important;
+    flex: 1 !important;
+  }
+  .page-header {
+    border-radius: 0 !important;
+    margin-left: -16px !important;
+    margin-right: -16px !important;
+    margin-top: -20px !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-top: none !important;
+    border-bottom: 3px solid var(--erp-blue) !important;
+    margin-bottom: 16px !important;
+  }
+  .wk-main { padding: 14px 12px !important; }
+  .checklist-item { padding: 12px 12px 12px 8px !important; }
+  .category-header { font-size: 0.68rem !important; }
+}
+
+@media (max-width: 380px) {
+  .btn-result { min-height: 52px !important; font-size: 0.76rem !important; }
+}
+
+/* ════════════════════════════════════════════════════════
+   WIZARD MODE (mobile/tablet — jeden element na raz)
+   ════════════════════════════════════════════════════════ */
+body.wizard-mode .checklist-item.wizard-active {
+  border-radius: var(--erp-radius-lg) !important;
+  border: 1px solid var(--erp-border) !important;
+  box-shadow: var(--erp-shadow-md) !important;
+}
+body.wizard-mode .btn-result {
+  min-height: 64px !important;
+  font-size: 1rem !important;
+  min-width: 0 !important;
+  flex: 1 !important;
+}

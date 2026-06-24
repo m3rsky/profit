@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}500 Błąd serwera{% endblock %}
+{% block content %}
+<div style="text-align:center; padding:var(--sp-lg)">
+  <div style="font-size:4rem; color:var(--error)">500</div>
+  <h1 class="page-title">Błąd serwera</h1>
+  <p style="color:var(--secondary); margin:var(--sp-md) 0">
+    Wystąpił nieoczekiwany błąd. Błąd został zapisany w dzienniku.
+  </p>
+  <a href="{{ url_for('dashboard') }}" class="btn btn-primary"><i class="bi bi-arrow-left"></i> Wróć do dashboardu</a>
+</div>
+{% endblock %}

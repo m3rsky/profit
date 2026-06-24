@@ -1,0 +1,67 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Typy szaf{% endblock %}
+{% block admin_content %}
+<div class="page-header">
+  <h1 class="page-title">Typy szaf</h1>
+</div>
+
+<div class="card" style="margin-bottom:24px">
+  <div class="card-header">Dodaj nowy typ</div>
+  <form method="post" action="{{ url_for('kosztorys.admin_cabinets') }}" class="card-body">
+    {{ csrf_input() }}
+    <input type="hidden" name="_action" value="add">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+      <div>
+        <label class="label">Kod (np. PSH_IP65)</label>
+        <input type="text" name="code" class="input" placeholder="KOD" required style="width:140px">
+      </div>
+      <div>
+        <label class="label">Nazwa</label>
+        <input type="text" name="name" class="input" placeholder="Nazwa szafy" required style="width:240px">
+      </div>
+      <div>
+        <label class="label">Opis</label>
+        <input type="text" name="description" class="input" placeholder="Opcjonalny opis" style="width:240px">
+      </div>
+      <button type="submit" class="btn btn-primary">Dodaj</button>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <div class="card-body" style="padding:0">
+    <table class="data-table">
+      <thead>
+        <tr><th>Kod</th><th>Nazwa</th><th>Opis</th><th>Status</th><th>Wyceny</th><th class="th-actions"></th></tr>
+      </thead>
+      <tbody>
+        {% for ct in cabinets %}
+        <tr>
+          <td><code>{{ ct.code }}</code></td>
+          <td>{{ ct.name }}</td>
+          <td class="text-muted">{{ ct.description or '—' }}</td>
+          <td>
+            {% if ct.is_active %}
+              <span class="badge badge-success">Aktywny</span>
+            {% else %}
+              <span class="badge badge-secondary">Nieaktywny</span>
+            {% endif %}
+          </td>
+          <td>{{ ct.quotes.count() }}</td>
+          <td>
+            <form method="post" action="{{ url_for('kosztorys.admin_cabinets') }}" class="form-inline">
+              {{ csrf_input() }}
+              <input type="hidden" name="_action" value="toggle">
+              <input type="hidden" name="cabinet_id" value="{{ ct.id }}">
+              <button type="submit" class="btn btn-outline btn-sm">
+                {{ 'Dezaktywuj' if ct.is_active else 'Aktywuj' }}
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

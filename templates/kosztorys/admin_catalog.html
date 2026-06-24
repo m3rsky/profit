@@ -1,0 +1,140 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Katalog produktów{% endblock %}
+{% block admin_content %}
+
+<div class="page-header">
+  <h1 class="page-title">Katalog produktów PSH</h1>
+</div>
+
+<div class="card" style="margin-bottom:24px">
+  <div class="card-header">Dodaj produkt</div>
+  <div class="card-body">
+    <form method="post">
+      {{ csrf_input() }}
+      <input type="hidden" name="_action" value="add">
+      <div style="display:grid; grid-template-columns:140px 1fr 2fr; gap:8px; margin-bottom:8px">
+        <div>
+          <label class="label">Kod</label>
+          <input type="text" name="code" class="input" placeholder="KMP-400400" required
+                 title="Unikalny kod produktu">
+        </div>
+        <div>
+          <label class="label">Rodzina</label>
+          <select name="family" class="input" title="Rodzina produktu">
+            {% for fcode, fname in families %}
+            <option value="{{ fcode }}">{{ fname }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="label">Nazwa</label>
+          <input type="text" name="name" class="input" placeholder="PSH Kompakt 400×400×200" required
+                 title="Nazwa produktu">
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:12px">
+        <div>
+          <label class="label">Szerokość (mm)</label>
+          <input type="number" name="width" class="input" min="50" value="400" title="Szerokość">
+        </div>
+        <div>
+          <label class="label">Wysokość (mm)</label>
+          <input type="number" name="height" class="input" min="50" value="400" title="Wysokość">
+        </div>
+        <div>
+          <label class="label">Głębokość (mm)</label>
+          <input type="number" name="depth" class="input" min="50" value="200" title="Głębokość">
+        </div>
+        <div>
+          <label class="label">Cena katalogowa (PLN)</label>
+          <input type="number" name="catalog_price" class="input" step="1" value="549"
+                 title="Cena katalogowa PLN">
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary">
+        <i class="bi bi-plus-lg"></i> Dodaj produkt
+      </button>
+    </form>
+  </div>
+</div>
+
+<form method="post" id="saveAllForm">
+  {{ csrf_input() }}
+  <input type="hidden" name="_action" value="save_all">
+
+  {% for fcode, fname in families %}
+    {% set prods = products_by_family.get(fcode, []) %}
+    {% if prods %}
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+        <span>{{ fname }}</span>
+        <small class="text-muted">{{ prods|length }} szt.</small>
+      </div>
+      <div class="card-body" style="padding:0">
+        <table class="table" style="margin:0">
+          <thead>
+            <tr>
+              <th>Kod</th>
+              <th>Nazwa</th>
+              <th>Wymiary (mm)</th>
+              <th style="width:130px">Cena kat. (PLN)</th>
+              <th style="width:70px;text-align:center">Aktywny</th>
+              <th style="width:60px"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for prod in prods %}
+            <tr>
+              <td style="font-family:monospace;font-size:12px">{{ prod.code }}</td>
+              <td>{{ prod.name }}</td>
+              <td style="color:var(--text-muted);font-size:12px">
+                {{ prod.width }}×{{ prod.height }}×{{ prod.depth }}
+              </td>
+              <td>
+                <input type="number" name="price_{{ prod.id }}" class="input input-sm"
+                       step="1" value="{{ '%.0f'|format(prod.catalog_price) }}"
+                       title="Cena katalogowa">
+              </td>
+              <td style="text-align:center">
+                <input type="checkbox" name="active_{{ prod.id }}"
+                       {% if prod.is_active %}checked{% endif %}
+                       title="Aktywny produkt">
+              </td>
+              <td>
+                <form method="post" style="display:inline"
+                      onsubmit="return confirm('Usunąć produkt {{ prod.code }}?')">
+                  {{ csrf_input() }}
+                  <input type="hidden" name="_action" value="delete">
+                  <input type="hidden" name="prod_id" value="{{ prod.id }}">
+                  <button type="submit" class="btn btn-sm btn-danger" title="Usuń">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+  {% endfor %}
+
+  {% if not products_by_family %}
+  <div class="card">
+    <div class="card-body" style="text-align:center;color:var(--text-muted)">
+      Brak produktów w katalogu. Dodaj pierwszy produkt powyżej.
+    </div>
+  </div>
+  {% endif %}
+
+  {% if products_by_family %}
+  <div style="margin-top:12px">
+    <button type="submit" class="btn btn-primary">
+      <i class="bi bi-floppy"></i> Zapisz wszystkie ceny
+    </button>
+  </div>
+  {% endif %}
+</form>
+
+{% endblock %}

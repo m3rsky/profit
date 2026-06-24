@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Edycja zamówienia {{ order.number }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Edycja zamówienia</h1>
+    <p class="page-subtitle">{{ order.number }}</p>
+  </div>
+  <a href="{{ url_for('orders_detail', order_id=order.id) }}" class="btn btn-ghost"><i class="bi bi-arrow-left"></i> Wstecz</a>
+</div>
+
+<div class="card" style="max-width:580px">
+  <div class="card-body">
+    <form method="post">
+      {{ csrf_input() }}
+      <div class="form-group">
+        <label class="form-label" for="number">Numer zamówienia</label>
+        <input class="form-control" type="text" id="number" name="number"
+               value="{{ order.number }}" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="product_name">Produkt</label>
+        <input class="form-control" type="text" id="product_name" name="product_name"
+               value="{{ order.product_name }}" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="client">Klient / odbiorca</label>
+        <input class="form-control" type="text" id="client" name="client"
+               value="{{ order.client }}" required>
+      </div>
+      <div style="display:flex;gap:16px">
+        <div class="form-group" style="flex:1">
+          <label class="form-label" for="quantity">Ilość (szt.)</label>
+          <input class="form-control" type="number" id="quantity" name="quantity"
+                 min="1" value="{{ order.quantity }}" required>
+        </div>
+        <div class="form-group" style="flex:2">
+          <label class="form-label" for="due_date">Termin realizacji</label>
+          <input class="form-control" type="date" id="due_date" name="due_date"
+                 value="{{ order.due_date.strftime('%Y-%m-%d') if order.due_date else '' }}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="notes">Uwagi <span class="form-hint-inline">(opcjonalnie)</span></label>
+        <textarea class="form-control" id="notes" name="notes" rows="3">{{ order.notes or '' }}</textarea>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Zapisz zmiany</button>
+        <a href="{{ url_for('orders_detail', order_id=order.id) }}" class="btn btn-ghost"><i class="bi bi-x-lg"></i> Anuluj</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,10 @@
+Dodać nowy status WYGENEROWANO
+mowiący o utworzniu zamowinia i raportów,
+ale żaden z urzytkowników nie rozpoczął kontroli.
+Po kliknieciu otworzeniu, rozpoczeciu raportu przez urzytkownika
+zmienia sie status na ROZPOCZĘTY
+
+KONTYNUACJA WIDOKU TWORZENIA ZAMOWIENIA PRZEZ TWORZENIE raportu
+
+widok w sekcji GOTOWE DO WYSYLKI DOPIERO PO ZAKONCZENIU KONTROLI 
+obecnie widok od momentu utworzenia zlecenia ZAMOWIENIA

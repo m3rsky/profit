@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block title %}Operatorzy cięcia – Spawalnia{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-person-badge"></i> Operatorzy spawalni</h1>
+  </div>
+  <div class="page-actions">
+    <a href="{{ url_for('spawalnia.list_records') }}" class="btn btn-outline">
+      <i class="bi bi-arrow-left"></i> Wróć do listy
+    </a>
+  </div>
+</div>
+
+<div class="sp-ops-tabs">
+  <a href="{{ url_for('spawalnia.admin_operators') }}" class="sp-ops-tab">
+    <i class="bi bi-fire"></i> Spawacz
+  </a>
+  <a href="{{ url_for('spawalnia.admin_giecie_operators') }}" class="sp-ops-tab">
+    <i class="bi bi-arrows-angle-contract"></i> Gięcie
+  </a>
+  <a href="{{ url_for('spawalnia.admin_ciecie_operators') }}" class="sp-ops-tab sp-ops-tab--active">
+    <i class="bi bi-scissors"></i> Cięcie
+  </a>
+</div>
+
+<div class="sp-ops-grid">
+
+  <!-- Formularz dodawania -->
+  <div class="card">
+    <div class="card-header">Dodaj operatora cięcia</div>
+    <div class="card-body">
+      <form method="post">
+        {{ csrf_input() }}
+        <input type="hidden" name="action" value="add">
+        <div class="form-group">
+          <label class="form-label" for="initials">Inicjały <span class="sp-req">*</span></label>
+          <input type="text" id="initials" name="initials" class="form-control"
+                 placeholder="np. MK" maxlength="10" style="max-width:120px;" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="op_name">Imię i nazwisko <span class="sp-req">*</span></label>
+          <input type="text" id="op_name" name="name" class="form-control"
+                 placeholder="np. Marek Kowalski" maxlength="128" required>
+        </div>
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-plus-lg"></i> Dodaj
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Lista operatorów -->
+  <div class="card">
+    <div class="card-header">
+      Lista operatorów cięcia
+      <span class="badge badge-neutral">{{ operators|length }}</span>
+    </div>
+    {% if operators %}
+    <div class="table-wrap">
+      <table class="data-table tbl-cards">
+        <thead>
+          <tr>
+            <th>Inicjały</th>
+            <th>Imię i nazwisko</th>
+            <th>Status</th>
+            <th class="th-actions"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for op in operators %}
+          <tr>
+            <td data-label="Inicjały"><strong>{{ op.initials }}</strong></td>
+            <td data-label="Nazwisko">{{ op.name }}</td>
+            <td data-label="Status">
+              {% if op.is_active %}
+                <span class="badge badge-ok">Aktywny</span>
+              {% else %}
+                <span class="badge badge-neutral">Nieaktywny</span>
+              {% endif %}
+            </td>
+            <td class="td-actions" data-label="">
+              <form method="post" class="form-inline">
+                {{ csrf_input() }}
+                <input type="hidden" name="action" value="toggle">
+                <input type="hidden" name="op_id" value="{{ op.id }}">
+                <button type="submit" class="btn btn-sm btn-outline"
+                        title="{{ 'Dezaktywuj' if op.is_active else 'Aktywuj' }}">
+                  <i class="bi bi-{{ 'pause' if op.is_active else 'play' }}-fill"></i>
+                </button>
+              </form>
+              <form method="post" class="form-inline"
+                    onsubmit="return confirm('Usunąć operatora {{ op.initials }}?')">
+                {{ csrf_input() }}
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="op_id" value="{{ op.id }}">
+                <button type="submit" class="btn btn-sm btn-danger" title="Usuń">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="card-body--empty">
+      Brak operatorów cięcia. Dodaj pierwszego po lewej.
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<style>
+.sp-ops-tabs {
+  display: flex;
+  gap: .35rem;
+  margin-bottom: 1rem;
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 0;
+}
+.sp-ops-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .45rem 1rem;
+  border-radius: 8px 8px 0 0;
+  font-weight: 600;
+  font-size: .9rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  border: 2px solid transparent;
+  border-bottom: none;
+  margin-bottom: -2px;
+  transition: color .15s, background .15s;
+}
+.sp-ops-tab:hover { color: var(--text); background: var(--border-lt, var(--border)); }
+.sp-ops-tab--active {
+  color: var(--progress-blue);
+  border-color: var(--border);
+  border-bottom-color: var(--card-bg);
+  background: var(--card-bg);
+}
+.sp-ops-grid {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+.sp-req { color: var(--danger-text); }
+
+@media (max-width: 900px) {
+  .sp-ops-grid { grid-template-columns: 1fr; }
+}
+</style>
+{% endblock %}

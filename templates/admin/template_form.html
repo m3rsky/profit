@@ -1,0 +1,46 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}{% if template %}Edytuj szablon{% else %}Nowy szablon{% endif %}{% endblock %}
+{% block admin_content %}
+<div class="page-header">
+  <h1 class="page-title">{% if template %}Edytuj: {{ template.name }}{% else %}Nowy szablon{% endif %}</h1>
+  <a href="{{ url_for('admin_templates') }}" class="btn btn-ghost"><i class="bi bi-arrow-left"></i> Wróć</a>
+</div>
+
+<div class="card card--form-narrow">
+  <div class="card-body">
+    <form method="post">
+      {{ csrf_input() }}
+      <div class="form-group">
+        <label class="form-label">Nazwa szablonu</label>
+        <input class="form-control" type="text" name="name" required
+               value="{{ template.name if template else '' }}"
+               placeholder="np. Szafa elektryczna – standard">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Opis (opcjonalny)</label>
+        <textarea class="form-control" name="description"
+                  placeholder="Krótki opis przeznaczenia checklisty">{{ template.description if template else '' }}</textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="template-type">Typ szablonu</label>
+        <select class="form-control" id="template-type" name="template_type">
+          <option value="kontroler" {% if not template or template.template_type == 'kontroler' %}selected{% endif %}>Kontroler (lista kontrolna QA)</option>
+          <option value="monter"    {% if template and template.template_type == 'monter'    %}selected{% endif %}>Monter (lista montażowa)</option>
+        </select>
+      </div>
+      {% if template %}
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" name="is_active" {% if template.is_active %}checked{% endif %}>
+          Aktywny (widoczny przy tworzeniu raportów)
+        </label>
+      </div>
+      {% endif %}
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Zapisz</button>
+        <a href="{{ url_for('admin_templates') }}" class="btn btn-ghost">Anuluj</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,147 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Zadania – {{ category.name }}{% endblock %}
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
+{% endblock %}
+{% block admin_content %}
+<div class="page-header">
+  <div>
+    <a href="{{ url_for('admin_template_categories', tmpl_id=category.template_id) }}" class="breadcrumb-link"><i class="bi bi-arrow-left"></i> {{ category.template.name }}</a>
+    <h1 class="page-title">{{ category.name }}</h1>
+  </div>
+  <div class="page-header-actions">
+    <span class="drag-hint"><i class="bi bi-arrows-expand-vertical"></i> Przeciągnij wiersze by zmienić kolejność</span>
+    <a href="{{ url_for('admin_task_new', cat_id=category.id) }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Dodaj zadanie</a>
+  </div>
+</div>
+
+{% if tasks %}
+<form method="post" action="{{ url_for('admin_tasks_bulk_delete', cat_id=category.id) }}" id="tasks-bulk-form">
+  {{ csrf_input() }}
+  <div class="bulk-bar" id="tasks-bulk-bar">
+    <span class="bulk-count" id="tasks-bulk-count">0 zaznaczonych</span>
+    <div class="bulk-actions">
+      <button type="submit" class="btn btn-danger btn-sm"
+              id="btn-tasks-delete"
+              data-confirm="Usunąć zaznaczone zadania?"
+              disabled>
+        Usuń zaznaczone
+      </button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body card-body--flush">
+      <table class="data-table tbl-cards">
+        <thead>
+          <tr>
+            <th scope="col" class="th-check">
+              <label class="sr-only" for="tasks-select-all">Zaznacz wszystkie</label>
+              <input type="checkbox" id="tasks-select-all" title="Zaznacz wszystkie">
+            </th>
+            <th scope="col">#</th>
+            <th scope="col">Zadanie</th>
+            <th scope="col">Kolejn.</th>
+            <th scope="col">Aktywne</th>
+            <th scope="col">Zdjęcie</th>
+            <th scope="col">Typ</th>
+            <th scope="col"><span class="sr-only">Akcje</span></th>
+          </tr>
+        </thead>
+        <tbody id="sortable-tasks">
+          {% for task in tasks %}
+          <tr data-task-id="{{ task.id }}" class="sortable-row">
+            <td class="th-check">
+              <label class="sr-only" for="task-check-{{ task.id }}">Zaznacz zadanie {{ loop.index }}</label>
+              <input type="checkbox" id="task-check-{{ task.id }}"
+                     name="task_ids" value="{{ task.id }}" class="task-check">
+            </td>
+            <td class="drag-handle" title="Przeciągnij">⠿</td>
+            <td>
+              <div class="task-title">{{ task.title }}</div>
+              {% if task.description %}<div class="task-desc">{{ task.description }}</div>{% endif %}
+            </td>
+            <td class="task-order-cell">{{ task.order }}</td>
+            <td>{% if task.is_active %}<span class="badge badge-success">Tak</span>{% else %}<span class="badge badge-danger">Nie</span>{% endif %}</td>
+            <td>{% if task.requires_photo %}<span class="badge badge-secondary">Wymagane</span>{% else %}–{% endif %}</td>
+            <td>
+              {% if task.task_type == 'numeric' %}<span class="badge badge-secondary">Pomiar</span>
+              {% elif task.task_type == 'text' %}<span class="badge badge-neutral">Tekst</span>
+              {% else %}<span class="badge">OK/NG</span>{% endif %}
+            </td>
+            <td class="td-actions">
+              <a href="{{ url_for('admin_task_edit', task_id=task.id) }}" class="btn btn-outline btn-sm">Edytuj</a>
+              <button type="submit"
+                      class="btn btn-danger btn-sm"
+                      form="tasks-bulk-form"
+                      onclick="selectTaskOnly({{ task.id }})"
+                      data-confirm="Usunąć zadanie „{{ task.title }}"?">Usuń</button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</form>
+{% else %}
+<div class="card">
+  <div class="card-body card-body--flush">
+    <div class="empty-state">Brak zadań.</div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const selAll   = document.getElementById('tasks-select-all');
+const checks   = document.querySelectorAll('.task-check');
+const bar      = document.getElementById('tasks-bulk-bar');
+const countEl  = document.getElementById('tasks-bulk-count');
+const btnDel   = document.getElementById('btn-tasks-delete');
+
+function updateTasksBar() {
+  const n = document.querySelectorAll('.task-check:checked').length;
+  if (countEl) countEl.textContent = n + ' zaznaczonych';
+  if (btnDel)  btnDel.disabled = n === 0;
+  if (bar)     bar.classList.toggle('bulk-bar-active', n > 0);
+  if (selAll)  selAll.indeterminate = n > 0 && n < checks.length;
+  if (selAll)  selAll.checked = checks.length > 0 && n === checks.length;
+}
+
+if (selAll) {
+  selAll.addEventListener('change', () => {
+    checks.forEach(cb => cb.checked = selAll.checked);
+    updateTasksBar();
+  });
+}
+checks.forEach(cb => cb.addEventListener('change', updateTasksBar));
+
+function selectTaskOnly(id) {
+  checks.forEach(cb => { cb.checked = Number(cb.value) === id; });
+}
+
+// ── Sortable drag & drop ───────────────────────────────────────────────────
+const tbody = document.getElementById('sortable-tasks');
+if (tbody && typeof Sortable !== 'undefined') {
+  Sortable.create(tbody, {
+    handle: '.drag-handle',
+    animation: 150,
+    onEnd: async () => {
+      const rows = tbody.querySelectorAll('tr[data-task-id]');
+      const order = Array.from(rows).map((r, i) => {
+        r.querySelector('.task-order-cell').textContent = i;
+        return { id: Number(r.dataset.taskId) };
+      });
+      await fetch('/api/tasks/reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json',
+                   'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || '' },
+        body: JSON.stringify(order),
+      });
+    },
+  });
+}
+</script>
+{% endblock %}

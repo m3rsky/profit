@@ -1,0 +1,87 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}{% if task %}Edytuj zadanie{% else %}Nowe zadanie{% endif %}{% endblock %}
+{% block admin_content %}
+<div class="page-header">
+  <div>
+    <a href="{{ url_for('admin_tasks', cat_id=category.id) }}" class="breadcrumb-link"><i class="bi bi-arrow-left"></i> {{ category.name }}</a>
+    <h1 class="page-title">{% if task %}Edytuj zadanie{% else %}Nowe zadanie{% endif %}</h1>
+  </div>
+</div>
+
+<div class="card" style="max-width:560px">
+  <div class="card-body">
+    <form method="post">
+      {{ csrf_input() }}
+      <div class="form-group">
+        <label class="form-label">Treść zadania / punktu kontrolnego</label>
+        <input class="form-control" type="text" name="title" required
+               value="{{ task.title if task else '' }}"
+               placeholder="np. Sprawdzenie dokumentacji technicznej">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Opis (opcjonalny)</label>
+        <textarea class="form-control" name="description"
+                  placeholder="Szczegółowy opis lub instrukcja wykonania">{{ task.description if task else '' }}</textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Kolejność</label>
+        <input class="form-control" type="number" name="order" min="0"
+               value="{{ task.order if task else 0 }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="task-type-select">Typ odpowiedzi</label>
+        <select class="form-control" name="task_type" id="task-type-select">
+          <option value="ok_ng" {% if not task or task.task_type == 'ok_ng' %}selected{% endif %}>OK / NG / N/A</option>
+          <option value="numeric" {% if task and task.task_type == 'numeric' %}selected{% endif %}>Pomiar liczbowy</option>
+          <option value="text" {% if task and task.task_type == 'text' %}selected{% endif %}>Tekst / opis</option>
+        </select>
+      </div>
+      <div id="numeric-fields">
+        <div class="form-group">
+          <label class="form-label">Wartość minimalna</label>
+          <input class="form-control" type="number" step="any" name="value_min"
+                 value="{{ task.value_min if task and task.value_min is not none else '' }}"
+                 placeholder="np. 4.5">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Wartość maksymalna</label>
+          <input class="form-control" type="number" step="any" name="value_max"
+                 value="{{ task.value_max if task and task.value_max is not none else '' }}"
+                 placeholder="np. 5.5">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Jednostka</label>
+          <input class="form-control" type="text" name="unit"
+                 value="{{ task.unit if task and task.unit else '' }}"
+                 placeholder="np. mm, kg, V">
+        </div>
+      </div>
+      <div class="form-group" style="display:flex; gap:var(--sp-md)">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer">
+          <input type="checkbox" name="is_active" {% if not task or task.is_active %}checked{% endif %}>
+          <span class="form-label" style="margin:0">Aktywne</span>
+        </label>
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer">
+          <input type="checkbox" name="requires_photo" {% if task and task.requires_photo %}checked{% endif %}>
+          <span class="form-label" style="margin:0">Wymaga zdjęcia</span>
+        </label>
+      </div>
+      <div style="display:flex; gap:8px">
+        <button type="submit" class="btn btn-primary">Zapisz</button>
+        <a href="{{ url_for('admin_tasks', cat_id=category.id) }}" class="btn btn-ghost">Anuluj</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const sel = document.getElementById('task-type-select');
+  const fields = document.getElementById('numeric-fields');
+  function toggle() { if (fields) fields.style.display = sel.value === 'numeric' ? '' : 'none'; }
+  if (sel) { sel.addEventListener('change', toggle); toggle(); }
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+{% block title %}Zamówienie {{ order.number }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">{{ order.number }}</h1>
+    <p class="page-subtitle">{{ order.product_name }} &nbsp;·&nbsp; {{ order.client }}</p>
+  </div>
+  <div class="page-header-actions">
+    {% if current_user.is_order_user %}
+    <a href="{{ url_for('orders_list') }}" class="btn btn-ghost"><i class="bi bi-arrow-left"></i> Zamówienia</a>
+    <a href="{{ url_for('orders_edit', order_id=order.id) }}" class="btn btn-secondary btn-sm"><i class="bi bi-pencil"></i> Edytuj</a>
+    <form method="post" action="{{ url_for('orders_delete', order_id=order.id) }}" class="inline-form">
+      {{ csrf_input() }}
+      <button type="submit" class="btn btn-danger btn-sm"
+              onclick="return confirm('Usunąć zamówienie {{ order.number }} oraz wszystkie powiązane listy kontrolne?')">
+        <i class="bi bi-trash"></i> Usuń zamówienie
+      </button>
+    </form>
+    {% else %}
+    <a href="{{ url_for('dashboard') }}" class="btn btn-ghost"><i class="bi bi-arrow-left"></i> Dashboard</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="order-detail-grid">
+  <div class="card">
+    <div class="card-body">
+      <dl class="detail-list">
+        <div class="detail-row"><dt>Produkt</dt><dd>{{ order.product_name }}</dd></div>
+        <div class="detail-row"><dt>Klient</dt><dd>{{ order.client }}</dd></div>
+        <div class="detail-row"><dt>Ilość</dt><dd>{{ order.quantity }} szt.</dd></div>
+        <div class="detail-row">
+          <dt>Termin</dt>
+          <dd {% if order.due_date and order.due_date < today %}class="text-danger"{% endif %}>
+            {{ order.due_date.strftime('%d.%m.%Y') if order.due_date else '—' }}
+          </dd>
+        </div>
+        <div class="detail-row"><dt>Zamawiający</dt><dd>{{ order.created_by.username }}</dd></div>
+        <div class="detail-row"><dt>Data dodania</dt><dd>{{ order.created_at|localdt }}</dd></div>
+        {% if order.template %}
+        <div class="detail-row"><dt>Szablon QA</dt><dd>{{ order.template.name }}</dd></div>
+        {% endif %}
+        {% if order.monter_template %}
+        <div class="detail-row"><dt>Szablon montera</dt><dd>{{ order.monter_template.name }}</dd></div>
+        {% endif %}
+        {% if order.pdf_filename %}
+        <div class="detail-row">
+          <dt>Dokumentacja PDF</dt>
+          <dd><a href="{{ url_for('uploaded_pdf', filename=order.pdf_filename) }}" target="_blank" class="btn btn-ghost btn-sm"><i class="bi bi-file-earmark-pdf"></i> Otwórz PDF</a></dd>
+        </div>
+        {% endif %}
+        {% if order.notes %}
+        <div class="detail-row"><dt>Uwagi</dt><dd>{{ order.notes }}</dd></div>
+        {% endif %}
+      </dl>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body order-status-panel">
+      <span class="status-badge status-badge--lg {{ order.status_css }}">{{ order.status_label }}</span>
+      {% if order.reports_total > 0 %}
+      <div class="progress order-progress">
+        <div class="progress-bar" data-pct="{{ order.progress_pct }}"></div>
+      </div>
+      <p class="order-progress-count">{{ order.reports_done }} / {{ order.reports_total }}</p>
+      <p class="order-progress-label">list kontrolnych zakończono</p>
+      {% if order.has_ng %}
+      <p class="order-ng-warning"><i class="bi bi-exclamation-triangle-fill"></i> Wykryto niezgodności (NG)</p>
+      {% endif %}
+      {% else %}
+      <p class="order-no-qa">Brak szablonu QA — kontrola nie jest wymagana</p>
+      {% endif %}
+      {% if current_user.is_order_user and order.status == 'ready_to_ship' %}
+      <form method="post" action="{{ url_for('orders_ship', order_id=order.id) }}" class="order-ship-form">
+        {{ csrf_input() }}
+        <button type="submit" class="btn btn-primary"
+                onclick="return confirm('Oznaczyć zamówienie jako wysłane?')">
+          <i class="bi bi-send-fill"></i> Oznacz jako wysłane
+        </button>
+      </form>
+      {% endif %}
+      {% if current_user.is_order_user and order.status != 'shipped' and reports and reports|selectattr('completion_percent','equalto',0)|list|length == reports|length %}
+      <form method="post" action="{{ url_for('orders_regenerate', order_id=order.id) }}" class="order-ship-form">
+        {{ csrf_input() }}
+        <button type="submit" class="btn btn-secondary btn-sm"
+                onclick="return confirm('Zregenerować listy kontrolne? Obecne (puste) zostaną usunięte i zastąpione nowymi.')">
+          <i class="bi bi-arrow-clockwise"></i> Regeneruj raporty QA
+        </button>
+      </form>
+      {% endif %}
+      {% if current_user.is_order_user %}
+      <form method="post" action="{{ url_for('orders_upload_pdf', order_id=order.id) }}"
+            enctype="multipart/form-data" class="order-ship-form">
+        {{ csrf_input() }}
+        <label class="btn btn-outline btn-sm" style="cursor:pointer">
+          <i class="bi bi-file-earmark-pdf"></i>
+          {% if order.pdf_filename %}Zastąp PDF{% else %}Wgraj PDF{% endif %}
+          <input type="file" name="pdf" accept=".pdf" style="display:none"
+                 onchange="this.closest('form').submit()">
+        </label>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% macro report_table(rows, role_label) %}
+<div class="card">
+  <table class="table tbl-cards">
+    <thead>
+      <tr>
+        <th>Tytuł raportu</th>
+        <th>Postęp</th>
+        <th>Status</th>
+        <th>Ocena</th>
+        <th>{{ role_label }}</th>
+        <th>Data</th>
+        <th class="th-actions">Akcje</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr data-batch-id="{{ r.batch_id or '' }}"
+          data-batch-index="{{ r.batch_index or '' }}"
+          data-batch-total="{{ r.batch_total or '' }}">
+        <td data-label="Raport">{{ r.title }}</td>
+        <td data-label="Postęp">
+          <div class="progress-cell">
+            <div class="progress progress--sm">
+              <div class="progress-bar" data-pct="{{ r.completion_percent }}"></div>
+            </div>
+            <small>{{ r.completion_percent }}%</small>
+          </div>
+        </td>
+        <td data-label="Status">
+          {% if r.status == 'completed' %}
+            <span class="status-badge status-success"><i class="bi bi-check-circle-fill"></i> Zamknięty{% if r.stats.ng > 0 %} (NG: {{ r.stats.ng }}){% endif %}</span>
+          {% else %}
+            <span class="status-badge status-warning"><i class="bi bi-hourglass-split"></i> W trakcie</span>
+          {% endif %}
+        </td>
+        <td data-label="Ocena">
+          {% set sc = r.score %}
+          {% if sc %}
+          <span class="badge {% if sc.grade >= 5 %}badge-success{% elif sc.grade >= 3 %}badge-warning{% else %}badge-error{% endif %}">
+            {{ sc.grade }}/6
+          </span>
+          <small class="score-pct-sub">{{ sc.pct }}%</small>
+          {% else %}–{% endif %}
+        </td>
+        <td data-label="{{ role_label }}">{{ r.author.username }}</td>
+        <td data-label="Data">{{ r.completed_at|localdt if r.completed_at else '—' }}</td>
+        <td data-label="">
+          <a href="{{ url_for('checklist_view' if r.status != 'completed' else 'report_detail', report_id=r.id) }}"
+             class="btn btn-ghost btn-sm">
+            {% if r.status == 'completed' %}<i class="bi bi-eye"></i> Podgląd{% else %}<i class="bi bi-pencil-fill"></i> Wypełnij{% endif %}
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endmacro %}
+
+{% if kontroler_reports %}
+<h2 class="section-title">Listy kontrolne QA</h2>
+{{ report_table(kontroler_reports, 'Kontroler') }}
+{% endif %}
+
+{% if monter_reports %}
+<h2 class="section-title">Listy montażowe</h2>
+{{ report_table(monter_reports, 'Monter') }}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* ── Grupowanie serii (batch) w tabelach zamówienia ── */
+(function () {
+  document.querySelectorAll('.card table').forEach(function (table) {
+    var allRows = Array.from(table.querySelectorAll('tbody tr[data-batch-id]'));
+    var batches = {};
+
+    allRows.forEach(function (row) {
+      var bid = row.dataset.batchId;
+      if (!bid) return;
+      if (!batches[bid]) batches[bid] = [];
+      batches[bid].push(row);
+    });
+
+    Object.keys(batches).forEach(function (bid) {
+      var batchRows = batches[bid];
+      if (batchRows.length < 2) return;
+
+      batchRows.sort(function (a, b) {
+        return parseInt(a.dataset.batchIndex || 0) - parseInt(b.dataset.batchIndex || 0);
+      });
+
+      var leadRow  = batchRows[0];
+      var children = batchRows.slice(1);
+      var total    = parseInt(leadRow.dataset.batchTotal) || batchRows.length;
+
+      /* Przesuń w DOM: lead (szt. 1/N) na górę serii, dzieci bezpośrednio poniżej */
+      var parent   = leadRow.parentNode;
+      var siblings = Array.from(parent.children);
+      var firstPos = Math.min.apply(null, batchRows.map(function (r) { return siblings.indexOf(r); }));
+      parent.insertBefore(leadRow, siblings[firstPos]);
+      var afterEl = leadRow;
+      children.forEach(function (row) {
+        parent.insertBefore(row, afterEl.nextSibling);
+        afterEl = row;
+      });
+
+      /* Uprość tytuł */
+      var titleCell = leadRow.querySelector('td[data-label="Raport"]');
+      if (titleCell) {
+        titleCell.textContent = titleCell.textContent
+          .replace(/\s*–?\s*szt\.\s*\d+\/\d+[^]*$/, '')
+          .replace(/\s*–\s*\d+\/\d+\s*$/, '')
+          .trim();
+        var badge = document.createElement('button');
+        badge.type = 'button';
+        badge.className = 'badge badge-neutral batch-series-badge batch-expand-btn';
+        badge.dataset.bid = bid;
+        badge.setAttribute('aria-expanded', 'false');
+        badge.title = 'Rozwiń serię';
+        badge.innerHTML = '<i class="bi bi-layers"></i> Seria ' + total + ' szt. <i class="bi bi-chevron-down batch-chevron"></i>';
+        titleCell.appendChild(badge);
+      }
+
+      /* Podsumowanie statusu */
+      var done = batchRows.filter(function (r) {
+        return r.querySelector('.status-success');
+      }).length;
+      var statusCell = leadRow.querySelector('td[data-label="Status"]');
+      if (statusCell) {
+        statusCell.innerHTML = done === total
+          ? '<span class="status-badge status-success"><i class="bi bi-check-circle-fill"></i> Ukończona</span>'
+          : '<span class="status-badge status-warning"><i class="bi bi-hourglass-split"></i> ' + done + '/' + total + ' ukończone</span>';
+      }
+
+      /* Schowaj wiersze potomne i wstaw └ do tytułu */
+      children.forEach(function (row) {
+        row.classList.add('batch-child-row', 'batch-hidden');
+        var titleCell = row.querySelector('td[data-label="Raport"]');
+        if (titleCell) {
+          var idx = parseInt(row.dataset.batchIndex) || '';
+          var tot = parseInt(row.dataset.batchTotal) || total;
+          titleCell.textContent = '└ szt. ' + idx + '/' + tot;
+        }
+      });
+    });
+  });
+
+  /* Obsługa kliknięcia rozwijania */
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.batch-expand-btn');
+    if (!btn) return;
+    var bid      = btn.dataset.bid;
+    var expanded = btn.getAttribute('aria-expanded') === 'true';
+    document.querySelectorAll('tr.batch-child-row[data-batch-id="' + bid + '"]')
+      .forEach(function (row) { row.classList.toggle('batch-hidden', expanded); });
+    btn.setAttribute('aria-expanded', String(!expanded));
+    var chevron = btn.querySelector('.batch-chevron');
+    if (chevron) chevron.className = expanded ? 'bi bi-chevron-down batch-chevron' : 'bi bi-chevron-up batch-chevron';
+    btn.title = expanded ? 'Rozwiń serię' : 'Zwiń serię';
+  });
+})();
+</script>
+{% endblock %}

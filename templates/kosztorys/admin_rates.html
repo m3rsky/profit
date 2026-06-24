@@ -1,0 +1,58 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Stawki robocizny{% endblock %}
+{% block admin_content %}
+<div class="page-header">
+  <h1 class="page-title">Stawki robocizny</h1>
+  <small class="text-muted">Stawki zależne od objętości szafy (dm³)</small>
+</div>
+
+<form method="post" action="{{ url_for('kosztorys.admin_rates') }}">
+  {{ csrf_input() }}
+  <div class="card">
+    <div class="card-body" style="padding:0">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Operacja</th>
+            {% for lr in rates %}
+            <th style="text-align:center">{{ lr.label }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% set field_labels = {
+            'laser':    'Laser',
+            'bending':  'Gięcie',
+            'welding':  'Spawanie',
+            'grinding': 'Szlifowanie',
+            'assembly': 'Montaż',
+            'packaging':'Pakowanie'
+          } %}
+          {% for field in fields %}
+          <tr>
+            <td><strong>{{ field_labels.get(field, field) }}</strong></td>
+            {% for lr in rates %}
+            <td style="text-align:center">
+              <input type="number" step="0.01" min="0"
+                     name="{{ lr.volume_range }}_{{ field }}"
+                     value="{{ '%.2f'|format(lr|attr(field)) }}"
+                     class="input input--sm" style="width:90px">
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+          <tr style="background:var(--bg-secondary)">
+            <td><strong>SUMA</strong></td>
+            {% for lr in rates %}
+            <td style="text-align:center"><strong>{{ '%.2f'|format(lr.total) }} PLN</strong></td>
+            {% endfor %}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card-footer" style="padding:12px 16px">
+      <button type="submit" class="btn btn-primary">Zapisz stawki</button>
+    </div>
+  </div>
+</form>
+{% endblock %}

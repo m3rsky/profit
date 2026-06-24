@@ -1,0 +1,441 @@
+{% extends "base.html" %}
+{% block title %}Kontrola – {{ record.zo_number }}{% endblock %}
+
+{% block content %}
+<div class="sp-wrap">
+
+  {# ── Górna belka ── #}
+  <div class="sp-topbar">
+    <div class="sp-topbar-info">
+      <i class="bi bi-fire sp-fire"></i>
+      <span class="sp-zo-label">ZO:</span>
+      <strong class="sp-zo-val">{{ record.zo_number }}</strong>
+    </div>
+    <a href="{{ url_for('spawalnia.list_records') }}"
+       class="btn btn-sm btn-ghost sp-back-btn" title="Wróć do listy">
+      <i class="bi bi-list-ul"></i>
+    </a>
+  </div>
+
+  {# ── Pasek postępu serii ── #}
+  {% if record.batch_id %}
+  <div class="sp-prog-wrap">
+    <div class="sp-prog-track">
+      <div class="sp-prog-fill"
+           style="width:{{ ((record.batch_index/record.batch_total)*100)|round|int }}%"></div>
+    </div>
+    <span class="sp-prog-label">
+      <i class="bi bi-layers"></i>
+      <strong>{{ record.batch_index }}</strong>&thinsp;/&thinsp;<strong>{{ record.batch_total }}</strong>
+    </span>
+  </div>
+  {% endif %}
+
+  {# ── Formularz ── #}
+  <form method="post" class="sp-form" autocomplete="off">
+    {{ csrf_input() }}
+    <input type="hidden" name="zo_number" value="{{ record.zo_number }}">
+
+    {# Wiersz 1: OTWOROWANIE + PRZEKĄTNA (z odchyłką w tej samej karcie) #}
+    <div class="sp-row">
+
+      <div class="sp-field">
+        <span class="sp-lbl">Otworowanie</span>
+        <div class="sp-okng">
+          <label class="sp-cb sp-cb--ok">
+            <input type="radio" name="otworowanie" value="OK"
+                   {% if record.otworowanie == 'OK' %}checked{% endif %}>OK
+          </label>
+          <label class="sp-cb sp-cb--ng">
+            <input type="radio" name="otworowanie" value="NG"
+                   {% if record.otworowanie == 'NG' %}checked{% endif %}>NG
+          </label>
+          <label class="sp-cb">
+            <input type="radio" name="otworowanie" value=""
+                   {% if not record.otworowanie %}checked{% endif %}>—
+          </label>
+        </div>
+      </div>
+
+      <div class="sp-field">
+        <span class="sp-lbl">Przekątna</span>
+        <div class="sp-okng">
+          <label class="sp-cb sp-cb--ok">
+            <input type="radio" name="przekatna" value="OK"
+                   {% if record.przekatna == 'OK' %}checked{% endif %}>OK
+          </label>
+          <label class="sp-cb sp-cb--ng">
+            <input type="radio" name="przekatna" value="NG"
+                   {% if record.przekatna == 'NG' %}checked{% endif %}>NG
+          </label>
+          <label class="sp-cb">
+            <input type="radio" name="przekatna" value=""
+                   {% if not record.przekatna %}checked{% endif %}>—
+          </label>
+        </div>
+        <label class="sp-lbl sp-lbl--sub" for="sp-odch">Odchyłka [mm]</label>
+        <input type="text" id="sp-odch" name="przekatna_odchylka" class="sp-txt"
+               value="{{ '%.2f'|format(record.przekatna_odchylka)|replace('.',',') if record.przekatna_odchylka is not none else '' }}"
+               placeholder="0,00" inputmode="decimal">
+      </div>
+
+    </div>{# /row 1 #}
+
+    {# Wiersz 2: JAKOŚĆ WYCIĘCIA (pełna szerokość) #}
+    <div class="sp-field sp-field--wide">
+      <span class="sp-lbl">Jakość wycięcia</span>
+      <div class="sp-okng">
+        <label class="sp-cb sp-cb--ok">
+          <input type="radio" name="jakosc_wyciecia" value="OK"
+                 {% if record.jakosc_wyciecia == 'OK' %}checked{% endif %}>OK
+        </label>
+        <label class="sp-cb sp-cb--ng">
+          <input type="radio" name="jakosc_wyciecia" value="NG"
+                 {% if record.jakosc_wyciecia == 'NG' %}checked{% endif %}>NG
+        </label>
+        <label class="sp-cb">
+          <input type="radio" name="jakosc_wyciecia" value=""
+                 {% if not record.jakosc_wyciecia %}checked{% endif %}>—
+        </label>
+      </div>
+    </div>
+
+    {# Wiersz 3: POMIARY (pełna szerokość, 3 kolumny) #}
+    <div class="sp-field sp-field--wide">
+      <span class="sp-lbl">Pomiary szerokości [cm]</span>
+      <div class="sp-pomiary">
+        <div class="sp-pomiar">
+          <label class="sp-pomiar-lbl" for="sp-p1">Pomiar 1</label>
+          <input type="text" id="sp-p1" name="pomiar1" class="sp-txt"
+                 value="{{ '%.2f'|format(record.pomiar1)|replace('.',',') if record.pomiar1 is not none else '' }}"
+                 placeholder="0,00" inputmode="decimal">
+        </div>
+        <div class="sp-pomiar">
+          <label class="sp-pomiar-lbl" for="sp-p2">Pomiar 2</label>
+          <input type="text" id="sp-p2" name="pomiar2" class="sp-txt"
+                 value="{{ '%.2f'|format(record.pomiar2)|replace('.',',') if record.pomiar2 is not none else '' }}"
+                 placeholder="0,00" inputmode="decimal">
+        </div>
+        <div class="sp-pomiar">
+          <label class="sp-pomiar-lbl" for="sp-p3">Pomiar 3</label>
+          <input type="text" id="sp-p3" name="pomiar3" class="sp-txt"
+                 value="{{ '%.2f'|format(record.pomiar3)|replace('.',',') if record.pomiar3 is not none else '' }}"
+                 placeholder="0,00" inputmode="decimal">
+        </div>
+      </div>
+    </div>
+
+    {# Wiersz 4: SPAWACZ + GIĘCIE + CIĘCIE (3 kolumny obok siebie) #}
+    <div class="sp-row sp-row--ops">
+
+      <div class="sp-field">
+        <span class="sp-lbl">Spawacz</span>
+        {% if operators %}
+        <div class="sp-ops sp-ops--sm">
+          <label class="sp-op sp-op--sm">
+            <input type="radio" name="operator_id" value=""
+                   {% if not record.operator_id %}checked{% endif %}>—
+          </label>
+          {% for op in operators %}
+          <label class="sp-op sp-op--sm" title="{{ op.name }}">
+            <input type="radio" name="operator_id" value="{{ op.id }}"
+                   {% if record.operator_id == op.id %}checked{% endif %}>
+            {{ op.initials }}
+          </label>
+          {% endfor %}
+        </div>
+        {% else %}
+        <input type="hidden" name="operator_id" value="">
+        <span class="sp-hint">Brak{% if current_user.is_admin %} — <a href="{{ url_for('spawalnia.admin_operators') }}">dodaj</a>{% endif %}</span>
+        {% endif %}
+      </div>
+
+      <div class="sp-field">
+        <span class="sp-lbl">Gięcie</span>
+        {% if giecie_operators %}
+        <div class="sp-ops sp-ops--sm">
+          <label class="sp-op sp-op--sm">
+            <input type="radio" name="giecie_operator_id" value=""
+                   {% if not record.giecie_operator_id %}checked{% endif %}>—
+          </label>
+          {% for op in giecie_operators %}
+          <label class="sp-op sp-op--sm" title="{{ op.name }}">
+            <input type="radio" name="giecie_operator_id" value="{{ op.id }}"
+                   {% if record.giecie_operator_id == op.id %}checked{% endif %}>
+            {{ op.initials }}
+          </label>
+          {% endfor %}
+        </div>
+        {% else %}
+        <input type="hidden" name="giecie_operator_id" value="">
+        <span class="sp-hint">Brak{% if current_user.is_admin %} — <a href="{{ url_for('spawalnia.admin_giecie_operators') }}">dodaj</a>{% endif %}</span>
+        {% endif %}
+      </div>
+
+      <div class="sp-field">
+        <span class="sp-lbl">Cięcie</span>
+        {% if ciecie_operators %}
+        <div class="sp-ops sp-ops--sm">
+          <label class="sp-op sp-op--sm">
+            <input type="radio" name="ciecie_operator_id" value=""
+                   {% if not record.ciecie_operator_id %}checked{% endif %}>—
+          </label>
+          {% for op in ciecie_operators %}
+          <label class="sp-op sp-op--sm" title="{{ op.name }}">
+            <input type="radio" name="ciecie_operator_id" value="{{ op.id }}"
+                   {% if record.ciecie_operator_id == op.id %}checked{% endif %}>
+            {{ op.initials }}
+          </label>
+          {% endfor %}
+        </div>
+        {% else %}
+        <input type="hidden" name="ciecie_operator_id" value="">
+        <span class="sp-hint">Brak{% if current_user.is_admin %} — <a href="{{ url_for('spawalnia.admin_ciecie_operators') }}">dodaj</a>{% endif %}</span>
+        {% endif %}
+      </div>
+
+    </div>{# /sp-row--ops #}
+
+    {# Przycisk Zapisz #}
+    <button type="submit" class="sp-save">
+      <i class="bi bi-check-lg"></i>
+      {% if record.batch_id and record.batch_index < record.batch_total %}
+        Zapisz i następny
+        <span class="sp-save-badge">{{ record.batch_index + 1 }}&thinsp;/&thinsp;{{ record.batch_total }}</span>
+      {% else %}
+        Zapisz
+      {% endif %}
+    </button>
+
+  </form>
+</div>{# /.sp-wrap #}
+
+<style>
+/* ═══ Spawalnia — tablet-first compact form ═══════════════════════════════ */
+
+.sp-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(.4rem, 1.2vh, .9rem);
+  width: 100%;
+}
+
+/* Górna belka */
+.sp-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 42px;
+}
+.sp-topbar-info { display: flex; align-items: center; gap: .4rem; font-size: 1.05rem; }
+.sp-fire { color: var(--danger-text); font-size: 1.15rem; }
+.sp-zo-label { color: var(--text-muted); }
+.sp-back-btn { font-size: 1.1rem; padding: .4rem .6rem; }
+
+/* Pasek postępu */
+.sp-prog-wrap { display: flex; align-items: center; gap: .65rem; }
+.sp-prog-track {
+  flex: 1; height: 10px; border-radius: 6px;
+  background: var(--border); overflow: hidden;
+}
+.sp-prog-fill {
+  height: 100%; border-radius: 6px;
+  background: var(--progress-blue);
+  transition: width .35s ease;
+}
+.sp-prog-label {
+  font-size: .88rem; font-weight: 700;
+  color: var(--text-muted); white-space: nowrap;
+  min-width: 2.8rem; text-align: right;
+}
+
+/* Formularz */
+.sp-form { display: flex; flex-direction: column; gap: clamp(.4rem, 1.2vh, .9rem); }
+
+/* Wiersz 2-kolumnowy — min 260px na kolumnę, max 2 kolumny */
+.sp-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .55rem;
+}
+
+/* Pole (karta) */
+.sp-field {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: clamp(.5rem, 1.5vh, 1rem) clamp(.65rem, 1.5vw, 1.1rem);
+  display: flex;
+  flex-direction: column;
+  gap: .3rem;
+}
+.sp-field--wide { /* pełna szerokość poza griddem */ }
+
+/* Etykieta */
+.sp-lbl {
+  font-size: .67rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .09em;
+  color: var(--text-muted);
+}
+.sp-lbl--sub { margin-top: .45rem; }
+
+/* Przyciski OK / NG / — */
+.sp-okng { display: flex; gap: .4rem; }
+.sp-cb {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: clamp(44px, 8vh, 72px);
+  border-radius: 9px;
+  border: 2px solid var(--border);
+  font-size: clamp(.95rem, 2.2vw, 1.2rem);
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+  transition: background .1s, border-color .1s, color .1s;
+  background: var(--card-bg);
+  color: var(--text-muted);
+}
+.sp-cb input[type=radio] { display: none; }
+
+.sp-cb:has(input:checked) {
+  border-color: var(--progress-blue);
+  background: var(--blue-bg);
+  color: var(--progress-blue);
+}
+.sp-cb--ok:has(input:checked) {
+  border-color: var(--ok-border);
+  background: var(--ok-bg);
+  color: var(--ok-text);
+}
+.sp-cb--ng:has(input:checked) {
+  border-color: var(--danger-text);
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+
+/* Pola tekstowe */
+.sp-txt {
+  width: 100%;
+  min-height: 46px;
+  padding: .45rem .7rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 1rem;
+  background: var(--card-bg);
+  color: var(--text, inherit);
+  box-sizing: border-box;
+}
+.sp-txt:focus {
+  outline: 2px solid var(--progress-blue);
+  outline-offset: 1px;
+  border-color: var(--progress-blue);
+}
+.sp-hint { font-size: .8rem; color: var(--text-muted); }
+
+/* Pomiary */
+.sp-pomiary {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: .5rem;
+}
+.sp-pomiar { display: flex; flex-direction: column; gap: .2rem; }
+.sp-pomiar-lbl {
+  font-size: .67rem; font-weight: 700;
+  color: var(--text-muted); text-align: center;
+}
+
+/* Operatorzy — wiersz 3-kolumnowy */
+.sp-row--ops {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* Przyciski z inicjałami */
+.sp-ops {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+}
+.sp-ops--sm { gap: .3rem; }
+
+.sp-op {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 62px;
+  min-height: 46px;
+  padding: .3rem .65rem;
+  border: 2px solid var(--border);
+  border-radius: 9px;
+  font-weight: 700;
+  font-size: .95rem;
+  cursor: pointer;
+  user-select: none;
+  transition: background .1s, border-color .1s, color .1s;
+  background: var(--card-bg);
+  color: var(--text-muted);
+}
+.sp-op--sm {
+  min-width: 44px;
+  min-height: 36px;
+  padding: .2rem .45rem;
+  font-size: .82rem;
+  border-radius: 7px;
+}
+.sp-op input[type=radio] { display: none; }
+.sp-op:has(input:checked) {
+  border-color: var(--progress-blue);
+  background: var(--blue-bg);
+  color: var(--progress-blue);
+  font-weight: 800;
+}
+
+/* Przycisk Zapisz */
+.sp-save {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  width: 100%;
+  min-height: clamp(52px, 7vh, 72px);
+  border: none;
+  border-radius: 12px;
+  background: var(--btn-primary);
+  color: var(--btn-text);
+  font-size: clamp(1rem, 2.5vw, 1.25rem);
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity .15s;
+  margin-top: .2rem;
+}
+.sp-save:hover  { opacity: .9; }
+.sp-save:active { opacity: .75; }
+.sp-save-badge {
+  background: rgba(255,255,255,.22);
+  padding: .1rem .5rem;
+  border-radius: 999px;
+  font-size: .85rem;
+  font-weight: 700;
+}
+
+/* ── Responsywność ── */
+
+/* Telefon pionowy — stos jednokolumnowy dla rzędów bocznych */
+@media (max-width: 500px) {
+  .sp-row         { grid-template-columns: 1fr; }
+  .sp-row--ops    { grid-template-columns: 1fr; }
+  .sp-cb          { min-height: 48px; }
+  .sp-op          { min-height: 44px; min-width: 56px; }
+  .sp-op--sm      { min-height: 40px; min-width: 44px; }
+}
+
+/* Bardzo mały ekran */
+@media (max-width: 360px) {
+  .sp-pomiary { grid-template-columns: 1fr 1fr 1fr; }
+  .sp-save    { min-height: 52px; font-size: 1rem; }
+}
+</style>
+{% endblock %}

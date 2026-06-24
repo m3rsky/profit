@@ -1,0 +1,353 @@
+{% extends "base.html" %}
+{% block title %}Raporty{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Raporty</h1>
+  <div class="page-header-actions">
+    <a href="{{ url_for('reports_export_csv', **filters) }}" class="btn btn-ghost btn-sm"><i class="bi bi-file-earmark-spreadsheet"></i> CSV</a>
+    <a href="{{ url_for('new_checklist') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nowa kontrola</a>
+  </div>
+</div>
+
+<form method="get" action="{{ url_for('reports_list') }}" class="filter-bar filter-bar--rows">
+  <div class="filter-row">
+    <input class="form-control filter-search" type="search" name="q"
+           placeholder="Szukaj tytułu…" value="{{ filters.q }}">
+  </div>
+  <div class="filter-row">
+    <select class="form-control filter-select" name="status" title="Filtruj po statusie">
+      <option value="">Wszystkie statusy</option>
+      <option value="in_progress" {% if filters.status == 'in_progress' %}selected{% endif %}>W trakcie</option>
+      <option value="completed"   {% if filters.status == 'completed'   %}selected{% endif %}>Zakończone</option>
+    </select>
+    <select class="form-control filter-select" name="template_id" title="Filtruj po szablonie">
+      <option value="">Wszystkie szablony</option>
+      {% for t in templates %}
+      <option value="{{ t.id }}" {% if filters.template_id == t.id %}selected{% endif %}>{{ t.name }}</option>
+      {% endfor %}
+    </select>
+    {% if current_user.is_admin %}
+    <select class="form-control filter-select" name="user_id" title="Filtruj po operatorze">
+      <option value="">Wszyscy operatorzy</option>
+      {% for u in users %}
+      <option value="{{ u.id }}" {% if filters.user_id == u.id %}selected{% endif %}>{{ u.username }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
+    <select class="form-control filter-select filter-perpage" name="per_page"
+            title="Raportów na stronę" onchange="this.form.submit()">
+      {% for n in [10, 20, 25, 50, 100] %}
+      <option value="{{ n }}" {% if per_page == n %}selected{% endif %}>{{ n }} / stronę</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="filter-row">
+    <div class="filter-date-group">
+      <label class="filter-label" for="r_date_from">Od:</label>
+      <input class="form-control filter-date" type="date" id="r_date_from" name="date_from"
+             value="{{ filters.date_from }}">
+    </div>
+    <div class="filter-date-group">
+      <label class="filter-label" for="r_date_to">Do:</label>
+      <input class="form-control filter-date" type="date" id="r_date_to" name="date_to"
+             value="{{ filters.date_to }}">
+    </div>
+    <button type="submit" class="btn btn-secondary btn-sm"><i class="bi bi-funnel"></i> Filtruj</button>
+    <a href="{{ url_for('reports_list') }}" class="btn btn-ghost btn-sm"><i class="bi bi-x-lg"></i> Wyczyść</a>
+  </div>
+</form>
+
+{% if current_user.is_admin and reports.items %}
+<form method="post" action="{{ url_for('reports_bulk_delete') }}" id="bulk-form">
+  {{ csrf_input() }}
+  <div class="bulk-bar" id="bulk-bar">
+    <span class="bulk-count" id="bulk-count">0 zaznaczonych</span>
+    <div class="bulk-actions">
+      <button type="button" id="btn-select-all" class="btn btn-outline btn-sm"
+              onclick="toggleSelectAll()">
+        Zaznacz wszystkie
+      </button>
+      <button type="submit" name="action" value="selected"
+              class="btn btn-danger btn-sm"
+              data-confirm="Usunąć zaznaczone raporty?"
+              id="btn-delete-selected">
+        Usuń zaznaczone
+      </button>
+      <button type="submit" name="action" value="older_week"
+              class="btn btn-danger btn-sm"
+              data-confirm="Usunąć wszystkie raporty starsze niż tydzień?">
+        Usuń starsze niż tydzień
+      </button>
+      <button type="submit" name="action" value="all"
+              class="btn btn-danger btn-sm"
+              data-confirm="Usunąć WSZYSTKIE raporty? Operacji nie można cofnąć.">
+        Usuń wszystkie
+      </button>
+    </div>
+  </div>
+{% endif %}
+
+<div class="card">
+  <div class="card-body card-body--flush">
+    {% if reports.items %}
+    <div class="table-wrap">
+      <table class="data-table tbl-cards">
+        <thead>
+          <tr>
+            {% if current_user.is_admin %}
+            <th class="th-check" scope="col">
+              <label class="sr-only" for="select-all">Zaznacz wszystkie</label>
+              <input type="checkbox" id="select-all" title="Zaznacz wszystkie">
+            </th>
+            {% endif %}
+            <th>#</th>
+            <th>Tytuł</th>
+            {% if current_user.is_admin %}<th>Operator</th>{% endif %}
+            <th>Data</th>
+            <th>Status</th>
+            <th>Czas</th>
+            <th>Postęp</th>
+            <th scope="col"><span class="sr-only">Akcje</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in reports.items %}
+          <tr data-batch-id="{{ r.batch_id or '' }}"
+              data-batch-index="{{ r.batch_index or '' }}"
+              data-batch-total="{{ r.batch_total or '' }}">
+            {% if current_user.is_admin %}
+            <td class="th-check">
+              <label class="sr-only" for="check-{{ r.id }}">Zaznacz raport {{ r.id }}</label>
+              <input type="checkbox" id="check-{{ r.id }}" name="report_ids" value="{{ r.id }}" class="row-check">
+            </td>
+            {% endif %}
+            <td data-label="#" class="td-collapse-sm">{{ r.id }}</td>
+            <td data-label="Tytuł" class="td-title-expandable">
+              <a href="{{ url_for('report_detail', report_id=r.id, back=request.full_path) }}">{{ r.title }}</a>
+              <button type="button" class="row-expand-btn" aria-expanded="false" aria-label="Rozwiń szczegóły">
+                <i class="bi bi-chevron-down row-expand-chevron"></i>
+              </button>
+            </td>
+            {% if current_user.is_admin %}<td data-label="Operator" class="td-collapse-sm">{{ r.author.username }}</td>{% endif %}
+            <td data-label="Data" class="td-collapse-sm">{{ r.created_at | localdt('%d.%m.%Y') }}</td>
+            <td data-label="Status">
+              {% if r.status == 'completed' %}
+                <span class="badge badge-success">Ukończony</span>
+              {% else %}
+                <span class="badge badge-warning">W trakcie</span>
+              {% endif %}
+            </td>
+            <td data-label="Czas" class="td-collapse-sm">
+              {% if r.duration_str %}
+              <span class="duration-cell"><i class="bi bi-stopwatch"></i> {{ r.duration_str }}</span>
+              {% else %}
+              <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td data-label="Postęp" class="td-collapse-sm">
+              {{ r.completion_percent }}%
+              {% if r.status == 'completed' %}
+                {% set sc = r.score %}
+                {% if sc %}
+                <span class="badge {% if sc.grade >= 5 %}badge-success{% elif sc.grade >= 3 %}badge-warning{% else %}badge-error{% endif %}">
+                  {{ sc.grade }}/6
+                </span>
+                {% endif %}
+              {% endif %}
+            </td>
+            <td class="td-actions td-collapse-sm" data-label="">
+              {% if r.status == 'in_progress' %}
+              <a href="{{ url_for('checklist_view', report_id=r.id, back=request.full_path) }}" class="btn btn-secondary btn-sm">Kontynuuj</a>
+              {% else %}
+              <a href="{{ url_for('report_detail', report_id=r.id, back=request.full_path) }}" class="btn btn-outline btn-sm">Podgląd</a>
+              {% endif %}
+              {% if current_user.is_admin %}
+              {% if r.batch_id %}
+              <button type="button"
+                      class="btn btn-danger btn-sm"
+                      data-del-batch="{{ r.batch_id }}"
+                      data-del-batch-total="{{ r.batch_total }}">Usuń serię</button>
+              {% else %}
+              <button type="button"
+                      class="btn btn-danger btn-sm"
+                      data-del-report="{{ r.id }}">Usuń</button>
+              {% endif %}
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pagination">
+      {% if reports.has_prev %}
+      <a href="{{ url_for('reports_list', template_id=filters.template_id, status=filters.status, q=filters.q, date_from=filters.date_from, date_to=filters.date_to, user_id=filters.user_id, per_page=per_page, page=reports.prev_num) }}" class="btn btn-outline btn-sm"><i class="bi bi-arrow-left"></i> Poprzednia</a>
+      {% endif %}
+      <span>{{ reports.page }} / {{ reports.pages }} ({{ reports.total }} raportów)</span>
+      {% if reports.has_next %}
+      <a href="{{ url_for('reports_list', template_id=filters.template_id, status=filters.status, q=filters.q, date_from=filters.date_from, date_to=filters.date_to, user_id=filters.user_id, per_page=per_page, page=reports.next_num) }}" class="btn btn-outline btn-sm">Następna <i class="bi bi-arrow-right"></i></a>
+      {% endif %}
+    </div>
+
+    {% else %}
+    <div class="empty-state">Brak raportów.</div>
+    {% endif %}
+  </div>
+</div>
+
+{% if current_user.is_admin and reports.items %}
+</form>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* ── Grupowanie serii (batch) ── */
+(function () {
+  const allRows = Array.from(document.querySelectorAll('tbody tr[data-batch-id]'));
+  const batches = {};
+
+  allRows.forEach(function (row) {
+    const bid = row.dataset.batchId;
+    if (!bid) return;
+    if (!batches[bid]) batches[bid] = [];
+    batches[bid].push(row);
+  });
+
+  Object.keys(batches).forEach(function (bid) {
+    const batchRows = batches[bid];
+    if (batchRows.length < 2) return;
+
+    batchRows.sort(function (a, b) {
+      return parseInt(a.dataset.batchIndex || 0) - parseInt(b.dataset.batchIndex || 0);
+    });
+
+    const leadRow  = batchRows[0];
+    const children = batchRows.slice(1);
+    const total    = parseInt(leadRow.dataset.batchTotal) || batchRows.length;
+
+    /* Przesuń w DOM: lead (szt. 1/N) na górę serii, dzieci bezpośrednio poniżej */
+    const parent   = leadRow.parentNode;
+    const siblings = Array.from(parent.children);
+    const firstPos = Math.min.apply(null, batchRows.map(function (r) { return siblings.indexOf(r); }));
+    parent.insertBefore(leadRow, siblings[firstPos]);
+    let afterEl = leadRow;
+    children.forEach(function (row) {
+      parent.insertBefore(row, afterEl.nextSibling);
+      afterEl = row;
+    });
+
+    /* Uprość tytuł — usuń " szt. N/M" i przyrostek daty */
+    const titleCell = leadRow.querySelector('td[data-label="Tytuł"]');
+    if (titleCell) {
+      const link = titleCell.querySelector('a');
+      if (link) {
+        link.textContent = link.textContent
+          .replace(/\s*–?\s*szt\.\s*\d+\/\d+[^]*$/, '')
+          .replace(/\s*–\s*\d+\/\d+\s*$/, '')
+          .trim();
+      }
+      const badge = document.createElement('button');
+      badge.type = 'button';
+      badge.className = 'badge badge-neutral batch-series-badge batch-expand-btn';
+      badge.dataset.bid = bid;
+      badge.setAttribute('aria-expanded', 'false');
+      badge.title = 'Rozwiń serię';
+      badge.innerHTML = '<i class="bi bi-layers"></i> Seria ' + total + ' szt. <i class="bi bi-chevron-down batch-chevron"></i>';
+      titleCell.appendChild(badge);
+    }
+
+    /* Podsumowanie statusu w kolumnie Status */
+    const done = batchRows.filter(function (r) {
+      return r.querySelector('.badge-success');
+    }).length;
+    const statusCell = leadRow.querySelector('td[data-label="Status"]');
+    if (statusCell) {
+      statusCell.innerHTML = done === total
+        ? '<span class="badge badge-success">Ukończona</span>'
+        : '<span class="badge badge-warning">' + done + '/' + total + ' ukończone</span>';
+    }
+
+    /* Schowaj wiersze potomne */
+    children.forEach(function (row) {
+      row.classList.add('batch-child-row', 'batch-hidden');
+    });
+
+    /* Kontynuuj serię od pierwszej nieukończonej kontroli */
+    if (done < total) {
+      var firstInProgress = batchRows.find(function (r) {
+        return r.querySelector('a.btn.btn-secondary.btn-sm');
+      });
+      if (firstInProgress && firstInProgress !== leadRow) {
+        var leadActions = leadRow.querySelector('td.td-actions');
+        var continueBtn = firstInProgress.querySelector('a.btn.btn-secondary.btn-sm');
+        if (leadActions && continueBtn) {
+          var savedDelBtn = leadActions.querySelector('button.btn-danger');
+          leadActions.innerHTML = continueBtn.outerHTML;
+          if (savedDelBtn) leadActions.appendChild(savedDelBtn);
+        }
+      }
+    }
+  });
+
+  /* Obsługa kliknięcia rozwijania serii */
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('.batch-expand-btn');
+    if (!btn) return;
+    const bid      = btn.dataset.bid;
+    const expanded = btn.getAttribute('aria-expanded') === 'true';
+    document.querySelectorAll('tr.batch-child-row[data-batch-id="' + bid + '"]')
+      .forEach(function (row) { row.classList.toggle('batch-hidden', expanded); });
+    btn.setAttribute('aria-expanded', String(!expanded));
+    const chevron = btn.querySelector('.batch-chevron');
+    if (chevron) chevron.className = expanded ? 'bi bi-chevron-down batch-chevron' : 'bi bi-chevron-up batch-chevron';
+    btn.title = expanded ? 'Rozwiń serię' : 'Zwiń serię';
+  });
+})();
+
+/* ── Accordion wierszy na mobile ── */
+(function () {
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('.row-expand-btn');
+    if (!btn) return;
+    const row      = btn.closest('tr');
+    const expanded = btn.getAttribute('aria-expanded') === 'true';
+    row.classList.toggle('row-expanded', !expanded);
+    btn.setAttribute('aria-expanded', String(!expanded));
+    const chevron = btn.querySelector('.row-expand-chevron');
+    if (chevron) chevron.className = expanded
+      ? 'bi bi-chevron-down row-expand-chevron'
+      : 'bi bi-chevron-up row-expand-chevron';
+  });
+})();
+
+/* ── Usuwanie raportów (delegacja zdarzeń) ── */
+(function () {
+  function postTo(url) {
+    var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+    var f = document.createElement('form');
+    f.method = 'POST';
+    f.action = url;
+    f.innerHTML = '<input type="hidden" name="_csrf_token" value="' + csrf + '">';
+    document.body.appendChild(f);
+    f.submit();
+  }
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-del-report]');
+    if (btn) {
+      if (!confirm('Usunąć ten raport? Tej operacji nie można cofnąć.')) return;
+      postTo('/reports/' + btn.dataset.delReport + '/delete');
+      return;
+    }
+    btn = e.target.closest('[data-del-batch]');
+    if (btn) {
+      if (!confirm('Usunąć wszystkie pozostałe raporty z tej serii? Tej operacji nie można cofnąć.')) return;
+      postTo('/reports/batch/' + btn.dataset.delBatch + '/delete');
+    }
+  });
+})();
+</script>
+{% endblock %}

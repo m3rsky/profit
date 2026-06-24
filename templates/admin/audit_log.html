@@ -1,0 +1,59 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Dziennik zdarzeń{% endblock %}
+{% block admin_content %}
+<div class="page-header">
+  <h1 class="page-title">Dziennik zdarzeń</h1>
+</div>
+
+<div class="card">
+  <div class="card-body card-body--flush">
+    {% if logs.items %}
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Użytkownik</th>
+            <th>Zdarzenie</th>
+            <th>Obiekt</th>
+            <th>Szczegóły</th>
+            <th>IP</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in logs.items %}
+          <tr>
+            <td class="text-nowrap">{{ log.created_at | localdt }}</td>
+            <td>{{ log.user.username if log.user else '–' }}</td>
+            <td><span class="audit-action audit-{{ log.action }}">{{ log.action }}</span></td>
+            <td>
+              {% if log.target_type and log.target_id %}
+                {{ log.target_type }}/#{{ log.target_id }}
+              {% else %}–{% endif %}
+            </td>
+            <td class="audit-detail">{{ log.detail or '–' }}</td>
+            <td class="text-nowrap">{{ log.ip or '–' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if logs.pages > 1 %}
+    <div class="pagination">
+      {% if logs.has_prev %}
+      <a href="{{ url_for('admin_audit_log', page=logs.prev_num) }}" class="btn btn-outline btn-sm"><i class="bi bi-arrow-left"></i> Poprzednia</a>
+      {% endif %}
+      <span>{{ logs.page }} / {{ logs.pages }}</span>
+      {% if logs.has_next %}
+      <a href="{{ url_for('admin_audit_log', page=logs.next_num) }}" class="btn btn-outline btn-sm">Następna <i class="bi bi-arrow-right"></i></a>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state">Brak wpisów w dzienniku.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

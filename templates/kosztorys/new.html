@@ -1,0 +1,302 @@
+{% extends "base.html" %}
+{% block title %}Nowa wycena{% endblock %}
+{% block head %}
+<style>
+.calc-preview { background: var(--bg-secondary); border-radius: 8px; padding: 16px; margin-top: 16px; }
+.calc-preview h4 { margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); }
+.calc-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--border-color); font-size: 14px; }
+.calc-row:last-child { border: none; }
+.calc-total { font-size: 16px; font-weight: 700; color: var(--color-primary); padding-top: 8px; }
+.section-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin: 24px 0 8px; }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.form-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.checkbox-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+.check-item { display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; }
+.check-item input { margin: 0; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Nowa wycena</h1>
+  <a href="{{ url_for('kosztorys.list_quotes') }}" class="btn btn-outline">
+    <i class="bi bi-arrow-left"></i> Wróć
+  </a>
+</div>
+
+<form method="post" id="quoteForm">
+  {{ csrf_input() }}
+  <div style="display:grid; grid-template-columns:1fr 320px; gap:24px; align-items:start">
+
+    <!-- Lewa kolumna: formularz -->
+    <div>
+      <!-- Podstawowe informacje -->
+      <div class="card">
+        <div class="card-header">Informacje podstawowe</div>
+        <div class="card-body">
+          <div class="form-grid">
+            <div>
+              <label class="label" for="client_name">Klient *</label>
+              <input type="text" id="client_name" name="client_name" class="input" required
+                     placeholder="Nazwa klienta">
+            </div>
+            <div>
+              <label class="label" for="cabinet_type_id">Typ szafy *</label>
+              <select id="cabinet_type_id" name="cabinet_type_id" class="input" required>
+                {% for ct in cabinet_types %}
+                <option value="{{ ct.id }}">{{ ct.name }} ({{ ct.code }})</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div style="margin-top:12px">
+            <label class="label" for="notes">Uwagi</label>
+            <textarea id="notes" name="notes" class="input" rows="2"
+                      placeholder="Opcjonalne uwagi..."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Wymiary -->
+      <p class="section-title">Wymiary szafy (mm)</p>
+      <div class="card">
+        <div class="card-body">
+          <div class="form-grid form-grid-3">
+            <div>
+              <label class="label" for="width">Szerokość</label>
+              <input type="number" id="width" name="width" class="input calc-trigger"
+                     value="850" min="200" max="2400" required>
+            </div>
+            <div>
+              <label class="label" for="height">Wysokość</label>
+              <input type="number" id="height" name="height" class="input calc-trigger"
+                     value="1900" min="200" max="2400" required>
+            </div>
+            <div>
+              <label class="label" for="depth">Głębokość</label>
+              <input type="number" id="depth" name="depth" class="input calc-trigger"
+                     value="600" min="150" max="1200" required>
+            </div>
+          </div>
+          <div class="form-grid form-grid-3" style="margin-top:12px">
+            <div>
+              <label class="label" for="thickness_body">Grubość obudowy (mm)</label>
+              <input type="number" id="thickness_body" name="thickness_body"
+                     class="input calc-trigger" value="1.2" step="0.1" min="0.5" max="3">
+            </div>
+            <div>
+              <label class="label" for="thickness_plate">Grubość płyty mont. (mm)</label>
+              <input type="number" id="thickness_plate" name="thickness_plate"
+                     class="input calc-trigger" value="3.0" step="0.5" min="1" max="6">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Konfiguracja -->
+      <p class="section-title">Konfiguracja</p>
+      <div class="card">
+        <div class="card-body">
+          <div class="checkbox-grid">
+            <label class="check-item">
+              <input type="checkbox" name="has_mounting_plate" class="calc-trigger" checked>
+              <span>Płyta montażowa</span>
+            </label>
+            <label class="check-item">
+              <input type="checkbox" name="back_welded" class="calc-trigger" checked>
+              <span>Tył spawany</span>
+            </label>
+            <label class="check-item">
+              <input type="checkbox" name="back_screwed" class="calc-trigger">
+              <span>Tył przykręcany</span>
+            </label>
+            <label class="check-item">
+              <input type="checkbox" name="back_seal" class="calc-trigger">
+              <span>Uszczelka tyłu</span>
+            </label>
+            <label class="check-item">
+              <input type="checkbox" name="door_single" class="calc-trigger" checked>
+              <span>Drzwi pojedyncze</span>
+            </label>
+            <label class="check-item">
+              <input type="checkbox" name="door_double" class="calc-trigger">
+              <span>Drzwi podwójne</span>
+            </label>
+            <label class="check-item">
+              <input type="checkbox" name="lock_three_point" class="calc-trigger">
+              <span>Zamek trzypunktowy</span>
+            </label>
+            <label class="check-item">
+              <input type="checkbox" name="lock_cam" class="calc-trigger">
+              <span>Zamek krzywkowy</span>
+            </label>
+            <label class="check-item">
+              <input type="checkbox" name="lock_standard" class="calc-trigger">
+              <span>Zamek zwykły</span>
+            </label>
+            <label class="check-item">
+              <input type="checkbox" name="plinth" class="calc-trigger">
+              <span>Cokół</span>
+            </label>
+            <label class="check-item">
+              <input type="checkbox" name="canopy" class="calc-trigger">
+              <span>Daszek</span>
+            </label>
+            <label class="check-item">
+              <input type="checkbox" name="non_standard_color" class="calc-trigger">
+              <span>Kolor niestandardowy</span>
+            </label>
+          </div>
+          <div class="form-grid" style="margin-top:16px">
+            <div>
+              <label class="label" for="monoblok">Monoblok (szt)</label>
+              <input type="number" id="monoblok" name="monoblok"
+                     class="input calc-trigger" value="0" min="0" max="5"
+                     title="Zastępuje Boki + Góra/dół gdy > 0">
+            </div>
+            <div>
+              <label class="label" for="door_reinforcement">Wzmocnienie drzwi (szt)</label>
+              <input type="number" id="door_reinforcement" name="door_reinforcement"
+                     class="input calc-trigger" value="0" min="0" max="10">
+            </div>
+            <div>
+              <label class="label" for="cable_entries">Kapa (szt)</label>
+              <input type="number" id="cable_entries" name="cable_entries"
+                     class="input calc-trigger" value="0" min="0" max="20">
+            </div>
+            <div>
+              <label class="label" for="vertical_beam">Belka pionowa (szt)</label>
+              <input type="number" id="vertical_beam" name="vertical_beam"
+                     class="input calc-trigger" value="0" min="0" max="5">
+            </div>
+            <div>
+              <label class="label" for="design_hours">Projektowanie (h)</label>
+              <input type="number" id="design_hours" name="design_hours"
+                     class="input calc-trigger" value="0" min="0" max="100">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Wycena -->
+      <p class="section-title">Parametry wyceny</p>
+      <div class="card">
+        <div class="card-body">
+          <div class="form-grid form-grid-3">
+            <div>
+              <label class="label" for="margin">Marża (mnożnik)</label>
+              <input type="number" id="margin" name="margin" class="input calc-trigger"
+                     value="2.15" step="0.01" min="1" max="10">
+            </div>
+            <div>
+              <label class="label" for="discount_pct">Rabat (%)</label>
+              <input type="number" id="discount_pct" name="discount_pct"
+                     class="input calc-trigger" value="0" step="0.5" min="0" max="100">
+            </div>
+            <div>
+              <label class="label" for="bonus_pct">Bonus (%)</label>
+              <input type="number" id="bonus_pct" name="bonus_pct"
+                     class="input calc-trigger" value="0" step="0.5" min="0" max="100">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:16px; display:flex; gap:8px">
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-floppy"></i> Zapisz wycenę
+        </button>
+        <a href="{{ url_for('kosztorys.list_quotes') }}" class="btn btn-outline">Anuluj</a>
+      </div>
+    </div>
+
+    <!-- Prawa kolumna: podgląd kalkulacji -->
+    <div style="position:sticky; top:80px">
+      <div class="card">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+          <span>Podgląd kalkulacji</span>
+          <button type="button" id="btn-calc" class="btn btn-outline btn-sm">
+            <i class="bi bi-arrow-clockwise"></i> Przelicz
+          </button>
+        </div>
+        <div class="card-body" id="calc-preview">
+          <p class="text-muted" style="font-size:13px">Wypełnij formularz i kliknij Przelicz.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var form = document.getElementById('quoteForm');
+  var preview = document.getElementById('calc-preview');
+  var btn = document.getElementById('btn-calc');
+  var csrf = document.querySelector('meta[name="csrf-token"]').content;
+  var debounceTimer;
+
+  function fmtPLN(v) {
+    return parseFloat(v).toLocaleString('pl-PL', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' PLN';
+  }
+
+  function runCalc() {
+    var data = {};
+    new FormData(form).forEach(function(v, k) { data[k] = v; });
+    // checkboxy — jeśli nie zaznaczone, nie ma ich w FormData
+    ['has_mounting_plate','back_welded','back_screwed','door_single','door_double',
+     'lock_three_point','lock_cam','plinth','canopy','non_standard_color'].forEach(function(k) {
+      if (!data[k]) data[k] = '';
+    });
+
+    preview.innerHTML = '<p class="text-muted" style="font-size:13px">Obliczanie...</p>';
+
+    fetch('{{ url_for("kosztorys.preview_calc") }}', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrf},
+      body: JSON.stringify(data)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(c) {
+      if (c.error) { preview.innerHTML = '<p class="text-danger">' + c.error + '</p>'; return; }
+      preview.innerHTML = [
+        '<div class="calc-preview">',
+        '<h4>Podsumowanie</h4>',
+        '<div class="calc-row"><span>Objętość</span><strong>' + c.volume + ' dm³</strong></div>',
+        '<div class="calc-row"><span>Elementy blaszane</span><span>' + fmtPLN(c.elements_cost) + '</span></div>',
+        '<div class="calc-row"><span>Odpad materiałowy</span><span>' + fmtPLN(c.waste_cost) + '</span></div>',
+        '<div class="calc-row"><span>Osprzęt</span><span>' + fmtPLN(c.hardware_cost) + '</span></div>',
+        '<div class="calc-row"><span>Robocizna i usługi</span><span>' + fmtPLN(c.services_cost) + '</span></div>',
+        '<div class="calc-row calc-total"><span>Koszt własny</span><strong>' + fmtPLN(c.cost_total) + '</strong></div>',
+        '</div>',
+        '<div class="calc-preview" style="margin-top:8px">',
+        '<h4>Cena sprzedaży</h4>',
+        '<div class="calc-row"><span>Cena katalogowa (×' + c.margin + ')</span><span>' + fmtPLN(c.price_catalog) + '</span></div>',
+        '<div class="calc-row"><span>Po rabacie ' + c.discount_pct + '%</span><span>' + fmtPLN(c.price_discount) + '</span></div>',
+        '<div class="calc-row"><span>Po bonusie ' + c.bonus_pct + '%</span><span>' + fmtPLN(c.price_bonus) + '</span></div>',
+        '<div class="calc-row calc-total" style="color:' + (c.profitability > 0 ? 'var(--color-success)' : 'var(--color-danger)') + '">',
+        '<span>Zyskowność</span><strong>' + c.profitability + '%</strong></div>',
+        '</div>'
+      ].join('');
+    })
+    .catch(function() { preview.innerHTML = '<p class="text-danger">Błąd kalkulacji.</p>'; });
+  }
+
+  btn.addEventListener('click', runCalc);
+
+  document.querySelectorAll('.calc-trigger').forEach(function(el) {
+    el.addEventListener('change', function() {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(runCalc, 600);
+    });
+    el.addEventListener('input', function() {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(runCalc, 800);
+    });
+  });
+
+  // Pierwsze przeliczenie po załadowaniu
+  setTimeout(runCalc, 300);
+})();
+</script>
+{% endblock %}

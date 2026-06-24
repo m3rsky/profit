@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QCP – Mockup UI</title>
+<style>
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; min-height: 100vh; transition: background .3s, color .3s; }
+a { text-decoration: none; }
+
+/* ── CSS Variables – Light ── */
+body.light {
+  --bg:            #f1f5f9;
+  --card-bg:       #ffffff;
+  --text:          #0f172a;
+  --text-muted:    #64748b;
+  --border:        #e2e8f0;
+  --hover-row:     #f8fafc;
+  --hover-card:    #f1f5f9;
+  --progress-bg:   #e2e8f0;
+
+  --ok-bg:         #dcfce7;
+  --ok-text:       #15803d;
+  --ok-border:     #bbf7d0;
+  --warn-bg:       #fef9c3;
+  --warn-text:     #a16207;
+  --warn-border:   #fde047;
+  --blue-bg:       #dbeafe;
+  --blue-text:     #1d4ed8;
+
+  --progress-ok:   #22c55e;
+  --progress-warn: #f59e0b;
+  --progress-blue: #3b82f6;
+
+  --btn-primary:   #1e40af;
+  --btn-primary-h: #1d4ed8;
+  --btn-text:      #ffffff;
+  --btn-ghost-bg:  #f1f5f9;
+  --btn-ghost-border: #e2e8f0;
+  --btn-ghost-text: #475569;
+
+  --stat-all:      #3b82f6;
+  --stat-ok:       #22c55e;
+  --stat-prog:     #f59e0b;
+  --stat-ship:     #06b6d4;
+
+  --ring-track:    #e2e8f0;
+  --ring-fill:     #3b82f6;
+  --score-bg:      #f1f5f9;
+  --score-text:    #475569;
+}
+
+/* ── CSS Variables – Dark ── */
+body.dark {
+  --bg:            #020617;
+  --card-bg:       #0f172a;
+  --text:          #e2e8f0;
+  --text-muted:    #94a3b8;
+  --border:        #1e293b;
+  --hover-row:     #1e293b;
+  --hover-card:    #1e293b;
+  --progress-bg:   #1e293b;
+
+  --ok-bg:         rgba(52,211,153,.12);
+  --ok-text:       #34d399;
+  --ok-border:     rgba(52,211,153,.3);
+  --warn-bg:       rgba(251,191,36,.12);
+  --warn-text:     #fbbf24;
+  --warn-border:   rgba(251,191,36,.3);
+  --blue-bg:       rgba(99,179,237,.12);
+  --blue-text:     #63b3ed;
+
+  --progress-ok:   #34d399;
+  --progress-warn: #fbbf24;
+  --progress-blue: #38bdf8;
+
+  --btn-primary:   #1d4ed8;
+  --btn-primary-h: #2563eb;
+  --btn-text:      #ffffff;
+  --btn-ghost-bg:  #1e293b;
+  --btn-ghost-border: #334155;
+  --btn-ghost-text: #94a3b8;
+
+  --stat-all:      #38bdf8;
+  --stat-ok:       #34d399;
+  --stat-prog:     #fbbf24;
+  --stat-ship:     #22d3ee;
+
+  --ring-track:    #1e293b;
+  --ring-fill:     #38bdf8;
+  --score-bg:      #1e293b;
+  --score-text:    #94a3b8;
+}
+
+/* ── Sidebar (always dark) ── */
+.sidebar {
+  width: 200px; flex-shrink: 0;
+  background: #0f172a;
+  display: flex; flex-direction: column;
+  min-height: 100vh;
+  position: sticky; top: 0; height: 100vh;
+  overflow-y: auto;
+}
+.sidebar-logo {
+  padding: 22px 18px 16px;
+  border-bottom: 1px solid #1e293b;
+}
+.sidebar-logo-mark {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; background: #1d4ed8; border-radius: 8px;
+  font-weight: 800; font-size: 13px; color: #fff; letter-spacing: -.5px;
+  margin-bottom: 10px;
+}
+.sidebar-title { font-size: 13px; font-weight: 700; color: #f1f5f9; line-height: 1.3; }
+.sidebar-subtitle { font-size: 11px; color: #64748b; margin-top: 2px; }
+
+.sidebar-nav { padding: 12px 0; flex: 1; }
+.sidebar-nav a {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 18px; font-size: 13px; font-weight: 500;
+  color: #94a3b8; border-left: 3px solid transparent;
+  transition: background .15s, color .15s, border-color .15s;
+  position: relative;
+}
+.sidebar-nav a:hover { background: #1e293b; color: #e2e8f0; }
+.sidebar-nav a.active { background: rgba(59,130,246,.1); color: #e2e8f0; border-left-color: #3b82f6; }
+.sidebar-nav a .nav-icon { font-size: 15px; opacity: .8; }
+.sidebar-nav a .badge-count {
+  margin-left: auto; background: #ef4444; color: #fff;
+  font-size: 10px; font-weight: 700; padding: 1px 6px;
+  border-radius: 20px; line-height: 16px;
+}
+
+.sidebar-footer {
+  padding: 14px 18px;
+  border-top: 1px solid #1e293b;
+  display: flex; align-items: center; gap: 8px;
+}
+.sidebar-footer .avatar {
+  width: 28px; height: 28px; background: #334155; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; color: #94a3b8; flex-shrink: 0;
+}
+.sidebar-footer .user-name { font-size: 12px; font-weight: 600; color: #e2e8f0; flex: 1; }
+.sidebar-footer a { font-size: 10px; color: #64748b; font-weight: 600; letter-spacing: .5px; }
+.sidebar-footer a:hover { color: #94a3b8; }
+
+/* ── Layout ── */
+.app { display: flex; min-height: 100vh; background: var(--bg); color: var(--text); }
+.main { flex: 1; min-width: 0; padding: 20px 24px; display: flex; flex-direction: column; gap: 20px; overflow-x: hidden; }
+
+/* ── Top bar ── */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+}
+.filter-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.filter-label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.filter-input {
+  padding: 7px 12px; border-radius: 8px; font-size: 12px;
+  border: 1px solid var(--border); background: var(--card-bg);
+  color: var(--text); width: 120px; outline: none;
+  transition: border-color .15s;
+}
+.filter-input:focus { border-color: #3b82f6; }
+.btn-filter {
+  padding: 7px 18px; background: var(--btn-primary); color: var(--btn-text);
+  border: none; border-radius: 8px; font-size: 12px; font-weight: 700;
+  cursor: pointer; letter-spacing: .5px; transition: background .15s;
+}
+.btn-filter:hover { background: var(--btn-primary-h); }
+
+.theme-toggle {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 14px; background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: 20px; cursor: pointer; font-size: 12px; font-weight: 600;
+  color: var(--text); transition: background .15s;
+}
+.theme-toggle:hover { background: var(--hover-card); }
+
+/* ── Stats grid ── */
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+
+@media (max-width: 900px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .stats-grid { grid-template-columns: 1fr; } }
+
+.stat-card {
+  background: var(--card-bg); border-radius: 14px; padding: 18px 20px;
+  border: 1px solid var(--border);
+  transition: box-shadow .2s, transform .2s;
+}
+.stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.08); }
+body.dark .stat-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+
+.stat-card-all {
+  grid-row: span 1;
+  display: flex; align-items: center; gap: 16px;
+}
+.stat-ring-wrap { position: relative; flex-shrink: 0; }
+.stat-ring-wrap svg { display: block; }
+.stat-ring-center {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+}
+.stat-big-num { font-size: 26px; font-weight: 800; color: var(--text); line-height: 1; }
+.stat-label { font-size: 11px; color: var(--text-muted); margin-top: 4px; font-weight: 600; letter-spacing: .3px; text-transform: uppercase; }
+
+.stat-card-mini { display: flex; flex-direction: column; gap: 10px; }
+.stat-mini-top { display: flex; align-items: flex-start; justify-content: space-between; }
+.stat-mini-icon { font-size: 18px; opacity: .8; }
+.stat-mini-num { font-size: 30px; font-weight: 800; color: var(--text); line-height: 1; }
+.stat-mini-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .3px; }
+.stat-mini-bar { height: 4px; border-radius: 4px; background: var(--progress-bg); overflow: hidden; }
+.stat-mini-bar-fill { height: 100%; border-radius: 4px; transition: width .6s ease; }
+
+/* accent borders */
+.accent-green .stat-mini-bar-fill { background: var(--stat-ok); }
+.accent-orange .stat-mini-bar-fill { background: var(--stat-prog); }
+.accent-cyan .stat-mini-bar-fill { background: var(--stat-ship); }
+
+/* ── Section title ── */
+.section-title {
+  font-size: 13px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .8px; color: var(--text-muted); margin-bottom: -6px;
+}
+
+/* ── Card wrapper ── */
+.card {
+  background: var(--card-bg); border-radius: 14px;
+  border: 1px solid var(--border); overflow: hidden;
+}
+
+/* ── Table ── */
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table thead tr { border-bottom: 1px solid var(--border); }
+.data-table th {
+  padding: 11px 16px; font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .6px; color: var(--text-muted); text-align: left; white-space: nowrap;
+}
+.data-table tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background .15s;
+  cursor: default;
+}
+.data-table tbody tr:last-child { border-bottom: none; }
+.data-table tbody tr:hover { background: var(--hover-row); }
+.data-table td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
+
+.order-num { font-weight: 700; color: var(--text); font-size: 12px; font-family: monospace; letter-spacing: .3px; }
+.order-product { font-weight: 600; }
+.order-client { color: var(--text-muted); font-size: 12px; }
+.order-date { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+
+/* Status badges */
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;
+  letter-spacing: .4px; border: 1px solid transparent; white-space: nowrap;
+}
+.badge-ok    { background: var(--ok-bg);   color: var(--ok-text);   border-color: var(--ok-border); }
+.badge-warn  { background: var(--warn-bg); color: var(--warn-text); border-color: var(--warn-border); }
+.badge-blue  { background: var(--blue-bg); color: var(--blue-text); }
+
+body.dark .badge-ok   { box-shadow: 0 0 10px rgba(52,211,153,.2); }
+body.dark .badge-warn { box-shadow: 0 0 10px rgba(251,191,36,.2); }
+
+/* Progress bars in table */
+.progress-cell { min-width: 110px; }
+.progress-track {
+  height: 6px; border-radius: 6px; background: var(--progress-bg);
+  overflow: hidden; margin-bottom: 4px;
+}
+.progress-fill { height: 100%; border-radius: 6px; transition: width .6s ease; }
+.progress-fill-ok   { background: var(--progress-ok); }
+.progress-fill-warn { background: var(--progress-warn); }
+body.dark .progress-fill-ok { box-shadow: 0 0 8px var(--progress-ok); }
+
+.progress-caption { display: flex; align-items: center; justify-content: space-between; }
+.progress-pct { font-size: 11px; font-weight: 700; color: var(--text); }
+.progress-frac { font-size: 11px; color: var(--text-muted); }
+
+.btn-link {
+  padding: 5px 12px; border: 1px solid var(--border); border-radius: 7px;
+  font-size: 11px; font-weight: 600; color: var(--text-muted); background: transparent;
+  cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
+  transition: background .15s, color .15s;
+  white-space: nowrap;
+}
+.btn-link:hover { background: var(--hover-row); color: var(--text); border-color: var(--text-muted); }
+
+/* ── Reports list ── */
+.report-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; border-bottom: 1px solid var(--border);
+  transition: background .15s; cursor: default;
+}
+.report-row:last-child { border-bottom: none; }
+.report-row:hover { background: var(--hover-row); }
+
+.report-status-dot {
+  width: 28px; height: 28px; border-radius: 50%; border: 2.5px solid; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.dot-ok   { border-color: var(--progress-ok); background: var(--ok-bg); }
+.dot-warn { border-color: var(--progress-warn); background: var(--warn-bg); }
+body.dark .dot-ok   { box-shadow: 0 0 8px rgba(52,211,153,.4); }
+body.dark .dot-warn { box-shadow: 0 0 8px rgba(251,191,36,.4); }
+
+.dot-ok   svg path  { fill: var(--progress-ok); }
+.dot-warn svg circle { fill: var(--progress-warn); }
+
+.report-info { flex: 1; min-width: 0; }
+.report-title { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.report-sub   { font-size: 11px; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.report-date { font-size: 11px; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; min-width: 110px; text-align: right; }
+.report-status { flex-shrink: 0; }
+
+.report-progress { flex-shrink: 0; min-width: 90px; }
+.report-progress .progress-track { height: 5px; margin-bottom: 3px; }
+.report-progress .progress-pct { font-size: 11px; font-weight: 700; text-align: right; }
+
+.score-bubble {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 28px; height: 22px; border-radius: 6px; font-size: 11px; font-weight: 700;
+  background: var(--score-bg); color: var(--score-text); padding: 0 6px;
+}
+
+.btn-action {
+  padding: 6px 14px; border-radius: 8px; font-size: 11px; font-weight: 700;
+  letter-spacing: .4px; cursor: pointer; border: none; white-space: nowrap; flex-shrink: 0;
+  transition: background .15s, transform .1s;
+}
+.btn-action:hover { transform: translateY(-1px); }
+.btn-action:active { transform: translateY(0); }
+.btn-continue {
+  background: var(--btn-primary); color: var(--btn-text);
+}
+.btn-continue:hover { background: var(--btn-primary-h); }
+body.dark .btn-continue { box-shadow: 0 0 12px rgba(29,78,216,.5); }
+
+.btn-view {
+  background: var(--btn-ghost-bg); color: var(--btn-ghost-text);
+  border: 1px solid var(--btn-ghost-border);
+}
+.btn-view:hover { background: var(--hover-row); color: var(--text); }
+
+/* ── All reports link ── */
+.all-reports-bar {
+  display: flex; justify-content: flex-end; padding: 10px 16px;
+  border-top: 1px solid var(--border);
+}
+.all-reports-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 16px; background: var(--btn-primary); color: #fff;
+  border-radius: 8px; font-size: 12px; font-weight: 700; letter-spacing: .4px;
+  transition: background .15s;
+}
+.all-reports-btn:hover { background: var(--btn-primary-h); }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .sidebar { width: 52px; }
+  .sidebar-title, .sidebar-subtitle, .sidebar-nav a span:not(.nav-icon),
+  .sidebar-footer .user-name, .sidebar-footer a,
+  .sidebar-logo-mark + div { display: none; }
+  .sidebar-nav a { padding: 12px; justify-content: center; }
+  .sidebar-nav a .badge-count { position: absolute; top: 6px; right: 6px; }
+  .report-date, .report-progress { display: none; }
+}
+
+@media (max-width: 600px) {
+  .data-table thead { display: none; }
+  .data-table tbody tr { display: flex; flex-direction: column; padding: 10px 14px; }
+  .data-table td { padding: 2px 0; }
+  .data-table td::before { content: attr(data-label)": "; font-weight: 700; font-size: 10px; color: var(--text-muted); }
+}
+</style>
+</head>
+<body class="light">
+
+<div class="app">
+
+  <!-- ── SIDEBAR ── -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-mark">PS</div>
+      <div>
+        <div class="sidebar-title">Panel kontrolny<br>produkcji</div>
+        <div class="sidebar-subtitle">Panel QA</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="#" class="active">
+        <span class="nav-icon">▦</span>
+        <span>Raporty</span>
+      </a>
+      <a href="#">
+        <span class="nav-icon">✓</span>
+        <span>Kontrola QA</span>
+      </a>
+      <a href="#">
+        <span class="nav-icon">📄</span>
+        <span>Kosztorysy</span>
+      </a>
+      <a href="#">
+        <span class="nav-icon">🛒</span>
+        <span>Zamówienia</span>
+        <span class="badge-count">1</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="avatar">👤</div>
+      <span class="user-name">admin</span>
+      <a href="#">WYLOGUJ</a>
+    </div>
+  </aside>
+
+  <!-- ── MAIN ── -->
+  <main class="main">
+
+    <!-- TOP BAR -->
+    <div class="topbar">
+      <div class="filter-group">
+        <span class="filter-label">OD:</span>
+        <input type="text" class="filter-input" placeholder="dd.mm.rrrr">
+        <span class="filter-label">DO:</span>
+        <input type="text" class="filter-input" placeholder="dd.mm.rrrr">
+        <button class="btn-filter">FILTRUJ</button>
+      </div>
+      <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn">
+        🌙 Dark Mode
+      </button>
+    </div>
+
+    <!-- STATS -->
+    <div class="stats-grid">
+
+      <!-- All reports with ring -->
+      <div class="stat-card stat-card-all">
+        <div class="stat-ring-wrap">
+          <svg width="88" height="88" viewBox="0 0 88 88">
+            <circle cx="44" cy="44" r="38" fill="none" stroke="var(--ring-track)" stroke-width="7"/>
+            <!-- 72.7% filled (8/11) -->
+            <circle cx="44" cy="44" r="38" fill="none" stroke="var(--ring-fill)" stroke-width="7"
+                    stroke-linecap="round"
+                    stroke-dasharray="238.76"
+                    stroke-dashoffset="64.98"
+                    transform="rotate(-90 44 44)"/>
+          </svg>
+          <div class="stat-ring-center">
+            <div class="stat-big-num">11</div>
+          </div>
+        </div>
+        <div>
+          <div class="stat-label">Wszystkie<br>raporty</div>
+        </div>
+      </div>
+
+      <!-- Completed -->
+      <div class="stat-card stat-card-mini accent-green">
+        <div class="stat-mini-top">
+          <div>
+            <div class="stat-mini-num" style="color:var(--stat-ok)">8</div>
+            <div class="stat-mini-label">Ukończone</div>
+          </div>
+          <span class="stat-mini-icon" style="color:var(--stat-ok)">✔</span>
+        </div>
+        <div class="stat-mini-bar">
+          <div class="stat-mini-bar-fill" style="width:72.7%"></div>
+        </div>
+      </div>
+
+      <!-- In progress -->
+      <div class="stat-card stat-card-mini accent-orange">
+        <div class="stat-mini-top">
+          <div>
+            <div class="stat-mini-num" style="color:var(--stat-prog)">3</div>
+            <div class="stat-mini-label">W trakcie</div>
+          </div>
+          <span class="stat-mini-icon" style="color:var(--stat-prog)">⟳</span>
+        </div>
+        <div class="stat-mini-bar">
+          <div class="stat-mini-bar-fill" style="width:27.3%"></div>
+        </div>
+      </div>
+
+      <!-- Ready to ship -->
+      <div class="stat-card stat-card-mini accent-cyan">
+        <div class="stat-mini-top">
+          <div>
+            <div class="stat-mini-num" style="color:var(--stat-ship)">2</div>
+            <div class="stat-mini-label">Gotowe do wysyłki</div>
+          </div>
+          <span class="stat-mini-icon" style="color:var(--stat-ship)">📦</span>
+        </div>
+        <div class="stat-mini-bar">
+          <div class="stat-mini-bar-fill" style="width:18.2%"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ACTIVE ORDERS -->
+    <div>
+      <div class="section-title">Aktywne zamówienia</div>
+      <div class="card" style="margin-top:10px">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Numer</th>
+              <th>Produkt</th>
+              <th>Klient</th>
+              <th>Termin</th>
+              <th>Status</th>
+              <th>Postęp QA</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td data-label="Numer"><span class="order-num">ZAM-TEST-2</span></td>
+              <td data-label="Produkt"><span class="order-product">RU-M 125/25/50 TEST</span></td>
+              <td data-label="Klient"><span class="order-client">TEST KLIENT</span></td>
+              <td data-label="Termin"><span class="order-date">17.05.2026</span></td>
+              <td data-label="Status"><span class="badge badge-ok">GOTOWE</span></td>
+              <td data-label="Postęp" class="progress-cell">
+                <div class="progress-track"><div class="progress-fill progress-fill-ok" style="width:100%"></div></div>
+                <div class="progress-caption"><span class="progress-pct">100%</span><span class="progress-frac">1/1</span></div>
+              </td>
+              <td><button class="btn-link">Szczegóły →</button></td>
+            </tr>
+            <tr>
+              <td data-label="Numer"><span class="order-num">ZAM-00-25-05</span></td>
+              <td data-label="Produkt"><span class="order-product">RU-L TST 25/05</span></td>
+              <td data-label="Klient"><span class="order-client">Nazwa Klienta</span></td>
+              <td data-label="Termin"><span class="order-date">26.05.2026</span></td>
+              <td data-label="Status"><span class="badge badge-ok">GOTOWE</span></td>
+              <td data-label="Postęp" class="progress-cell">
+                <div class="progress-track"><div class="progress-fill progress-fill-ok" style="width:100%"></div></div>
+                <div class="progress-caption"><span class="progress-pct">100%</span><span class="progress-frac">3/3</span></div>
+              </td>
+              <td><button class="btn-link">Szczegóły →</button></td>
+            </tr>
+            <tr>
+              <td data-label="Numer"><span class="order-num">ZAM-zo12268</span></td>
+              <td data-label="Produkt"><span class="order-product">psh 500-600-300 Piła</span></td>
+              <td data-label="Klient"><span class="order-client">ELBEX</span></td>
+              <td data-label="Termin"><span class="order-date" style="color:#ef4444;font-weight:600">31.05.2026</span></td>
+              <td data-label="Status"><span class="badge badge-warn">W KONTROLI</span></td>
+              <td data-label="Postęp" class="progress-cell">
+                <div class="progress-track"><div class="progress-fill progress-fill-warn" style="width:0%"></div></div>
+                <div class="progress-caption"><span class="progress-pct">0%</span><span class="progress-frac">0/2</span></div>
+              </td>
+              <td><button class="btn-link">Szczegóły →</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- RECENT REPORTS -->
+    <div>
+      <div class="section-title">Ostatnie raporty (wszyscy)</div>
+      <div class="card" style="margin-top:10px">
+
+        <!-- Row 1 -->
+        <div class="report-row">
+          <div class="report-status-dot dot-warn">
+            <svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="5" fill="var(--progress-warn)"/></svg>
+          </div>
+          <div class="report-info">
+            <div class="report-title">PS-fxfxc</div>
+            <div class="report-sub">RU-L TST 25/05 – Nazwa Klienta szt. 3/3 · termin 26.05.2026</div>
+          </div>
+          <div class="report-date">25.05.2026 06:31</div>
+          <div class="report-status"><span class="badge badge-warn">W TRAKCIE</span></div>
+          <div class="report-progress">
+            <div class="progress-track"><div class="progress-fill progress-fill-warn" style="width:0%"></div></div>
+            <div class="progress-pct">0%</div>
+          </div>
+          <button class="btn-action btn-continue">KONTYNUUJ</button>
+        </div>
+
+        <!-- Row 2 -->
+        <div class="report-row">
+          <div class="report-status-dot dot-ok">
+            <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 5.5L4.5 8 8 3" stroke="var(--progress-ok)" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
+          </div>
+          <div class="report-info">
+            <div class="report-title">RU-L TST 25/05 – Nazwa Klienta</div>
+            <div class="report-sub">szt. 3/3 · termin 26.05.2026</div>
+          </div>
+          <div class="report-date">25.05.2026 06:18</div>
+          <div class="report-status"><span class="badge badge-ok">UKOŃCZONY</span></div>
+          <div class="report-progress">
+            <div class="progress-track"><div class="progress-fill progress-fill-ok" style="width:0%"></div></div>
+            <div class="progress-pct" style="color:var(--text-muted)">0%</div>
+          </div>
+          <button class="btn-action btn-view">PODGLĄD</button>
+        </div>
+
+        <!-- Row 3 -->
+        <div class="report-row">
+          <div class="report-status-dot dot-ok">
+            <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 5.5L4.5 8 8 3" stroke="var(--progress-ok)" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
+          </div>
+          <div class="report-info">
+            <div class="report-title">RU-L TST 25/05 – Nazwa Klienta</div>
+            <div class="report-sub">szt. 2/3 · termin 26.05.2026</div>
+          </div>
+          <div class="report-date">25.05.2026 06:18</div>
+          <div class="report-status"><span class="badge badge-ok">UKOŃCZONY</span></div>
+          <div class="report-progress">
+            <div class="progress-track"><div class="progress-fill progress-fill-ok" style="width:0%"></div></div>
+            <div class="progress-pct" style="color:var(--text-muted)">0%</div>
+          </div>
+          <button class="btn-action btn-view">PODGLĄD</button>
+        </div>
+
+        <!-- Row 4 -->
+        <div class="report-row">
+          <div class="report-status-dot dot-ok">
+            <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 5.5L4.5 8 8 3" stroke="var(--progress-ok)" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
+          </div>
+          <div class="report-info">
+            <div class="report-title">RU-L TST 25/05 – Nazwa Klienta</div>
+            <div class="report-sub">szt. 1/3 · termin 26.05.2026</div>
+          </div>
+          <div class="report-date">25.05.2026 06:18</div>
+          <div class="report-status"><span class="badge badge-ok">UKOŃCZONY</span></div>
+          <div class="report-progress">
+            <div class="progress-track"><div class="progress-fill progress-fill-ok" style="width:0%"></div></div>
+            <div class="progress-pct" style="color:var(--text-muted)">0%</div>
+          </div>
+          <button class="btn-action btn-view">PODGLĄD</button>
+        </div>
+
+        <!-- Row 5 -->
+        <div class="report-row">
+          <div class="report-status-dot dot-warn">
+            <svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="5" fill="var(--progress-warn)"/></svg>
+          </div>
+          <div class="report-info">
+            <div class="report-title">psh 500-600-300 – ELBEX Piła</div>
+            <div class="report-sub">szt. 1/1 · termin 31.05.2026</div>
+          </div>
+          <div class="report-date">21.05.2026 13:20</div>
+          <div class="report-status"><span class="badge badge-warn">W TRAKCIE</span></div>
+          <div class="report-progress">
+            <div class="progress-track"><div class="progress-fill progress-fill-warn" style="width:34%"></div></div>
+            <div class="progress-pct">34%</div>
+          </div>
+          <button class="btn-action btn-continue">KONTYNUUJ</button>
+        </div>
+
+        <!-- Row 6 -->
+        <div class="report-row">
+          <div class="report-status-dot dot-ok">
+            <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 5.5L4.5 8 8 3" stroke="var(--progress-ok)" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
+          </div>
+          <div class="report-info">
+            <div class="report-title">PSH INOX-TEST KLIENT2</div>
+            <div class="report-sub">szt. 1/1 · termin 21.05.2026</div>
+          </div>
+          <div class="report-date">20.05.2026 22:26</div>
+          <div class="report-status"><span class="badge badge-ok">UKOŃCZONY</span></div>
+          <div class="report-progress">
+            <div class="progress-track"><div class="progress-fill progress-fill-ok" style="width:100%"></div></div>
+            <div class="progress-pct">100%</div>
+          </div>
+          <button class="btn-action btn-view">PODGLĄD</button>
+        </div>
+
+        <!-- Row 7 -->
+        <div class="report-row">
+          <div class="report-status-dot dot-ok">
+            <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 5.5L4.5 8 8 3" stroke="var(--progress-ok)" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
+          </div>
+          <div class="report-info">
+            <div class="report-title">PSH INOX 20.05.2022 20:23</div>
+            <div class="report-sub">TEST lock HTTP</div>
+          </div>
+          <div class="report-date">20.05.2026 22:23</div>
+          <div class="report-status"><span class="badge badge-ok">UKOŃCZONY</span></div>
+          <div class="report-progress">
+            <div class="progress-track"><div class="progress-fill progress-fill-ok" style="width:100%"></div></div>
+            <div class="progress-pct">100%</div>
+          </div>
+          <button class="btn-action btn-view">PODGLĄD</button>
+        </div>
+
+        <div class="all-reports-bar">
+          <a href="#" class="all-reports-btn">Wszystkie raporty ↗</a>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+function toggleTheme() {
+  const body = document.body;
+  const btn  = document.getElementById('theme-btn');
+  if (body.classList.contains('light')) {
+    body.classList.replace('light', 'dark');
+    btn.textContent = '☀️ Light Mode';
+  } else {
+    body.classList.replace('dark', 'light');
+    btn.textContent = '🌙 Dark Mode';
+  }
+}
+</script>
+</body>
+</html>

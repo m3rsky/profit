@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    (function(){
+      var t = localStorage.getItem('theme');
+      if (t) document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="PS QCP">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="application-name" content="QCP – System Kontroli Jakości">
+  <title>{% block title %}QCP{% endblock %} – System Kontroli Jakości</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
+  <link rel="apple-touch-icon" sizes="512x512" href="{{ url_for('static', filename='icons/icon-512.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/erp-design.css') }}">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  {% if current_user.is_authenticated and current_user.is_admin %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/gridstack.min.css') }}">
+  {% endif %}
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  {% block head %}{% endblock %}
+</head>
+<body class="light">
+<script>(function(){var t=localStorage.getItem('theme');if(t)document.body.className=t;})()</script>
+
+{# ════════════════════════════════════════════════════════════════
+   ADMIN LAYOUT — elementy otwierające (sidebar, mobile-header)
+   ════════════════════════════════════════════════════════════════ #}
+{% if current_user.is_authenticated and current_user.is_admin %}
+
+<header class="mobile-header" id="mobile-header">
+  <span class="mobile-brand">PS QCP</span>
+  <div class="mobile-header-actions">
+    <a href="{{ url_for('alerts_list') }}"
+       class="mobile-bell-link {% if unread_alerts > 0 %}has-alerts{% endif %}"
+       title="Alerty">
+      <i class="bi bi-bell-fill"></i>
+      {% if unread_alerts > 0 %}<span class="alert-count">{{ unread_alerts }}</span>{% endif %}
+    </a>
+    <button type="button" class="burger" id="burger" aria-label="Menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</header>
+
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-mark">PS</div>
+      <div class="sidebar-logo-text">
+        <div class="sidebar-title">Panel kontrolny<br>produkcji</div>
+        <div class="sidebar-subtitle">QCP System</div>
+      </div>
+      <button class="sidebar-toggle-btn" id="sidebar-toggle-btn" type="button" title="Zwiń / rozwiń">
+        <i class="bi bi-chevron-left" id="sidebar-toggle-icon"></i>
+      </button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="{{ url_for('dashboard') }}"
+         class="{% if request.endpoint == 'dashboard' %}active{% endif %}">
+        <span class="nav-icon"><i class="bi bi-speedometer2"></i></span>
+        <span>Dashboard</span>
+      </a>
+      <a href="{{ url_for('reports_list') }}"
+         class="{% if request.endpoint in ('reports_list','report_detail') %}active{% endif %}">
+        <span class="nav-icon"><i class="bi bi-clipboard-check"></i></span>
+        <span>Raporty QA</span>
+      </a>
+      <a href="{{ url_for('admin_templates') }}"
+         class="{% if request.endpoint and ('template' in request.endpoint or 'category' in request.endpoint or 'task' in request.endpoint) %}active{% endif %}">
+        <span class="nav-icon"><i class="bi bi-layout-text-sidebar-reverse"></i></span>
+        <span>Szablony</span>
+      </a>
+      <a href="{{ url_for('orders_list') }}"
+         class="{% if request.endpoint and 'orders' in request.endpoint and request.endpoint != 'orders_import_csv' %}active{% endif %}">
+        <span class="nav-icon"><i class="bi bi-box-seam"></i></span>
+        <span>Zamówienia</span>
+      </a>
+      <a href="{{ url_for('kosztorys.list_quotes') }}"
+         class="{% if request.endpoint and request.endpoint.startswith('kosztorys.') and request.endpoint not in ('kosztorys.admin_prices','kosztorys.admin_rates','kosztorys.admin_cabinets','kosztorys.admin_catalog') %}active{% endif %}">
+        <span class="nav-icon"><i class="bi bi-calculator"></i></span>
+        <span>Kosztorysy</span>
+      </a>
+      <a href="{{ url_for('spawalnia.list_records') }}"
+         class="{% if request.endpoint and request.endpoint.startswith('spawalnia.') %}active{% endif %}">
+        <span class="nav-icon"><i class="bi bi-fire"></i></span>
+        <span>Spawalnia</span>
+      </a>
+
+      <div class="sidebar-section">Zarządzanie</div>
+      <a href="{{ url_for('orders_import_csv') }}"
+         class="{% if request.endpoint == 'orders_import_csv' %}active{% endif %}">
+        <span class="nav-icon"><i class="bi bi-filetype-csv"></i></span>
+        <span>Import CSV</span>
+      </a>
+      <a href="{{ url_for('admin_users') }}"
+         class="{% if request.endpoint and 'user' in request.endpoint %}active{% endif %}">
+        <span class="nav-icon"><i class="bi bi-person-gear"></i></span>
+        <span>Użytkownicy</span>
+      </a>
+      <a href="{{ url_for('admin_stats') }}"
+         class="{% if request.endpoint == 'admin_stats' %}active{% endif %}">
+        <span class="nav-icon"><i class="bi bi-bar-chart-line"></i></span>
+        <span>Statystyki</span>
+      </a>
+      <a href="{{ url_for('admin_audit_log') }}"
+         class="{% if request.endpoint == 'admin_audit_log' %}active{% endif %}">
+        <span class="nav-icon"><i class="bi bi-journal-text"></i></span>
+        <span>Dziennik zdarzeń</span>
+      </a>
+
+      <div class="sidebar-section">Kosztorysy – config</div>
+      <a href="{{ url_for('kosztorys.admin_prices') }}"
+         class="{% if request.endpoint == 'kosztorys.admin_prices' %}active{% endif %}">
+        <span class="nav-icon"><i class="bi bi-tags"></i></span>
+        <span>Ceny materiałów</span>
+      </a>
+      <a href="{{ url_for('kosztorys.admin_rates') }}"
+         class="{% if request.endpoint == 'kosztorys.admin_rates' %}active{% endif %}">
+        <span class="nav-icon"><i class="bi bi-person-workspace"></i></span>
+        <span>Stawki robocizny</span>
+      </a>
+      <a href="{{ url_for('kosztorys.admin_cabinets') }}"
+         class="{% if request.endpoint == 'kosztorys.admin_cabinets' %}active{% endif %}">
+        <span class="nav-icon"><i class="bi bi-box"></i></span>
+        <span>Typy szaf</span>
+      </a>
+      <a href="{{ url_for('kosztorys.admin_catalog') }}"
+         class="{% if request.endpoint == 'kosztorys.admin_catalog' %}active{% endif %}">
+        <span class="nav-icon"><i class="bi bi-list-ul"></i></span>
+        <span>Katalog produktów</span>
+      </a>
+    </nav>
+
+    <button class="theme-toggle" id="theme-toggle" type="button">
+      <i class="bi bi-moon-fill" id="theme-icon"></i>
+      <span id="theme-label">Dark mode</span>
+    </button>
+
+    <div class="sidebar-footer">
+      <div class="avatar"><i class="bi bi-person-fill"></i></div>
+      <span class="user-name" title="{{ current_user.username }}">{{ current_user.username }}</span>
+      <a href="{{ url_for('alerts_list') }}"
+         class="alert-bell-link {% if unread_alerts > 0 %}has-alerts{% endif %}"
+         title="Alerty{% if unread_alerts > 0 %} ({{ unread_alerts }} nowych){% endif %}">
+        <i class="bi bi-bell-fill"></i>
+        {% if unread_alerts > 0 %}<span class="alert-count">{{ unread_alerts }}</span>{% endif %}
+      </a>
+      <a href="{{ url_for('logout') }}" class="logout-link">Wyloguj</a>
+    </div>
+
+  </aside>
+  {# ADMIN main otwiera się poniżej — zamknięcie po {% block content %} #}
+
+{# ════════════════════════════════════════════════════════════════
+   WORKER LAYOUT — elementy otwierające (wk-header)
+   ════════════════════════════════════════════════════════════════ #}
+{% else %}
+
+<div class="wk-layout">
+  <header class="wk-header">
+
+    <div class="wk-header-brand">
+      <div class="wk-logo-mark">PS</div>
+      <div class="wk-logo-text">
+        <div class="wk-app-name">PSH QCP</div>
+        <div class="wk-role-badge">{{ current_user.role_label if current_user.is_authenticated else '' }}</div>
+      </div>
+    </div>
+
+    {% if current_user.is_authenticated %}
+    <nav class="wk-nav" aria-label="Nawigacja">
+      <a href="{{ url_for('dashboard') }}"
+         class="wk-nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}"
+         title="Menu główne">
+        <i class="bi bi-grid-fill"></i>
+        <span class="wk-nav-label">Menu</span>
+      </a>
+
+      {% if current_user.role == 'kontroler' %}
+        <a href="{{ url_for('new_checklist') }}"
+           class="wk-nav-link {% if request.endpoint == 'new_checklist' %}active{% endif %}"
+           title="Nowa kontrola">
+          <i class="bi bi-plus-circle-fill"></i>
+          <span class="wk-nav-label">Nowa kontrola</span>
+        </a>
+        <a href="{{ url_for('reports_list') }}"
+           class="wk-nav-link {% if request.endpoint in ('reports_list','report_detail') %}active{% endif %}"
+           title="Raporty QA">
+          <i class="bi bi-clipboard-check-fill"></i>
+          <span class="wk-nav-label">Raporty</span>
+        </a>
+        {% if pending_qa_count > 0 %}
+        <button type="button" class="wk-nav-link wk-qa-btn" id="wk-qa-btn"
+                aria-expanded="false" title="Zlecenia QA do wykonania ({{ pending_qa_count }})">
+          <i class="bi bi-clipboard-data-fill"></i>
+          <span class="wk-nav-label">Zlecenia QA</span>
+          <span class="wk-qa-badge">{{ pending_qa_count }}</span>
+        </button>
+        {% endif %}
+        <a href="{{ url_for('spawalnia.list_records') }}"
+           class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('spawalnia.') %}active{% endif %}"
+           title="Spawalnia">
+          <i class="bi bi-fire"></i>
+          <span class="wk-nav-label">Spawalnia</span>
+        </a>
+        <a href="{{ url_for('admin_templates') }}"
+           class="wk-nav-link {% if request.endpoint and ('template' in request.endpoint or 'category' in request.endpoint or 'task' in request.endpoint) %}active{% endif %}"
+           title="Szablony">
+          <i class="bi bi-layout-text-sidebar-reverse"></i>
+          <span class="wk-nav-label">Szablony</span>
+        </a>
+
+      {% elif current_user.role == 'order' %}
+        <a href="{{ url_for('orders_list') }}"
+           class="wk-nav-link {% if request.endpoint and 'orders' in request.endpoint and request.endpoint not in ('orders_new','orders_import_csv') %}active{% endif %}"
+           title="Zamówienia">
+          <i class="bi bi-box-seam-fill"></i>
+          <span class="wk-nav-label">Zamówienia</span>
+        </a>
+        <a href="{{ url_for('orders_new') }}"
+           class="wk-nav-link {% if request.endpoint == 'orders_new' %}active{% endif %}"
+           title="Nowe zamówienie">
+          <i class="bi bi-plus-circle-fill"></i>
+          <span class="wk-nav-label">Nowe</span>
+        </a>
+        <a href="{{ url_for('orders_import_csv') }}"
+           class="wk-nav-link {% if request.endpoint == 'orders_import_csv' %}active{% endif %}"
+           title="Import CSV">
+          <i class="bi bi-filetype-csv"></i>
+          <span class="wk-nav-label">Import</span>
+        </a>
+        <a href="{{ url_for('kosztorys.list_quotes') }}"
+           class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('kosztorys.') %}active{% endif %}"
+           title="Kosztorysy">
+          <i class="bi bi-calculator-fill"></i>
+          <span class="wk-nav-label">Kosztorysy</span>
+        </a>
+
+      {% elif current_user.role == 'spawacz' %}
+        <a href="{{ url_for('spawalnia.new_record') }}"
+           class="wk-nav-link {% if request.endpoint == 'spawalnia.new_record' %}active{% endif %}"
+           title="Nowy rekord">
+          <i class="bi bi-plus-circle-fill"></i>
+          <span class="wk-nav-label">Nowy rekord</span>
+        </a>
+        <a href="{{ url_for('spawalnia.list_records') }}"
+           class="wk-nav-link {% if request.endpoint == 'spawalnia.list_records' %}active{% endif %}"
+           title="Lista rekordów">
+          <i class="bi bi-list-ul"></i>
+          <span class="wk-nav-label">Lista</span>
+        </a>
+
+      {% elif current_user.role == 'monter' %}
+        <a href="{{ url_for('monter_pool') }}"
+           class="wk-nav-link {% if request.endpoint and 'monter' in request.endpoint %}active{% endif %}"
+           title="Listy montażowe">
+          <i class="bi bi-tools"></i>
+          <span class="wk-nav-label">Pula montaży</span>
+        </a>
+      {% endif %}
+    </nav>
+    {% endif %}
+
+    <div class="wk-header-end">
+      {% if current_user.is_authenticated %}
+      <a href="{{ url_for('alerts_list') }}"
+         class="wk-bell-link {% if unread_alerts > 0 %}has-alerts{% endif %}"
+         title="Alerty{% if unread_alerts > 0 %} ({{ unread_alerts }} nowych){% endif %}">
+        <i class="bi bi-bell-fill"></i>
+        {% if unread_alerts > 0 %}<span class="alert-count">{{ unread_alerts }}</span>{% endif %}
+      </a>
+      <button type="button" class="wk-theme-btn" id="wk-theme-btn" title="Zmień motyw">
+        <i class="bi bi-moon-fill" id="wk-theme-icon"></i>
+      </button>
+      <span class="wk-username" title="{{ current_user.username }}">{{ current_user.username }}</span>
+      <a href="{{ url_for('logout') }}" class="wk-logout-link">Wyloguj</a>
+      {% endif %}
+    </div>
+
+  </header>
+
+  {# ── Zlecenia QA — rozwijany panel pod headerem ── #}
+  {% if current_user.role == 'kontroler' and pending_qa_count > 0 %}
+  <div class="qa-drawer" id="qa-drawer" role="region" aria-label="Zlecenia QA do wykonania">
+    <div class="qa-drawer-hdr">
+      <span><i class="bi bi-clipboard-data-fill"></i> Zlecenia QA do wykonania ({{ pending_qa_count }})</span>
+      <button type="button" class="qa-drawer-close" id="qa-drawer-close" aria-label="Zamknij panel">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+    {% for r in pending_qa_reports %}
+    <div class="qa-drawer-item">
+      <div class="qa-drawer-info">
+        <div class="qa-drawer-name">{{ r.order.product_name if r.order else r.title }}</div>
+        <div class="qa-drawer-sub">
+          {{ r.order.number if r.order else (r.author.username if r.author else '—') -}}
+          {%- if r.batch_total and r.batch_total > 1 %} · seria {{ r.batch_total }} szt.{% endif -%}
+          {%- if r.order and r.order.due_date %} · termin {{ r.order.due_date.strftime('%d.%m') }}{% endif %}
+        </div>
+      </div>
+      <a href="{{ url_for('checklist_view', report_id=r.id) }}"
+         class="btn btn-primary btn-sm" style="flex-shrink:0;">
+        <i class="bi bi-pencil-fill"></i>
+        {{ 'Seria' if r.batch_total and r.batch_total > 1 else 'Wypełnij' }}
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# WORKER main otwiera się poniżej #}
+
+{% endif %}{# koniec wyboru layoutu — JEDEN {% block content %} poniżej #}
+
+{# ════════════════════════════════════════════════════════════════
+   WSPÓLNY PUNKT WSTAWIANIA TREŚCI
+   Dla admin: <main class="main-content">, dla worker: <main class="wk-main">
+   ════════════════════════════════════════════════════════════════ #}
+<main class="{% if current_user.is_authenticated and current_user.is_admin %}main-content{% else %}wk-main{% endif %}">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+      <div class="alert alert-{{ cat }}" data-autodismiss>{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</main>
+
+{# Zamknięcie zewnętrznych wrapperów #}
+{% if current_user.is_authenticated and current_user.is_admin %}
+</div><!-- /.app -->
+<div class="sidebar-trigger" id="sidebar-trigger" title="Pokaż menu"></div>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+{% else %}
+</div><!-- /.wk-layout -->
+{% endif %}
+
+<div id="install-banner" hidden>
+  <div class="install-banner-inner">
+    <img src="{{ url_for('static', filename='icons/icon-192.png') }}" class="install-banner-icon" alt="">
+    <div class="install-banner-text">
+      <strong>Zainstaluj aplikację</strong>
+      <span>Dodaj do ekranu głównego i używaj offline</span>
+    </div>
+    <button type="button" id="btn-install" class="btn btn-primary btn-sm">Instaluj</button>
+    <button type="button" id="btn-install-dismiss" class="install-banner-close" aria-label="Zamknij">×</button>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% if current_user.is_authenticated and current_user.is_admin %}
+<script src="https://cdn.jsdelivr.net/npm/gridstack@10/dist/gridstack-all.js"></script>
+{% endif %}
+
+{% if current_user.is_authenticated and current_user.is_admin %}
+<script>
+(function () {
+  // ── Theme ──
+  var themeBtn   = document.getElementById('theme-toggle');
+  var themeIcon  = document.getElementById('theme-icon');
+  var themeLabel = document.getElementById('theme-label');
+
+  function applyTheme(t) {
+    document.body.className = t;
+    localStorage.setItem('theme', t);
+    if (themeIcon)  themeIcon.className  = t === 'dark' ? 'bi bi-sun-fill' : 'bi bi-moon-fill';
+    if (themeLabel) themeLabel.textContent = t === 'dark' ? 'Light mode' : 'Dark mode';
+  }
+
+  var saved = localStorage.getItem('theme') || 'light';
+  applyTheme(saved);
+
+  if (themeBtn) {
+    themeBtn.addEventListener('click', function () {
+      applyTheme(document.body.classList.contains('dark') ? 'light' : 'dark');
+    });
+  }
+
+  // ── Mobile sidebar ──
+  var burger  = document.getElementById('burger');
+  var sidebar = document.getElementById('sidebar');
+  var overlay = document.getElementById('sidebar-overlay');
+
+  function openSidebar() {
+    sidebar.classList.add('open');
+    overlay.classList.add('show');
+    if (burger) burger.setAttribute('aria-expanded', 'true');
+  }
+  function closeSidebar() {
+    sidebar.classList.remove('open');
+    overlay.classList.remove('show');
+    if (burger) burger.setAttribute('aria-expanded', 'false');
+  }
+  if (burger)  burger.addEventListener('click', openSidebar);
+  if (overlay) overlay.addEventListener('click', closeSidebar);
+
+  if (sidebar) {
+    sidebar.querySelectorAll('nav a').forEach(function (a) {
+      a.addEventListener('click', function () {
+        if (window.innerWidth <= 768) closeSidebar();
+      });
+    });
+  }
+
+  // ── Desktop sidebar: 3 stany ──
+  var sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
+  var sidebarTrigger   = document.getElementById('sidebar-trigger');
+  var toggleIcon       = document.getElementById('sidebar-toggle-icon');
+  var SIDEBAR_KEY      = 'sidebar-state';
+  var desktopState     = 'expanded';
+
+  function setSidebarState(state) {
+    desktopState = state;
+    localStorage.setItem(SIDEBAR_KEY, state);
+    document.body.classList.remove('sidebar-collapsed', 'sidebar-hidden');
+    if (state === 'collapsed') document.body.classList.add('sidebar-collapsed');
+    if (state === 'hidden')    document.body.classList.add('sidebar-hidden');
+    if (toggleIcon) toggleIcon.className = (state === 'expanded') ? 'bi bi-chevron-left' : 'bi bi-chevron-right';
+  }
+
+  function initDesktop() {
+    var saved = localStorage.getItem(SIDEBAR_KEY) || 'expanded';
+    setSidebarState(saved);
+
+    if (sidebarToggleBtn) {
+      sidebarToggleBtn.addEventListener('click', function () {
+        if (desktopState === 'expanded')       setSidebarState('collapsed');
+        else if (desktopState === 'collapsed') setSidebarState('hidden');
+        else                                    setSidebarState('expanded');
+      });
+    }
+
+    var hoverTimer = null;
+    function showHoverOverlay() { clearTimeout(hoverTimer); if (sidebar) sidebar.classList.add('hover-expand'); }
+    function hideHoverOverlay() {
+      hoverTimer = setTimeout(function () { if (sidebar) sidebar.classList.remove('hover-expand'); }, 200);
+    }
+
+    if (sidebarTrigger) {
+      sidebarTrigger.addEventListener('mouseenter', function () { if (desktopState === 'hidden') showHoverOverlay(); });
+      sidebarTrigger.addEventListener('mouseleave', hideHoverOverlay);
+      sidebarTrigger.addEventListener('click', function () { setSidebarState('collapsed'); });
+    }
+    if (sidebar) {
+      sidebar.addEventListener('mouseenter', function () { if (desktopState === 'hidden') clearTimeout(hoverTimer); });
+      sidebar.addEventListener('mouseleave', function () { if (desktopState === 'hidden') hideHoverOverlay(); });
+    }
+  }
+
+  var hasMouse = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  if (window.innerWidth > 768 && hasMouse) initDesktop();
+  window.addEventListener('resize', function () {
+    var stillHasMouse = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    if (window.innerWidth <= 768 || !stillHasMouse) {
+      document.body.classList.remove('sidebar-collapsed', 'sidebar-hidden');
+    } else {
+      initDesktop();
+    }
+  }, { once: true });
+
+  // ── Tooltip dla zwiniętego sidebar ──
+  var tip = document.createElement('div');
+  tip.className = 'sidebar-tooltip';
+  tip.setAttribute('role', 'tooltip');
+  tip.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(tip);
+
+  function showTip(link) {
+    if (!document.body.classList.contains('sidebar-collapsed')) return;
+    if (window.innerWidth <= 768) return;
+    var label = link.querySelector('span:not(.nav-icon):not(.badge-count)');
+    if (!label) return;
+    var text = label.textContent.trim();
+    if (!text) return;
+    var rect = link.getBoundingClientRect();
+    tip.textContent = text;
+    tip.style.top  = (rect.top + rect.height / 2) + 'px';
+    tip.style.display = 'block';
+  }
+  function hideTip() { tip.style.display = 'none'; }
+
+  document.querySelectorAll('.sidebar-nav a').forEach(function (link) {
+    link.addEventListener('mouseenter', function () { showTip(link); });
+    link.addEventListener('mouseleave', hideTip);
+    link.addEventListener('click', hideTip);
+  });
+})();
+</script>
+{% else %}
+<script>
+(function () {
+  var themeBtn = document.getElementById('wk-theme-btn');
+  var themeIcon = document.getElementById('wk-theme-icon');
+
+  function applyTheme(t) {
+    document.body.className = t;
+    localStorage.setItem('theme', t);
+    if (themeIcon) {
+      themeIcon.className = (t === 'dark') ? 'bi bi-sun-fill' : 'bi bi-moon-fill';
+    }
+  }
+
+  var saved = localStorage.getItem('theme') || 'light';
+  applyTheme(saved);
+
+  if (themeBtn) {
+    themeBtn.addEventListener('click', function () {
+      applyTheme(document.body.className === 'dark' ? 'light' : 'dark');
+    });
+  }
+
+  /* ── Zlecenia QA drawer ── */
+  var qaBtn    = document.getElementById('wk-qa-btn');
+  var qaDrawer = document.getElementById('qa-drawer');
+  var qaClose  = document.getElementById('qa-drawer-close');
+
+  function setDrawer(open) {
+    if (!qaDrawer) return;
+    qaDrawer.classList.toggle('open', open);
+    if (qaBtn) {
+      qaBtn.setAttribute('aria-expanded', String(open));
+      qaBtn.classList.toggle('active', open);
+    }
+  }
+
+  if (qaBtn) {
+    qaBtn.addEventListener('click', function () {
+      setDrawer(!qaDrawer.classList.contains('open'));
+    });
+  }
+  if (qaClose) {
+    qaClose.addEventListener('click', function () { setDrawer(false); });
+  }
+  document.addEventListener('click', function (e) {
+    if (!qaDrawer || !qaDrawer.classList.contains('open')) return;
+    if (qaDrawer.contains(e.target)) return;
+    if (qaBtn && qaBtn.contains(e.target)) return;
+    setDrawer(false);
+  });
+})();
+</script>
+{% endif %}
+
+{% if current_user.is_authenticated %}
+<div id="alert-toast" class="alert-toast" hidden></div>
+<script>
+(function () {
+  var known = {{ unread_alerts }};
+  var chime = null, chimeLocked = true;
+
+  try {
+    var sr = 22050, dur = 0.5, ns = Math.floor(sr * dur), t, s;
+    var pcm = new Float32Array(ns);
+    for (var i = 0; i < ns; i++) {
+      t = i / sr; s = 0;
+      if (t < 0.20) s += 0.30 * Math.sin(6.2832 * 660 * t) * Math.exp(-t * 16);
+      if (t >= 0.12 && t < 0.42) s += 0.30 * Math.sin(6.2832 * 880 * t) * Math.exp(-(t - 0.12) * 9);
+      pcm[i] = s > 1 ? 1 : s < -1 ? -1 : s;
+    }
+    var ab = new ArrayBuffer(44 + ns * 2);
+    var dv = new DataView(ab);
+    var w4 = function (o, v) { dv.setUint32(o, v, true); };
+    var w2 = function (o, v) { dv.setUint16(o, v, true); };
+    var ws = function (o, str) { for (var j = 0; j < str.length; j++) dv.setUint8(o + j, str.charCodeAt(j)); };
+    ws(0, 'RIFF'); w4(4, 36 + ns * 2); ws(8, 'WAVE');
+    ws(12, 'fmt '); w4(16, 16); w2(20, 1); w2(22, 1);
+    w4(24, sr); w4(28, sr * 2); w2(32, 2); w2(34, 16);
+    ws(36, 'data'); w4(40, ns * 2);
+    for (var k = 0; k < ns; k++) {
+      s = pcm[k];
+      dv.setInt16(44 + k * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    }
+    chime = new Audio(URL.createObjectURL(new Blob([ab], { type: 'audio/wav' })));
+    chime.volume = 1;
+  } catch (e) {}
+
+  function unlockChime() {
+    if (!chimeLocked || !chime) return;
+    chime.volume = 0;
+    var p = chime.play();
+    if (p && p.then) {
+      p.then(function () { chime.pause(); chime.currentTime = 0; chime.volume = 1; chimeLocked = false; }).catch(function () {});
+    } else {
+      chime.pause(); chime.currentTime = 0; chime.volume = 1; chimeLocked = false;
+    }
+  }
+  document.addEventListener('click',      unlockChime);
+  document.addEventListener('keydown',    unlockChime);
+  document.addEventListener('touchstart', unlockChime);
+
+  function playChime() {
+    if (!chime || chimeLocked) return;
+    chime.currentTime = 0;
+    chime.play().catch(function () {});
+  }
+
+  function updateBell(unread) {
+    document.querySelectorAll('.alert-bell-link, .wk-bell-link').forEach(function (el) {
+      el.classList.toggle('has-alerts', unread > 0);
+      var badge = el.querySelector('.alert-count');
+      if (unread > 0) {
+        if (!badge) { badge = document.createElement('span'); badge.className = 'alert-count'; el.appendChild(badge); }
+        badge.textContent = unread;
+      } else if (badge) {
+        badge.remove();
+      }
+      var title = 'Alerty' + (unread > 0 ? ' (' + unread + ' nowych)' : '');
+      if (el.hasAttribute('title')) el.setAttribute('title', title);
+    });
+  }
+
+  function showToast(items) {
+    var toast = document.getElementById('alert-toast');
+    if (!toast) return;
+    var msg = items.length === 1 ? items[0].message : 'Masz ' + items.length + ' nowych alertów';
+    var href = (items.length === 1 && items[0].order_id)
+      ? '/orders/' + items[0].order_id
+      : '{{ url_for("alerts_list") }}';
+    toast.innerHTML = '<a href="' + href + '" class="alert-toast__link">' + msg + '</a>';
+    toast.hidden = false;
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function () { toast.hidden = true; }, 7000);
+  }
+
+  function poll() {
+    if (document.visibilityState === 'hidden') return;
+    fetch('{{ url_for("alerts_poll") }}', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!data) return;
+        if (data.unread > known && data.items.length) { playChime(); showToast(data.items); }
+        known = data.unread;
+        updateBell(known);
+      })
+      .catch(function () {});
+  }
+
+  setInterval(poll, 30000);
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') poll(); });
+  window.addEventListener('focus',    function () { poll(); });
+  window.addEventListener('pageshow', function () { poll(); });
+})();
+</script>
+{% endif %}
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Alerty{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Alerty</h1>
+</div>
+
+{% if alerts %}
+<div class="card">
+  {% for a in alerts %}
+  <div class="alert-item {% if not a.is_read %}alert-item--unread{% endif %}">
+    <span class="alert-item__icon">
+      {%- if a.alert_type == 'urgent' -%}<i class="bi bi-bell-fill"></i>
+      {%- elif a.alert_type == 'success' -%}<i class="bi bi-check-circle-fill"></i>
+      {%- else -%}<i class="bi bi-info-circle-fill"></i>{%- endif -%}
+    </span>
+    <div class="alert-item__body">
+      <p class="alert-item__msg">{{ a.message }}</p>
+      <p class="alert-item__meta">{{ a.created_at|localdt }}</p>
+    </div>
+    {% if a.order_id %}
+    <div class="alert-item__action">
+      <a href="{{ url_for('orders_detail', order_id=a.order_id) }}" class="btn btn-ghost btn-sm">
+        Otwórz zamówienie <i class="bi bi-arrow-right"></i>
+      </a>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state"><p>Brak alertów.</p></div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,455 @@
+{% extends "base.html" %}
+{% block title %}{{ report.title }}{% endblock %}
+{% block content %}
+{% set back_url = request.args.get('back', '') %}
+<div class="page-header">
+  <div>
+    {% if back_url.startswith('/') %}
+    <a href="{{ back_url }}" class="back-link"><i class="bi bi-arrow-left"></i> Raporty QA</a>
+    {% endif %}
+    <h1 class="page-title">{{ report.title }}</h1>
+    <small class="text-muted">{{ report.created_at | localdt }} · {{ report.author.username }}</small>
+  </div>
+  <div class="page-header-actions checklist-actions">
+    {% if report.status == 'in_progress' %}
+    <form method="post" action="{{ url_for('complete_checklist', report_id=report.id) }}"
+>
+      {{ csrf_input() }}
+      <button type="submit" class="btn btn-success"><i class="bi bi-check-circle-fill"></i> Zamknij raport</button>
+    </form>
+    {% endif %}
+    {% if current_user.is_admin and report.status == 'completed' %}
+    <form method="post" action="{{ url_for('report_reopen', report_id=report.id) }}">
+      {{ csrf_input() }}
+      <button type="submit" class="btn btn-secondary"
+              data-confirm="Wznowić raport? Można będzie ponownie edytować checklistę.">
+        <i class="bi bi-arrow-counterclockwise"></i> Wznów raport
+      </button>
+    </form>
+    {% endif %}
+    {% if current_user.is_admin %}
+    <a href="{{ url_for('report_edit', report_id=report.id) }}" class="btn btn-ghost">Edytuj raport</a>
+    {% endif %}
+    {% if report.order and report.order.pdf_filename %}
+    <a href="{{ url_for('uploaded_pdf', filename=report.order.pdf_filename) }}" target="_blank" class="btn btn-ghost btn-sm"><i class="bi bi-file-earmark-pdf"></i> Dokumentacja</a>
+    {% endif %}
+    <a href="{{ url_for('export_pdf', report_id=report.id) }}" class="btn btn-outline"><i class="bi bi-file-earmark-arrow-down"></i> PDF</a>
+  </div>
+</div>
+
+{% if report.batch_id %}
+<div class="batch-progress-bar">
+  <div class="batch-progress-fill" data-pct="{{ ((report.batch_index / report.batch_total) * 100) | round | int }}"></div>
+  <span class="batch-progress-label">
+    <i class="bi bi-layers"></i>
+    Seria: kontrola <strong>{{ report.batch_index }}</strong> z <strong>{{ report.batch_total }}</strong>
+  </span>
+</div>
+{% endif %}
+
+<div class="report-progress-wrap">
+  <div class="report-progress-bar-row">
+    <div class="progress">
+      <div class="progress-bar" data-pct="{{ report.completion_percent }}"></div>
+    </div>
+    <span class="progress-label" id="progress-pct">{{ report.completion_percent }}%</span>
+  </div>
+  <div class="report-stats" id="report-stats">
+    {% set s = report.stats %}
+    <span class="rs-ok" id="stat-ok">OK: {{ s.ok }}</span>
+    <span class="rs-ng" id="stat-ng">NG: {{ s.ng }}</span>
+    <span class="rs-na" id="stat-na">N/A: {{ s.na }}</span>
+    <span class="rs-dw" id="stat-dw">DW: {{ s.dw }}</span>
+    <span class="rs-total">/ {{ s.total }}</span>
+  </div>
+</div>
+
+{% if report.status == 'completed' %}
+<div class="alert alert-success">
+  Raport zamknięty {{ report.completed_at | localdt }}. Tryb tylko do odczytu.
+  {% if report.duration_str %}
+  <span class="report-duration-badge"><i class="bi bi-stopwatch"></i> Czas kontroli: <strong>{{ report.duration_str }}</strong></span>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if report.status == 'in_progress' %}
+<div class="wizard-header" id="wizard-header">
+  {% if report.batch_id %}
+  <div class="wizard-batch-row">
+    <span class="wizard-batch-label"><i class="bi bi-layers"></i> Seria <strong>{{ report.batch_index }}</strong>&nbsp;/&nbsp;{{ report.batch_total }}</span>
+    <div class="wizard-batch-bar-wrap">
+      <div class="wizard-batch-bar-fill" style="width: {{ ((report.batch_index / report.batch_total) * 100) | round | int }}%"></div>
+    </div>
+  </div>
+  {% endif %}
+  <div class="wizard-progress-row">
+    <span class="wizard-counter"><span id="w-idx">1</span>&nbsp;/&nbsp;<span id="w-total">?</span></span>
+    <div class="wizard-bar-wrap"><div class="wizard-bar-fill" id="w-fill"></div></div>
+    <span class="wizard-pct" id="w-pct">0%</span>
+  </div>
+  <div class="wizard-cat-label" id="w-cat"></div>
+</div>
+{% endif %}
+{% for cat, items in items_by_category.items() %}
+<div class="checklist-category">
+  <div class="category-header">
+    {{ cat.name }}
+    <small>{{ items | selectattr('is_checked') | list | length }}/{{ items | length }}</small>
+  </div>
+  {% for item in items %}
+  <div class="checklist-item {% if item.result == 'ok' %}result-ok{% elif item.result == 'ng' %}result-ng{% endif %}" id="item-{{ item.id }}">
+    <div class="item-body">
+      <div class="item-title">{{ item.task.title }}</div>
+      {% if item.task.description %}
+      <div class="item-description">{{ item.task.description }}</div>
+      {% endif %}
+      {% if item.task.requires_photo %}
+      <small class="requires-photo-hint">★ Wymagane zdjęcie</small>
+      {% endif %}
+
+      {% if report.status != 'completed' %}
+        {% if item.task.task_type == 'numeric' %}
+        <div class="value-row" data-item-id="{{ item.id }}">
+          <input type="text" inputmode="decimal" class="form-control value-input"
+                 data-item-id="{{ item.id }}"
+                 value="{{ item.value_text or '' }}"
+                 placeholder="Wpisz wartość{% if item.task.unit %} ({{ item.task.unit }}){% endif %}"
+                 aria-label="Wartość pomiaru">
+          {% if item.task.value_min is not none or item.task.value_max is not none %}
+          <small class="value-range-hint">
+            Zakres: {{ item.task.value_min if item.task.value_min is not none else '—' }}
+            … {{ item.task.value_max if item.task.value_max is not none else '—' }}{% if item.task.unit %} {{ item.task.unit }}{% endif %}
+          </small>
+          {% endif %}
+          <span class="value-result-badge {% if item.result == 'ok' %}badge-success{% elif item.result == 'ng' %}badge-error{% endif %}">
+            {% if item.result %}{{ item.result | upper }}{% endif %}
+          </span>
+        </div>
+        {% elif item.task.task_type == 'text' %}
+        <div class="value-row" data-item-id="{{ item.id }}">
+          <input type="text" class="form-control value-input"
+                 data-item-id="{{ item.id }}"
+                 value="{{ item.value_text or '' }}"
+                 placeholder="Wpisz wartość / opis"
+                 aria-label="Wartość tekstowa">
+          <span class="value-result-badge {% if item.result == 'ok' %}badge-success{% elif item.result == 'ng' %}badge-error{% endif %}">
+            {% if item.result %}{{ item.result | upper }}{% endif %}
+          </span>
+        </div>
+        <div class="result-buttons result-buttons--text" data-item-id="{{ item.id }}">
+          <button type="button" class="btn-result btn-ok {% if item.result == 'ok' %}active{% endif %}"
+                  data-item-id="{{ item.id }}" data-result="ok">OK</button>
+          <button type="button" class="btn-result btn-ng {% if item.result == 'ng' %}active{% endif %}"
+                  data-item-id="{{ item.id }}" data-result="ng">NG</button>
+          <button type="button" class="btn-result btn-na {% if item.result == 'na' %}active{% endif %}"
+                  data-item-id="{{ item.id }}" data-result="na">N/A</button>
+        </div>
+        {% else %}
+        <div class="result-buttons" data-item-id="{{ item.id }}">
+          <button type="button" class="btn-result btn-ok {% if item.result == 'ok' %}active{% endif %}"
+                  data-item-id="{{ item.id }}" data-result="ok">OK</button>
+          <button type="button" class="btn-result btn-ng {% if item.result == 'ng' %}active{% endif %}"
+                  data-item-id="{{ item.id }}" data-result="ng">NG</button>
+          <button type="button" class="btn-result btn-na {% if item.result == 'na' %}active{% endif %}"
+                  data-item-id="{{ item.id }}" data-result="na">N/A</button>
+          <button type="button" class="btn-result btn-dw {% if item.result == 'dw' %}active{% endif %}"
+                  data-item-id="{{ item.id }}" data-result="dw"
+                  title="Dopuszczenie Warunkowe – wymagany komentarz.">DW</button>
+        </div>
+        {% endif %}
+      {% else %}
+        {% if item.task.task_type in ('numeric', 'text') and item.value_text %}
+        <div class="value-readonly">
+          <span class="value-readonly-text">{{ item.value_text }}{% if item.task.unit %} {{ item.task.unit }}{% endif %}</span>
+          <span class="badge {% if item.result == 'ok' %}badge-success{% elif item.result == 'ng' %}badge-error{% else %}badge-neutral{% endif %}">
+            {{ item.result | upper if item.result else '—' }}
+          </span>
+        </div>
+        {% elif item.result %}
+        <span class="badge {% if item.result == 'ok' %}badge-success{% elif item.result == 'ng' %}badge-error{% elif item.result == 'dw' %}badge-warning{% else %}badge-neutral{% endif %}">
+          {{ item.result | upper }}
+        </span>
+        {% endif %}
+      {% endif %}
+
+      <div class="photo-thumbs" data-item-id="{{ item.id }}">
+        {% for photo in item.photos %}
+        <div class="photo-thumb" data-photo-id="{{ photo.id }}">
+          <img src="{{ url_for('uploaded_file', filename=photo.filename) }}" alt="zdjęcie"
+               class="photo-zoomable" data-src="{{ url_for('uploaded_file', filename=photo.filename) }}">
+          {% if report.status != 'completed' %}
+          <button type="button" class="delete-photo" title="Usuń"
+                  onclick="deletePhoto({{ photo.id }}, this)">×</button>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+
+      {% if report.status != 'completed' %}
+      <div class="upload-zone" data-item-id="{{ item.id }}">
+        <input type="file" accept="image/*" capture="environment" aria-label="Dodaj zdjęcie">
+        <span><i class="bi bi-camera"></i> Dodaj zdjęcie</span>
+      </div>
+      <textarea class="item-notes form-control"
+                data-item-id="{{ item.id }}"
+                placeholder="Odnotuj…">{{ item.notes or '' }}</textarea>
+      {% else %}
+        {% if item.notes %}
+        <div class="item-note-readonly">{{ item.notes }}</div>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endfor %}
+
+{% if report.status == 'in_progress' %}
+<div class="wizard-nav" id="wizard-nav">
+  <button type="button" class="btn btn-ghost wizard-btn-prev" id="w-prev" disabled>
+    <i class="bi bi-chevron-left"></i> Wstecz
+  </button>
+  <button type="button" class="btn btn-primary wizard-btn-next" id="w-next">
+    Dalej <i class="bi bi-chevron-right"></i>
+  </button>
+</div>
+{% endif %}
+
+{% set dw_items = [] %}
+{% for cat, items in items_by_category.items() %}
+  {% for item in items %}
+    {% if item.result == 'dw' %}{% set _ = dw_items.append(item) %}{% endif %}
+  {% endfor %}
+{% endfor %}
+{% if dw_items %}
+<div class="dw-section">
+  <div class="dw-section-title"><i class="bi bi-exclamation-triangle-fill"></i> Dopuszczenia Warunkowe (DW) — wymagają monitorowania</div>
+  {% for item in dw_items %}
+  <div class="dw-item">
+    <div class="dw-item-title">{{ item.task.title }}</div>
+    {% if item.notes %}<div class="dw-item-note"><i class="bi bi-chat-text"></i> {{ item.notes }}</div>{% else %}<div class="dw-item-note text-danger">⚠ Brak komentarza — dodaj uzasadnienie!</div>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if report.status == 'in_progress' %}
+<div class="checklist-bottom-bar" id="checklist-bottom-bar">
+  <div class="checklist-bottom-stats">
+    {% set s = report.stats %}
+    <span class="rs-ok">OK: {{ s.ok }}</span>
+    <span class="rs-ng">NG: {{ s.ng }}</span>
+    <span class="rs-na">N/A: {{ s.na }}</span>
+    {% if s.dw %}<span class="rs-dw">DW: {{ s.dw }}</span>{% endif %}
+    <span class="rs-total">/ {{ s.total }}</span>
+  </div>
+  <form method="post" action="{{ url_for('complete_checklist', report_id=report.id) }}">
+    {{ csrf_input() }}
+    <button type="submit" class="btn btn-success btn-close-report">
+      <i class="bi bi-check-circle-fill"></i> Zamknij raport
+    </button>
+  </form>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+{% if report.status == 'in_progress' %}
+<script>
+(function () {
+  const reportId = {{ report.id }};
+
+  function heartbeat() {
+    fetch(`/api/report/${reportId}/heartbeat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': _csrf() },
+      body: '{}',
+    }).catch(() => {});
+  }
+
+  setInterval(heartbeat, 4 * 60 * 1000);
+
+  window.addEventListener('pagehide', () => {
+    const fd = new FormData();
+    fd.append('_csrf_token', _csrf());
+    navigator.sendBeacon(`/api/report/${reportId}/unlock`, fd);
+  });
+})();
+</script>
+{% endif %}
+<script>
+document.querySelectorAll('.batch-progress-fill[data-pct]').forEach(function (el) {
+  el.style.width = el.dataset.pct + '%';
+});
+</script>
+{% if report.status == 'in_progress' %}
+<script>
+(function () {
+  if (window.innerWidth > 768) return;
+
+  const wHeader = document.getElementById('wizard-header');
+  const wNav    = document.getElementById('wizard-nav');
+  if (!wHeader || !wNav) return;
+
+  const allItems = [];
+  document.querySelectorAll('.checklist-category').forEach(function (cat) {
+    const hdr = cat.querySelector('.category-header');
+    let catName = '';
+    if (hdr) {
+      const clone = hdr.cloneNode(true);
+      const sm = clone.querySelector('small');
+      if (sm) sm.remove();
+      catName = clone.textContent.trim();
+    }
+    cat.querySelectorAll('.checklist-item').forEach(function (item) {
+      allItems.push({ el: item, cat: catName });
+    });
+  });
+
+  if (allItems.length === 0) return;
+
+  const wIdx   = document.getElementById('w-idx');
+  const wTotal = document.getElementById('w-total');
+  const wFill  = document.getElementById('w-fill');
+  const wPct   = document.getElementById('w-pct');
+  const wCat   = document.getElementById('w-cat');
+  const wPrev  = document.getElementById('w-prev');
+  const wNext  = document.getElementById('w-next');
+
+  wTotal.textContent = allItems.length;
+
+  let dwObserver = null;
+
+  let current = allItems.findIndex(function (i) {
+    return !i.el.classList.contains('result-ok')
+        && !i.el.classList.contains('result-ng')
+        && !i.el.classList.contains('result-na')
+        && !i.el.classList.contains('result-dw');
+  });
+  if (current < 0) current = 0;
+
+  function countAnswered() {
+    return allItems.filter(function (i) {
+      return i.el.classList.contains('result-ok')
+          || i.el.classList.contains('result-ng')
+          || i.el.classList.contains('result-na')
+          || i.el.classList.contains('result-dw');
+    }).length;
+  }
+
+  function calcBodyHeight() {
+    const mobileHdr = document.querySelector('.mobile-header');
+    const mhH = mobileHdr ? mobileHdr.offsetHeight : 0;
+    const whH = wHeader.offsetHeight;
+    const wnH = wNav.offsetHeight;
+    // 24 = padding-top of wizard-active item
+    return window.innerHeight - mhH - whH - wnH - 24;
+  }
+
+  function applyDwLayout(itemEl, isDW) {
+    itemEl.classList.toggle('wizard-dw', isDW);
+    if (isDW) {
+      const notes = itemEl.querySelector('.item-notes');
+      if (notes) setTimeout(function () { notes.focus(); }, 150);
+    }
+  }
+
+  function show(idx) {
+    if (dwObserver) { dwObserver.disconnect(); dwObserver = null; }
+
+    allItems.forEach(function (i) {
+      i.el.classList.remove('wizard-active', 'wizard-dw');
+    });
+    allItems[idx].el.classList.add('wizard-active');
+
+    // Przywróć DW layout jeśli item ma już wynik DW (np. nawigacja wstecz)
+    applyDwLayout(allItems[idx].el, allItems[idx].el.classList.contains('result-dw'));
+
+    // height (nie minHeight) tworzy "definite size" — margin-top:auto działa poprawnie
+    const body = allItems[idx].el.querySelector('.item-body');
+    if (body) {
+      body.style.height = Math.max(calcBodyHeight(), 200) + 'px';
+      body.style.overflowY = 'auto';
+    }
+
+    // Obserwuj zmianę wyniku na DW lub cofnięcie DW
+    const itemEl = allItems[idx].el;
+    dwObserver = new MutationObserver(function () {
+      applyDwLayout(itemEl, itemEl.classList.contains('result-dw'));
+    });
+    dwObserver.observe(itemEl, { attributes: true, attributeFilter: ['class'] });
+
+    wIdx.textContent = idx + 1;
+    wCat.textContent = allItems[idx].cat;
+
+    const pct = Math.round((countAnswered() / allItems.length) * 100);
+    wFill.style.width = pct + '%';
+    wPct.textContent = pct + '%';
+
+    wPrev.disabled = idx === 0;
+
+    const isLast = idx === allItems.length - 1;
+    wNext.innerHTML = isLast
+      ? '<i class="bi bi-check-circle-fill"></i>&nbsp;Zakończ'
+      : 'Dalej&nbsp;<i class="bi bi-chevron-right"></i>';
+    wNext.className = 'btn wizard-btn-next ' + (isLast ? 'btn-success' : 'btn-primary');
+
+    window.scrollTo(0, 0);
+  }
+
+  window.addEventListener('resize', function () {
+    if (!document.body.classList.contains('wizard-mode')) return;
+    const body = allItems[current] && allItems[current].el.querySelector('.item-body');
+    if (body) {
+      body.style.height = Math.max(calcBodyHeight(), 200) + 'px';
+      body.style.overflowY = 'auto';
+    }
+  });
+
+  document.body.classList.add('wizard-mode');
+  show(current);
+
+  // Override app.js scrollToNextItem — advance wizard instead of smooth-scrolling
+  window.scrollToNextItem = function (row) {
+    const idx = allItems.findIndex(function (i) { return i.el === row; });
+    setTimeout(function () {
+      const pct = Math.round((countAnswered() / allItems.length) * 100);
+      wFill.style.width = pct + '%';
+      wPct.textContent = pct + '%';
+      if (idx >= 0 && idx < allItems.length - 1) {
+        current = idx + 1;
+        show(current);
+      }
+    }, 500);
+  };
+
+  wPrev.addEventListener('click', function () {
+    if (current > 0) { current--; show(current); }
+  });
+
+  wNext.addEventListener('click', function () {
+    if (typeof pendingNgRow !== 'undefined' && pendingNgRow) {
+      const pNotes = pendingNgRow.querySelector('.item-notes');
+      if (!pNotes || !pNotes.value.trim()) {
+        if (typeof _requireNgNote === 'function') _requireNgNote(pendingNgRow);
+        return;
+      }
+      if (typeof _clearNgNote === 'function') _clearNgNote(pendingNgRow);
+    }
+    if (current < allItems.length - 1) {
+      current++;
+      show(current);
+    } else {
+      const closeForm = document.querySelector('.btn-close-report')?.closest('form');
+      if (closeForm) {
+        closeForm.onsubmit = null;
+        closeForm.submit();
+      }
+    }
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

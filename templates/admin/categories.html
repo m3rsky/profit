@@ -1,0 +1,90 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Kategorie – {{ template.name }}{% endblock %}
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
+{% endblock %}
+{% block admin_content %}
+<div class="page-header">
+  <div>
+    <a href="{{ url_for('admin_templates') }}" class="breadcrumb-link"><i class="bi bi-arrow-left"></i> Szablony</a>
+    <h1 class="page-title">{{ template.name }}</h1>
+  </div>
+  <div class="page-header-actions">
+    {% if categories %}
+    <span class="drag-hint"><i class="bi bi-arrows-expand-vertical"></i> Przeciągnij wiersze by zmienić kolejność</span>
+    {% endif %}
+    <a href="{{ url_for('admin_template_edit', tmpl_id=template.id) }}" class="btn btn-outline btn-sm">Ustawienia szablonu</a>
+    <a href="{{ url_for('admin_category_new', tmpl_id=template.id) }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Dodaj kategorię</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body card-body--flush">
+    {% if categories %}
+    <table class="data-table tbl-cards">
+      <thead>
+        <tr>
+          <th scope="col" class="th-drag"><span class="sr-only">Przeciągnij</span></th>
+          <th scope="col">#</th>
+          <th scope="col">Nazwa</th>
+          <th scope="col">Aktywna</th>
+          <th scope="col">Zadań</th>
+          <th scope="col"><span class="sr-only">Akcje</span></th>
+        </tr>
+      </thead>
+      <tbody id="sortable-categories">
+        {% for cat in categories %}
+        <tr data-cat-id="{{ cat.id }}" class="sortable-row">
+          <td class="drag-handle" title="Przeciągnij">⠿</td>
+          <td class="cat-order-cell">{{ loop.index }}</td>
+          <td><a href="{{ url_for('admin_tasks', cat_id=cat.id) }}">{{ cat.name }}</a></td>
+          <td>{% if cat.is_active %}<span class="badge badge-success">Tak</span>{% else %}<span class="badge badge-danger">Nie</span>{% endif %}</td>
+          <td>{{ cat.tasks.count() }}</td>
+          <td class="td-actions">
+            <a href="{{ url_for('admin_tasks', cat_id=cat.id) }}" class="btn btn-secondary btn-sm">Zadania</a>
+            <a href="{{ url_for('admin_category_edit', cat_id=cat.id) }}" class="btn btn-outline btn-sm">Edytuj</a>
+            <form method="post" action="{{ url_for('admin_category_delete', cat_id=cat.id) }}" class="form-inline">
+              {{ csrf_input() }}
+              <button type="submit" class="btn btn-danger btn-sm"
+                      data-confirm="Usunąć kategorię „{{ cat.name }}" i wszystkie jej zadania?">Usuń</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+      Brak kategorii. <a href="{{ url_for('admin_category_new', tmpl_id=template.id) }}">Dodaj pierwszą kategorię</a>.
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const tbody = document.getElementById('sortable-categories');
+if (tbody && typeof Sortable !== 'undefined') {
+  Sortable.create(tbody, {
+    handle: '.drag-handle',
+    animation: 150,
+    onEnd: async function () {
+      const rows = tbody.querySelectorAll('tr[data-cat-id]');
+      const order = Array.from(rows).map(function (r, i) {
+        r.querySelector('.cat-order-cell').textContent = i + 1;
+        return { id: Number(r.dataset.catId) };
+      });
+      await fetch('/api/categories/reorder', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || ''
+        },
+        body: JSON.stringify(order),
+      });
+    },
+  });
+}
+</script>
+{% endblock %}

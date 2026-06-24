@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}{{ report.title }}{% endblock %}
+{% block content %}
+{% set back_url = request.args.get('back', '') %}
+<div class="page-header">
+  <div>
+    {% if back_url.startswith('/') %}
+    <a href="{{ back_url }}" class="back-link"><i class="bi bi-arrow-left"></i> Raporty QA</a>
+    {% endif %}
+    <h1 class="page-title">{{ report.title }}</h1>
+    <p class="page-subtitle">
+      {{ report.created_at | localdt }} · {{ report.author.username }}
+      {% if report.completed_at %} · Zamknięto: {{ report.completed_at | localdt }}{% endif %}
+      {% if report.order %}
+       · Zamówienie: <a href="{{ url_for('orders_detail', order_id=report.order.id) }}">{{ report.order.number }}</a>
+      {% endif %}
+    </p>
+  </div>
+  <div class="page-header-actions">
+    {% if current_user.is_admin %}
+    <a href="{{ url_for('report_edit', report_id=report.id) }}" class="btn btn-secondary">Edytuj raport</a>
+    {% endif %}
+    {% if report.status == 'in_progress' %}
+    <a href="{{ url_for('checklist_view', report_id=report.id, back=back_url) }}" class="btn btn-secondary">Edytuj checklistę</a>
+    {% endif %}
+    <a href="{{ url_for('export_pdf', report_id=report.id) }}" class="btn btn-primary"><i class="bi bi-download"></i> Pobierz PDF</a>
+  </div>
+</div>
+
+{% if report.lock_active %}
+<div class="alert alert-warning">
+  <i class="bi bi-lock-fill"></i>
+  Raport jest aktualnie edytowany przez <strong>{{ report.locked_by.username }}</strong>.
+  Automatyczne odblokowanie o <strong>{{ report.lock_expires_at | localdt('%H:%M') }}</strong>.
+  {% if current_user.is_admin %}
+  <form method="post" action="{{ url_for('report_force_unlock', report_id=report.id) }}" class="inline-form">
+    {{ csrf_input() }}
+    <button type="submit" class="btn btn-danger btn-sm"><i class="bi bi-unlock-fill"></i> Wymuś odblokowanie</button>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="report-status-bar">
+  {% if report.status == 'completed' %}
+    <span class="badge badge-success badge--lg">Ukończony</span>
+  {% else %}
+    <span class="badge badge-warning badge--lg">W trakcie</span>
+  {% endif %}
+  <div class="progress report-progress-wide">
+    <div class="progress-bar" data-pct="{{ report.completion_percent }}"></div>
+  </div>
+  <strong class="report-pct">{{ report.completion_percent }}%</strong>
+</div>
+
+{% set sc = report.score %}
+{% if sc %}
+<div class="score-summary-card">
+  <div class="score-grade-circle {% if sc.grade >= 5 %}score-grade--high{% elif sc.grade >= 3 %}score-grade--mid{% else %}score-grade--low{% endif %}">
+    {{ sc.grade }}<span class="score-grade-denom">/6</span>
+  </div>
+  <div class="score-info">
+    <div class="score-pct-label">{{ sc.pct }}% zgodności</div>
+    <div class="score-sub">{{ sc.ok }} / {{ sc.scored }} pkt poprawnych{% if sc.na > 0 %} &nbsp;·&nbsp; N/A: {{ sc.na }}{% endif %}</div>
+  </div>
+</div>
+{% endif %}
+
+{% for cat, items in items_by_category.items() %}
+<div class="checklist-category">
+  <div class="category-header">
+    {{ cat.name }}
+    <small>{{ items | selectattr('is_checked') | list | length }}/{{ items | length }}</small>
+  </div>
+  {% for item in items %}
+  <div class="checklist-item {% if item.result == 'ok' %}result-ok{% elif item.result == 'ng' %}result-ng{% endif %}">
+    <div class="item-result-badge">
+      {% if item.result == 'ok' %}
+        <span class="badge badge-success">OK</span>
+      {% elif item.result == 'ng' %}
+        <span class="badge badge-error">NG</span>
+      {% else %}
+        <span class="badge badge-neutral">–</span>
+      {% endif %}
+    </div>
+    <div class="item-body">
+      <div class="item-title">{{ item.task.title }}</div>
+      {% if item.notes %}
+      <div class="item-note-readonly">{{ item.notes }}</div>
+      {% endif %}
+      {% if item.photos.count() > 0 %}
+      <div class="photo-thumbs">
+        {% for photo in item.photos %}
+        <div class="photo-thumb">
+          <img src="{{ url_for('uploaded_file', filename=photo.filename) }}" alt="zdjęcie"
+               class="photo-zoomable" data-src="{{ url_for('uploaded_file', filename=photo.filename) }}">
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% block title %}{{ quote.number }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">{{ quote.number }}</h1>
+    <span class="status-badge {{ quote.status_css }}">{{ quote.status_label }}</span>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <a href="{{ url_for('kosztorys.export_excel', quote_id=quote.id) }}" class="btn btn-outline btn-sm">
+      <i class="bi bi-file-earmark-excel"></i> Excel
+    </a>
+    <a href="{{ url_for('kosztorys.export_pdf', quote_id=quote.id) }}" class="btn btn-outline btn-sm">
+      <i class="bi bi-file-earmark-pdf"></i> PDF
+    </a>
+    <a href="{{ url_for('kosztorys.edit_quote', quote_id=quote.id) }}" class="btn btn-primary btn-sm">
+      <i class="bi bi-pencil"></i> Edytuj
+    </a>
+    <a href="{{ url_for('kosztorys.list_quotes') }}" class="btn btn-ghost btn-sm">
+      <i class="bi bi-arrow-left"></i> Lista
+    </a>
+  </div>
+</div>
+
+<!-- Informacje nagłówkowe -->
+<div class="detail-two-col">
+  <div class="card">
+    <div class="card-body">
+      <table class="data-table">
+        <tr><th>Klient</th><td>{{ quote.client_name }}</td></tr>
+        <tr><th>Typ szafy</th><td>{{ quote.cabinet_type.name }}</td></tr>
+        {% if quote.config %}
+        <tr><th>Wymiary</th>
+          <td>{{ quote.config.width }} × {{ quote.config.height }} × {{ quote.config.depth }} mm</td></tr>
+        <tr><th>Objętość</th><td>{{ calc.volume|int }} dm³ ({{ calc.volume_range }})</td></tr>
+        {% endif %}
+        <tr><th>Status</th>
+          <td><span class="status-badge {{ quote.status_css }}">{{ quote.status_label }}</span></td></tr>
+        <tr><th>Utworzono</th><td>{{ quote.created_at | localdt }}</td></tr>
+        <tr><th>Autor</th><td>{{ quote.created_by.username }}</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- Podsumowanie cen -->
+  <div class="card">
+    <div class="card-header">Podsumowanie kosztów</div>
+    <div class="card-body">
+      {% if calc %}
+      <table class="data-table">
+        <tr><th>Elementy blaszane</th><td class="text-right">{{ '%.2f'|format(calc.elements_cost) }} PLN</td></tr>
+        <tr><th>Odpad materiałowy</th><td class="text-right">{{ '%.2f'|format(calc.waste_cost) }} PLN</td></tr>
+        <tr><th>Osprzęt</th><td class="text-right">{{ '%.2f'|format(calc.hardware_cost) }} PLN</td></tr>
+        <tr><th>Robocizna i usługi</th><td class="text-right">{{ '%.2f'|format(calc.services_cost) }} PLN</td></tr>
+        <tr style="font-weight:700;background:var(--bg-secondary)">
+          <th>KOSZT WŁASNY</th>
+          <td class="text-right" style="color:var(--color-primary)">
+            {{ '%.2f'|format(calc.cost_total) }} PLN
+          </td>
+        </tr>
+        <tr><th>Marża ×{{ calc.margin }}</th><td class="text-right">{{ '%.2f'|format(calc.price_catalog) }} PLN</td></tr>
+        <tr><th>Rabat {{ calc.discount_pct }}%</th><td class="text-right">{{ '%.2f'|format(calc.price_discount) }} PLN</td></tr>
+        {% if calc.bonus_pct > 0 %}
+        <tr><th>Bonus {{ calc.bonus_pct }}%</th><td class="text-right">{{ '%.2f'|format(calc.price_bonus) }} PLN</td></tr>
+        {% endif %}
+        <tr style="font-weight:700;background:var(--bg-secondary)">
+          <th>CENA FINALNA</th>
+          <td class="text-right" style="font-size:18px">{{ '%.2f'|format(calc.price_discount) }} PLN</td>
+        </tr>
+        <tr>
+          <th>Zyskowność</th>
+          <td class="text-right" style="color:{% if calc.profitability > 0 %}var(--color-success){% else %}var(--color-danger){% endif %};font-weight:700">
+            {{ calc.profitability }}%
+          </td>
+        </tr>
+      </table>
+      {% else %}
+      <p class="text-muted">Brak danych kalkulacji.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if calc %}
+<!-- Elementy blaszane -->
+<div class="card" style="margin-bottom:16px">
+  <div class="card-header">Elementy blaszane</div>
+  <div class="card-body card-body--flush">
+    <div class="table-wrap">
+    <table class="data-table tbl-cards" style="font-size:13px">
+      <thead>
+        <tr>
+          <th>Element</th>
+          <th style="text-align:center">Il.</th>
+          <th>Mat.</th>
+          <th style="text-align:right">Wym. L×Sz (mm)</th>
+          <th style="text-align:right">Gr. (mm)</th>
+          <th style="text-align:right">Waga (kg)</th>
+          <th style="text-align:right">Blacha (PLN)</th>
+          <th style="text-align:right">Malow. (PLN)</th>
+          <th style="text-align:right">Razem (PLN)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in calc.elements %}
+        {% if e.qty > 0 %}
+        <tr>
+          <td>{{ e.name }}</td>
+          <td style="text-align:center">{{ e.qty }}</td>
+          <td style="font-size:11px;color:var(--text-muted)">{{ e.material }}</td>
+          <td style="text-align:right;white-space:nowrap">{{ e.L }} × {{ e.W }}</td>
+          <td style="text-align:right">{{ e.thickness }}</td>
+          <td style="text-align:right">{{ '%.2f'|format(e.weight_total) }}</td>
+          <td style="text-align:right">{{ '%.2f'|format(e.cost_sheet * e.qty) }}</td>
+          <td style="text-align:right">{{ '%.2f'|format(e.cost_paint * e.qty) if e.cost_paint else '—' }}</td>
+          <td style="text-align:right"><strong>{{ '%.2f'|format(e.cost_total) }}</strong></td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+        <tr style="background:var(--bg-secondary);font-style:italic">
+          <td>{{ calc.waste.name }}</td>
+          <td style="text-align:center">1</td>
+          <td style="font-size:11px;color:var(--text-muted)">{{ calc.waste.material }}</td>
+          <td colspan="3" style="color:var(--text-muted);font-size:12px">
+            Waga: {{ '%.2f'|format(calc.waste.weight_total) }} kg
+          </td>
+          <td colspan="2"></td>
+          <td style="text-align:right"><strong>{{ '%.2f'|format(calc.waste.cost_total) }}</strong></td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+
+<!-- Osprzęt -->
+{% if calc.hardware %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-header">Osprzęt i uszczelki</div>
+  <div class="card-body" style="padding:0">
+    <table class="data-table" style="font-size:13px">
+      <thead><tr><th>Pozycja</th><th>Il.</th><th>J.m.</th><th>Cena/szt</th><th>Wartość</th></tr></thead>
+      <tbody>
+        {% for h in calc.hardware %}
+        <tr>
+          <td>{{ h.name }}</td>
+          <td>{{ h.qty }}</td>
+          <td>{{ h.unit }}</td>
+          <td>{{ '%.2f'|format(h.unit_price) }} PLN</td>
+          <td><strong>{{ '%.2f'|format(h.total) }} PLN</strong></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- Robocizna i usługi -->
+<div class="card" style="margin-bottom:16px">
+  <div class="card-header">Robocizna i usługi</div>
+  <div class="card-body" style="padding:0">
+    <table class="data-table" style="font-size:13px">
+      <thead><tr><th>Pozycja</th><th>Il.</th><th>J.m.</th><th>Cena</th><th>Wartość</th></tr></thead>
+      <tbody>
+        {% for s in calc.services %}
+        <tr>
+          <td>{{ s.name }}</td>
+          <td>{{ s.qty }}</td>
+          <td>{{ s.unit }}</td>
+          <td>{{ '%.2f'|format(s.unit_price) }} PLN</td>
+          <td><strong>{{ '%.2f'|format(s.total) }} PLN</strong></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if quote.notes %}
+<div class="card">
+  <div class="card-header">Uwagi</div>
+  <div class="card-body"><p>{{ quote.notes }}</p></div>
+</div>
+{% endif %}
+
+<!-- Usuń -->
+{% if current_user.is_admin or quote.created_by_id == current_user.id %}
+<div style="margin-top:32px; padding-top:16px; border-top:1px solid var(--border-color)">
+  <form method="post" action="{{ url_for('kosztorys.delete_quote', quote_id=quote.id) }}"
+        class="form-inline">
+    {{ csrf_input() }}
+    <button type="submit" class="btn btn-danger btn-sm"
+            data-confirm="Usunąć wycenę {{ quote.number }}?">
+      <i class="bi bi-trash"></i> Usuń wycenę
+    </button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

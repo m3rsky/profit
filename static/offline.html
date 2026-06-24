@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a5276">
+  <title>Brak połączenia – PSH QC</title>
+  <style>
+    :root { --primary: #1a5276; --secondary: #1a6e8a; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, sans-serif;
+      background: var(--primary);
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+    }
+    .icon { font-size: 4rem; margin-bottom: 16px; }
+    h1 { font-size: 1.5rem; margin-bottom: 8px; }
+    p  { font-size: 0.9375rem; opacity: 0.8; margin-bottom: 24px; line-height: 1.6; }
+    button {
+      background: rgba(255,255,255,0.15);
+      border: 2px solid rgba(255,255,255,0.6);
+      color: #fff;
+      padding: 12px 28px;
+      font-size: 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    button:hover { background: rgba(255,255,255,0.25); }
+  </style>
+</head>
+<body>
+  <div class="icon">📡</div>
+  <h1>Brak połączenia</h1>
+  <p>Nie możesz teraz połączyć się z serwerem.<br>
+     Sprawdź połączenie sieciowe i spróbuj ponownie.</p>
+  <button onclick="location.reload()">Spróbuj ponownie</button>
+</body>
+</html>

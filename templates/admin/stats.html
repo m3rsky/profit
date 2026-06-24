@@ -1,0 +1,271 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Statystyki{% endblock %}
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" defer></script>
+{% endblock %}
+{% block admin_content %}
+<div class="page-header">
+  <h1 class="page-title">Statystyki systemu</h1>
+</div>
+
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-number">{{ total_completed }}</div>
+    <div class="stat-label">Ukończonych raportów</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number">{{ total_in_progress }}</div>
+    <div class="stat-label">Raportów w trakcie</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number">{{ ok_total + ng_total + na_total }}</div>
+    <div class="stat-label">Ocenionych zadań (30 dni)</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number">{{ ng_total }}</div>
+    <div class="stat-label">Wyników NG (30 dni)</div>
+  </div>
+</div>
+
+<div class="stats-charts">
+  <div class="card stats-chart-card">
+    <div class="card-header">Raporty – ostatnie 30 dni</div>
+    <div class="card-body">
+      <canvas id="chartDaily" height="100"></canvas>
+    </div>
+  </div>
+
+  <div class="card stats-chart-card">
+    <div class="card-header">Rozkład wyników zadań – ostatnie 30 dni</div>
+    <div class="card-body stats-doughnut-wrap">
+      <canvas id="chartResults" width="220" height="220"></canvas>
+      <ul class="stats-legend">
+        <li><span class="legend-dot" style="background:var(--success)"></span>OK: {{ ok_total }}</li>
+        <li><span class="legend-dot" style="background:var(--error)"></span>NG: {{ ng_total }}</li>
+        <li><span class="legend-dot" style="background:#888"></span>N/A: {{ na_total }}</li>
+        <li><span class="legend-dot" style="background:#ddd"></span>Nieocenione: {{ none_total }}</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+{% if ng_tasks %}
+<div class="card">
+  <div class="card-header">Top 10 NG – ostatnie 30 dni</div>
+  <div class="card-body card-body--flush">
+    <table class="data-table tbl-cards">
+      <thead><tr><th>#</th><th>Zadanie</th><th>Liczba NG</th></tr></thead>
+      <tbody>
+        {% for t in ng_tasks %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>
+            <button type="button" class="btn-ng-task" data-task-id="{{ t.id }}" title="Pokaż raporty z tym zadaniem NG">
+              {{ t.title }}
+            </button>
+          </td>
+          <td><span class="badge badge-error">{{ t.cnt }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- Modal: raporty z zadaniem NG -->
+<div class="ng-modal-overlay" id="ng-modal" aria-modal="true" role="dialog" hidden>
+  <div class="ng-modal-dialog">
+    <div class="ng-modal-header">
+      <h3 class="ng-modal-title" id="ng-modal-title"></h3>
+      <button type="button" class="ng-modal-close" id="ng-modal-close" aria-label="Zamknij">&times;</button>
+    </div>
+    <div class="ng-modal-body" id="ng-modal-body"></div>
+  </div>
+</div>
+
+{% if user_stats %}
+<div class="card">
+  <div class="card-header">Aktywność operatorów</div>
+  <div class="card-body card-body--flush">
+    <table class="data-table tbl-cards">
+      <thead><tr><th>Operator</th><th>Ukończone raporty</th></tr></thead>
+      <tbody>
+        {% for u in user_stats %}
+        <tr>
+          <td>{{ u.username }}</td>
+          <td>{{ u.total }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if duration_stats %}
+<div class="card">
+  <div class="card-header"><i class="bi bi-stopwatch"></i> Czas trwania kontroli wg szablonu</div>
+  <div class="card-body card-body--flush">
+    <table class="data-table tbl-cards">
+      <thead>
+        <tr>
+          <th>Szablon</th>
+          <th class="text-center">Liczba kontroli</th>
+          <th class="text-center">Średni czas</th>
+          <th class="text-center">Najkrótsza</th>
+          <th class="text-center">Najdłuższa</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in duration_stats %}
+        <tr>
+          <td>
+            <button type="button" class="btn-dur-tpl" data-tpl-id="{{ d.id }}" title="Pokaż kontrole wg czasu">
+              {{ d.name }}
+            </button>
+          </td>
+          <td class="text-center">{{ d.cnt }}</td>
+          <td class="text-center"><strong>{{ d.avg }}</strong></td>
+          <td class="text-center text-muted">{{ d.min }}</td>
+          <td class="text-center text-muted">{{ d.max }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const labels = {{ labels | tojson }};
+  const counts = {{ daily_counts | tojson }};
+
+  new Chart(document.getElementById('chartDaily'), {
+    type: 'bar',
+    data: {
+      labels: labels.map(d => d.slice(5)),
+      datasets: [{ label: 'Raporty', data: counts,
+                   backgroundColor: '#1a6e8a', borderRadius: 3 }]
+    },
+    options: { plugins: { legend: { display: false } },
+               scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+  });
+
+  new Chart(document.getElementById('chartResults'), {
+    type: 'doughnut',
+    data: {
+      labels: ['OK', 'NG', 'N/A', 'Nieocenione'],
+      datasets: [{ data: [{{ ok_total }}, {{ ng_total }}, {{ na_total }}, {{ none_total }}],
+                   backgroundColor: ['#27ae60','#c0392b','#888888','#dddddd'] }]
+    },
+    options: { plugins: { legend: { display: false } }, cutout: '65%' }
+  });
+
+  /* ── Modal: raporty z zadaniem NG ── */
+  const modal      = document.getElementById('ng-modal');
+  const modalTitle = document.getElementById('ng-modal-title');
+  const modalBody  = document.getElementById('ng-modal-body');
+
+  function closeModal() { modal.hidden = true; }
+
+  document.getElementById('ng-modal-close').addEventListener('click', closeModal);
+  modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+  /* Nawigacja w modalu — programowa, zapobiega otwieraniu nowego okna PWA */
+  modalBody.addEventListener('click', function (e) {
+    const a = e.target.closest('a[href]');
+    if (!a) return;
+    e.preventDefault();
+    closeModal();
+    window.location.href = a.href;
+  });
+
+  document.querySelectorAll('.btn-ng-task').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const taskId = btn.dataset.taskId;
+      modalTitle.textContent = btn.textContent.trim();
+      modalBody.innerHTML = '<p class="ng-modal-loading"><i class="bi bi-hourglass-split"></i> Ładowanie…</p>';
+      modal.hidden = false;
+
+      try {
+        const res  = await fetch('/api/ng-task-reports?task_id=' + taskId, {cache: 'no-store'});
+        const data = await res.json();
+
+        if (!data.reports || data.reports.length === 0) {
+          modalBody.innerHTML = '<p class="ng-modal-empty">Brak raportów dla tego zadania.</p>';
+          return;
+        }
+
+        modalBody.innerHTML = '<table class="data-table">'
+          + '<thead><tr><th>#</th><th>Raport</th><th>Operator</th><th>Data</th><th>Status</th><th></th></tr></thead>'
+          + '<tbody>'
+          + data.reports.map((r, i) => {
+              const badge = r.status === 'completed'
+                ? '<span class="badge badge-success">Ukończony</span>'
+                : '<span class="badge badge-warning">W trakcie</span>';
+              return '<tr>'
+              + '<td>' + (i + 1) + '</td>'
+              + '<td>' + escHtml(r.title) + '</td>'
+              + '<td>' + escHtml(r.author) + '</td>'
+              + '<td>' + escHtml(r.date) + '</td>'
+              + '<td>' + badge + '</td>'
+              + '<td><a href="' + escHtml(r.url) + '" class="btn btn-outline btn-sm">Podgląd</a></td>'
+              + '</tr>';
+            }).join('')
+          + '</tbody></table>'
+          + '<p class="ng-modal-count">Łącznie: ' + data.reports.length + ' raportów</p>';
+      } catch (err) {
+        modalBody.innerHTML = '<p class="ng-modal-empty">Błąd ładowania danych.</p>';
+      }
+    });
+  });
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  /* ── Modal: lista kontroli wg czasu dla szablonu ── */
+  document.querySelectorAll('.btn-dur-tpl').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const tplId = btn.dataset.tplId;
+      modalTitle.textContent = btn.textContent.trim() + ' – kontrole wg czasu';
+      modalBody.innerHTML = '<p class="ng-modal-loading"><i class="bi bi-hourglass-split"></i> Ładowanie…</p>';
+      modal.hidden = false;
+
+      try {
+        const res  = await fetch('/api/template-duration-reports?template_id=' + tplId);
+        const data = await res.json();
+
+        if (!data.reports || data.reports.length === 0) {
+          modalBody.innerHTML = '<p class="ng-modal-empty">Brak ukończonych kontroli dla tego szablonu.</p>';
+          return;
+        }
+
+        modalBody.innerHTML = '<table class="data-table">'
+          + '<thead><tr><th>#</th><th>Raport</th><th>Operator</th><th>Czas</th><th>Data</th><th></th></tr></thead>'
+          + '<tbody>'
+          + data.reports.map((r, i) =>
+              '<tr>'
+              + '<td>' + (i + 1) + '</td>'
+              + '<td>' + escHtml(r.title) + '</td>'
+              + '<td>' + escHtml(r.author) + '</td>'
+              + '<td><strong>' + escHtml(r.duration) + '</strong></td>'
+              + '<td>' + escHtml(r.date) + '</td>'
+              + '<td><a href="' + escHtml(r.url) + '" class="btn btn-outline btn-sm">Podgląd</a></td>'
+              + '</tr>'
+            ).join('')
+          + '</tbody></table>'
+          + '<p class="ng-modal-count">Łącznie: ' + data.reports.length + ' kontroli (posortowane malejąco)</p>';
+      } catch (err) {
+        modalBody.innerHTML = '<p class="ng-modal-empty">Błąd ładowania danych.</p>';
+      }
+    });
+  });
+});
+</script>
+{% endblock %}

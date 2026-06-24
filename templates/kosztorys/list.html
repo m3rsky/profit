@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Kosztorysy{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Kosztorysy</h1>
+  <div style="display:flex;gap:8px">
+    <a href="{{ url_for('kosztorys.kreator') }}" class="btn btn-primary">
+      <i class="bi bi-magic"></i> Kreator
+    </a>
+    <a href="{{ url_for('kosztorys.new_quote') }}" class="btn btn-outline">
+      <i class="bi bi-plus-lg"></i> Ręczna wycena
+    </a>
+  </div>
+</div>
+
+<div class="tab-bar">
+  <a href="?status=all"      class="tab-link {% if active_tab=='all'      %}active{% endif %}">Wszystkie</a>
+  <a href="?status=draft"    class="tab-link {% if active_tab=='draft'    %}active{% endif %}">Szkice</a>
+  <a href="?status=sent"     class="tab-link {% if active_tab=='sent'     %}active{% endif %}">Wysłane</a>
+  <a href="?status=accepted" class="tab-link {% if active_tab=='accepted' %}active{% endif %}">Zaakceptowane</a>
+  <a href="?status=closed"   class="tab-link {% if active_tab=='closed'   %}active{% endif %}">Zamknięte</a>
+</div>
+
+{% if quotes %}
+<form method="post" action="{{ url_for('kosztorys.bulk_delete_quotes') }}" id="quotes-bulk-form">
+  {{ csrf_input() }}
+  <div class="bulk-bar" id="bulk-bar">
+    <span class="bulk-count" id="bulk-count">0 zaznaczonych</span>
+    <div class="bulk-actions">
+      <button type="button" id="btn-select-all" class="btn btn-outline btn-sm"
+              onclick="toggleSelectAll()">
+        Zaznacz wszystkie
+      </button>
+      <button type="submit" name="action" value="selected"
+              class="btn btn-danger btn-sm"
+              data-confirm="Usunąć zaznaczone kosztorysy?"
+              id="btn-delete-selected" disabled>
+        <i class="bi bi-trash"></i> Usuń zaznaczone
+      </button>
+    </div>
+  </div>
+</form>
+
+<div class="card">
+  <div class="table-wrap">
+  <table class="table tbl-cards">
+    <thead>
+      <tr>
+        <th class="th-check">
+          <label class="sr-only" for="select-all">Zaznacz wszystkie</label>
+          <input type="checkbox" id="select-all" title="Zaznacz wszystkie">
+        </th>
+        <th>Numer</th>
+        <th>Klient</th>
+        <th>Typ szafy</th>
+        <th>Wymiary (szer×wys×głęb)</th>
+        <th>Koszt własny</th>
+        <th>Cena po rab.</th>
+        <th>Status</th>
+        <th>Data</th>
+        <th>Autor</th>
+        <th class="th-actions"><span class="sr-only">Akcje</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for q in quotes %}
+      {% set calc = q.config.calculation if q.config else {} %}
+      <tr>
+        <td class="th-check">
+          <label class="sr-only" for="quote-check-{{ q.id }}">Zaznacz {{ q.number }}</label>
+          <input type="checkbox" id="quote-check-{{ q.id }}" name="quote_ids"
+                 value="{{ q.id }}" class="row-check" form="quotes-bulk-form">
+        </td>
+        <td data-label="Numer"><strong>{{ q.number }}</strong></td>
+        <td data-label="Klient">{{ q.client_name }}</td>
+        <td data-label="Typ">{{ q.cabinet_type.name }}</td>
+        <td data-label="Wymiary">
+          {% if q.config %}
+            {{ q.config.width }}×{{ q.config.height }}×{{ q.config.depth }} mm
+          {% else %}—{% endif %}
+        </td>
+        <td data-label="Koszt własny">
+          {% if calc.cost_total is defined %}
+            <strong>{{ '%.2f'|format(calc.cost_total) }} PLN</strong>
+          {% else %}—{% endif %}
+        </td>
+        <td data-label="Cena">
+          {% if calc.price_discount is defined %}
+            {{ '%.2f'|format(calc.price_discount) }} PLN
+          {% else %}—{% endif %}
+        </td>
+        <td data-label="Status">
+          <span class="status-badge {{ q.status_css }}">{{ q.status_label }}</span>
+        </td>
+        <td data-label="Data">{{ q.created_at | localdt('%d.%m.%Y') }}</td>
+        <td data-label="Autor">{{ q.created_by.username }}</td>
+        <td class="td-actions" data-label="">
+          <a href="{{ url_for('kosztorys.detail_quote', quote_id=q.id) }}"
+             class="btn btn-ghost btn-sm">Podgląd</a>
+          <a href="{{ url_for('kosztorys.edit_quote', quote_id=q.id) }}"
+             class="btn btn-outline btn-sm">Edytuj</a>
+          <button type="submit" name="action" value="selected"
+                  class="btn btn-danger btn-sm"
+                  form="quotes-bulk-form"
+                  onclick="selectOnly({{ q.id }})"
+                  data-confirm="Usunąć wycenę {{ q.number }}?">
+            <i class="bi bi-trash"></i> Usuń
+          </button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% else %}
+<div class="empty-state">
+  <p>Brak wycen w tej kategorii.</p>
+  {% if active_tab in ('all', 'draft') %}
+  <a href="{{ url_for('kosztorys.new_quote') }}" class="btn btn-primary btn--spaced-top">
+    <i class="bi bi-plus-lg"></i> Utwórz pierwszą wycenę
+  </a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

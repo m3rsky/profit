@@ -1,0 +1,67 @@
+{
+  "id": "/",
+  "name": "System Kontroli Jakości",
+  "short_name": "Panel QC",
+  "description": " – Firma Kubiak - ",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "launch_handler": {
+    "client_mode": ["navigate-existing", "auto"]
+  },
+  "orientation": "portrait-primary",
+  "background_color": "#1a5276",
+  "theme_color": "#1a5276",
+  "lang": "pl",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "/static/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/static/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["productivity", "utilities"],
+  "shortcuts": [
+    {
+      "name": "Nowa kontrola",
+      "short_name": "Nowa",
+      "url": "/checklist/new",
+      "icons": [{ "src": "/static/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Raporty",
+      "url": "/reports",
+      "icons": [{ "src": "/static/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/static/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Panel QC – ekran główny"
+    }
+  ]
+}

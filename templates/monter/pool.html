@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Pula list montażowych{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Pula list montażowych</h1>
+</div>
+
+{% if pool %}
+<h2 class="section-title">Dostępne do podjęcia</h2>
+<div class="card">
+  <table class="table tbl-cards">
+    <thead>
+      <tr>
+        <th>Zamówienie</th>
+        <th>Lista montażowa</th>
+        <th>Termin</th>
+        <th class="th-actions">Akcja</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in pool %}
+      <tr>
+        <td data-label="Zamówienie">
+          {% if r.order %}
+            <strong>{{ r.order.number }}</strong><br>
+            <small class="text-muted">{{ r.order.product_name }} &ndash; {{ r.order.client }}</small>
+            {% if r.order.pdf_filename %}
+            <br><a href="{{ url_for('uploaded_pdf', filename=r.order.pdf_filename) }}" target="_blank" class="text-muted"><i class="bi bi-file-earmark-pdf"></i> Dokumentacja</a>
+            {% endif %}
+          {% else %}—{% endif %}
+        </td>
+        <td data-label="Lista">
+          {% if r.order %}{{ r.order.product_name }} – {{ r.order.client }}{% else %}{{ r.title }}{% endif %}
+          {% if r.batch_total and r.batch_total > 1 %}
+          <br><span class="badge badge-neutral"><i class="bi bi-layers"></i> Seria {{ r.batch_total }} szt.</span>
+          {% endif %}
+        </td>
+        <td data-label="Termin" {% if r.order and r.order.due_date and r.order.due_date < today %}class="text-danger"{% endif %}>
+          {{ r.order.due_date.strftime('%d.%m.%Y') if r.order and r.order.due_date else '—' }}
+        </td>
+        <td data-label="">
+          <form method="post" action="{{ url_for('monter_take', report_id=r.id) }}">
+            {{ csrf_input() }}
+            <button type="submit" class="btn btn-primary btn-sm">
+              <i class="bi bi-hand-index"></i>
+              {% if r.batch_total and r.batch_total > 1 %}Przejmij serię{% else %}Przejmij{% endif %}
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card">
+  <div class="card-body" style="text-align:center; padding:var(--sp-lg); color:var(--secondary)">
+    Brak dostępnych list montażowych do podjęcia.
+  </div>
+</div>
+{% endif %}
+
+{% if my_reports %}
+<h2 class="section-title">Moje listy montażowe</h2>
+<div class="card">
+  <table class="table tbl-cards">
+    <thead>
+      <tr>
+        <th>Lista montażowa</th>
+        <th>Postęp</th>
+        <th>Status</th>
+        <th class="th-actions">Akcja</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in my_reports %}
+      <tr>
+        <td data-label="Lista">{{ r.title }}</td>
+        <td data-label="Postęp">
+          <div class="progress-cell">
+            <div class="progress progress--sm">
+              <div class="progress-bar" data-pct="{{ r.completion_percent }}"></div>
+            </div>
+            <small>{{ r.completion_percent }}%</small>
+          </div>
+        </td>
+        <td data-label="Status">
+          {% if r.status == 'completed' %}
+            <span class="status-badge status-success"><i class="bi bi-check-circle-fill"></i> Zakończona</span>
+          {% else %}
+            <span class="status-badge status-warning"><i class="bi bi-hourglass-split"></i> W trakcie</span>
+          {% endif %}
+        </td>
+        <td data-label="">
+          <a href="{{ url_for('checklist_view' if r.status != 'completed' else 'report_detail', report_id=r.id) }}"
+             class="btn btn-ghost btn-sm">
+            {% if r.status == 'completed' %}<i class="bi bi-eye"></i> Podgląd{% else %}<i class="bi bi-pencil-fill"></i> Wypełnij{% endif %}
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}
