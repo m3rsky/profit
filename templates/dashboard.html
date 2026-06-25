@@ -45,6 +45,10 @@
       <div class="wk-tile-icon"><i class="bi bi-plus-circle-fill"></i></div>
       <div class="wk-tile-label">Nowa<br>kontrola</div>
     </a>
+    <a href="{{ url_for('new_checklist', tab='qr') }}" class="wk-tile wk-tile--green">
+      <div class="wk-tile-icon"><i class="bi bi-qr-code-scan"></i></div>
+      <div class="wk-tile-label">Skanuj<br>QR</div>
+    </a>
     <a href="{{ url_for('reports_list') }}" class="wk-tile wk-tile--teal">
       <div class="wk-tile-icon"><i class="bi bi-clipboard-check-fill"></i></div>
       <div class="wk-tile-label">Raporty<br>QA</div>

@@ -429,6 +429,10 @@
   tabManual.addEventListener('click', showManual);
   tabQr.addEventListener('click', showQr);
 
+  if (new URLSearchParams(window.location.search).get('tab') === 'qr') {
+    showQr();
+  }
+
   // ── Skaner ────────────────────────────────────────────────────
   function startScanner() {
     if (qrScanning) return;
