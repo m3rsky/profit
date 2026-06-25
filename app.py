@@ -1043,6 +1043,14 @@ def set_item_value(item_id):
             item.is_checked = True
         except ValueError:
             return jsonify({'error': 'Nieprawidłowa wartość liczbowa'}), 400
+    elif task.task_type == 'measurements':
+        parts = [p.strip() for p in value.split('|')]
+        parts = (parts + ['', '', ''])[:3]
+        all_empty = all(p == '' for p in parts)
+        item.value_text = None if all_empty else '|'.join(parts)
+        if all_empty:
+            item.checked_at = None
+        item.is_checked = item.result is not None
     else:  # text — result set explicitly by OK/NG/NA buttons; just save value
         item.is_checked = item.result is not None
     db.session.commit()

@@ -33,7 +33,7 @@
         <select class="form-control" name="task_type" id="task-type-select">
           <option value="ok_ng" {% if not task or task.task_type == 'ok_ng' %}selected{% endif %}>OK / NG / N/A</option>
           <option value="numeric" {% if task and task.task_type == 'numeric' %}selected{% endif %}>Pomiar liczbowy</option>
-          <option value="text" {% if task and task.task_type == 'text' %}selected{% endif %}>Tekst / opis</option>
+          <option value="measurements" {% if task and task.task_type == 'measurements' %}selected{% endif %}>Pomiary</option>
         </select>
       </div>
       <div id="numeric-fields">

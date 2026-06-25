@@ -145,6 +145,41 @@
           <button type="button" class="btn-result btn-na {% if item.result == 'na' %}active{% endif %}"
                   data-item-id="{{ item.id }}" data-result="na">N/A</button>
         </div>
+        {% elif item.task.task_type == 'measurements' %}
+        {% set m = ((item.value_text or '') + '||').split('|') %}
+        <div class="value-row" data-item-id="{{ item.id }}" style="display:block;padding-bottom:4px">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+            <div style="flex:1;min-width:80px">
+              <small class="text-muted" style="display:block;margin-bottom:2px">Pomiar 1</small>
+              <input type="number" step="any" class="form-control measurement-input"
+                     data-item-id="{{ item.id }}" data-idx="0"
+                     value="{{ m[0] }}" placeholder="—" aria-label="Pomiar 1">
+            </div>
+            <div style="flex:1;min-width:80px">
+              <small class="text-muted" style="display:block;margin-bottom:2px">Pomiar 2</small>
+              <input type="number" step="any" class="form-control measurement-input"
+                     data-item-id="{{ item.id }}" data-idx="1"
+                     value="{{ m[1] }}" placeholder="—" aria-label="Pomiar 2">
+            </div>
+            <div style="flex:1;min-width:80px">
+              <small class="text-muted" style="display:block;margin-bottom:2px">Pomiar 3</small>
+              <input type="number" step="any" class="form-control measurement-input"
+                     data-item-id="{{ item.id }}" data-idx="2"
+                     value="{{ m[2] }}" placeholder="—" aria-label="Pomiar 3">
+            </div>
+          </div>
+          <span class="value-result-badge {% if item.result == 'ok' %}badge-success{% elif item.result == 'ng' %}badge-error{% endif %}">
+            {% if item.result %}{{ item.result | upper }}{% endif %}
+          </span>
+        </div>
+        <div class="result-buttons result-buttons--text" data-item-id="{{ item.id }}">
+          <button type="button" class="btn-result btn-ok {% if item.result == 'ok' %}active{% endif %}"
+                  data-item-id="{{ item.id }}" data-result="ok">OK</button>
+          <button type="button" class="btn-result btn-ng {% if item.result == 'ng' %}active{% endif %}"
+                  data-item-id="{{ item.id }}" data-result="ng">NG</button>
+          <button type="button" class="btn-result btn-na {% if item.result == 'na' %}active{% endif %}"
+                  data-item-id="{{ item.id }}" data-result="na">N/A</button>
+        </div>
         {% else %}
         <div class="result-buttons" data-item-id="{{ item.id }}">
           <button type="button" class="btn-result btn-ok {% if item.result == 'ok' %}active{% endif %}"
@@ -162,6 +197,16 @@
         {% if item.task.task_type in ('numeric', 'text') and item.value_text %}
         <div class="value-readonly">
           <span class="value-readonly-text">{{ item.value_text }}{% if item.task.unit %} {{ item.task.unit }}{% endif %}</span>
+          <span class="badge {% if item.result == 'ok' %}badge-success{% elif item.result == 'ng' %}badge-error{% else %}badge-neutral{% endif %}">
+            {{ item.result | upper if item.result else '—' }}
+          </span>
+        </div>
+        {% elif item.task.task_type == 'measurements' %}
+        <div class="value-readonly">
+          {% if item.value_text %}
+          {% set m = item.value_text.split('|') %}
+          <span class="value-readonly-text">{{ m | select | list | join(' / ') }}</span>
+          {% endif %}
           <span class="badge {% if item.result == 'ok' %}badge-success{% elif item.result == 'ng' %}badge-error{% else %}badge-neutral{% endif %}">
             {{ item.result | upper if item.result else '—' }}
           </span>

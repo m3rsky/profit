@@ -371,6 +371,39 @@ document.querySelectorAll('.value-input').forEach(input => {
   });
 });
 
+// ── Measurements inputs ────────────────────────────────────────────────────
+let measurementsTimer = null;
+
+async function saveMeasurements(anyInput) {
+  const itemId = anyInput.dataset.itemId;
+  const inputs = document.querySelectorAll(`.measurement-input[data-item-id="${itemId}"]`);
+  const value = Array.from(inputs).map(i => i.value.trim()).join('|');
+  try {
+    const res = await fetch(`/api/item/${itemId}/value`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': _csrf() },
+      body: JSON.stringify({ value }),
+    });
+    const data = await res.json();
+    if (!res.ok) return;
+    if (data.progress !== undefined) updateProgress(data.progress, data.stats);
+  } catch { /* silent */ }
+}
+
+document.querySelectorAll('.measurement-input').forEach(input => {
+  input.addEventListener('input', function () {
+    clearTimeout(measurementsTimer);
+    measurementsTimer = setTimeout(() => saveMeasurements(this), 700);
+  });
+  input.addEventListener('blur', function () {
+    clearTimeout(measurementsTimer);
+    saveMeasurements(this);
+  });
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); clearTimeout(measurementsTimer); saveMeasurements(this); }
+  });
+});
+
 // ── Notes autosave ─────────────────────────────────────────────────────────
 let notesTimer = null;
 document.querySelectorAll('.item-notes').forEach(textarea => {
