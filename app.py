@@ -144,6 +144,15 @@ def csrf_protect():
         abort(403)
 
 @app.before_request
+def log_api_calls():
+    if request.path.startswith('/api/'):
+        app.logger.info('API %s %s user=%s is_admin=%s',
+                        request.method, request.full_path,
+                        current_user.get_id() if current_user.is_authenticated else 'anon',
+                        getattr(current_user, 'is_admin', False))
+
+
+@app.before_request
 def check_session_timeout():
     if request.endpoint in ('login', 'static', 'sw_js', 'manifest_json'):
         return

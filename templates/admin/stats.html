@@ -194,7 +194,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
       try {
         const res  = await fetch('/api/ng-task-reports?task_id=' + taskId, {cache: 'no-store'});
-        const data = await res.json();
+        if (!res.ok) {
+          modalBody.innerHTML = '<p class="ng-modal-empty">Błąd HTTP ' + res.status + ' – ' + escHtml(res.statusText) + '</p>';
+          return;
+        }
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); }
+        catch(e) {
+          modalBody.innerHTML = '<pre style="font-size:11px;overflow:auto;max-height:200px">' + escHtml(text.slice(0, 500)) + '</pre>';
+          return;
+        }
 
         if (!data.reports || data.reports.length === 0) {
           modalBody.innerHTML = '<p class="ng-modal-empty">Brak raportów dla tego zadania.</p>';
