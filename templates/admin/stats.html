@@ -248,7 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
       modal.hidden = false;
 
       try {
-        const res  = await fetch('/api/template-duration-reports?template_id=' + tplId);
+        const res  = await fetch('/api/template-duration-reports?template_id=' + encodeURIComponent(tplId));
         const data = await res.json();
 
         if (!data.reports || data.reports.length === 0) {

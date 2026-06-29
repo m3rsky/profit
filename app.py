@@ -1414,9 +1414,13 @@ def api_ng_task_reports():
 @login_required
 @admin_required
 def api_template_duration_reports():
-    template_id = request.args.get('template_id', type=int)
+    _raw = request.args.get('template_id', '', type=str)
+    try:
+        template_id = int(_raw.split('?')[0].split('&')[0].strip())
+    except (ValueError, AttributeError):
+        template_id = None
     if not template_id:
-        return jsonify([])
+        return jsonify({'template': None, 'reports': []})
     template = ChecklistTemplate.query.get_or_404(template_id)
     reports = (Report.query
                .filter_by(template_id=template_id, status='completed')
