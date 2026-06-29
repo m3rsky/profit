@@ -1340,16 +1340,22 @@ def admin_stats_debug():
 def api_ng_task_reports():
     task_id = request.args.get('task_id', type=int)
     if not task_id:
-        return jsonify([])
+        return jsonify({'task': None, 'reports': []})
     days = request.args.get('days', 30, type=int)
     cutoff_str = (datetime.utcnow() - timedelta(days=days)).date().isoformat()
     task = Task.query.get_or_404(task_id)
-    # Normalizuj tytuł (usuń białe znaki i kropki z końca, zamień na małe)
-    # by zgrupować zadania o tej samej nazwie niezależnie od literówek/kropek
+    # Normalizuj po stronie Pythona — SQLite lower() obsługuje tylko ASCII,
+    # dlatego porównanie robimy w Pythonie, nie w SQL
     norm_title = task.title.strip().rstrip('. ').strip().lower()
-    task_ids = [t.id for t in Task.query.filter(
-        func.lower(func.trim(func.rtrim(func.trim(Task.title), '.'))) == norm_title
-    ).all()]
+    all_tasks = Task.query.all()
+    task_ids = [
+        t.id for t in all_tasks
+        if t.title.strip().rstrip('. ').strip().lower() == norm_title
+    ]
+    if task_id not in task_ids:
+        task_ids.append(task_id)
+    app.logger.info('ng-task-reports task_id=%s norm_title=%r task_ids=%s cutoff=%s',
+                    task_id, norm_title, task_ids, cutoff_str)
     items = (ReportItem.query
              .filter(ReportItem.task_id.in_(task_ids), ReportItem.result == 'ng')
              .join(Report, Report.id == ReportItem.report_id)
@@ -1357,6 +1363,7 @@ def api_ng_task_reports():
                      func.substr(Report.completed_at, 1, 10) >= cutoff_str)
              .order_by(func.substr(Report.completed_at, 1, 10).desc(), Report.id.desc())
              .all())
+    app.logger.info('ng-task-reports found %d items', len(items))
     reports_out = []
     seen = set()
     for item in items:
