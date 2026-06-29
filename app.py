@@ -1347,10 +1347,21 @@ def admin_stats_debug():
 @login_required
 @admin_required
 def api_ng_task_reports():
-    task_id = request.args.get('task_id', type=int)
+    # Passenger/IQHost może zdublować query string: ?task_id=219?task_id=219
+    # dlatego bierzemy surową wartość i wycinamy tylko część liczbową przed '?'/'&'
+    _raw = request.args.get('task_id', '', type=str)
+    try:
+        task_id = int(_raw.split('?')[0].split('&')[0].strip())
+    except (ValueError, AttributeError):
+        task_id = None
     if not task_id:
+        app.logger.warning('ng-task-reports: brak task_id, raw=%r', _raw)
         return jsonify({'task': None, 'reports': []})
-    days = request.args.get('days', 30, type=int)
+    days_raw = request.args.get('days', '30', type=str)
+    try:
+        days = int(days_raw.split('?')[0].split('&')[0].strip())
+    except (ValueError, AttributeError):
+        days = 30
     cutoff_str = (datetime.utcnow() - timedelta(days=days)).date().isoformat()
     task = Task.query.get_or_404(task_id)
     # Normalizuj po stronie Pythona — SQLite lower() obsługuje tylko ASCII,

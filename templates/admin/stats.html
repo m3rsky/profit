@@ -193,7 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
       modal.hidden = false;
 
       try {
-        const res  = await fetch('/api/ng-task-reports?task_id=' + taskId, {cache: 'no-store'});
+        const res  = await fetch('/api/ng-task-reports?task_id=' + encodeURIComponent(taskId), {cache: 'no-store'});
         if (!res.ok) {
           modalBody.innerHTML = '<p class="ng-modal-empty">Błąd HTTP ' + res.status + ' – ' + escHtml(res.statusText) + '</p>';
           return;
