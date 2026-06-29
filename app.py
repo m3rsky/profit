@@ -2882,6 +2882,11 @@ def _migrate_schema():
                 ('monoblok',      'ALTER TABLE quote_configs ADD COLUMN monoblok INTEGER DEFAULT 0'),
                 ('back_seal',     'ALTER TABLE quote_configs ADD COLUMN back_seal BOOLEAN DEFAULT 0'),
                 ('lock_standard', 'ALTER TABLE quote_configs ADD COLUMN lock_standard BOOLEAN DEFAULT 0'),
+                ('stud_m6_qty',   'ALTER TABLE quote_configs ADD COLUMN stud_m6_qty INTEGER DEFAULT 0'),
+                ('nut_m8_qty',    'ALTER TABLE quote_configs ADD COLUMN nut_m8_qty INTEGER DEFAULT 0'),
+                ('hinge_qty',     'ALTER TABLE quote_configs ADD COLUMN hinge_qty INTEGER DEFAULT 0'),
+                ('screw_cap_qty', 'ALTER TABLE quote_configs ADD COLUMN screw_cap_qty INTEGER DEFAULT 0'),
+                ('plug_qty',      'ALTER TABLE quote_configs ADD COLUMN plug_qty INTEGER DEFAULT 0'),
             ]:
                 if col not in cols:
                     conn.execute(text(ddl)); conn.commit()

@@ -298,6 +298,36 @@
                    class="input" min="0" value="0" title="Godziny projektowania">
           </div>
         </div>
+
+        <!-- Osprzęt — ilości ręczne -->
+        <p class="section-title" style="margin-top:20px">Osprzęt — ilości ręczne</p>
+        <div class="form-grid" style="max-width:600px">
+          <div>
+            <label class="label" for="k_stud">Trzpień M6 (szt)</label>
+            <input type="number" id="k_stud" name="stud_m6_qty"
+                   class="input" min="0" value="0" title="Trzpienie wstrzeliwane M6 do płyty montażowej">
+          </div>
+          <div>
+            <label class="label" for="k_nut">Nakrętka M8 (szt)</label>
+            <input type="number" id="k_nut" name="nut_m8_qty"
+                   class="input" min="0" value="0" title="Nakrętki z podkładką M8 do płyty montażowej">
+          </div>
+          <div>
+            <label class="label" for="k_hinge">Zawiasy (szt)</label>
+            <input type="number" id="k_hinge" name="hinge_qty"
+                   class="input" min="0" value="0" title="Zawiasy drzwi">
+          </div>
+          <div>
+            <label class="label" for="k_screw">Śruby do kap łącznie (szt)</label>
+            <input type="number" id="k_screw" name="screw_cap_qty"
+                   class="input" min="0" value="0" title="Łączna ilość śrub do wszystkich kap">
+          </div>
+          <div>
+            <label class="label" for="k_plug">Zaślepki łącznie (szt)</label>
+            <input type="number" id="k_plug" name="plug_qty"
+                   class="input" min="0" value="0" title="Łączna ilość zaślepek otworów">
+          </div>
+        </div>
       </div>
     </div>
 
@@ -549,7 +579,8 @@
   // ── Input listeners ──────────────────────────────────────────────────────
 
   ['k_width','k_height','k_depth','k_tb','k_tp',
-   'k_reinf','k_cable','k_beam','k_design'].forEach(function (id) {
+   'k_reinf','k_cable','k_beam','k_design',
+   'k_stud','k_nut','k_hinge','k_screw','k_plug'].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) el.addEventListener('input', window.schedulePreview);
   });

@@ -113,21 +113,29 @@ def _standard_hardware(cfg, prices) -> list:
     hw = []
 
     if cfg.get('has_mounting_plate'):
-        hw.append({'name': 'Trzpień wstrzeliwany M6', 'qty': 20, 'unit': 'szt',
-                   'unit_price': prices.get('stud_m6', 0.20),
-                   'total': round(20 * prices.get('stud_m6', 0.20), 2)})
-        hw.append({'name': 'Nakrętka z podkładką M8', 'qty': 20, 'unit': 'szt',
-                   'unit_price': prices.get('nut_m8', 0.05),
-                   'total': round(20 * prices.get('nut_m8', 0.05), 2)})
+        qty_m6 = cfg.get('stud_m6_qty', 0)
+        if qty_m6 > 0:
+            hw.append({'name': 'Trzpień wstrzeliwany M6', 'qty': qty_m6, 'unit': 'szt',
+                       'unit_price': prices.get('stud_m6', 0.20),
+                       'total': round(qty_m6 * prices.get('stud_m6', 0.20), 2)})
+        qty_m8 = cfg.get('nut_m8_qty', 0)
+        if qty_m8 > 0:
+            hw.append({'name': 'Nakrętka z podkładką M8', 'qty': qty_m8, 'unit': 'szt',
+                       'unit_price': prices.get('nut_m8', 0.05),
+                       'total': round(qty_m8 * prices.get('nut_m8', 0.05), 2)})
 
     n_cap = cfg.get('cable_entries', 0)
     if n_cap:
-        hw.append({'name': 'Komplet śrub do kap', 'qty': n_cap * 10, 'unit': 'szt',
-                   'unit_price': prices.get('screw_cap', 0.05),
-                   'total': round(n_cap * 10 * prices.get('screw_cap', 0.05), 2)})
-        hw.append({'name': 'Zaślepka otworów', 'qty': n_cap * 2, 'unit': 'szt',
-                   'unit_price': prices.get('plug', 0.16),
-                   'total': round(n_cap * 2 * prices.get('plug', 0.16), 2)})
+        qty_screw = cfg.get('screw_cap_qty', 0)
+        if qty_screw > 0:
+            hw.append({'name': 'Komplet śrub do kap', 'qty': qty_screw, 'unit': 'szt',
+                       'unit_price': prices.get('screw_cap', 0.05),
+                       'total': round(qty_screw * prices.get('screw_cap', 0.05), 2)})
+        qty_plug = cfg.get('plug_qty', 0)
+        if qty_plug > 0:
+            hw.append({'name': 'Zaślepka otworów', 'qty': qty_plug, 'unit': 'szt',
+                       'unit_price': prices.get('plug', 0.16),
+                       'total': round(qty_plug * prices.get('plug', 0.16), 2)})
 
     W = cfg.get('width', 0)
     H = cfg.get('height', 0)
@@ -147,8 +155,8 @@ def _standard_hardware(cfg, prices) -> list:
                    'unit_price': round(cap_sl * seal, 2),
                    'total': round(n_cap * cap_sl * seal, 2)})
 
-    hinge_qty = 3 if cfg.get('door_single') else (4 if cfg.get('door_double') else 0)
-    if hinge_qty:
+    hinge_qty = cfg.get('hinge_qty', 0)
+    if hinge_qty > 0:
         hw.append({'name': 'Zawias', 'qty': hinge_qty, 'unit': 'szt',
                    'unit_price': prices.get('hinge', 6.0),
                    'total': round(hinge_qty * prices.get('hinge', 6.0), 2)})
@@ -415,16 +423,18 @@ def calculate_psh_inox(cfg: dict, prices: dict, labor_rates: dict) -> dict:
 
     hw = []
     if cfg.get('has_mounting_plate'):
-        hw.append({'name': 'Trzpień wstrzeliwany M6', 'qty': 20, 'unit': 'szt',
-                   'unit_price': p.get('stud_m6', 0.20),
-                   'total': round(20 * p.get('stud_m6', 0.20), 2)})
+        qty_m6 = cfg.get('stud_m6_qty', 0)
+        if qty_m6 > 0:
+            hw.append({'name': 'Trzpień wstrzeliwany M6', 'qty': qty_m6, 'unit': 'szt',
+                       'unit_price': p.get('stud_m6', 0.20),
+                       'total': round(qty_m6 * p.get('stud_m6', 0.20), 2)})
     seal = p.get('seal', 11.0)
     if cfg.get('door_single'):
         sl = 2 * (H + W) / 1000
         hw.append({'name': 'Uszczelka drzwi', 'qty': 1, 'unit': 'kpl',
                    'unit_price': round(sl * seal, 2), 'total': round(sl * seal, 2)})
-    hinge_qty = 3 if cfg.get('door_single') else (4 if cfg.get('door_double') else 0)
-    if hinge_qty:
+    hinge_qty = cfg.get('hinge_qty', 0)
+    if hinge_qty > 0:
         hw.append({'name': 'Zawias INOX', 'qty': hinge_qty, 'unit': 'szt',
                    'unit_price': p.get('hinge', 6.0),
                    'total': round(hinge_qty * p.get('hinge', 6.0), 2)})

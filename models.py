@@ -425,6 +425,12 @@ class QuoteConfig(db.Model):
     back_seal           = db.Column(db.Boolean, default=False)
     non_standard_color  = db.Column(db.Boolean, default=False)
     design_hours        = db.Column(db.Integer, default=0)
+    # Osprzęt — ilości ręczne
+    stud_m6_qty         = db.Column(db.Integer, default=0)
+    nut_m8_qty          = db.Column(db.Integer, default=0)
+    hinge_qty           = db.Column(db.Integer, default=0)
+    screw_cap_qty       = db.Column(db.Integer, default=0)
+    plug_qty            = db.Column(db.Integer, default=0)
     # Wycena
     margin              = db.Column(db.Float, default=2.15)
     discount_pct        = db.Column(db.Float, default=0.0)
