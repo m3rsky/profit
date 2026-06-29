@@ -34,7 +34,10 @@ def _element(name, qty, L, W, thickness, material='DC01', has_paint=True,
         c_paint = 0.0
     elif material == 'INOX304':
         c_sheet = weight * prices.get('inox304', 18.0)
-        c_paint = 0.0  # INOX nie wymaga malowania
+        c_paint = 0.0
+    elif material == 'INOX316':
+        c_sheet = weight * prices.get('inox316', 25.0)
+        c_paint = 0.0
     else:
         c_sheet = weight * prices.get('dc01', 4.0)
         c_paint = 0.0
@@ -375,48 +378,51 @@ def calculate_psh_inox(cfg: dict, prices: dict, labor_rates: dict) -> dict:
 
     lr = labor_rates.get(lr_key, {})
     p  = prices
-    # Mnożnik na robociznę dla INOX (trudniejsze spawanie i szlifowanie)
-    factor = prices.get('inox_labor_factor', 1.4)
+    # Gatunek INOX: '304' (domyślnie) lub '316'
+    grade = cfg.get('inox_grade', '304')
+    mat   = 'INOX316' if grade == '316' else 'INOX304'
+    factor_key = 'inox316_labor_factor' if grade == '316' else 'inox_labor_factor'
+    factor = prices.get(factor_key, 1.6 if grade == '316' else 1.4)
     labor_total = (lr.get('laser', 0) + lr.get('bending', 0) +
                    lr.get('welding', 0) * factor +
                    lr.get('grinding', 0) * factor +
                    lr.get('assembly', 0) + lr.get('packaging', 0))
 
     elements = []
-    elements.append(_element('Boki',            2, H, D + 50,       tb, 'INOX304', False, 'szt', p))
-    elements.append(_element('Góra/dół',        2, W, D + 50,       tb, 'INOX304', False, 'szt', p))
+    elements.append(_element('Boki',            2, H, D + 50,       tb, mat, False, 'szt', p))
+    elements.append(_element('Góra/dół',        2, W, D + 50,       tb, mat, False, 'szt', p))
     elements.append(_element('Tył',
                              1 if cfg.get('back_welded') or cfg.get('back_screwed') else 0,
-                             H, W, tb, 'INOX304', False, 'szt', p))
+                             H, W, tb, mat, False, 'szt', p))
     elements.append(_element('Wzmocnienie tył',
                              1 if cfg.get('back_welded') else 0,
-                             H - 50, 60, 1.5, 'INOX304', False, 'szt', p))
+                             H - 50, 60, 1.5, mat, False, 'szt', p))
     elements.append(_element('Drzwi pojedyncze',
                              1 if cfg.get('door_single') else 0,
-                             H + 50, W + 50, tb, 'INOX304', False, 'szt', p))
+                             H + 50, W + 50, tb, mat, False, 'szt', p))
     dbl = 1 if cfg.get('door_double') else 0
-    elements.append(_element('Drzwi prawe', dbl, H + 50, W // 2 + 50, tb, 'INOX304', False, 'szt', p))
-    elements.append(_element('Drzwi lewe',  dbl, H + 50, W // 2 + 50, tb, 'INOX304', False, 'szt', p))
+    elements.append(_element('Drzwi prawe', dbl, H + 50, W // 2 + 50, tb, mat, False, 'szt', p))
+    elements.append(_element('Drzwi lewe',  dbl, H + 50, W // 2 + 50, tb, mat, False, 'szt', p))
     elements.append(_element('Kapa na przewody',
                              cfg.get('cable_entries', 0),
-                             300, 150, 1.5, 'INOX304', False, 'szt', p))
+                             300, 150, 1.5, mat, False, 'szt', p))
     plinth_L = 2 * (W + D)
-    elements.append(_element('Cokol',
+    elements.append(_element('Cokól',
                              1 if cfg.get('plinth') else 0,
-                             plinth_L, 150, 2.0, 'INOX304', False, 'kpl', p))
-    elements.append(_element('Plyta montazowa',
+                             plinth_L, 150, 2.0, mat, False, 'kpl', p))
+    elements.append(_element('Płyta montażowa',
                              1 if cfg.get('has_mounting_plate') else 0,
                              H - 50, W - 50, tp, 'DX51', False, 'szt', p))
 
-    # Odpad INOX (liczymy od blachy INOX)
+    # Odpad INOX (liczymy od blachy wybranego gatunku)
     total_weight = sum(e['weight_total'] for e in elements)
     inox_sheet   = sum(e['cost_sheet'] for e in elements
-                       if e['material'] == 'INOX304' and e['qty'] > 0)
+                       if e['material'] == mat and e['qty'] > 0)
     waste_weight = round(total_weight * WASTE_PCT, 2)
     waste_cost   = round(inox_sheet * WASTE_PCT, 2)
     waste = {
         'name': f'Odpad {int(WASTE_PCT*100)}%', 'qty': 1, 'unit': 'szt',
-        'material': 'INOX304',
+        'material': mat,
         'weight_total': waste_weight,
         'cost_total':   waste_cost,
     }
@@ -537,6 +543,7 @@ def calculate_psh_modular(cfg: dict, prices: dict, labor_rates: dict) -> dict:
     return {
         'volume':       volume,
         'volume_range': lr_key,
+        'inox_grade':   grade,
         'labor_detail': lr,
         'labor_total':  round(labor_total, 2),
         'elements':     elements,

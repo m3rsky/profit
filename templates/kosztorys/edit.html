@@ -143,6 +143,22 @@
             {% endfor %}
           </div>
 
+          <div id="inox-grade-section" style="display:none">
+            <p class="section-title" style="margin-top:20px">Gatunek stali nierdzewnej</p>
+            <div style="display:flex;gap:12px;margin-bottom:4px">
+              <label class="check-item" style="flex:1">
+                <input type="radio" name="inox_grade" value="304"
+                       {% if not cfg or cfg.inox_grade != '316' %}checked{% endif %}>
+                <span>INOX 304 — standardowy</span>
+              </label>
+              <label class="check-item" style="flex:1">
+                <input type="radio" name="inox_grade" value="316"
+                       {% if cfg and cfg.inox_grade == '316' %}checked{% endif %}>
+                <span>INOX 316 — kwasoodporny</span>
+              </label>
+            </div>
+          </div>
+
           <p class="section-title" style="margin-top:20px">Osprzęt — ilości ręczne</p>
           <div class="form-grid">
             {% set hw_opts = [
@@ -227,4 +243,20 @@
     </div>
   </div>
 </form>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  function toggleInoxSection() {
+    var sel = document.getElementById('edit_cabinet');
+    var opt = sel ? sel.options[sel.selectedIndex] : null;
+    var isInox = opt && opt.text.toUpperCase().indexOf('INOX') !== -1;
+    var section = document.getElementById('inox-grade-section');
+    if (section) section.style.display = isInox ? 'block' : 'none';
+  }
+  var cabinetSel = document.getElementById('edit_cabinet');
+  if (cabinetSel) cabinetSel.addEventListener('change', toggleInoxSection);
+  toggleInoxSection();
+})();
+</script>
 {% endblock %}

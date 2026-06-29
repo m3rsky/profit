@@ -570,6 +570,7 @@ def _cfg_from_form(f) -> dict:
         'back_seal':          _bool('back_seal'),
         'non_standard_color': _bool('non_standard_color'),
         'design_hours':       _int('design_hours'),
+        'inox_grade':         f.get('inox_grade', '304') if f.get('inox_grade') in ('304', '316') else '304',
         'stud_m6_qty':        _int('stud_m6_qty', 0),
         'nut_m8_qty':         _int('nut_m8_qty', 0),
         'hinge_qty':          _int('hinge_qty', 0),

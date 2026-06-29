@@ -175,6 +175,20 @@
             </div>
           </div>
 
+          <div id="inox-grade-section" style="display:none">
+            <p class="section-title" style="margin-top:20px">Gatunek stali nierdzewnej</p>
+            <div style="display:flex;gap:12px;margin-bottom:4px">
+              <label class="check-item" style="flex:1">
+                <input type="radio" name="inox_grade" value="304" class="calc-trigger" checked>
+                <span>INOX 304 — standardowy</span>
+              </label>
+              <label class="check-item" style="flex:1">
+                <input type="radio" name="inox_grade" value="316" class="calc-trigger">
+                <span>INOX 316 — kwasoodporny</span>
+              </label>
+            </div>
+          </div>
+
           <p class="section-title" style="margin-top:20px">Osprzęt — ilości ręczne</p>
           <div class="form-grid">
             <div>
@@ -282,6 +296,8 @@
      'lock_three_point','lock_cam','plinth','canopy','non_standard_color'].forEach(function(k) {
       if (!data[k]) data[k] = '';
     });
+    // Radio inox_grade — domyślnie 304
+    if (!data['inox_grade']) data['inox_grade'] = '304';
 
     preview.innerHTML = '<p class="text-muted" style="font-size:13px">Obliczanie...</p>';
 
@@ -315,6 +331,20 @@
     })
     .catch(function() { preview.innerHTML = '<p class="text-danger">Błąd kalkulacji.</p>'; });
   }
+
+  function toggleInoxSection() {
+    var sel = document.getElementById('cabinet_type_id');
+    var opt = sel ? sel.options[sel.selectedIndex] : null;
+    var isInox = opt && opt.text.toUpperCase().indexOf('INOX') !== -1;
+    var section = document.getElementById('inox-grade-section');
+    if (section) section.style.display = isInox ? 'block' : 'none';
+  }
+
+  var cabinetSel = document.getElementById('cabinet_type_id');
+  if (cabinetSel) {
+    cabinetSel.addEventListener('change', function() { toggleInoxSection(); runCalc(); });
+  }
+  toggleInoxSection();
 
   btn.addEventListener('click', runCalc);
 

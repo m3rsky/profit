@@ -299,6 +299,21 @@
           </div>
         </div>
 
+        <!-- Gatunek INOX (widoczny tylko dla PSH INOX) -->
+        <div id="inox-grade-section" style="display:none">
+          <p class="section-title" style="margin-top:20px">Gatunek stali nierdzewnej</p>
+          <div style="display:flex;gap:12px;margin-bottom:8px">
+            <label class="opt-item" style="flex:1">
+              <input type="radio" name="inox_grade" value="304" checked>
+              <span>INOX 304 — standardowy</span>
+            </label>
+            <label class="opt-item" style="flex:1">
+              <input type="radio" name="inox_grade" value="316">
+              <span>INOX 316 — kwasoodporny</span>
+            </label>
+          </div>
+        </div>
+
         <!-- Osprzęt — ilości ręczne -->
         <p class="section-title" style="margin-top:20px">Osprzęt — ilości ręczne</p>
         <div class="form-grid" style="max-width:600px">
@@ -440,10 +455,11 @@
   };
 
   function applyFamilyDefaults(family) {
-    var catSection  = document.getElementById('catalog-section');
-    var dimsSection = document.getElementById('dims-section');
-    var dimsHeader  = dimsSection.querySelector('.card-header');
-    var beamLabel   = document.getElementById('beam-label');
+    var catSection   = document.getElementById('catalog-section');
+    var dimsSection  = document.getElementById('dims-section');
+    var beamLabel    = document.getElementById('beam-label');
+    var inoxSection  = document.getElementById('inox-grade-section');
+    if (inoxSection) inoxSection.style.display = (family === 'inox') ? 'block' : 'none';
 
     if (family === 'compact') {
       catSection.style.display = 'block';
@@ -529,6 +545,8 @@
      'plinth','canopy','non_standard_color'].forEach(function (name) {
       if (!obj[name]) obj[name] = '';
     });
+    // Radio inox_grade — domyślnie 304 jeśli nie zaznaczono
+    if (!obj['inox_grade']) obj['inox_grade'] = '304';
 
     var csrfToken = document.querySelector('[name=_csrf_token]').value;
 

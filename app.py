@@ -2918,6 +2918,7 @@ def _migrate_schema():
                 ('hinge_qty',     'ALTER TABLE quote_configs ADD COLUMN hinge_qty INTEGER DEFAULT 0'),
                 ('screw_cap_qty', 'ALTER TABLE quote_configs ADD COLUMN screw_cap_qty INTEGER DEFAULT 0'),
                 ('plug_qty',      'ALTER TABLE quote_configs ADD COLUMN plug_qty INTEGER DEFAULT 0'),
+                ('inox_grade',    "ALTER TABLE quote_configs ADD COLUMN inox_grade VARCHAR(4) DEFAULT '304'"),
             ]:
                 if col not in cols:
                     conn.execute(text(ddl)); conn.commit()
@@ -3185,7 +3186,10 @@ def _seed_kosztorys():
         ('fixed_costs',       'Koszty stałe (sprz./licencje)',  50.00,  'PLN/szt'),
         ('custom_color',      'Kolor niestandardowy',           100.00,  'PLN/szt'),
         ('design_hour',       'Koszt projektowania',            200.00,  'PLN/h'),
-        ('inox_labor_factor', 'Mnożnik robocizny INOX',           1.40,  'mnożnik'),
+        ('inox_labor_factor',     'Mnożnik robocizny INOX 304',       1.40,  'mnożnik'),
+        ('inox316',               'Blacha INOX 316',                 25.00,  'PLN/kg'),
+        ('inox316_labor_factor',  'Mnożnik robocizny INOX 316',       1.60,  'mnożnik'),
+        ('lock_standard',         'Zamek zwykły',                     5.00,  'PLN/szt'),
     ]
     for code, name, price, unit in default_prices:
         if not MaterialPrice.query.filter_by(code=code).first():

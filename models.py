@@ -425,6 +425,8 @@ class QuoteConfig(db.Model):
     back_seal           = db.Column(db.Boolean, default=False)
     non_standard_color  = db.Column(db.Boolean, default=False)
     design_hours        = db.Column(db.Integer, default=0)
+    # INOX — gatunek stali
+    inox_grade          = db.Column(db.String(4), default='304')  # '304' lub '316'
     # Osprzęt — ilości ręczne
     stud_m6_qty         = db.Column(db.Integer, default=0)
     nut_m8_qty          = db.Column(db.Integer, default=0)
