@@ -1,57 +1,14 @@
 """
 Testy automatyczne – PSH System Kontroli Jakości
 Uruchomienie: pytest tests/ -v
+
+Fixtures `app`/`client` oraz dane startowe (użytkownicy admin/oper,
+szablon 'Test szablon') pochodzą z tests/conftest.py — współdzielone
+z tests/test_api_v1.py, bo Flask nie pozwala dwukrotnie zainicjować
+tej samej aplikacji.
 """
-import os
-import pytest
-from sqlalchemy.pool import StaticPool
-from app import app as flask_app, db as _db
-from models import User, ChecklistTemplate, Category, Task, Report, ReportItem
-
-
-@pytest.fixture(scope='session')
-def app():
-    flask_app.config.update({
-        'TESTING': True,
-        'SQLALCHEMY_DATABASE_URI': 'sqlite:///:memory:',
-        'SQLALCHEMY_ENGINE_OPTIONS': {
-            'connect_args': {'check_same_thread': False},
-            'poolclass': StaticPool,
-        },
-        'WTF_CSRF_ENABLED': False,
-        'UPLOAD_FOLDER': os.path.join(os.path.dirname(__file__), 'tmp_uploads'),
-        'SECRET_KEY': 'test-secret',
-    })
-    flask_app.extensions.pop("sqlalchemy", None)
-    _db.init_app(flask_app)
-    with flask_app.app_context():
-        _db.create_all()
-        _seed()
-    yield flask_app
-
-
-def _seed():
-    admin = User(username='admin', email='admin@test.pl', role='admin')
-    admin.set_password('Admin1234!')
-    user = User(username='oper', email='oper@test.pl', role='kontroler')
-    user.set_password('Oper1234!')
-    _db.session.add_all([admin, user])
-    _db.session.flush()
-
-    tmpl = ChecklistTemplate(name='Test szablon', is_active=True)
-    _db.session.add(tmpl)
-    _db.session.flush()
-    cat = Category(template_id=tmpl.id, name='Kategoria', order=0)
-    _db.session.add(cat)
-    _db.session.flush()
-    task = Task(category_id=cat.id, title='Zadanie testowe', order=0, is_active=True)
-    _db.session.add(task)
-    _db.session.commit()
-
-
-@pytest.fixture
-def client(app):
-    return app.test_client()
+from app import app as flask_app
+from models import ChecklistTemplate, ReportItem
 
 
 def _csrf(client):
@@ -183,7 +140,10 @@ class TestResultAPI:
     def _get_item_id(self, client):
         login(client, 'oper', 'Oper1234!')
         with flask_app.app_context():
-            item = ReportItem.query.first()
+            # .desc() — z tests/test_api_v1.py współdzielącym tę samą bazę
+            # mogą już istnieć wcześniejsze (i zamknięte) raporty; bierzemy
+            # najświeższy element, żeby nie trafić na zakończony raport.
+            item = ReportItem.query.order_by(ReportItem.id.desc()).first()
             return item.id if item else None
 
     def test_set_result_ok(self, client):

@@ -43,6 +43,7 @@ app.register_blueprint(spawalnia_bp)
 
 from qar import qar_bp  # noqa: E402
 app.register_blueprint(qar_bp)
+from qar.routes import _next_qar_number  # noqa: E402 — reużyte przez /api/v1/qar
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 _log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
@@ -141,6 +142,10 @@ def csrf_protect():
         return
     if request.endpoint == 'api_desktop_login':
         return
+    if request.path.startswith('/api/v1/'):
+        # /api/v1/* jest chronione kluczem API (api_key_required), nie sesją
+        # przeglądarki — CSRF sesyjny nie ma tu zastosowania.
+        return
     token = session.get('_csrf_token')
     form_token = request.form.get('_csrf_token') or request.headers.get('X-CSRF-Token')
     if not token or not form_token or not secrets.compare_digest(token, form_token or ''):
@@ -209,6 +214,22 @@ def monter_required(f):
     def decorated(*args, **kwargs):
         if not current_user.is_authenticated or (not current_user.is_monter and not current_user.is_admin):
             abort(403)
+        return f(*args, **kwargs)
+    return decorated
+
+
+def api_key_required(f):
+    """Zabezpiecza endpointy /api/v1/* kluczem API (nagłówek X-API-Key).
+
+    Wymagane dla integracji zewnętrznych (np. Streamsoft) — bez tego dekoratora
+    endpointy /api/v1/* byłyby publicznie dostępne bez żadnej autoryzacji."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        key = request.headers.get('X-API-Key', '')
+        expected = app.config.get('API_KEY', '')
+        if not expected or not key or not secrets.compare_digest(key, expected):
+            app.logger.warning('API key mismatch endpoint=%s ip=%s', request.endpoint, request.remote_addr)
+            return jsonify({'error': 'unauthorized'}), 401
         return f(*args, **kwargs)
     return decorated
 
@@ -1932,15 +1953,19 @@ def _find_matching_template(product_name, template_type='kontroler'):
     return candidates[0][1]
 
 
-def _create_reports_for_template(order, template, rtype):
-    """Tworzy quantity raportów jednego typu (kontroler lub monter)."""
+def _create_reports_for_template(order, template, rtype, user_id=None):
+    """Tworzy quantity raportów jednego typu (kontroler lub monter).
+
+    `user_id` pozwala nadpisać autora raportów, gdy wywołanie nie pochodzi
+    z sesji przeglądarki (np. tworzenie zamówienia przez /api/v1/orders)."""
+    uid = user_id if user_id is not None else current_user.id
     bid = uuid.uuid4().hex if order.quantity > 1 else None
     for unit in range(1, order.quantity + 1):
         label = 'kontrola QA' if rtype == 'kontroler' else 'montaż'
         title = f'{order.product_name} – {order.client} – {label} szt. {unit}/{order.quantity}'
         if order.due_date:
             title += f' (termin {order.due_date.strftime("%d.%m.%Y")})'
-        report = Report(user_id=current_user.id, template_id=template.id,
+        report = Report(user_id=uid, template_id=template.id,
                         order_id=order.id, title=title, report_type=rtype,
                         batch_id=bid,
                         batch_index=unit if bid else None,
@@ -1952,11 +1977,11 @@ def _create_reports_for_template(order, template, rtype):
                 db.session.add(ReportItem(report_id=report.id, task_id=task.id))
 
 
-def _create_order_reports(order, template, monter_template=None):
+def _create_order_reports(order, template, monter_template=None, user_id=None):
     """Tworzy quantity raportów powiązanych z zamówieniem + alerty."""
-    _create_reports_for_template(order, template, 'kontroler')
+    _create_reports_for_template(order, template, 'kontroler', user_id=user_id)
     if monter_template:
-        _create_reports_for_template(order, monter_template, 'monter')
+        _create_reports_for_template(order, monter_template, 'monter', user_id=user_id)
 
     due_str = order.due_date.strftime('%d.%m.%Y') if order.due_date else '—'
 
@@ -2904,6 +2929,7 @@ def _migrate_schema():
             for col, ddl in [
                 ('monter_template_id', 'ALTER TABLE orders ADD COLUMN monter_template_id INTEGER REFERENCES checklist_templates(id)'),
                 ('pdf_filename',       'ALTER TABLE orders ADD COLUMN pdf_filename VARCHAR(256)'),
+                ('external_number',    'ALTER TABLE orders ADD COLUMN external_number VARCHAR(64)'),
             ]:
                 if col not in cols:
                     conn.execute(text(ddl)); conn.commit()
@@ -2969,17 +2995,24 @@ def _api_checklist_dict(report):
         'id': report.id, 'title': report.title, 'status': report.status,
         'author': report.author.username,
         'created_at': report.created_at.isoformat(),
+        'started_at': report.started_at.isoformat() if report.started_at else None,
         'completed_at': report.completed_at.isoformat() if report.completed_at else None,
+        'duration_seconds': report.duration_seconds,
+        'duration_str': report.duration_str,
         'order': {
             'id': report.order.id, 'number': report.order.number,
             'product_name': report.order.product_name, 'client': report.order.client,
         } if report.order else None,
         'template': report.template.name if report.template else None,
-        'stats': report.stats, 'items': items,
+        'stats': report.stats,
+        'score': report.score,
+        'compliant': report.stats['ng'] == 0,
+        'items': items,
     }
 
 
 @app.route('/api/v1/templates', methods=['GET'])
+@api_key_required
 def api_v1_templates():
     templates = (ChecklistTemplate.query
                  .filter_by(is_active=True)
@@ -2991,6 +3024,7 @@ def api_v1_templates():
 
 
 @app.route('/api/v1/checklists', methods=['GET'])
+@api_key_required
 def api_v1_checklists():
     status       = request.args.get('status', '')
     template_id  = request.args.get('template_id', type=int)
@@ -3038,6 +3072,7 @@ def api_v1_checklists():
 
 
 @app.route('/api/v1/checklists', methods=['POST'])
+@api_key_required
 def api_v1_create_checklist():
     data        = request.get_json(silent=True) or {}
     template_id = data.get('template_id')
@@ -3081,30 +3116,299 @@ def api_v1_create_checklist():
 
 
 @app.route('/api/v1/checklists/<int:report_id>', methods=['GET'])
+@api_key_required
 def api_v1_checklist_detail(report_id):
     report = Report.query.get_or_404(report_id)
     return jsonify(_api_checklist_dict(report))
 
 
-@app.route('/api/v1/orders', methods=['GET'])
-def api_v1_orders():
-    orders = Order.query.filter(Order.status != 'shipped').order_by(Order.created_at.desc()).all()
-    return jsonify([{
-        'id': o.id, 'number': o.number, 'product_name': o.product_name,
+def _api_order_dict(o):
+    return {
+        'id': o.id, 'number': o.number, 'external_number': o.external_number,
+        'product_name': o.product_name,
         'client': o.client, 'quantity': o.quantity,
         'due_date': o.due_date.isoformat() if o.due_date else None,
         'status': o.status,
         'template': o.template.name if o.template else None,
+        'monter_template': o.monter_template.name if o.monter_template else None,
         'reports_total': o.reports_total, 'reports_done': o.reports_done,
         'has_ng': o.has_ng,
         'created_at': o.created_at.isoformat(),
-    } for o in orders])
+    }
+
+
+@app.route('/api/v1/orders', methods=['GET'])
+@api_key_required
+def api_v1_orders():
+    external_number = request.args.get('external_number', '').strip()
+    q = Order.query
+    if external_number:
+        q = q.filter_by(external_number=external_number)
+    else:
+        q = q.filter(Order.status != 'shipped')
+    orders = q.order_by(Order.created_at.desc()).all()
+    return jsonify([_api_order_dict(o) for o in orders])
+
+
+@app.route('/api/v1/orders/<int:order_id>', methods=['GET'])
+@api_key_required
+def api_v1_order_detail(order_id):
+    order = Order.query.get_or_404(order_id)
+    return jsonify(_api_order_dict(order))
+
+
+@app.route('/api/v1/orders', methods=['POST'])
+@api_key_required
+def api_v1_create_order():
+    data    = request.get_json(silent=True) or {}
+    number  = (data.get('number') or '').strip()
+    product = (data.get('product_name') or '').strip()
+    client  = (data.get('client') or '').strip()
+    if not number or not product or not client:
+        return jsonify({'error': 'number, product_name i client są wymagane'}), 400
+    if Order.query.filter_by(number=number).first():
+        return jsonify({'error': f'Zamówienie {number!r} już istnieje'}), 409
+
+    try:
+        quantity = max(1, int(data.get('quantity', 1)))
+    except (TypeError, ValueError):
+        quantity = 1
+    due = _parse_order_date((data.get('due_date') or '').strip())
+    external_number = (data.get('external_number') or '').strip() or None
+
+    admin_user = User.query.filter_by(role='admin').first()
+    if not admin_user:
+        return jsonify({'error': 'Brak użytkownika systemowego (admin)'}), 500
+
+    order = Order(number=number, product_name=product, client=client,
+                  quantity=quantity, due_date=due, external_number=external_number,
+                  created_by_id=admin_user.id)
+    db.session.add(order)
+    db.session.flush()
+
+    tpl        = _find_matching_template(product, 'kontroler')
+    monter_tpl = _find_matching_template(product, 'monter')
+    if tpl:
+        _create_order_reports(order, tpl, monter_tpl, user_id=admin_user.id)
+    db.session.commit()
+    _audit('api_order_create', 'order', order.id,
+           f'number={number} external={external_number} tpl={tpl.name if tpl else "none"}')
+    return jsonify({
+        'ok': True, 'id': order.id, 'number': order.number,
+        'template_matched': tpl.name if tpl else None,
+        'monter_template_matched': monter_tpl.name if (tpl and monter_tpl) else None,
+    }), 201
 
 
 @app.route('/api/v1/report/<int:report_id>', methods=['GET'])
+@api_key_required
 def api_v1_report(report_id):
     report = Report.query.get_or_404(report_id)
     return jsonify(_api_checklist_dict(report))
+
+
+@app.route('/api/v1/checklists/<int:report_id>/start', methods=['POST'])
+@api_key_required
+def api_v1_start_checklist(report_id):
+    report = Report.query.get_or_404(report_id)
+    if report.status == 'completed':
+        return jsonify({'error': 'Raport jest już zakończony'}), 400
+    now = datetime.now(UTC)
+    if report.started_at is None:
+        report.started_at = now
+    db.session.add(ChecklistSession(report_id=report.id, started_at=now))
+    db.session.commit()
+    _audit('api_checklist_start', 'report', report.id, report.title)
+    return jsonify(_api_checklist_dict(report))
+
+
+@app.route('/api/v1/checklists/<int:report_id>/complete', methods=['POST'])
+@api_key_required
+def api_v1_complete_checklist(report_id):
+    report = Report.query.get_or_404(report_id)
+    if report.status == 'completed':
+        return jsonify({'error': 'Raport jest już zakończony'}), 400
+    now_utc = datetime.now(UTC)
+    for open_session in ChecklistSession.query.filter_by(report_id=report_id, ended_at=None).all():
+        open_session.ended_at = now_utc
+    total_seconds = 0
+    for s in ChecklistSession.query.filter_by(report_id=report_id).all():
+        if s.ended_at is None:
+            continue
+        s_start = s.started_at if s.started_at.tzinfo else s.started_at.replace(tzinfo=UTC)
+        s_end   = s.ended_at   if s.ended_at.tzinfo   else s.ended_at.replace(tzinfo=UTC)
+        total_seconds += int((s_end - s_start).total_seconds())
+    report.status           = 'completed'
+    report.completed_at     = now_utc
+    report.locked_by_id     = None
+    report.locked_at        = None
+    report.duration_seconds = total_seconds if total_seconds > 0 else None
+    db.session.flush()
+    if report.order_id:
+        _notify_order_report_done(report)
+        _check_order_complete(report.order)
+    db.session.commit()
+    _audit('api_checklist_complete', 'report', report.id, report.title)
+    return jsonify(_api_checklist_dict(report))
+
+
+@app.route('/api/v1/prices', methods=['GET'])
+@api_key_required
+def api_v1_prices():
+    return jsonify([{
+        'code': p.code, 'name': p.name, 'price': p.price, 'unit': p.unit,
+        'updated_at': p.updated_at.isoformat() if p.updated_at else None,
+    } for p in MaterialPrice.query.order_by(MaterialPrice.code).all()])
+
+
+@app.route('/api/v1/labor-rates', methods=['GET'])
+@api_key_required
+def api_v1_labor_rates():
+    return jsonify([{
+        'volume_range': r.volume_range, 'label': r.label,
+        'laser': r.laser, 'bending': r.bending, 'welding': r.welding,
+        'grinding': r.grinding, 'assembly': r.assembly, 'packaging': r.packaging,
+        'total': r.total,
+    } for r in LaborRate.query.all()])
+
+
+@app.route('/api/v1/quotes', methods=['GET'])
+@api_key_required
+def api_v1_quotes():
+    status_f = request.args.get('status', '')
+    q = Quote.query
+    if status_f in ('draft', 'sent', 'accepted', 'closed'):
+        q = q.filter_by(status=status_f)
+    quotes = q.order_by(Quote.created_at.desc()).limit(200).all()
+    return jsonify([{
+        'id': quote.id, 'number': quote.number, 'client_name': quote.client_name,
+        'cabinet_type': quote.cabinet_type.name if quote.cabinet_type else None,
+        'status': quote.status, 'created_at': quote.created_at.isoformat(),
+    } for quote in quotes])
+
+
+@app.route('/api/v1/quotes/<int:quote_id>', methods=['GET'])
+@api_key_required
+def api_v1_quote_detail(quote_id):
+    quote = Quote.query.get_or_404(quote_id)
+    cfg = quote.config
+    return jsonify({
+        'id': quote.id, 'number': quote.number, 'client_name': quote.client_name,
+        'cabinet_type': quote.cabinet_type.name if quote.cabinet_type else None,
+        'status': quote.status, 'created_at': quote.created_at.isoformat(),
+        'dimensions': {'width': cfg.width, 'height': cfg.height, 'depth': cfg.depth} if cfg else None,
+        'calculation': cfg.calculation if cfg else None,
+    })
+
+
+def _api_spawalnia_record_dict(r):
+    return {
+        'id': r.id, 'batch_index': r.batch_index, 'batch_total': r.batch_total,
+        'is_empty': r.is_empty, 'has_ng': r.has_ng,
+        'otworowanie': r.otworowanie, 'przekatna': r.przekatna,
+        'przekatna_odchylka': r.przekatna_odchylka,
+        'pomiar1': r.pomiar1, 'pomiar2': r.pomiar2, 'pomiar3': r.pomiar3,
+        'jakosc_wyciecia': r.jakosc_wyciecia,
+        'operator': r.operator.initials if r.operator else None,
+        'giecie_operator': r.giecie_operator.initials if r.giecie_operator else None,
+        'ciecie_operator': r.ciecie_operator.initials if r.ciecie_operator else None,
+        'created_at': r.created_at.isoformat(),
+        'updated_at': r.updated_at.isoformat(),
+    }
+
+
+@app.route('/api/v1/spawalnia/<path:zo_number>', methods=['GET'])
+@api_key_required
+def api_v1_spawalnia_get(zo_number):
+    zo_number = zo_number.strip()
+    records = SpawalniaRecord.query.filter_by(zo_number=zo_number).all()
+    records.sort(key=lambda r: (r.batch_index if r.batch_index is not None else 9999, r.created_at))
+    return jsonify({
+        'zo_number': zo_number,
+        'records': [_api_spawalnia_record_dict(r) for r in records],
+    })
+
+
+@app.route('/api/v1/spawalnia/<path:zo_number>', methods=['POST'])
+@api_key_required
+def api_v1_spawalnia_create(zo_number):
+    zo_number = zo_number.strip()
+    if not zo_number:
+        return jsonify({'error': 'Numer ZO jest wymagany'}), 400
+    data = request.get_json(silent=True) or {}
+    try:
+        quantity = max(1, min(99, int(data.get('quantity', 1))))
+    except (TypeError, ValueError):
+        quantity = 1
+    admin_user = User.query.filter_by(role='admin').first()
+    if not admin_user:
+        return jsonify({'error': 'Brak użytkownika systemowego (admin)'}), 500
+
+    bid = uuid.uuid4().hex if quantity > 1 else None
+    created_ids = []
+    for i in range(1, quantity + 1):
+        rec = SpawalniaRecord(
+            zo_number=zo_number, batch_id=bid,
+            batch_index=i if quantity > 1 else None,
+            batch_total=quantity if quantity > 1 else None,
+            created_by_id=admin_user.id,
+        )
+        db.session.add(rec)
+        db.session.flush()
+        created_ids.append(rec.id)
+    db.session.commit()
+    _audit('api_spawalnia_create', 'SpawalniaRecord', created_ids[0], f'ZO={zo_number} qty={quantity}')
+    return jsonify({'ok': True, 'zo_number': zo_number, 'created_ids': created_ids}), 201
+
+
+@app.route('/api/v1/qar', methods=['GET'])
+@api_key_required
+def api_v1_qar_list():
+    status_f = request.args.get('status', '')
+    q = QARReport.query
+    if status_f in ('open', 'in_progress', 'closed'):
+        q = q.filter_by(status=status_f)
+    reports = q.order_by(QARReport.created_at.desc()).limit(200).all()
+    return jsonify([{
+        'id': r.id, 'number': r.number, 'title': r.title, 'category': r.category,
+        'status': r.status, 'created_at': r.created_at.isoformat(),
+    } for r in reports])
+
+
+@app.route('/api/v1/qar/<int:report_id>', methods=['GET'])
+@api_key_required
+def api_v1_qar_detail(report_id):
+    r = QARReport.query.get_or_404(report_id)
+    return jsonify({
+        'id': r.id, 'number': r.number, 'title': r.title, 'category': r.category,
+        'location': r.location, 'description': r.description, 'findings': r.findings,
+        'resolution': r.resolution, 'status': r.status,
+        'created_at': r.created_at.isoformat(),
+        'verified_at': r.verified_at.isoformat() if r.verified_at else None,
+    })
+
+
+@app.route('/api/v1/qar', methods=['POST'])
+@api_key_required
+def api_v1_qar_create():
+    data        = request.get_json(silent=True) or {}
+    title       = (data.get('title') or '').strip()
+    description = (data.get('description') or '').strip()
+    if not title or not description:
+        return jsonify({'error': 'title i description są wymagane'}), 400
+    admin_user = User.query.filter_by(role='admin').first()
+    if not admin_user:
+        return jsonify({'error': 'Brak użytkownika systemowego (admin)'}), 500
+    report = QARReport(
+        number=_next_qar_number(), title=title,
+        category=(data.get('category') or '').strip() or None,
+        location=(data.get('location') or '').strip() or None,
+        description=description, user_id=admin_user.id,
+    )
+    db.session.add(report)
+    db.session.commit()
+    _audit('api_qar_create', 'qar_report', report.id, f'number={report.number}')
+    return jsonify({'ok': True, 'id': report.id, 'number': report.number}), 201
 
 
 def _seed_demo_data():

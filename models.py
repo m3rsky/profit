@@ -260,6 +260,7 @@ class Order(db.Model):
     status        = db.Column(db.String(32), default='active')
     # active / in_control / ready_to_ship / shipped
     notes         = db.Column(db.Text, nullable=True)
+    external_number = db.Column(db.String(64), nullable=True)  # nr zamówienia w systemie ERP (np. Streamsoft)
     template_id        = db.Column(db.Integer, db.ForeignKey('checklist_templates.id'), nullable=True)
     monter_template_id = db.Column(db.Integer, db.ForeignKey('checklist_templates.id'), nullable=True)
     pdf_filename       = db.Column(db.String(256), nullable=True)
