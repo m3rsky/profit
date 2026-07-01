@@ -1,6 +1,16 @@
 {% extends "base.html" %}
 {% block title %}Nowy raport QAR{% endblock %}
 
+{% block head %}
+<style>
+@media (max-width: 640px) {
+  .qar-two-col { grid-template-columns: 1fr !important; }
+  .qar-form-card { max-width: 100% !important; }
+  .form-control, textarea.form-control { font-size: 16px; } /* zapobiega zoom na iOS */
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="page-header" style="margin-bottom:20px;">
   <a href="{{ url_for('qar.list_reports') }}" class="btn btn-outline btn-sm" style="margin-bottom:8px;">
@@ -12,7 +22,7 @@
   </h1>
 </div>
 
-<div class="card" style="max-width:760px;">
+<div class="card qar-form-card" style="max-width:760px;">
   <div class="card-body">
     <form method="post">
       {{ csrf_input() }}
@@ -22,13 +32,14 @@
         <input type="text" name="title" class="form-control"
                value="{{ form.get('title', '') }}"
                placeholder="Krótki, opisowy tytuł niezgodności"
-               required maxlength="256">
+               required maxlength="256"
+               style="font-size:16px;">
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+      <div class="qar-two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
         <div class="form-group">
           <label class="form-label">Kategoria</label>
-          <select name="category" class="form-control">
+          <select name="category" class="form-control" style="font-size:16px;">
             <option value="">— wybierz kategorię —</option>
             {% for cat in categories %}
               <option value="{{ cat }}" {% if form.get('category') == cat %}selected{% endif %}>{{ cat }}</option>
@@ -39,8 +50,8 @@
           <label class="form-label">Lokalizacja / obiekt</label>
           <input type="text" name="location" class="form-control"
                  value="{{ form.get('location', '') }}"
-                 placeholder="np. linia spawalnicza, magazyn…"
-                 maxlength="128">
+                 placeholder="np. linia spawalnicza…"
+                 maxlength="128" style="font-size:16px;">
         </div>
       </div>
 
@@ -48,12 +59,12 @@
         <label class="form-label">Opis problemu <span style="color:#c0392b;">*</span></label>
         <textarea name="description" class="form-control" rows="5"
                   placeholder="Szczegółowy opis wykrytej niezgodności…"
-                  required>{{ form.get('description', '') }}</textarea>
+                  required style="font-size:16px;">{{ form.get('description', '') }}</textarea>
       </div>
 
-      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;">
-        <a href="{{ url_for('qar.list_reports') }}" class="btn btn-outline">Anuluj</a>
-        <button type="submit" class="btn btn-primary">
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;flex-wrap:wrap;">
+        <a href="{{ url_for('qar.list_reports') }}" class="btn btn-outline" style="flex:1;text-align:center;min-width:100px;">Anuluj</a>
+        <button type="submit" class="btn btn-primary" style="flex:2;min-width:140px;">
           <i class="bi bi-check-lg"></i> Utwórz raport
         </button>
       </div>

@@ -1,16 +1,35 @@
 {% extends "base.html" %}
 {% block title %}{{ report.number }}{% endblock %}
 
+{% block head %}
+<style>
+/* ── QAR detail – mobile ── */
+.qar-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+@media (max-width: 640px) {
+  .qar-actions .btn,
+  .qar-actions form { width: 100%; }
+  .qar-actions form .btn { width: 100%; }
+  .qar-actions .ml-auto { margin-left: 0 !important; }
+  .qar-photo-header { flex-direction: column; align-items: flex-start !important; gap: 8px; }
+  .qar-upload-btn { width: 100%; text-align: center; justify-content: center; }
+  .qar-meta-grid { grid-template-columns: 1fr 1fr !important; }
+  .form-control, textarea.form-control, select.form-control { font-size: 16px; }
+}
+/* Duży przycisk dodaj zdjęcie na touch ── */
+.qar-upload-btn { min-height: 38px; display: inline-flex; align-items: center; gap: 6px; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div style="margin-bottom:12px;display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
   <a href="{{ url_for('qar.list_reports') }}" class="btn btn-outline btn-sm">
     <i class="bi bi-arrow-left"></i> Lista
   </a>
-  <h1 class="page-title" style="font-size:1.2rem;margin:0;flex:1;">
-    <span class="font-mono" style="color:var(--accent,#1a6e8a);">{{ report.number }}</span>
-    — {{ report.title }}
+  <h1 class="page-title" style="font-size:1.1rem;margin:0;flex:1;min-width:0;overflow-wrap:break-word;">
+    <span class="font-mono" style="color:var(--accent,#1a6e8a);white-space:nowrap;">{{ report.number }}</span>
+    <span style="color:#999;margin:0 4px;">—</span>{{ report.title }}
   </h1>
-  <span class="badge {{ report.status_css }}" style="font-size:0.85rem;padding:5px 12px;">
+  <span class="badge {{ report.status_css }}" style="font-size:0.85rem;padding:5px 12px;white-space:nowrap;">
     {{ report.status_label }}
   </span>
 </div>
@@ -18,13 +37,13 @@
 {# ── Metadane ── #}
 <div class="card" style="margin-bottom:16px;">
   <div class="card-body" style="padding:14px 18px;">
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;font-size:0.87rem;">
+    <div class="qar-meta-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;font-size:0.87rem;">
       <div>
         <span class="text-muted">Kategoria</span><br>
         <strong>{{ report.category or '—' }}</strong>
       </div>
       <div>
-        <span class="text-muted">Lokalizacja / obiekt</span><br>
+        <span class="text-muted">Lokalizacja</span><br>
         <strong>{{ report.location or '—' }}</strong>
       </div>
       <div>
@@ -32,18 +51,18 @@
         <strong>{{ report.author.username }}</strong>
       </div>
       <div>
-        <span class="text-muted">Data utworzenia</span><br>
+        <span class="text-muted">Data</span><br>
         <strong>{{ report.created_at | localdt }}</strong>
       </div>
       {% if report.updated_at and report.updated_at != report.created_at %}
       <div>
-        <span class="text-muted">Ostatnia zmiana</span><br>
+        <span class="text-muted">Zmieniony</span><br>
         <strong>{{ report.updated_at | localdt }}</strong>
       </div>
       {% endif %}
       {% if report.verified_by %}
       <div>
-        <span class="text-muted">Zamknięty przez</span><br>
+        <span class="text-muted">Zamknął</span><br>
         <strong>{{ report.verified_by.username }}</strong>
         {% if report.verified_at %}<br><span style="color:#666;font-size:0.8rem;">{{ report.verified_at | localdt }}</span>{% endif %}
       </div>
@@ -56,10 +75,10 @@
 {% macro text_section(icon, title, content, accent_color='#1a3a5c') %}
   {% if content %}
   <div class="card" style="margin-bottom:14px;">
-    <div class="card-header" style="background:{{ accent_color }};color:#fff;padding:8px 16px;font-weight:600;font-size:0.9rem;border-radius:var(--radius,6px) var(--radius,6px) 0 0;">
+    <div class="card-header" style="background:{{ accent_color }};color:#fff;padding:10px 16px;font-weight:600;font-size:0.9rem;border-radius:var(--radius,6px) var(--radius,6px) 0 0;">
       <i class="bi {{ icon }}" style="margin-right:6px;"></i>{{ title }}
     </div>
-    <div class="card-body" style="padding:14px 18px;white-space:pre-wrap;font-size:0.9rem;line-height:1.6;">{{ content }}</div>
+    <div class="card-body" style="padding:14px 18px;white-space:pre-wrap;font-size:0.9rem;line-height:1.7;">{{ content }}</div>
   </div>
   {% endif %}
 {% endmacro %}
@@ -70,49 +89,56 @@
 
 {# ── Zdjęcia ── #}
 <div class="card" style="margin-bottom:16px;">
-  <div class="card-header" style="background:#1a3a5c;color:#fff;padding:8px 16px;font-weight:600;font-size:0.9rem;border-radius:var(--radius,6px) var(--radius,6px) 0 0;display:flex;align-items:center;justify-content:space-between;">
-    <span><i class="bi bi-camera" style="margin-right:6px;"></i>Dokumentacja fotograficzna
+  <div class="card-header qar-photo-header" style="background:#1a3a5c;color:#fff;padding:10px 16px;font-weight:600;font-size:0.9rem;border-radius:var(--radius,6px) var(--radius,6px) 0 0;display:flex;align-items:center;justify-content:space-between;">
+    <span>
+      <i class="bi bi-camera" style="margin-right:6px;"></i>Dokumentacja fotograficzna
       <span id="photo-count-badge" style="font-weight:400;font-size:0.8rem;margin-left:6px;opacity:0.85;">
         ({{ report.photos.count() }} zdjęć)
       </span>
     </span>
     {% if report.status != 'closed' or current_user.is_admin %}
-    <label class="btn btn-outline btn-xs" style="cursor:pointer;border-color:#fff;color:#fff;" id="upload-label">
-      <i class="bi bi-upload"></i> Dodaj zdjęcie
-      <input type="file" id="photo-file-input" accept="image/*" style="display:none;">
+    <label class="btn btn-outline btn-sm qar-upload-btn" style="cursor:pointer;border-color:#fff;color:#fff;">
+      <i class="bi bi-camera-fill"></i> Dodaj zdjęcie
+      <input type="file" id="photo-file-input" accept="image/*" capture="environment" style="display:none;">
     </label>
     {% endif %}
   </div>
   <div class="card-body" style="padding:14px;">
-    <div id="photo-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;">
+    {% if not report.photos.count() and (report.status != 'closed' or current_user.is_admin) %}
+    <label style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+                  border:2px dashed var(--border,#ccc);border-radius:8px;padding:32px;cursor:pointer;
+                  color:#888;gap:8px;" for="photo-file-input">
+      <i class="bi bi-camera-fill" style="font-size:2rem;"></i>
+      <span>Dotknij aby dodać zdjęcie</span>
+    </label>
+    {% endif %}
+    <div id="photo-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;{% if not report.photos.count() %}margin-top:12px;{% endif %}">
       {% for photo in report.photos %}
       <div class="photo-card" id="photo-card-{{ photo.id }}" style="border:1px solid var(--border,#ddd);border-radius:6px;overflow:hidden;background:#fafafa;">
         <a href="{{ url_for('qar.serve_photo', filename=photo.filename) }}" target="_blank">
           <img src="{{ url_for('qar.serve_photo', filename=photo.filename) }}"
-               style="width:100%;height:140px;object-fit:cover;display:block;">
+               style="width:100%;height:150px;object-fit:cover;display:block;">
         </a>
-        <div style="padding:6px 8px;">
+        <div style="padding:8px;">
           {% if report.status != 'closed' or current_user.is_admin %}
-          <input type="text" class="form-control photo-caption-input" style="font-size:0.8rem;padding:3px 6px;"
+          <input type="text" class="form-control photo-caption-input" style="font-size:0.85rem;padding:4px 8px;"
                  placeholder="Podpis…" value="{{ photo.caption or '' }}"
                  data-photo-id="{{ photo.id }}"
                  onblur="saveCaption({{ photo.id }}, this.value)">
-          {% else %}
-          <span style="font-size:0.8rem;color:#666;">{{ photo.caption or '' }}</span>
-          {% endif %}
-          {% if report.status != 'closed' or current_user.is_admin %}
-          <button class="btn btn-outline btn-xs" style="margin-top:4px;width:100%;color:#c0392b;border-color:#c0392b;"
+          <button class="btn btn-outline btn-xs" style="margin-top:6px;width:100%;color:#c0392b;border-color:#c0392b;min-height:36px;"
                   onclick="deletePhoto({{ photo.id }})">
             <i class="bi bi-trash"></i> Usuń
           </button>
+          {% else %}
+          <span style="font-size:0.8rem;color:#666;">{{ photo.caption or '' }}</span>
           {% endif %}
         </div>
       </div>
       {% endfor %}
     </div>
     <div id="upload-progress" style="display:none;margin-top:10px;">
-      <div class="progress-bar-wrap" style="background:#e8f0f7;border-radius:4px;height:6px;overflow:hidden;">
-        <div class="progress-bar-inner" style="background:#1a6e8a;height:100%;width:0%;transition:width 0.3s;"></div>
+      <div style="background:#e8f0f7;border-radius:4px;height:6px;overflow:hidden;">
+        <div id="progress-bar" style="background:#1a6e8a;height:100%;width:60%;"></div>
       </div>
       <span style="font-size:0.8rem;color:#666;">Wysyłanie…</span>
     </div>
@@ -120,23 +146,24 @@
 </div>
 
 {# ── Akcje ── #}
-<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;">
+<div class="qar-actions">
   <a href="{{ url_for('qar.export_pdf', report_id=report.id) }}"
-     class="btn btn-outline" target="_blank">
-    <i class="bi bi-file-earmark-pdf"></i> Pobierz PDF
+     class="btn btn-outline" target="_blank" style="min-height:42px;display:inline-flex;align-items:center;gap:6px;">
+    <i class="bi bi-file-earmark-pdf"></i> PDF
   </a>
 
   {% if report.status != 'closed' or current_user.is_admin %}
-  <a href="{{ url_for('qar.edit_report', report_id=report.id) }}" class="btn btn-secondary">
+  <a href="{{ url_for('qar.edit_report', report_id=report.id) }}" class="btn btn-secondary"
+     style="min-height:42px;display:inline-flex;align-items:center;gap:6px;">
     <i class="bi bi-pencil"></i> Edytuj
   </a>
   {% endif %}
 
   {% if report.status != 'closed' %}
   <form method="post" action="{{ url_for('qar.close_report', report_id=report.id) }}"
-        onsubmit="return confirm('Zamknąć raport {{ report.number }}?');">
+        onsubmit="return confirm('Zamknąć raport {{ report.number }}?');" style="flex:1;">
     {{ csrf_input() }}
-    <button type="submit" class="btn btn-success">
+    <button type="submit" class="btn btn-success" style="min-height:42px;width:100%;">
       <i class="bi bi-check2-circle"></i> Zamknij raport
     </button>
   </form>
@@ -145,7 +172,7 @@
   {% if report.status == 'closed' and current_user.is_admin %}
   <form method="post" action="{{ url_for('qar.reopen_report', report_id=report.id) }}">
     {{ csrf_input() }}
-    <button type="submit" class="btn btn-outline">
+    <button type="submit" class="btn btn-outline" style="min-height:42px;">
       <i class="bi bi-arrow-counterclockwise"></i> Wznów
     </button>
   </form>
@@ -156,7 +183,7 @@
         onsubmit="return confirm('Usunąć raport {{ report.number }}? Tej operacji nie można cofnąć.');"
         style="margin-left:auto;">
     {{ csrf_input() }}
-    <button type="submit" class="btn btn-outline" style="color:#c0392b;border-color:#c0392b;">
+    <button type="submit" class="btn btn-outline" style="color:#c0392b;border-color:#c0392b;min-height:42px;">
       <i class="bi bi-trash"></i> Usuń
     </button>
   </form>
@@ -172,8 +199,7 @@ document.getElementById('photo-file-input').addEventListener('change', function(
   if (!file) return;
   const formData = new FormData();
   formData.append('photo', file);
-  const progress = document.getElementById('upload-progress');
-  progress.style.display = 'block';
+  document.getElementById('upload-progress').style.display = 'block';
   fetch(`/qar/${REPORT_ID}/photo`, {
     method: 'POST',
     headers: { 'X-CSRF-Token': CSRF },
@@ -181,16 +207,19 @@ document.getElementById('photo-file-input').addEventListener('change', function(
   })
   .then(r => r.json())
   .then(data => {
-    progress.style.display = 'none';
+    document.getElementById('upload-progress').style.display = 'none';
     this.value = '';
     if (data.ok) {
       addPhotoCard(data.photo_id, data.url);
       updatePhotoCount(1);
+      // Ukryj duży placeholder po dodaniu pierwszego zdjęcia
+      const placeholder = document.querySelector('label[for="photo-file-input"]');
+      if (placeholder && placeholder !== document.querySelector('.qar-upload-btn')) placeholder.style.display = 'none';
     } else {
       alert(data.error || 'Błąd wysyłania.');
     }
   })
-  .catch(() => { progress.style.display = 'none'; alert('Błąd sieci.'); });
+  .catch(() => { document.getElementById('upload-progress').style.display = 'none'; alert('Błąd sieci.'); });
 });
 
 function addPhotoCard(photoId, url) {
@@ -201,14 +230,14 @@ function addPhotoCard(photoId, url) {
   div.style.cssText = 'border:1px solid var(--border,#ddd);border-radius:6px;overflow:hidden;background:#fafafa;';
   div.innerHTML = `
     <a href="${url}" target="_blank">
-      <img src="${url}" style="width:100%;height:140px;object-fit:cover;display:block;">
+      <img src="${url}" style="width:100%;height:150px;object-fit:cover;display:block;">
     </a>
-    <div style="padding:6px 8px;">
-      <input type="text" class="form-control photo-caption-input" style="font-size:0.8rem;padding:3px 6px;"
+    <div style="padding:8px;">
+      <input type="text" class="form-control photo-caption-input" style="font-size:0.85rem;padding:4px 8px;"
              placeholder="Podpis…" value=""
              data-photo-id="${photoId}"
              onblur="saveCaption(${photoId}, this.value)">
-      <button class="btn btn-outline btn-xs" style="margin-top:4px;width:100%;color:#c0392b;border-color:#c0392b;"
+      <button class="btn btn-outline btn-xs" style="margin-top:6px;width:100%;color:#c0392b;border-color:#c0392b;min-height:36px;"
               onclick="deletePhoto(${photoId})">
         <i class="bi bi-trash"></i> Usuń
       </button>
@@ -247,8 +276,7 @@ function updatePhotoCount(delta) {
   if (!badge) return;
   const m = badge.textContent.match(/\d+/);
   const current = m ? parseInt(m[0]) : 0;
-  const next = Math.max(0, current + delta);
-  badge.textContent = `(${next} zdjęć)`;
+  badge.textContent = `(${Math.max(0, current + delta)} zdjęć)`;
 }
 </script>
 {% endblock %}

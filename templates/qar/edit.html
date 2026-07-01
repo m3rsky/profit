@@ -1,6 +1,18 @@
 {% extends "base.html" %}
 {% block title %}Edycja {{ report.number }}{% endblock %}
 
+{% block head %}
+<style>
+@media (max-width: 640px) {
+  .qar-two-col { grid-template-columns: 1fr !important; }
+  .qar-edit-card { max-width: 100% !important; }
+  .form-control, textarea.form-control, select.form-control { font-size: 16px; }
+  .qar-edit-btns { flex-direction: column-reverse; }
+  .qar-edit-btns .btn { width: 100%; text-align: center; }
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div style="margin-bottom:12px;">
   <a href="{{ url_for('qar.detail_report', report_id=report.id) }}" class="btn btn-outline btn-sm">
@@ -8,7 +20,7 @@
   </a>
 </div>
 
-<div class="card" style="max-width:800px;">
+<div class="card qar-edit-card" style="max-width:800px;">
   <div class="card-header" style="padding:12px 18px;border-bottom:1px solid var(--border,#ddd);">
     <h2 style="margin:0;font-size:1.1rem;">
       <i class="bi bi-pencil-square" style="color:var(--accent,#1a6e8a);margin-right:6px;"></i>
@@ -25,7 +37,7 @@
                value="{{ report.title }}" required maxlength="256">
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+      <div class="qar-two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
         <div class="form-group">
           <label class="form-label">Kategoria</label>
           <select name="category" class="form-control">
@@ -67,21 +79,19 @@
 
       <div class="form-group" style="margin-bottom:18px;">
         <label class="form-label">Status</label>
-        <select name="status" class="form-control" style="width:180px;">
+        <select name="status" class="form-control" style="max-width:200px;">
           <option value="open"        {% if report.status == 'open' %}selected{% endif %}>Otwarty</option>
           <option value="in_progress" {% if report.status == 'in_progress' %}selected{% endif %}>W toku</option>
           <option value="closed"      {% if report.status == 'closed' %}selected{% endif %}>Zamknięty</option>
         </select>
-        {% if not current_user.is_admin %}
         <small class="text-muted" style="display:block;margin-top:4px;">
-          Zmiana na „Zamknięty" spowoduje zapis Twojego podpisu i daty weryfikacji.
+          Zmiana na „Zamknięty" zapisuje Twój podpis i datę weryfikacji.
         </small>
-        {% endif %}
       </div>
 
-      <div style="display:flex;justify-content:flex-end;gap:8px;">
+      <div class="qar-edit-btns" style="display:flex;justify-content:flex-end;gap:8px;">
         <a href="{{ url_for('qar.detail_report', report_id=report.id) }}" class="btn btn-outline">Anuluj</a>
-        <button type="submit" class="btn btn-primary">
+        <button type="submit" class="btn btn-primary" style="min-height:42px;">
           <i class="bi bi-check-lg"></i> Zapisz zmiany
         </button>
       </div>

@@ -1,8 +1,31 @@
 {% extends "base.html" %}
 {% block title %}Raporty QAR{% endblock %}
 
+{% block head %}
+<style>
+/* ── QAR list – mobile ── */
+@media (max-width: 640px) {
+  .qar-filters { flex-direction: column; }
+  .qar-filters input, .qar-filters select { width: 100% !important; }
+  .qar-filters .btn { width: 100%; }
+  .qar-table-wrap { display: none; }
+  .qar-cards { display: flex !important; }
+  .qar-card { background: var(--card-bg, #fff); border: 1px solid var(--border, #ddd);
+    border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+  .qar-card-row { display: flex; align-items: center; justify-content: space-between; }
+  .qar-card-title { font-weight: 600; font-size: 0.95rem; color: var(--text, #1a1a1a); }
+  .qar-card-meta { font-size: 0.78rem; color: #666; }
+  .qar-header-btn { width: 100%; justify-content: center; }
+  .qar-page-header { flex-direction: column; align-items: flex-start !important; }
+}
+@media (min-width: 641px) {
+  .qar-cards { display: none !important; }
+}
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:16px;">
+<div class="page-header qar-page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:16px;">
   <div>
     <h1 class="page-title" style="margin:0;font-size:1.4rem;">
       <i class="bi bi-clipboard2-pulse" style="color:var(--accent,#1a6e8a);margin-right:6px;"></i>
@@ -10,13 +33,13 @@
     </h1>
     <span class="text-muted" style="font-size:0.82rem;">Quality Action Reports — dokumentacja niezgodności</span>
   </div>
-  <a href="{{ url_for('qar.new_report') }}" class="btn btn-primary">
+  <a href="{{ url_for('qar.new_report') }}" class="btn btn-primary qar-header-btn">
     <i class="bi bi-plus-lg"></i> Nowy raport
   </a>
 </div>
 
 {# ── Filtry ── #}
-<form method="get" class="filters-bar" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;align-items:flex-end;">
+<form method="get" class="qar-filters" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;align-items:flex-end;">
   <input type="text" name="q" value="{{ filters.q }}" placeholder="Szukaj numeru, tytułu…"
          class="form-control" style="width:200px;">
   <select name="status" class="form-control" style="width:130px;">
@@ -41,9 +64,10 @@
   {% endif %}
 </form>
 
-{# ── Tabela ── #}
 {% if reports.items %}
-<div class="table-responsive">
+
+{# ── Tabela (desktop) ── #}
+<div class="qar-table-wrap table-responsive">
   <table class="table table-hover" style="font-size:0.88rem;">
     <thead>
       <tr>
@@ -69,9 +93,7 @@
         </td>
         <td>{{ r.category or '—' }}</td>
         <td style="color:#555;">{{ r.location or '—' }}</td>
-        <td>
-          <span class="badge {{ r.status_css }}">{{ r.status_label }}</span>
-        </td>
+        <td><span class="badge {{ r.status_css }}">{{ r.status_label }}</span></td>
         <td>{{ r.author.username }}</td>
         <td style="color:#666;">{{ r.created_at | localdt('%d.%m.%Y') }}</td>
         <td style="text-align:right;">
@@ -86,9 +108,34 @@
   </table>
 </div>
 
+{# ── Karty (mobile) ── #}
+<div class="qar-cards" style="flex-direction:column;gap:10px;">
+  {% for r in reports.items %}
+  <a href="{{ url_for('qar.detail_report', report_id=r.id) }}" style="text-decoration:none;color:inherit;">
+    <div class="qar-card">
+      <div class="qar-card-row">
+        <span class="font-mono" style="font-size:0.8rem;color:var(--accent,#1a6e8a);">{{ r.number }}</span>
+        <span class="badge {{ r.status_css }}">{{ r.status_label }}</span>
+      </div>
+      <div class="qar-card-title">{{ r.title }}</div>
+      <div class="qar-card-row">
+        <span class="qar-card-meta">
+          {% if r.category %}<i class="bi bi-tag"></i> {{ r.category }}{% endif %}
+          {% if r.location %} · <i class="bi bi-geo-alt"></i> {{ r.location }}{% endif %}
+        </span>
+        <span class="qar-card-meta">
+          {% if r.photos.count() %}<i class="bi bi-camera"></i> {{ r.photos.count() }} · {% endif %}
+          {{ r.created_at | localdt('%d.%m.%Y') }}
+        </span>
+      </div>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+
 {# ── Paginacja ── #}
 {% if reports.pages > 1 %}
-<div class="pagination-bar" style="display:flex;gap:4px;justify-content:center;margin-top:12px;">
+<div class="pagination-bar" style="display:flex;gap:4px;justify-content:center;margin-top:12px;flex-wrap:wrap;">
   {% if reports.has_prev %}
     <a href="{{ url_for('qar.list_reports', page=reports.prev_num, **filters) }}" class="btn btn-outline btn-xs">‹</a>
   {% endif %}
