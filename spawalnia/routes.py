@@ -12,6 +12,11 @@ from . import spawalnia_bp
 UTC = timezone.utc
 
 
+def _clean_zo(raw: str) -> str:
+    """Usuwa query string który mógł zostać doklejony przez serwer proxy."""
+    return raw.split('?')[0].strip()
+
+
 # ── Dekoratory dostępu ────────────────────────────────────────────────────────
 
 def spawalnia_required(f):
@@ -141,7 +146,7 @@ def list_records():
 @spawalnia_required
 def new_record():
     if request.method == 'POST':
-        zo = request.form.get('zo_number', '').strip()
+        zo = _clean_zo(request.form.get('zo_number', ''))
         if not zo:
             flash('Numer ZO jest wymagany.', 'warning')
             return render_template('spawalnia/new.html',
@@ -179,7 +184,7 @@ def new_record():
         return redirect(url_for('spawalnia.list_records', zo=zo))
 
     return render_template('spawalnia/new.html',
-                           prefill_zo=request.args.get('zo', ''))
+                           prefill_zo=_clean_zo(request.args.get('zo', '')))
 
 
 

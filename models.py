@@ -554,3 +554,52 @@ class SpawalniaRecord(db.Model):
 
     def __repr__(self):
         return f'<SpawalniaRecord {self.zo_number}>'
+
+
+class QARReport(db.Model):
+    __tablename__ = 'qar_reports'
+    id             = db.Column(db.Integer, primary_key=True)
+    number         = db.Column(db.String(20), unique=True, nullable=False)
+    title          = db.Column(db.String(256), nullable=False)
+    category       = db.Column(db.String(64), nullable=True)
+    location       = db.Column(db.String(128), nullable=True)
+    description    = db.Column(db.Text, nullable=False)
+    findings       = db.Column(db.Text, nullable=True)
+    resolution     = db.Column(db.Text, nullable=True)
+    status         = db.Column(db.String(16), default='open')  # open | in_progress | closed
+    user_id        = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    verified_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    verified_at    = db.Column(db.DateTime, nullable=True)
+    created_at     = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    updated_at     = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+
+    author      = db.relationship('User', foreign_keys=[user_id], backref='qar_reports')
+    verified_by = db.relationship('User', foreign_keys=[verified_by_id])
+    photos      = db.relationship('QARPhoto', backref='report', lazy='dynamic',
+                                  cascade='all, delete-orphan')
+
+    STATUS_LABELS = {'open': 'Otwarty', 'in_progress': 'W toku', 'closed': 'Zamknięty'}
+    STATUS_CSS    = {'open': 'status-warning', 'in_progress': 'status-info', 'closed': 'status-success'}
+
+    CATEGORIES = ['Spawanie', 'Montaż', 'Materiał', 'Malowanie', 'Dokumentacja', 'Inne']
+
+    @property
+    def status_label(self): return self.STATUS_LABELS.get(self.status, self.status)
+    @property
+    def status_css(self):   return self.STATUS_CSS.get(self.status, '')
+
+    def __repr__(self):
+        return f'<QARReport {self.number}>'
+
+
+class QARPhoto(db.Model):
+    __tablename__ = 'qar_photos'
+    id            = db.Column(db.Integer, primary_key=True)
+    report_id     = db.Column(db.Integer, db.ForeignKey('qar_reports.id'), nullable=False)
+    filename      = db.Column(db.String(256), nullable=False)
+    original_name = db.Column(db.String(256), nullable=True)
+    caption       = db.Column(db.String(256), nullable=True)
+    created_at    = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+
+    def __repr__(self):
+        return f'<QARPhoto {self.filename}>'

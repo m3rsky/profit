@@ -96,6 +96,11 @@
         <span class="nav-icon"><i class="bi bi-fire"></i></span>
         <span>Spawalnia</span>
       </a>
+      <a href="{{ url_for('qar.list_reports') }}"
+         class="{% if request.endpoint and request.endpoint.startswith('qar.') %}active{% endif %}">
+        <span class="nav-icon"><i class="bi bi-clipboard2-pulse"></i></span>
+        <span>Raporty QAR</span>
+      </a>
 
       <div class="sidebar-section">Zarządzanie</div>
       <a href="{{ url_for('orders_import_csv') }}"
@@ -213,6 +218,12 @@
            title="Spawalnia">
           <i class="bi bi-fire"></i>
           <span class="wk-nav-label">Spawalnia</span>
+        </a>
+        <a href="{{ url_for('qar.list_reports') }}"
+           class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('qar.') %}active{% endif %}"
+           title="Raporty QAR">
+          <i class="bi bi-clipboard2-pulse"></i>
+          <span class="wk-nav-label">QAR</span>
         </a>
         <a href="{{ url_for('admin_templates') }}"
            class="wk-nav-link {% if request.endpoint and ('template' in request.endpoint or 'category' in request.endpoint or 'task' in request.endpoint) %}active{% endif %}"

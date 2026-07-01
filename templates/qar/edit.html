@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Edycja {{ report.number }}{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:12px;">
+  <a href="{{ url_for('qar.detail_report', report_id=report.id) }}" class="btn btn-outline btn-sm">
+    <i class="bi bi-arrow-left"></i> Powrót do raportu
+  </a>
+</div>
+
+<div class="card" style="max-width:800px;">
+  <div class="card-header" style="padding:12px 18px;border-bottom:1px solid var(--border,#ddd);">
+    <h2 style="margin:0;font-size:1.1rem;">
+      <i class="bi bi-pencil-square" style="color:var(--accent,#1a6e8a);margin-right:6px;"></i>
+      Edycja — <span class="font-mono">{{ report.number }}</span>
+    </h2>
+  </div>
+  <div class="card-body" style="padding:18px;">
+    <form method="post">
+      {{ csrf_input() }}
+
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label">Tytuł <span style="color:#c0392b;">*</span></label>
+        <input type="text" name="title" class="form-control"
+               value="{{ report.title }}" required maxlength="256">
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+        <div class="form-group">
+          <label class="form-label">Kategoria</label>
+          <select name="category" class="form-control">
+            <option value="">— wybierz kategorię —</option>
+            {% for cat in categories %}
+              <option value="{{ cat }}" {% if report.category == cat %}selected{% endif %}>{{ cat }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Lokalizacja / obiekt</label>
+          <input type="text" name="location" class="form-control"
+                 value="{{ report.location or '' }}" maxlength="128">
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label" style="color:#c0392b;">
+          <i class="bi bi-exclamation-triangle"></i> Opis problemu <span>*</span>
+        </label>
+        <textarea name="description" class="form-control" rows="4" required>{{ report.description }}</textarea>
+      </div>
+
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label" style="color:#1a6e8a;">
+          <i class="bi bi-search"></i> Wnioski
+        </label>
+        <textarea name="findings" class="form-control" rows="4"
+                  placeholder="Co ustalono w toku analizy…">{{ report.findings or '' }}</textarea>
+      </div>
+
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label" style="color:#1e8449;">
+          <i class="bi bi-tools"></i> Działania naprawcze / Rozwiązanie
+        </label>
+        <textarea name="resolution" class="form-control" rows="4"
+                  placeholder="Jakie działania podjęto lub zaplanowano…">{{ report.resolution or '' }}</textarea>
+      </div>
+
+      <div class="form-group" style="margin-bottom:18px;">
+        <label class="form-label">Status</label>
+        <select name="status" class="form-control" style="width:180px;">
+          <option value="open"        {% if report.status == 'open' %}selected{% endif %}>Otwarty</option>
+          <option value="in_progress" {% if report.status == 'in_progress' %}selected{% endif %}>W toku</option>
+          <option value="closed"      {% if report.status == 'closed' %}selected{% endif %}>Zamknięty</option>
+        </select>
+        {% if not current_user.is_admin %}
+        <small class="text-muted" style="display:block;margin-top:4px;">
+          Zmiana na „Zamknięty" spowoduje zapis Twojego podpisu i daty weryfikacji.
+        </small>
+        {% endif %}
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:8px;">
+        <a href="{{ url_for('qar.detail_report', report_id=report.id) }}" class="btn btn-outline">Anuluj</a>
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-check-lg"></i> Zapisz zmiany
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Raporty QAR{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:16px;">
+  <div>
+    <h1 class="page-title" style="margin:0;font-size:1.4rem;">
+      <i class="bi bi-clipboard2-pulse" style="color:var(--accent,#1a6e8a);margin-right:6px;"></i>
+      Raporty QAR
+    </h1>
+    <span class="text-muted" style="font-size:0.82rem;">Quality Action Reports — dokumentacja niezgodności</span>
+  </div>
+  <a href="{{ url_for('qar.new_report') }}" class="btn btn-primary">
+    <i class="bi bi-plus-lg"></i> Nowy raport
+  </a>
+</div>
+
+{# ── Filtry ── #}
+<form method="get" class="filters-bar" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;align-items:flex-end;">
+  <input type="text" name="q" value="{{ filters.q }}" placeholder="Szukaj numeru, tytułu…"
+         class="form-control" style="width:200px;">
+  <select name="status" class="form-control" style="width:130px;">
+    <option value="">Wszystkie statusy</option>
+    <option value="open"        {% if filters.status == 'open' %}selected{% endif %}>Otwarty</option>
+    <option value="in_progress" {% if filters.status == 'in_progress' %}selected{% endif %}>W toku</option>
+    <option value="closed"      {% if filters.status == 'closed' %}selected{% endif %}>Zamknięty</option>
+  </select>
+  <select name="category" class="form-control" style="width:140px;">
+    <option value="">Wszystkie kategorie</option>
+    {% for cat in categories %}
+      <option value="{{ cat }}" {% if filters.category == cat %}selected{% endif %}>{{ cat }}</option>
+    {% endfor %}
+  </select>
+  <input type="date" name="date_from" value="{{ filters.date_from }}" class="form-control" style="width:140px;" title="Data od">
+  <input type="date" name="date_to"   value="{{ filters.date_to }}"   class="form-control" style="width:140px;" title="Data do">
+  <button type="submit" class="btn btn-secondary"><i class="bi bi-search"></i></button>
+  {% if filters.q or filters.status or filters.category or filters.date_from or filters.date_to %}
+    <a href="{{ url_for('qar.list_reports') }}" class="btn btn-outline" title="Wyczyść filtry">
+      <i class="bi bi-x-lg"></i>
+    </a>
+  {% endif %}
+</form>
+
+{# ── Tabela ── #}
+{% if reports.items %}
+<div class="table-responsive">
+  <table class="table table-hover" style="font-size:0.88rem;">
+    <thead>
+      <tr>
+        <th style="width:120px;">Numer</th>
+        <th>Tytuł</th>
+        <th style="width:110px;">Kategoria</th>
+        <th style="width:110px;">Lokalizacja</th>
+        <th style="width:90px;">Status</th>
+        <th style="width:90px;">Autor</th>
+        <th style="width:110px;">Data</th>
+        <th style="width:70px;"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in reports.items %}
+      <tr>
+        <td><a href="{{ url_for('qar.detail_report', report_id=r.id) }}" class="font-mono">{{ r.number }}</a></td>
+        <td>
+          <a href="{{ url_for('qar.detail_report', report_id=r.id) }}">{{ r.title }}</a>
+          {% if r.photos.count() %}
+            <i class="bi bi-camera" style="color:#888;font-size:0.75rem;margin-left:4px;" title="{{ r.photos.count() }} zdjęć"></i>
+          {% endif %}
+        </td>
+        <td>{{ r.category or '—' }}</td>
+        <td style="color:#555;">{{ r.location or '—' }}</td>
+        <td>
+          <span class="badge {{ r.status_css }}">{{ r.status_label }}</span>
+        </td>
+        <td>{{ r.author.username }}</td>
+        <td style="color:#666;">{{ r.created_at | localdt('%d.%m.%Y') }}</td>
+        <td style="text-align:right;">
+          <a href="{{ url_for('qar.export_pdf', report_id=r.id) }}"
+             class="btn btn-outline btn-xs" title="PDF" target="_blank">
+            <i class="bi bi-file-earmark-pdf"></i>
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{# ── Paginacja ── #}
+{% if reports.pages > 1 %}
+<div class="pagination-bar" style="display:flex;gap:4px;justify-content:center;margin-top:12px;">
+  {% if reports.has_prev %}
+    <a href="{{ url_for('qar.list_reports', page=reports.prev_num, **filters) }}" class="btn btn-outline btn-xs">‹</a>
+  {% endif %}
+  {% for p in reports.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+    {% if p %}
+      <a href="{{ url_for('qar.list_reports', page=p, **filters) }}"
+         class="btn btn-xs {% if p == reports.page %}btn-primary{% else %}btn-outline{% endif %}">{{ p }}</a>
+    {% else %}
+      <span class="btn btn-xs btn-outline" style="cursor:default;">…</span>
+    {% endif %}
+  {% endfor %}
+  {% if reports.has_next %}
+    <a href="{{ url_for('qar.list_reports', page=reports.next_num, **filters) }}" class="btn btn-outline btn-xs">›</a>
+  {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="empty-state" style="text-align:center;padding:48px 0;color:#888;">
+  <i class="bi bi-clipboard2-pulse" style="font-size:3rem;display:block;margin-bottom:12px;"></i>
+  <p>Brak raportów QAR{% if filters.q or filters.status or filters.category %} dla wybranych filtrów{% endif %}.</p>
+  <a href="{{ url_for('qar.new_report') }}" class="btn btn-primary" style="margin-top:8px;">
+    <i class="bi bi-plus-lg"></i> Utwórz pierwszy raport
+  </a>
+</div>
+{% endif %}
+{% endblock %}

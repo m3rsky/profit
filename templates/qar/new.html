@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Nowy raport QAR{% endblock %}
+
+{% block content %}
+<div class="page-header" style="margin-bottom:20px;">
+  <a href="{{ url_for('qar.list_reports') }}" class="btn btn-outline btn-sm" style="margin-bottom:8px;">
+    <i class="bi bi-arrow-left"></i> Powrót
+  </a>
+  <h1 class="page-title" style="font-size:1.3rem;margin:0;">
+    <i class="bi bi-clipboard2-plus" style="color:var(--accent,#1a6e8a);margin-right:6px;"></i>
+    Nowy raport QAR
+  </h1>
+</div>
+
+<div class="card" style="max-width:760px;">
+  <div class="card-body">
+    <form method="post">
+      {{ csrf_input() }}
+
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label">Tytuł raportu <span style="color:#c0392b;">*</span></label>
+        <input type="text" name="title" class="form-control"
+               value="{{ form.get('title', '') }}"
+               placeholder="Krótki, opisowy tytuł niezgodności"
+               required maxlength="256">
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+        <div class="form-group">
+          <label class="form-label">Kategoria</label>
+          <select name="category" class="form-control">
+            <option value="">— wybierz kategorię —</option>
+            {% for cat in categories %}
+              <option value="{{ cat }}" {% if form.get('category') == cat %}selected{% endif %}>{{ cat }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Lokalizacja / obiekt</label>
+          <input type="text" name="location" class="form-control"
+                 value="{{ form.get('location', '') }}"
+                 placeholder="np. linia spawalnicza, magazyn…"
+                 maxlength="128">
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label">Opis problemu <span style="color:#c0392b;">*</span></label>
+        <textarea name="description" class="form-control" rows="5"
+                  placeholder="Szczegółowy opis wykrytej niezgodności…"
+                  required>{{ form.get('description', '') }}</textarea>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;">
+        <a href="{{ url_for('qar.list_reports') }}" class="btn btn-outline">Anuluj</a>
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-check-lg"></i> Utwórz raport
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -26,7 +26,8 @@ from models import (db, User, ChecklistTemplate, Category, Task, Report, ReportI
                     CabinetType, MaterialPrice, LaborRate, Quote, QuoteConfig,
                     CatalogProduct,
                     SpawalniaOperator, SpawalniaRecord,
-                    ChecklistSession)
+                    ChecklistSession,
+                    QARReport, QARPhoto)
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -39,6 +40,9 @@ app.register_blueprint(kosztorys_bp)
 
 from spawalnia import spawalnia_bp  # noqa: E402
 app.register_blueprint(spawalnia_bp)
+
+from qar import qar_bp  # noqa: E402
+app.register_blueprint(qar_bp)
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 _log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
@@ -2822,6 +2826,7 @@ def internal_error(e):
 def init_db():
     os.makedirs('instance', exist_ok=True)
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    os.makedirs(app.config['QAR_UPLOAD_FOLDER'], exist_ok=True)
     with app.app_context():
         _migrate_schema()
         db.create_all()
@@ -2939,6 +2944,7 @@ def _migrate_schema():
                 if col not in cols:
                     conn.execute(text(ddl)); conn.commit()
         # audit_log / orders / alerts created by db.create_all()
+        # qar_reports and qar_photos created by db.create_all() on first run
 
 
 # ── REST API v1 — integracja z ERP ────────────────────────────────────────────
