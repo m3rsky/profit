@@ -95,12 +95,19 @@
         </a>
         {% endif %}
 
-        <a href="{{ url_for('spawalnia.new_record', zo=zo) }}"
-           class="btn btn-sm btn-outline sp-group-add-btn"
-           title="Dodaj kolejny wpis dla ZO {{ zo }}"
-           onclick="event.stopPropagation()">
-          <i class="bi bi-plus"></i>
-        </a>
+        <form method="post"
+              action="{{ url_for('spawalnia.add_to_zo') }}"
+              class="form-inline"
+              onclick="event.stopPropagation()"
+              onsubmit="event.stopPropagation()">
+          {{ csrf_input() }}
+          <input type="hidden" name="zo_number" value="{{ zo }}">
+          <button type="submit"
+                  class="btn btn-sm btn-outline sp-group-add-btn"
+                  title="Dodaj kolejny wpis dla ZO {{ zo }}">
+            <i class="bi bi-plus"></i>
+          </button>
+        </form>
 
         {% if current_user.role in ('admin', 'kontroler') %}
         <form method="post"

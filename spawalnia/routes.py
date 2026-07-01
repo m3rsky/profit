@@ -139,6 +139,30 @@ def list_records():
                            total=len(records))
 
 
+# ── Szybkie dodanie wpisu do istniejącej grupy ZO (przycisk "+") ─────────────
+
+@spawalnia_bp.route('/add_to_zo', methods=['POST'])
+@login_required
+@spawalnia_required
+def add_to_zo():
+    zo = _clean_zo(request.form.get('zo_number', ''))
+    if not zo:
+        flash('Brak numeru ZO.', 'warning')
+        return redirect(url_for('spawalnia.list_records'))
+
+    rec = SpawalniaRecord(
+        zo_number     = zo,
+        created_by_id = current_user.id,
+    )
+    db.session.add(rec)
+    db.session.flush()
+    _audit('spawalnia_create', 'SpawalniaRecord', rec.id, f'ZO={zo} (quick-add)')
+    db.session.commit()
+
+    flash(f'Dodano nowy wpis do ZO {zo}.', 'success')
+    return redirect(url_for('spawalnia.list_records', zo=zo))
+
+
 # ── Nowy wpis — tylko ZO + ilość ─────────────────────────────────────────────
 
 @spawalnia_bp.route('/new', methods=['GET', 'POST'])
