@@ -72,6 +72,8 @@
     <thead>
       <tr>
         <th style="width:120px;">Numer</th>
+        <th style="width:100px;">ZO</th>
+        <th style="width:100px;">Rysunek</th>
         <th>Tytuł</th>
         <th style="width:110px;">Kategoria</th>
         <th style="width:110px;">Lokalizacja</th>
@@ -85,6 +87,8 @@
       {% for r in reports.items %}
       <tr>
         <td><a href="{{ url_for('qar.detail_report', report_id=r.id) }}" class="font-mono">{{ r.number }}</a></td>
+        <td style="color:#555;">{{ r.zo_number or '—' }}</td>
+        <td style="color:#555;">{{ r.drawing_number or '—' }}</td>
         <td>
           <a href="{{ url_for('qar.detail_report', report_id=r.id) }}">{{ r.title }}</a>
           {% if r.photos.count() %}
@@ -127,6 +131,13 @@
         <span class="badge {{ r.status_css }}">{{ r.status_label }}</span>
       </div>
       <div class="qar-card-title">{{ r.title }}</div>
+      {% if r.zo_number or r.drawing_number %}
+      <div class="qar-card-meta">
+        {% if r.zo_number %}<i class="bi bi-hash"></i> ZO {{ r.zo_number }}{% endif %}
+        {% if r.zo_number and r.drawing_number %} · {% endif %}
+        {% if r.drawing_number %}<i class="bi bi-file-earmark-ruled"></i> Rys. {{ r.drawing_number }}{% endif %}
+      </div>
+      {% endif %}
       <div class="qar-card-row">
         <span class="qar-card-meta">
           {% if r.category %}<i class="bi bi-tag"></i> {{ r.category }}{% endif %}
