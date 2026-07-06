@@ -78,7 +78,7 @@
         <th style="width:90px;">Status</th>
         <th style="width:90px;">Autor</th>
         <th style="width:110px;">Data</th>
-        <th style="width:70px;"></th>
+        <th style="width:{% if current_user.is_admin %}100{% else %}70{% endif %}px;"></th>
       </tr>
     </thead>
     <tbody>
@@ -96,11 +96,20 @@
         <td><span class="badge {{ r.status_css }}">{{ r.status_label }}</span></td>
         <td>{{ r.author.username }}</td>
         <td style="color:#666;">{{ r.created_at | localdt('%d.%m.%Y') }}</td>
-        <td style="text-align:right;">
+        <td style="text-align:right;white-space:nowrap;">
           <a href="{{ url_for('qar.export_pdf', report_id=r.id) }}"
              class="btn btn-outline btn-xs" title="PDF" target="_blank">
             <i class="bi bi-file-earmark-pdf"></i>
           </a>
+          {% if current_user.is_admin %}
+          <form method="post" action="{{ url_for('qar.delete_report', report_id=r.id) }}"
+                style="display:inline;" onsubmit="return confirm('Usunąć raport {{ r.number }}? Tej operacji nie można cofnąć.');">
+            {{ csrf_input() }}
+            <button type="submit" class="btn btn-outline btn-xs" title="Usuń" style="color:#c0392b;border-color:#c0392b;">
+              <i class="bi bi-trash"></i>
+            </button>
+          </form>
+          {% endif %}
         </td>
       </tr>
       {% endfor %}
@@ -111,8 +120,8 @@
 {# ── Karty (mobile) ── #}
 <div class="qar-cards" style="flex-direction:column;gap:10px;">
   {% for r in reports.items %}
-  <a href="{{ url_for('qar.detail_report', report_id=r.id) }}" style="text-decoration:none;color:inherit;">
-    <div class="qar-card">
+  <div class="qar-card">
+    <a href="{{ url_for('qar.detail_report', report_id=r.id) }}" style="text-decoration:none;color:inherit;">
       <div class="qar-card-row">
         <span class="font-mono" style="font-size:0.8rem;color:var(--accent,#1a6e8a);">{{ r.number }}</span>
         <span class="badge {{ r.status_css }}">{{ r.status_label }}</span>
@@ -128,8 +137,17 @@
           {{ r.created_at | localdt('%d.%m.%Y') }}
         </span>
       </div>
-    </div>
-  </a>
+    </a>
+    {% if current_user.is_admin %}
+    <form method="post" action="{{ url_for('qar.delete_report', report_id=r.id) }}"
+          onsubmit="return confirm('Usunąć raport {{ r.number }}? Tej operacji nie można cofnąć.');">
+      {{ csrf_input() }}
+      <button type="submit" class="btn btn-outline btn-xs" style="width:100%;color:#c0392b;border-color:#c0392b;">
+        <i class="bi bi-trash"></i> Usuń
+      </button>
+    </form>
+    {% endif %}
+  </div>
   {% endfor %}
 </div>
 
