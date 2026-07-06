@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Działy produkcyjne – Marszruta{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title"><i class="bi bi-gear"></i> Działy produkcyjne</h1>
+  <div class="page-actions">
+    <a href="{{ url_for('marszruta.list_cards') }}" class="btn btn-outline">
+      <i class="bi bi-arrow-left"></i> Wróć do listy
+    </a>
+  </div>
+</div>
+
+<div class="sp-ops-grid">
+  <div class="card">
+    <div class="card-header">Dodaj dział</div>
+    <div class="card-body">
+      <form method="post">
+        {{ csrf_input() }}
+        <input type="hidden" name="action" value="add">
+        <div class="form-group">
+          <label class="form-label" for="name">Nazwa działu</label>
+          <input type="text" id="name" name="name" class="form-control" placeholder="np. Piaskowanie" maxlength="64" required>
+        </div>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Dodaj</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">Lista działów</div>
+    {% if departments %}
+    <div class="table-wrap">
+      <table class="data-table tbl-cards">
+        <thead><tr><th>Kolejność</th><th>Nazwa</th><th>Status</th><th class="th-actions"></th></tr></thead>
+        <tbody>
+          {% for dept in departments %}
+          <tr>
+            <td data-label="Kolejność">
+              <div style="display:flex;gap:2px;">
+                <form method="post">
+                  {{ csrf_input() }}
+                  <input type="hidden" name="action" value="move">
+                  <input type="hidden" name="direction" value="up">
+                  <input type="hidden" name="dept_id" value="{{ dept.id }}">
+                  <button type="submit" class="btn btn-outline btn-xs" title="Wyżej" {% if loop.first %}disabled{% endif %}>
+                    <i class="bi bi-chevron-up"></i>
+                  </button>
+                </form>
+                <form method="post">{{ csrf_input() }}
+                  <input type="hidden" name="action" value="move">
+                  <input type="hidden" name="direction" value="down">
+                  <input type="hidden" name="dept_id" value="{{ dept.id }}">
+                  <button type="submit" class="btn btn-outline btn-xs" title="Niżej" {% if loop.last %}disabled{% endif %}>
+                    <i class="bi bi-chevron-down"></i>
+                  </button>
+                </form>
+              </div>
+            </td>
+            <td data-label="Nazwa"><strong>{{ dept.name }}</strong></td>
+            <td data-label="Status">
+              {% if dept.is_active %}<span class="badge badge-ok">Aktywny</span>
+              {% else %}<span class="badge badge-neutral">Nieaktywny</span>{% endif %}
+            </td>
+            <td class="td-actions">
+              <a href="{{ url_for('marszruta.admin_employees', dept_id=dept.id) }}" class="btn btn-sm btn-outline">
+                <i class="bi bi-people"></i> Pracownicy ({{ dept.employees.count() }})
+              </a>
+              <form method="post" class="form-inline">
+                {{ csrf_input() }}
+                <input type="hidden" name="action" value="toggle">
+                <input type="hidden" name="dept_id" value="{{ dept.id }}">
+                <button type="submit" class="btn btn-sm btn-outline"
+                        title="{{ 'Dezaktywuj' if dept.is_active else 'Aktywuj' }}">
+                  <i class="bi bi-{{ 'pause' if dept.is_active else 'play' }}-fill"></i>
+                </button>
+              </form>
+              <form method="post" class="form-inline" onsubmit="return confirm('Usunąć dział {{ dept.name }}?')">
+                {{ csrf_input() }}
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="dept_id" value="{{ dept.id }}">
+                <button type="submit" class="btn btn-sm btn-danger" title="Usuń">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="card-body--empty">Brak działów. Dodaj pierwszy po lewej.</div>
+    {% endif %}
+  </div>
+</div>
+
+<style>
+.sp-ops-grid { display: grid; grid-template-columns: 320px 1fr; gap: 1rem; align-items: start; }
+@media (max-width: 900px) { .sp-ops-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}

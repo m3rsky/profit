@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Pracownicy – {{ department.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title"><i class="bi bi-people"></i> {{ department.name }} — pracownicy</h1>
+  <div class="page-actions">
+    <a href="{{ url_for('marszruta.admin_departments') }}" class="btn btn-outline">
+      <i class="bi bi-arrow-left"></i> Wróć do działów
+    </a>
+  </div>
+</div>
+
+<div class="sp-ops-grid">
+  <div class="card">
+    <div class="card-header">Dodaj pracownika</div>
+    <div class="card-body">
+      <form method="post">
+        {{ csrf_input() }}
+        <input type="hidden" name="action" value="add">
+        <div class="form-group">
+          <label class="form-label" for="name">Imię i nazwisko</label>
+          <input type="text" id="name" name="name" class="form-control" placeholder="np. Jan Kowalski" maxlength="128" required>
+        </div>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Dodaj</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">Lista pracowników</div>
+    {% if employees %}
+    <div class="table-wrap">
+      <table class="data-table tbl-cards">
+        <thead><tr><th>Imię i nazwisko</th><th>Status</th><th class="th-actions"></th></tr></thead>
+        <tbody>
+          {% for emp in employees %}
+          <tr>
+            <td data-label="Nazwisko"><strong>{{ emp.name }}</strong></td>
+            <td data-label="Status">
+              {% if emp.is_active %}<span class="badge badge-ok">Aktywny</span>
+              {% else %}<span class="badge badge-neutral">Nieaktywny</span>{% endif %}
+            </td>
+            <td class="td-actions">
+              <form method="post" class="form-inline">
+                {{ csrf_input() }}
+                <input type="hidden" name="action" value="toggle">
+                <input type="hidden" name="emp_id" value="{{ emp.id }}">
+                <button type="submit" class="btn btn-sm btn-outline"
+                        title="{{ 'Dezaktywuj' if emp.is_active else 'Aktywuj' }}">
+                  <i class="bi bi-{{ 'pause' if emp.is_active else 'play' }}-fill"></i>
+                </button>
+              </form>
+              <form method="post" class="form-inline" onsubmit="return confirm('Usunąć pracownika {{ emp.name }}?')">
+                {{ csrf_input() }}
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="emp_id" value="{{ emp.id }}">
+                <button type="submit" class="btn btn-sm btn-danger" title="Usuń">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="card-body--empty">Brak pracowników. Dodaj pierwszego po lewej.</div>
+    {% endif %}
+  </div>
+</div>
+
+<style>
+.sp-ops-grid { display: grid; grid-template-columns: 320px 1fr; gap: 1rem; align-items: start; }
+@media (max-width: 900px) { .sp-ops-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Karta {{ card.identifier }} – Marszruta produkcji{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-signpost-split"></i> {{ card.identifier }}</h1>
+    <span class="text-muted" style="font-size:0.85rem;">
+      {{ card.product_name }}{% if card.client %} · {{ card.client }}{% endif %} · {{ card.quantity }} szt.
+      {% if card.template %} · ścieżka: {{ card.template.name }}{% endif %}
+    </span>
+  </div>
+  <div class="page-actions">
+    {% if card.has_ng %}<span class="badge badge-danger badge--lg">NG</span>{% endif %}
+    {% if card.is_complete %}<span class="badge badge-ok badge--lg">Zakończona</span>
+    {% else %}<span class="badge badge-warning badge--lg">W toku</span>{% endif %}
+    <a href="{{ url_for('marszruta.list_cards') }}" class="btn btn-outline">
+      <i class="bi bi-arrow-left"></i> Wróć do listy
+    </a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body" style="padding:0;">
+    {% for stage in stages %}
+    <div class="qa-task-row" id="stage-{{ stage.id }}">
+      <div class="qa-task-lp">{{ loop.index }}</div>
+      <div class="qa-task-body">
+        <div class="qa-task-title">{{ stage.department.name }}</div>
+        <div class="text-muted-sm">
+          {% if stage.employee %}Pracownik: {{ stage.employee.name }}{% else %}Brak przypisanego pracownika{% endif %}
+          {% if stage.checked_at %} · oceniono {{ stage.checked_at | localdt }}{% endif %}
+        </div>
+        {% if stage.notes %}<div class="item-note-readonly">{{ stage.notes }}</div>{% endif %}
+        {% if stage.photos.count() %}
+        <div class="photo-thumbs">
+          {% for photo in stage.photos %}
+          <div class="photo-thumb">
+            <img src="{{ url_for('marszruta.serve_photo', filename=photo.filename) }}" alt="zdjęcie" style="max-width:80px;border-radius:6px;">
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      <div class="qa-task-actions">
+        {% if stage.result %}
+        <span class="badge {% if stage.result == 'ok' %}badge-ok{% elif stage.result == 'ng' %}badge-danger{% else %}badge-warning{% endif %}">
+          {{ stage.result_label }}
+        </span>
+        {% else %}
+        <span class="badge badge-neutral">Oczekuje</span>
+        {% endif %}
+        <a href="{{ url_for('marszruta.edit_stage', stage_id=stage.id) }}" class="btn btn-outline btn-xs">
+          <i class="bi bi-pencil"></i> {{ 'Popraw' if stage.result else 'Oceń' }}
+        </a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

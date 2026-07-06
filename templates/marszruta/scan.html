@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% block title %}Skanuj QR – Marszruta produkcji{% endblock %}
+{% block head %}
+<style>
+#qr-reader-wrap{position:relative;width:100%;max-width:480px;margin:0 auto}
+#qr-reader{width:100%;border-radius:var(--radius-md,8px);overflow:hidden;background:#000}
+#qr-reader video{width:100%!important;height:auto!important}
+#qr-reader img{display:none!important}
+
+.qr-confirm-card{max-width:480px;margin:1rem auto 0}
+.qr-confirm-card .qr-row{display:flex;gap:.75rem;align-items:baseline;padding:.35rem 0;border-bottom:1px solid var(--border,#e2e8f0)}
+.qr-confirm-card .qr-row:last-of-type{border-bottom:none}
+.qr-confirm-card .qr-label{color:var(--text-muted,#64748b);font-size:.85rem;min-width:100px}
+.qr-confirm-card .qr-val{font-weight:600;font-size:1rem}
+
+.qr-status{max-width:480px;margin:.75rem auto 0;padding:.75rem 1rem;border-radius:var(--radius-md,8px);display:flex;align-items:center;gap:.6rem}
+.qr-status.error{background:var(--danger-bg,#fef2f2);color:var(--danger,#dc2626)}
+.qr-status.info{background:var(--info-bg,#eff6ff);color:var(--info,#2563eb)}
+.qr-actions{display:flex;gap:.75rem;max-width:480px;margin:.75rem auto 0;flex-wrap:wrap}
+.qr-actions .btn{flex:1}
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title"><i class="bi bi-qr-code-scan"></i> Skanuj kod QR</h1>
+  <div class="page-actions">
+    <a href="{{ url_for('marszruta.list_cards') }}" class="btn btn-outline">
+      <i class="bi bi-arrow-left"></i> Wróć do listy
+    </a>
+  </div>
+</div>
+
+<p class="section-hint">Skieruj kamerę na kod QR umieszczony na dokumencie lub produkcie — ten sam kod, który jest już używany do rozpoczynania kontroli jakości.</p>
+
+<div id="qr-reader-wrap">
+  <div id="qr-reader"></div>
+</div>
+
+<div id="qr-confirm" class="card qr-confirm-card" hidden>
+  <div class="card-body">
+    <h3 class="card-title" style="margin-bottom:.75rem">
+      <i class="bi bi-check-circle-fill" style="color:var(--success,#16a34a)"></i>
+      Zeskanowano
+    </h3>
+    <div class="qr-row">
+      <span class="qr-label">Produkt</span>
+      <span class="qr-val" id="qr-product-name"></span>
+    </div>
+    <div class="qr-row" id="qr-client-row" hidden>
+      <span class="qr-label">Klient</span>
+      <span class="qr-val" id="qr-client-val"></span>
+    </div>
+    <div class="qr-row" id="qr-order-row" hidden>
+      <span class="qr-label">Nr zlecenia</span>
+      <span class="qr-val" id="qr-order-val"></span>
+    </div>
+    <div class="qr-row">
+      <span class="qr-label">Ilość sztuk</span>
+      <span class="qr-val"><span id="qr-qty-val"></span> szt.</span>
+    </div>
+  </div>
+</div>
+
+<div id="qr-error" class="qr-status error" hidden>
+  <i class="bi bi-exclamation-triangle-fill"></i>
+  <span id="qr-error-msg"></span>
+</div>
+
+<div id="qr-info" class="qr-status info" hidden>
+  <i class="bi bi-hourglass-split"></i>
+  <span id="qr-info-msg">Przetwarzam…</span>
+</div>
+
+<div class="qr-actions" id="qr-actions" hidden>
+  <button type="button" class="btn btn-primary" id="btn-qr-create">
+    <i class="bi bi-play-fill"></i> Otwórz kartę marszrutową
+  </button>
+  <button type="button" class="btn btn-secondary" id="btn-qr-rescan">
+    <i class="bi bi-arrow-repeat"></i> Skanuj ponownie
+  </button>
+</div>
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+(function () {
+  var qrReader    = null;
+  var qrScanning  = false;
+  var scannedData = null;
+
+  var elConfirm    = document.getElementById('qr-confirm');
+  var elError      = document.getElementById('qr-error');
+  var elErrorMsg   = document.getElementById('qr-error-msg');
+  var elInfo       = document.getElementById('qr-info');
+  var elInfoMsg    = document.getElementById('qr-info-msg');
+  var elActions    = document.getElementById('qr-actions');
+  var elProduct    = document.getElementById('qr-product-name');
+  var elQty        = document.getElementById('qr-qty-val');
+  var elClientRow  = document.getElementById('qr-client-row');
+  var elClientVal  = document.getElementById('qr-client-val');
+  var elOrderRow   = document.getElementById('qr-order-row');
+  var elOrderVal   = document.getElementById('qr-order-val');
+  var btnCreate    = document.getElementById('btn-qr-create');
+  var btnRescan    = document.getElementById('btn-qr-rescan');
+
+  var csrfToken = (document.querySelector('meta[name="csrf-token"]') || {}).content || '{{ csrf_token() }}';
+
+  function startScanner() {
+    if (qrScanning) return;
+    resetQrUI();
+    qrReader = new Html5Qrcode('qr-reader');
+    Html5Qrcode.getCameras().then(function (cameras) {
+      if (!cameras || cameras.length === 0) {
+        showError('Brak dostępnej kamery w urządzeniu.');
+        return;
+      }
+      var camId = cameras[cameras.length - 1].id;
+      qrReader.start(
+        camId,
+        { fps: 10, qrbox: { width: 280, height: 280 } },
+        onScanSuccess,
+        function () {}
+      ).then(function () {
+        qrScanning = true;
+      }).catch(function (err) {
+        showError('Nie można uruchomić kamery: ' + err);
+      });
+    }).catch(function () {
+      showError('Brak dostępu do kamery. Sprawdź uprawnienia przeglądarki.');
+    });
+  }
+
+  function stopScanner() {
+    if (qrReader && qrScanning) {
+      qrReader.stop().catch(function () {});
+      qrScanning = false;
+    }
+  }
+
+  function onScanSuccess(decodedText) {
+    stopScanner();
+    var data = parseQr(decodedText);
+    if (!data) {
+      showError('Nieprawidłowy format kodu QR. Oczekiwany JSON z polami „p" (produkt) i „q" (ilość).');
+      elActions.hidden = false;
+      btnCreate.hidden = true;
+      return;
+    }
+    scannedData = data;
+    elProduct.textContent = data.p;
+    elQty.textContent     = data.q;
+    if (data.c) { elClientVal.textContent = data.c; elClientRow.hidden = false; }
+    else { elClientRow.hidden = true; }
+    if (data.o) { elOrderVal.textContent = data.o; elOrderRow.hidden = false; }
+    else { elOrderRow.hidden = true; }
+    elConfirm.hidden = false;
+    elActions.hidden = false;
+    btnCreate.hidden = false;
+  }
+
+  function parseQr(text) {
+    text = text.trim();
+    try {
+      var obj = JSON.parse(text);
+      if (obj && obj.p && obj.q) {
+        return {
+          p: String(obj.p).trim(),
+          q: Math.max(1, Math.min(99, parseInt(obj.q, 10) || 1)),
+          c: obj.c ? String(obj.c).trim() : '',
+          o: obj.o ? String(obj.o).trim() : '',
+        };
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  btnCreate.addEventListener('click', function () {
+    if (!scannedData) return;
+    btnCreate.disabled = true;
+    elActions.hidden   = true;
+    elError.hidden     = true;
+    elInfo.hidden      = false;
+    elInfoMsg.textContent = 'Otwieram kartę marszrutową…';
+
+    fetch('{{ url_for("marszruta.from_qr") }}', {
+      method:  'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'X-CSRF-Token':  csrfToken,
+      },
+      body: JSON.stringify(scannedData),
+    })
+    .then(function (resp) { return resp.json().then(function (d) { return { ok: resp.ok, d: d }; }); })
+    .then(function (res) {
+      elInfo.hidden = true;
+      if (res.ok && res.d.ok) {
+        elInfoMsg.textContent = res.d.msg || 'Gotowe!';
+        elInfo.hidden = false;
+        setTimeout(function () { window.location.href = res.d.redirect; }, 500);
+      } else {
+        showError(res.d.error || 'Wystąpił błąd podczas przetwarzania kodu QR.');
+        btnCreate.disabled = false;
+        elActions.hidden   = false;
+      }
+    })
+    .catch(function () {
+      elInfo.hidden = true;
+      showError('Błąd sieci. Sprawdź połączenie i spróbuj ponownie.');
+      btnCreate.disabled = false;
+      elActions.hidden   = false;
+    });
+  });
+
+  btnRescan.addEventListener('click', function () {
+    scannedData = null;
+    resetQrUI();
+    startScanner();
+  });
+
+  function showError(msg) {
+    elErrorMsg.textContent = msg;
+    elError.hidden = false;
+    btnCreate.hidden = true;
+  }
+
+  function resetQrUI() {
+    elConfirm.hidden   = true;
+    elError.hidden     = true;
+    elInfo.hidden      = true;
+    elActions.hidden   = true;
+    elClientRow.hidden = true;
+    elOrderRow.hidden  = true;
+    btnCreate.disabled = false;
+    btnCreate.hidden   = false;
+  }
+
+  window.addEventListener('beforeunload', stopScanner);
+  startScanner();
+})();
+</script>
+{% endblock %}

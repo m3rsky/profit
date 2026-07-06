@@ -629,3 +629,148 @@ class QATask(db.Model):
 
     def __repr__(self):
         return f'<QATask {self.title}>'
+
+
+# ── Marszruta produkcji ────────────────────────────────────────────────────────
+
+class ProductionDepartment(db.Model):
+    """Dział/etap produkcji (Cięcie, Laser, Gięcie, ...) — słownik edytowalny w panelu."""
+    __tablename__ = 'production_departments'
+    id         = db.Column(db.Integer, primary_key=True)
+    name       = db.Column(db.String(64), unique=True, nullable=False)
+    order      = db.Column(db.Integer, default=0)
+    is_active  = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    employees  = db.relationship('DepartmentEmployee', back_populates='department',
+                                 lazy='dynamic', cascade='all, delete-orphan')
+
+    def __repr__(self):
+        return f'<ProductionDepartment {self.name}>'
+
+
+class DepartmentEmployee(db.Model):
+    """Pracownik przypisany do działu — wybierany z listy przy ocenie etapu."""
+    __tablename__ = 'department_employees'
+    id            = db.Column(db.Integer, primary_key=True)
+    department_id = db.Column(db.Integer, db.ForeignKey('production_departments.id'), nullable=False)
+    name          = db.Column(db.String(128), nullable=False)
+    is_active     = db.Column(db.Boolean, default=True)
+    created_at    = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    department    = db.relationship('ProductionDepartment', back_populates='employees')
+    stages        = db.relationship('RoutingCardStage', back_populates='employee', lazy='dynamic')
+
+    def __repr__(self):
+        return f'<DepartmentEmployee {self.name}>'
+
+
+class RoutingTemplate(db.Model):
+    """Ścieżka produkcyjna — które działy (i w jakiej kolejności) dotyczą danego typu produktu.
+    Dopasowywana do nazwy produktu z kodu QR tym samym algorytmem tokenowym co ChecklistTemplate."""
+    __tablename__ = 'routing_templates'
+    id         = db.Column(db.Integer, primary_key=True)
+    name       = db.Column(db.String(128), nullable=False)
+    is_active  = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    stages     = db.relationship('RoutingTemplateStage', backref='template', lazy='dynamic',
+                                 cascade='all, delete-orphan', order_by='RoutingTemplateStage.order')
+
+    @property
+    def department_count(self):
+        return self.stages.count()
+
+    def __repr__(self):
+        return f'<RoutingTemplate {self.name}>'
+
+
+class RoutingTemplateStage(db.Model):
+    """Jeden dział w ścieżce szablonu, z kolejnością wykonania."""
+    __tablename__ = 'routing_template_stages'
+    id            = db.Column(db.Integer, primary_key=True)
+    template_id   = db.Column(db.Integer, db.ForeignKey('routing_templates.id'), nullable=False)
+    department_id = db.Column(db.Integer, db.ForeignKey('production_departments.id'), nullable=False)
+    order         = db.Column(db.Integer, default=0)
+    department    = db.relationship('ProductionDepartment')
+
+    def __repr__(self):
+        return f'<RoutingTemplateStage template={self.template_id} dept={self.department_id}>'
+
+
+class RoutingCard(db.Model):
+    """Karta marszrutowa — jedna na zlecenie/ZO (całą partię), utworzona ze skanu QR.
+
+    `identifier` odpowiada polu "o" (numer zamówienia) z tego samego kodu QR,
+    który obsługuje dziś /checklist/from-qr — niepowiązana z modelem Order
+    (wzorem SpawalniaRecord.zo_number), żeby skan działał również dla zleceń
+    bez założonego Order w systemie."""
+    __tablename__ = 'routing_cards'
+    id            = db.Column(db.Integer, primary_key=True)
+    identifier    = db.Column(db.String(64), nullable=False)
+    product_name  = db.Column(db.String(256), nullable=False)
+    client        = db.Column(db.String(256), nullable=True)
+    quantity      = db.Column(db.Integer, default=1)
+    template_id   = db.Column(db.Integer, db.ForeignKey('routing_templates.id'), nullable=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    created_at    = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    template      = db.relationship('RoutingTemplate')
+    created_by    = db.relationship('User', foreign_keys=[created_by_id])
+    stages        = db.relationship('RoutingCardStage', back_populates='card', lazy='dynamic',
+                                    cascade='all, delete-orphan', order_by='RoutingCardStage.order')
+
+    @property
+    def is_complete(self):
+        stages = self.stages.all()
+        return bool(stages) and all(s.result is not None for s in stages)
+
+    @property
+    def status_label(self):
+        if not self.stages.count():
+            return 'Brak etapów'
+        return 'Zakończona' if self.is_complete else 'W toku'
+
+    @property
+    def has_ng(self):
+        return self.stages.filter_by(result='ng').first() is not None
+
+    def __repr__(self):
+        return f'<RoutingCard {self.identifier}>'
+
+
+class RoutingCardStage(db.Model):
+    """Ocena jednego działu na konkretnej karcie marszrutowej."""
+    __tablename__ = 'routing_card_stages'
+    id            = db.Column(db.Integer, primary_key=True)
+    card_id       = db.Column(db.Integer, db.ForeignKey('routing_cards.id'), nullable=False)
+    department_id = db.Column(db.Integer, db.ForeignKey('production_departments.id'), nullable=False)
+    order         = db.Column(db.Integer, default=0)
+    employee_id   = db.Column(db.Integer, db.ForeignKey('department_employees.id'), nullable=True)
+    result        = db.Column(db.String(4), nullable=True)   # ok | ng | dw | None
+    notes         = db.Column(db.Text, nullable=True)
+    checked_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    checked_at    = db.Column(db.DateTime, nullable=True)
+    card          = db.relationship('RoutingCard', back_populates='stages')
+    department    = db.relationship('ProductionDepartment')
+    employee      = db.relationship('DepartmentEmployee', back_populates='stages')
+    checked_by    = db.relationship('User', foreign_keys=[checked_by_id])
+    photos        = db.relationship('RoutingCardPhoto', backref='stage', lazy='dynamic',
+                                    cascade='all, delete-orphan')
+
+    RESULT_LABELS = {'ok': 'Zgodne', 'ng': 'Niezgodne', 'dw': 'Dopuszczone warunkowo'}
+
+    @property
+    def result_label(self):
+        return self.RESULT_LABELS.get(self.result, '—')
+
+    def __repr__(self):
+        return f'<RoutingCardStage card={self.card_id} dept={self.department_id}>'
+
+
+class RoutingCardPhoto(db.Model):
+    __tablename__ = 'routing_card_photos'
+    id            = db.Column(db.Integer, primary_key=True)
+    stage_id      = db.Column(db.Integer, db.ForeignKey('routing_card_stages.id'), nullable=False)
+    filename      = db.Column(db.String(256), nullable=False)
+    original_name = db.Column(db.String(256), nullable=True)
+    created_at    = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+
+    def __repr__(self):
+        return f'<RoutingCardPhoto {self.filename}>'

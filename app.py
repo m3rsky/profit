@@ -27,7 +27,9 @@ from models import (db, User, ChecklistTemplate, Category, Task, Report, ReportI
                     CatalogProduct,
                     SpawalniaOperator, SpawalniaRecord,
                     ChecklistSession,
-                    QARReport, QARPhoto, QATask)
+                    QARReport, QARPhoto, QATask,
+                    ProductionDepartment, DepartmentEmployee, RoutingTemplate,
+                    RoutingTemplateStage, RoutingCard, RoutingCardStage, RoutingCardPhoto)
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -47,6 +49,9 @@ from qar.routes import _next_qar_number  # noqa: E402 — reużyte przez /api/v1
 
 from zadania_qa import zadania_qa_bp  # noqa: E402
 app.register_blueprint(zadania_qa_bp)
+
+from marszruta import marszruta_bp  # noqa: E402
+app.register_blueprint(marszruta_bp)
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 _log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
@@ -2858,6 +2863,7 @@ def init_db():
     os.makedirs('instance', exist_ok=True)
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     os.makedirs(app.config['QAR_UPLOAD_FOLDER'], exist_ok=True)
+    os.makedirs(app.config['MARSZRUTA_UPLOAD_FOLDER'], exist_ok=True)
     with app.app_context():
         _migrate_schema()
         db.create_all()
@@ -2869,6 +2875,7 @@ def init_db():
             _seed_demo_data()
         _seed_kosztorys()
         _seed_zadania_qa()
+        _seed_marszruta()
         db.session.commit()
 
 
@@ -3605,6 +3612,18 @@ def _seed_zadania_qa():
     ]
     for i, (title, description) in enumerate(default_tasks):
         db.session.add(QATask(title=title, description=description, order=i))
+
+
+def _seed_marszruta():
+    """Inicjuje domyślną listę działów produkcyjnych dla modułu Marszruta produkcji."""
+    if ProductionDepartment.query.first():
+        return
+    default_departments = [
+        'Cięcie', 'Laser', 'Gięcie', 'Zgrzewanie', 'Spawanie',
+        'Czyszczenie', 'Mycie', 'Malowanie', 'Składanie', 'Kontrola Jakości',
+    ]
+    for i, name in enumerate(default_departments):
+        db.session.add(ProductionDepartment(name=name, order=i))
 
 
 if __name__ == '__main__':

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edytuj' if template else 'Nowa' }} ścieżka produkcyjna{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">
+    <i class="bi bi-diagram-3"></i> {{ 'Edytuj ścieżkę' if template else 'Nowa ścieżka produkcyjna' }}
+  </h1>
+  <div class="page-actions">
+    <a href="{{ url_for('marszruta.admin_routing_templates') }}" class="btn btn-outline">
+      <i class="bi bi-arrow-left"></i> Wróć do listy
+    </a>
+  </div>
+</div>
+
+<div class="card card--form-narrow">
+  <div class="card-body">
+    <form method="post">
+      {{ csrf_input() }}
+
+      <div class="form-group">
+        <label class="form-label" for="name">Nazwa ścieżki <span class="form-hint-inline">(dopasowywana do nazwy produktu z kodu QR)</span></label>
+        <input type="text" id="name" name="name" class="form-control"
+               value="{{ template.name if template else '' }}" placeholder="np. PSH-200" required>
+      </div>
+
+      {% if template %}
+      <div class="form-group">
+        <label class="form-label" style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" name="is_active" {% if template.is_active %}checked{% endif %} style="width:auto;">
+          Ścieżka aktywna
+        </label>
+      </div>
+      {% endif %}
+
+      <div class="form-group">
+        <label class="form-label">Działy w ścieżce</label>
+        <small class="form-hint">Kolejność wynika z kolejności działów ustawionej w panelu „Działy i pracownicy".</small>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">
+          {% for dept in departments %}
+          <label style="display:flex;align-items:center;gap:8px;">
+            <input type="checkbox" name="department_ids" value="{{ dept.id }}"
+                   {% if dept.id in selected_ids %}checked{% endif %} style="width:auto;">
+            {{ dept.name }}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-block">
+        <i class="bi bi-check-lg"></i> Zapisz ścieżkę
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}

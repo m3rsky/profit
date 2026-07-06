@@ -11,6 +11,7 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads')
     QAR_UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'qar_uploads')
+    MARSZRUTA_UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'marszruta_uploads')
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
     PDF_EXTENSIONS = {'pdf'}
