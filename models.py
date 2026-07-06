@@ -586,7 +586,7 @@ class QARReport(db.Model):
     STATUS_LABELS = {'open': 'Otwarty', 'in_progress': 'W toku', 'closed': 'Zamknięty'}
     STATUS_CSS    = {'open': 'status-warning', 'in_progress': 'status-info', 'closed': 'status-success'}
 
-    CATEGORIES = ['Spawanie', 'Montaż', 'Materiał', 'Malowanie', 'Dokumentacja', 'Inne']
+    CATEGORIES = ['Spawanie', 'Montaż', 'Materiał', 'Malowanie', 'Konstrukcja', 'Dokumentacja', 'Inne']
 
     @property
     def status_label(self): return self.STATUS_LABELS.get(self.status, self.status)
