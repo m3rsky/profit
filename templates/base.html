@@ -77,7 +77,7 @@
         <span>Raporty QA</span>
       </a>
       <a href="{{ url_for('admin_templates') }}"
-         class="{% if request.endpoint and not request.endpoint.startswith('zadania_qa.') and ('template' in request.endpoint or 'category' in request.endpoint or 'task' in request.endpoint) %}active{% endif %}">
+         class="{% if request.endpoint and not request.endpoint.startswith('zadania_qa.') and not request.endpoint.startswith('marszruta.') and ('template' in request.endpoint or 'category' in request.endpoint or 'task' in request.endpoint) %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-layout-text-sidebar-reverse"></i></span>
         <span>Szablony</span>
       </a>
@@ -248,7 +248,7 @@
           <span class="wk-nav-label">Marszruta</span>
         </a>
         <a href="{{ url_for('admin_templates') }}"
-           class="wk-nav-link {% if request.endpoint and not request.endpoint.startswith('zadania_qa.') and ('template' in request.endpoint or 'category' in request.endpoint or 'task' in request.endpoint) %}active{% endif %}"
+           class="wk-nav-link {% if request.endpoint and not request.endpoint.startswith('zadania_qa.') and not request.endpoint.startswith('marszruta.') and ('template' in request.endpoint or 'category' in request.endpoint or 'task' in request.endpoint) %}active{% endif %}"
            title="Szablony">
           <i class="bi bi-layout-text-sidebar-reverse"></i>
           <span class="wk-nav-label">Szablony</span>

@@ -1,7 +1,46 @@
 {% extends "base.html" %}
 {% block title %}Karta {{ card.identifier }} – Marszruta produkcji{% endblock %}
 
+{% block head %}
+<style>
+.mrs-progress-wrap { padding: 14px 20px; border-bottom: 1px solid var(--border, #e2e8f0); }
+.mrs-progress-count { font-size: 0.85rem; color: var(--text-muted, #64748b); margin-top: 6px; }
+
+.mrs-stage-row {
+  display: flex; align-items: flex-start; gap: 14px;
+  padding: 14px 20px;
+}
+.mrs-stage-row + .mrs-stage-row { border-top: 1px solid var(--border, #e2e8f0); }
+
+.mrs-stage-num {
+  flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.8rem; font-weight: 700; margin-top: 2px;
+  background: var(--neutral-bg, #f1f5f9); color: var(--text-muted, #64748b);
+}
+.mrs-stage-row--ok  .mrs-stage-num { background: var(--ok-bg, #dcfce7); color: var(--ok-text, #16a34a); }
+.mrs-stage-row--ng  .mrs-stage-num { background: var(--danger-bg, #fef2f2); color: var(--danger-text, #dc2626); }
+.mrs-stage-row--dw  .mrs-stage-num { background: var(--warn-bg, #fffbeb); color: var(--warn-text, #d97706); }
+
+.mrs-stage-body { flex: 1; min-width: 0; }
+.mrs-stage-title { font-weight: 600; font-size: 1rem; }
+.mrs-stage-meta { font-size: 0.8rem; color: var(--text-muted, #64748b); margin-top: 2px; }
+.mrs-stage-notes { font-size: 0.85rem; margin-top: 6px; background: var(--neutral-bg, #f8fafc); border-radius: 6px; padding: 6px 10px; }
+
+.mrs-stage-actions {
+  flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; width: 130px;
+}
+
+@media (max-width: 640px) {
+  .mrs-stage-row { flex-wrap: wrap; }
+  .mrs-stage-actions { flex-direction: row; width: 100%; justify-content: space-between; align-items: center; }
+}
+</style>
+{% endblock %}
+
 {% block content %}
+{% set done = stages | selectattr('result') | list | length %}
+{% set total = stages | length %}
 <div class="page-header">
   <div>
     <h1 class="page-title"><i class="bi bi-signpost-split"></i> {{ card.identifier }}</h1>
@@ -30,17 +69,25 @@
 </div>
 
 <div class="card">
+  {% if total %}
+  <div class="mrs-progress-wrap">
+    <div class="progress">
+      <div class="progress-bar" data-pct="{{ (done / total * 100) | round | int }}"></div>
+    </div>
+    <p class="mrs-progress-count">{{ done }} / {{ total }} etapów ocenionych</p>
+  </div>
+  {% endif %}
   <div class="card-body" style="padding:0;">
     {% for stage in stages %}
-    <div class="qa-task-row" id="stage-{{ stage.id }}">
-      <div class="qa-task-lp">{{ loop.index }}</div>
-      <div class="qa-task-body">
-        <div class="qa-task-title">{{ stage.department.name }}</div>
-        <div class="text-muted-sm">
+    <div class="mrs-stage-row {% if stage.result %}mrs-stage-row--{{ stage.result }}{% endif %}" id="stage-{{ stage.id }}">
+      <div class="mrs-stage-num">{{ loop.index }}</div>
+      <div class="mrs-stage-body">
+        <div class="mrs-stage-title">{{ stage.department.name }}</div>
+        <div class="mrs-stage-meta">
           {% if stage.employee %}Pracownik: {{ stage.employee.name }}{% else %}Brak przypisanego pracownika{% endif %}
           {% if stage.checked_at %} · oceniono {{ stage.checked_at | localdt }}{% endif %}
         </div>
-        {% if stage.notes %}<div class="item-note-readonly">{{ stage.notes }}</div>{% endif %}
+        {% if stage.notes %}<div class="mrs-stage-notes">{{ stage.notes }}</div>{% endif %}
         {% if stage.photos.count() %}
         <div class="photo-thumbs">
           {% for photo in stage.photos %}
@@ -51,7 +98,7 @@
         </div>
         {% endif %}
       </div>
-      <div class="qa-task-actions">
+      <div class="mrs-stage-actions">
         {% if stage.result %}
         <span class="badge {% if stage.result == 'ok' %}badge-ok{% elif stage.result == 'ng' %}badge-danger{% else %}badge-warning{% endif %}">
           {{ stage.result_label }}
