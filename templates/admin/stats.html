@@ -136,6 +136,68 @@
   </div>
 </div>
 {% endif %}
+
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-number">{{ total_routing_cards }}</div>
+    <div class="stat-label">Karty marszrutowe – łącznie</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number">{{ completed_routing_cards }}</div>
+    <div class="stat-label">Karty marszrutowe – zakończone</div>
+  </div>
+</div>
+
+{% if marszruta_dept_stats %}
+<div class="card">
+  <div class="card-header"><i class="bi bi-signpost-split"></i> Marszruta produkcji – wyniki wg działu (30 dni)</div>
+  <div class="card-body card-body--flush">
+    <table class="data-table tbl-cards">
+      <thead>
+        <tr>
+          <th>Dział</th>
+          <th class="text-center">Ocenionych etapów</th>
+          <th class="text-center">OK</th>
+          <th class="text-center">NG</th>
+          <th class="text-center">DW</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in marszruta_dept_stats %}
+        <tr>
+          <td>{{ d.dept_name }}</td>
+          <td class="text-center">{{ d.total }}</td>
+          <td class="text-center">{{ d.ok }}</td>
+          <td class="text-center"><span class="badge badge-error">{{ d.ng }}</span></td>
+          <td class="text-center"><span class="badge badge-warning">{{ d.dw }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if marszruta_employee_stats %}
+<div class="card">
+  <div class="card-header"><i class="bi bi-people"></i> Marszruta produkcji – aktywność pracowników</div>
+  <div class="card-body card-body--flush">
+    <table class="data-table tbl-cards">
+      <thead><tr><th>Pracownik</th><th>Dział</th><th class="text-center">Ocenionych etapów</th><th class="text-center">NG</th></tr></thead>
+      <tbody>
+        {% for e in marszruta_employee_stats %}
+        <tr>
+          <td>{{ e.emp_name }}</td>
+          <td>{{ e.dept_name }}</td>
+          <td class="text-center">{{ e.total }}</td>
+          <td class="text-center"><span class="badge badge-error">{{ e.ng }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}

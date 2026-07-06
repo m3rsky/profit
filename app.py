@@ -18,7 +18,7 @@ from flask import (Flask, render_template, redirect, url_for, request,
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from markupsafe import Markup
 from werkzeug.utils import secure_filename
-from sqlalchemy import func, or_, and_
+from sqlalchemy import func, or_, and_, case
 from sqlalchemy.exc import IntegrityError
 from config import Config
 from models import (db, User, ChecklistTemplate, Category, Task, Report, ReportItem,
@@ -1327,6 +1327,40 @@ def admin_stats():
     total_in_progress = Report.query.filter_by(status='in_progress').count()
     total_users       = User.query.count()
 
+    # ── Marszruta produkcji: wyniki wg działu (30 dni) ──────────────────────
+    _stage_day_expr = func.substr(RoutingCardStage.checked_at, 1, 10)
+    marszruta_dept_stats = (db.session.query(
+        ProductionDepartment.name.label('dept_name'),
+        func.count(RoutingCardStage.id).label('total'),
+        func.sum(case((RoutingCardStage.result == 'ok', 1), else_=0)).label('ok'),
+        func.sum(case((RoutingCardStage.result == 'ng', 1), else_=0)).label('ng'),
+        func.sum(case((RoutingCardStage.result == 'dw', 1), else_=0)).label('dw'),
+    ).join(RoutingCardStage, RoutingCardStage.department_id == ProductionDepartment.id)
+     .filter(RoutingCardStage.checked_at.isnot(None),
+             _stage_day_expr >= cutoff_str)
+     .group_by(ProductionDepartment.id)
+     .order_by(ProductionDepartment.order).all())
+
+    # ── Marszruta produkcji: aktywność pracowników (wszystkie oceny) ────────
+    marszruta_employee_stats = (db.session.query(
+        DepartmentEmployee.name.label('emp_name'),
+        ProductionDepartment.name.label('dept_name'),
+        func.count(RoutingCardStage.id).label('total'),
+        func.sum(case((RoutingCardStage.result == 'ng', 1), else_=0)).label('ng'),
+    ).join(RoutingCardStage, RoutingCardStage.employee_id == DepartmentEmployee.id)
+     .join(ProductionDepartment, DepartmentEmployee.department_id == ProductionDepartment.id)
+     .group_by(DepartmentEmployee.id)
+     .order_by(func.count(RoutingCardStage.id).desc())
+     .limit(15).all())
+
+    total_routing_cards = RoutingCard.query.count()
+    _incomplete_card_ids = (db.session.query(RoutingCardStage.card_id)
+                            .filter(RoutingCardStage.result.is_(None)).distinct())
+    completed_routing_cards = (RoutingCard.query
+                               .filter(RoutingCard.stages.any())
+                               .filter(~RoutingCard.id.in_(_incomplete_card_ids))
+                               .count())
+
     resp = make_response(render_template('admin/stats.html',
                            labels=labels, daily_counts=daily_counts,
                            ok_total=ok_total, ng_total=ng_total,
@@ -1336,7 +1370,11 @@ def admin_stats():
                            duration_stats=duration_stats,
                            total_completed=total_completed,
                            total_in_progress=total_in_progress,
-                           total_users=total_users))
+                           total_users=total_users,
+                           marszruta_dept_stats=marszruta_dept_stats,
+                           marszruta_employee_stats=marszruta_employee_stats,
+                           total_routing_cards=total_routing_cards,
+                           completed_routing_cards=completed_routing_cards))
     resp.headers['Cache-Control'] = 'no-store'
     return resp
 

@@ -4,7 +4,7 @@ import pytest
 from app import app as flask_app, db
 from models import (User, ProductionDepartment, DepartmentEmployee,
                     RoutingTemplate, RoutingTemplateStage, RoutingCard, RoutingCardStage)
-from test_app import login, _csrf
+from test_app import login, logout, _csrf
 
 
 @pytest.fixture
@@ -245,3 +245,39 @@ class TestStageEdit:
             card = RoutingCard.query.get(card_id)
             assert card.has_ng is True
             assert card.is_complete is False  # druga karta (spawanie) jeszcze nieoceniona
+
+
+class TestStats:
+    def test_admin_stats_shows_marszruta_section(self, client, routing_template, departments):
+        cutting_id, _ = departments
+        login(client, 'oper', 'Oper1234!')
+
+        with flask_app.app_context():
+            emp = DepartmentEmployee(department_id=cutting_id, name='Ewa Statystyczna')
+            db.session.add(emp)
+            tmpl = RoutingTemplate.query.get(routing_template)
+            card = RoutingCard(identifier='ZO-9005', product_name='MRS-100 obudowa',
+                               quantity=1, template_id=tmpl.id,
+                               created_by_id=User.query.filter_by(username='oper').first().id)
+            db.session.add(card)
+            db.session.flush()
+            for stage_def in tmpl.stages:
+                db.session.add(RoutingCardStage(card_id=card.id, department_id=stage_def.department_id,
+                                                order=stage_def.order))
+            db.session.commit()
+            emp_id = emp.id
+            stage_id = card.stages.filter_by(department_id=cutting_id).first().id
+
+        token = _csrf(client)
+        client.post(f'/marszruta/stage/{stage_id}/edit', data={
+            'employee_id': str(emp_id), 'result': 'ng', 'notes': 'Test statystyk',
+            '_csrf_token': token,
+        }, follow_redirects=True)
+
+        logout(client)
+        login(client, 'admin', 'Admin1234!')
+        resp = client.get('/admin/stats')
+        assert resp.status_code == 200
+        assert 'Marszruta produkcji'.encode('utf-8') in resp.data
+        assert 'Ewa Statystyczna'.encode('utf-8') in resp.data
+        assert 'Cięcie testowe'.encode('utf-8') in resp.data
