@@ -38,6 +38,18 @@
 <div class="card" style="margin-bottom:16px;">
   <div class="card-body" style="padding:14px 18px;">
     <div class="qar-meta-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;font-size:0.87rem;">
+      {% if report.zo_number %}
+      <div>
+        <span class="text-muted">Numer ZO</span><br>
+        <strong>{{ report.zo_number }}</strong>
+      </div>
+      {% endif %}
+      {% if report.drawing_number %}
+      <div>
+        <span class="text-muted">Numer rysunku</span><br>
+        <strong>{{ report.drawing_number }}</strong>
+      </div>
+      {% endif %}
       <div>
         <span class="text-muted">Kategoria</span><br>
         <strong>{{ report.category or '—' }}</strong>

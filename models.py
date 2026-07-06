@@ -561,6 +561,8 @@ class QARReport(db.Model):
     __tablename__ = 'qar_reports'
     id             = db.Column(db.Integer, primary_key=True)
     number         = db.Column(db.String(20), unique=True, nullable=False)
+    zo_number      = db.Column(db.String(64), nullable=True)
+    drawing_number = db.Column(db.String(64), nullable=True)
     title          = db.Column(db.String(256), nullable=False)
     category       = db.Column(db.String(64), nullable=True)
     location       = db.Column(db.String(128), nullable=True)

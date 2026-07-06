@@ -2969,6 +2969,14 @@ def _migrate_schema():
             ]:
                 if col not in cols:
                     conn.execute(text(ddl)); conn.commit()
+        if 'qar_reports' in insp.get_table_names():
+            cols = [c['name'] for c in insp.get_columns('qar_reports')]
+            for col, ddl in [
+                ('zo_number',      'ALTER TABLE qar_reports ADD COLUMN zo_number VARCHAR(64)'),
+                ('drawing_number', 'ALTER TABLE qar_reports ADD COLUMN drawing_number VARCHAR(64)'),
+            ]:
+                if col not in cols:
+                    conn.execute(text(ddl)); conn.commit()
         # audit_log / orders / alerts created by db.create_all()
         # qar_reports and qar_photos created by db.create_all() on first run
 
@@ -3370,7 +3378,8 @@ def api_v1_qar_list():
         q = q.filter_by(status=status_f)
     reports = q.order_by(QARReport.created_at.desc()).limit(200).all()
     return jsonify([{
-        'id': r.id, 'number': r.number, 'title': r.title, 'category': r.category,
+        'id': r.id, 'number': r.number, 'zo_number': r.zo_number,
+        'drawing_number': r.drawing_number, 'title': r.title, 'category': r.category,
         'status': r.status, 'created_at': r.created_at.isoformat(),
     } for r in reports])
 
@@ -3380,7 +3389,8 @@ def api_v1_qar_list():
 def api_v1_qar_detail(report_id):
     r = QARReport.query.get_or_404(report_id)
     return jsonify({
-        'id': r.id, 'number': r.number, 'title': r.title, 'category': r.category,
+        'id': r.id, 'number': r.number, 'zo_number': r.zo_number,
+        'drawing_number': r.drawing_number, 'title': r.title, 'category': r.category,
         'location': r.location, 'description': r.description, 'findings': r.findings,
         'resolution': r.resolution, 'status': r.status,
         'created_at': r.created_at.isoformat(),
@@ -3401,6 +3411,8 @@ def api_v1_qar_create():
         return jsonify({'error': 'Brak użytkownika systemowego (admin)'}), 500
     report = QARReport(
         number=_next_qar_number(), title=title,
+        zo_number=(data.get('zo_number') or '').strip() or None,
+        drawing_number=(data.get('drawing_number') or '').strip() or None,
         category=(data.get('category') or '').strip() or None,
         location=(data.get('location') or '').strip() or None,
         description=description, user_id=admin_user.id,

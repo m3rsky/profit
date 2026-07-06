@@ -104,7 +104,9 @@ def list_reports():
         q = q.filter(
             QARReport.title.ilike(f'%{search_q}%') |
             QARReport.number.ilike(f'%{search_q}%') |
-            QARReport.location.ilike(f'%{search_q}%')
+            QARReport.location.ilike(f'%{search_q}%') |
+            QARReport.zo_number.ilike(f'%{search_q}%') |
+            QARReport.drawing_number.ilike(f'%{search_q}%')
         )
     if date_from:
         try:
@@ -131,16 +133,20 @@ def list_reports():
 @login_required
 def new_report():
     if request.method == 'POST':
-        title       = request.form.get('title', '').strip()
-        category    = request.form.get('category', '').strip()
-        location    = request.form.get('location', '').strip()
-        description = request.form.get('description', '').strip()
+        title          = request.form.get('title', '').strip()
+        zo_number      = request.form.get('zo_number', '').strip()
+        drawing_number = request.form.get('drawing_number', '').strip()
+        category       = request.form.get('category', '').strip()
+        location       = request.form.get('location', '').strip()
+        description    = request.form.get('description', '').strip()
         if not title or not description:
             flash('Tytuł i opis problemu są wymagane.', 'error')
             return render_template('qar/new.html', categories=QARReport.CATEGORIES,
                                    form=request.form)
         report = QARReport(
             number=_next_qar_number(),
+            zo_number=zo_number or None,
+            drawing_number=drawing_number or None,
             title=title,
             category=category or None,
             location=location or None,
@@ -179,26 +185,30 @@ def edit_report(report_id):
         flash('Zamknięty raport może edytować tylko administrator.', 'warning')
         return redirect(url_for('qar.detail_report', report_id=report_id))
     if request.method == 'POST':
-        title       = request.form.get('title', '').strip()
-        category    = request.form.get('category', '').strip()
-        location    = request.form.get('location', '').strip()
-        description = request.form.get('description', '').strip()
-        findings    = request.form.get('findings', '').strip()
-        resolution  = request.form.get('resolution', '').strip()
-        status      = request.form.get('status', report.status)
+        title          = request.form.get('title', '').strip()
+        zo_number      = request.form.get('zo_number', '').strip()
+        drawing_number = request.form.get('drawing_number', '').strip()
+        category       = request.form.get('category', '').strip()
+        location       = request.form.get('location', '').strip()
+        description    = request.form.get('description', '').strip()
+        findings       = request.form.get('findings', '').strip()
+        resolution     = request.form.get('resolution', '').strip()
+        status         = request.form.get('status', report.status)
         if not title or not description:
             flash('Tytuł i opis problemu są wymagane.', 'error')
             return render_template('qar/edit.html', report=report,
                                    categories=QARReport.CATEGORIES)
         if status not in ('open', 'in_progress', 'closed'):
             status = report.status
-        report.title       = title
-        report.category    = category or None
-        report.location    = location or None
-        report.description = description
-        report.findings    = findings or None
-        report.resolution  = resolution or None
-        report.updated_at  = datetime.now(UTC)
+        report.title          = title
+        report.zo_number      = zo_number or None
+        report.drawing_number = drawing_number or None
+        report.category       = category or None
+        report.location       = location or None
+        report.description    = description
+        report.findings       = findings or None
+        report.resolution     = resolution or None
+        report.updated_at     = datetime.now(UTC)
         if status == 'closed' and report.status != 'closed':
             report.status       = 'closed'
             report.verified_by_id = current_user.id

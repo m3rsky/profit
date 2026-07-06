@@ -112,6 +112,12 @@ def generate_qar_pdf(report, upload_folder):
     # ── Informacje podstawowe ─────────────────────────────────────────────────
     info_rows = [
         [_p('Numer raportu', FONT_BOLD, 9, NAVY),  _p(report.number, FONT_BOLD, 10)],
+    ]
+    if report.zo_number:
+        info_rows.append([_p('Numer ZO', FONT_BOLD, 9, NAVY), _p(report.zo_number, size=9)])
+    if report.drawing_number:
+        info_rows.append([_p('Numer rysunku', FONT_BOLD, 9, NAVY), _p(report.drawing_number, size=9)])
+    info_rows += [
         [_p('Tytuł', FONT_BOLD, 9, NAVY),           _p(report.title, size=9)],
         [_p('Kategoria', FONT_BOLD, 9, NAVY),        _p(report.category or '—', size=9)],
         [_p('Lokalizacja / obiekt', FONT_BOLD, 9, NAVY), _p(report.location or '—', size=9)],

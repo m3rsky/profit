@@ -27,6 +27,23 @@
     <form method="post">
       {{ csrf_input() }}
 
+      <div class="qar-two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+        <div class="form-group">
+          <label class="form-label">Numer ZO</label>
+          <input type="text" name="zo_number" class="form-control"
+                 value="{{ form.get('zo_number', '') }}"
+                 placeholder="np. ZO-2026-123"
+                 maxlength="64" style="font-size:16px;">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Numer rysunku</label>
+          <input type="text" name="drawing_number" class="form-control"
+                 value="{{ form.get('drawing_number', '') }}"
+                 placeholder="np. RYS-001"
+                 maxlength="64" style="font-size:16px;">
+        </div>
+      </div>
+
       <div class="form-group" style="margin-bottom:14px;">
         <label class="form-label">Tytuł raportu <span style="color:#c0392b;">*</span></label>
         <input type="text" name="title" class="form-control"

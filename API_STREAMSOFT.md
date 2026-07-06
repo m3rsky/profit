@@ -21,7 +21,7 @@ Brak nagłówka, zły klucz lub pusty klucz → `401 Unauthorized`:
 { "error": "unauthorized" }
 ```
 
-Klucz konfiguruje się przez zmienną środowiskową `API_KEY` w pliku `.env` (patrz `CLAUDE.md`, sekcja „Zmienne środowiskowe”). **Nie używać wartości domyślnej `change-this-api-key` na produkcji** — musi być ustawiony realny, wygenerowany sekret zarówno lokalnie, jak i na serwerze produkcyjnym.
+Klucz konfiguruje się przez zmienną środowiskową `API_KEY` w pliku `.env`. **Nie używać wartości domyślnej `change-this-api-key` na produkcji** — musi być ustawiony realny, wygenerowany sekret zarówno lokalnie, jak i na serwerze produkcyjnym.
 
 `/api/v1/*` jest zwolnione z sesyjnej ochrony CSRF (autoryzacja kluczem API zastępuje ją dla tej ścieżki) — dzięki temu wywołania `POST`/`PUT`/`DELETE` działają z zewnętrznego skryptu bez logowania przez przeglądarkę.
 
@@ -296,13 +296,13 @@ Lista (filtr `?status=open|in_progress|closed`) i szczegóły zgłoszenia NCR (o
 ```bash
 curl -X POST https://TWOJ-SERWER/api/v1/qar \
   -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
-  -d '{"title": "Wgniecenie na obudowie", "description": "Opis problemu", "category": "Malowanie"}'
+  -d '{"title": "Wgniecenie na obudowie", "description": "Opis problemu", "category": "Malowanie", "zo_number": "ZO-2026-442", "drawing_number": "RYS-001"}'
 ```
 ```json
 { "ok": true, "id": 44, "number": "QAR-2026-0044" }
 ```
 
-Numer NCR generowany jest tą samą logiką co w aplikacji (`QAR-RRRR-NNNN`, licznik roczny).
+Numer NCR generowany jest tą samą logiką co w aplikacji (`QAR-RRRR-NNNN`, licznik roczny). Pola `zo_number` i `drawing_number` są opcjonalne.
 
 ---
 
