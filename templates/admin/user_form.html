@@ -44,6 +44,7 @@
           <option value="monter"    {% if user and user.role == 'monter'    %}selected{% endif %}>Monter</option>
           <option value="order"     {% if user and user.role == 'order'     %}selected{% endif %}>Zamawiający</option>
           <option value="spawacz"   {% if user and user.role == 'spawacz'   %}selected{% endif %}>Spawacz</option>
+          <option value="konstruktor" {% if user and user.role == 'konstruktor' %}selected{% endif %}>Konstruktor</option>
           <option value="admin"     {% if user and user.role == 'admin'     %}selected{% endif %}>Administrator</option>
         </select>
       </div>

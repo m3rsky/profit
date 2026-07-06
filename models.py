@@ -38,10 +38,12 @@ class User(UserMixin, db.Model):
     @property
     def is_spawalnia_user(self): return self.role in ('admin', 'kontroler', 'spawacz')
     @property
+    def is_konstruktor(self): return self.role == 'konstruktor'
+    @property
     def role_label(self):
         return {'admin': 'Administrator', 'order': 'Zamawiający',
                 'kontroler': 'Kontroler', 'monter': 'Monter',
-                'spawacz': 'Spawacz'}.get(self.role, self.role)
+                'spawacz': 'Spawacz', 'konstruktor': 'Konstruktor'}.get(self.role, self.role)
 
 
 class ChecklistTemplate(db.Model):

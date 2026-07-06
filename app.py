@@ -334,6 +334,9 @@ def theme_preview():
 @app.route('/')
 @login_required
 def dashboard():
+    if current_user.role == 'konstruktor':
+        return redirect(url_for('qar.list_reports'))
+
     # Pracownicy niebędący adminem dostają uproszczony dashboard z kafelkami
     if current_user.role in ('order', 'spawacz', 'monter'):
         # Minimalne dane potrzebne do kafelkowego dashboardu

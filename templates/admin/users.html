@@ -28,6 +28,8 @@
               <span class="badge badge-warning">Zamawiający</span>
             {% elif u.role == 'spawacz' %}
               <span class="badge" style="background:var(--danger-bg);color:var(--danger-text);border-color:rgba(185,28,28,.3);">Spawacz</span>
+            {% elif u.role == 'konstruktor' %}
+              <span class="badge badge-info">Konstruktor</span>
             {% else %}
               <span class="badge badge-neutral">{{ u.role }}</span>
             {% endif %}

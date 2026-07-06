@@ -30,7 +30,8 @@ def _audit(action, target_id=None, detail=None):
 
 def _qar_access(report):
     """Zwraca True jeśli użytkownik może zobaczyć raport."""
-    return current_user.is_admin or current_user.is_kontroler or report.user_id == current_user.id
+    return (current_user.is_admin or current_user.is_kontroler or current_user.is_konstruktor
+            or report.user_id == current_user.id)
 
 
 def _qar_edit_access(report):
@@ -39,7 +40,7 @@ def _qar_edit_access(report):
         return True
     if report.status == 'closed':
         return False
-    return current_user.is_kontroler or report.user_id == current_user.id
+    return current_user.is_kontroler or current_user.is_konstruktor or report.user_id == current_user.id
 
 
 def _allowed_image(filename):
@@ -91,7 +92,7 @@ def list_reports():
     date_from  = request.args.get('date_from', '')
     date_to    = request.args.get('date_to', '')
 
-    if current_user.is_admin or current_user.is_kontroler:
+    if current_user.is_admin or current_user.is_kontroler or current_user.is_konstruktor:
         q = QARReport.query
     else:
         q = QARReport.query.filter_by(user_id=current_user.id)
@@ -246,12 +247,12 @@ def close_report(report_id):
     return redirect(url_for('qar.detail_report', report_id=report_id))
 
 
-# ── Wznowienie raportu (admin) ────────────────────────────────────────────────
+# ── Wznowienie raportu (admin, konstruktor) ───────────────────────────────────
 
 @qar_bp.route('/<int:report_id>/reopen', methods=['POST'])
 @login_required
 def reopen_report(report_id):
-    if not current_user.is_admin:
+    if not (current_user.is_admin or current_user.is_konstruktor):
         abort(403)
     report = QARReport.query.get_or_404(report_id)
     report.status         = 'in_progress'

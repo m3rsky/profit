@@ -279,6 +279,14 @@
           <i class="bi bi-tools"></i>
           <span class="wk-nav-label">Pula montaży</span>
         </a>
+
+      {% elif current_user.role == 'konstruktor' %}
+        <a href="{{ url_for('qar.list_reports') }}"
+           class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('qar.') %}active{% endif %}"
+           title="Raporty QAR">
+          <i class="bi bi-clipboard2-pulse"></i>
+          <span class="wk-nav-label">QAR</span>
+        </a>
       {% endif %}
     </nav>
     {% endif %}
