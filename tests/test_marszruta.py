@@ -281,3 +281,47 @@ class TestStats:
         assert 'Marszruta produkcji'.encode('utf-8') in resp.data
         assert 'Ewa Statystyczna'.encode('utf-8') in resp.data
         assert 'Cięcie testowe'.encode('utf-8') in resp.data
+
+
+class TestDeleteCard:
+    def test_delete_forbidden_for_kontroler(self, client, routing_template):
+        login(client, 'oper', 'Oper1234!')
+        with flask_app.app_context():
+            tmpl = RoutingTemplate.query.get(routing_template)
+            card = RoutingCard(identifier='ZO-9006', product_name='MRS-100 obudowa',
+                               quantity=1, template_id=tmpl.id,
+                               created_by_id=User.query.filter_by(username='oper').first().id)
+            db.session.add(card)
+            db.session.commit()
+            card_id = card.id
+
+        token = _csrf(client)
+        resp = client.post(f'/marszruta/{card_id}/delete', data={'_csrf_token': token})
+        assert resp.status_code == 403
+        with flask_app.app_context():
+            assert RoutingCard.query.get(card_id) is not None
+
+    def test_delete_allowed_for_admin_cascades_stages(self, client, routing_template, departments):
+        cutting_id, welding_id = departments
+        login(client, 'oper', 'Oper1234!')
+        with flask_app.app_context():
+            tmpl = RoutingTemplate.query.get(routing_template)
+            card = RoutingCard(identifier='ZO-9007', product_name='MRS-100 obudowa',
+                               quantity=1, template_id=tmpl.id,
+                               created_by_id=User.query.filter_by(username='oper').first().id)
+            db.session.add(card)
+            db.session.flush()
+            for stage_def in tmpl.stages:
+                db.session.add(RoutingCardStage(card_id=card.id, department_id=stage_def.department_id,
+                                                order=stage_def.order))
+            db.session.commit()
+            card_id = card.id
+
+        logout(client)
+        login(client, 'admin', 'Admin1234!')
+        token = _csrf(client)
+        resp = client.post(f'/marszruta/{card_id}/delete', data={'_csrf_token': token}, follow_redirects=True)
+        assert resp.status_code == 200
+        with flask_app.app_context():
+            assert RoutingCard.query.get(card_id) is None
+            assert RoutingCardStage.query.filter_by(card_id=card_id).count() == 0

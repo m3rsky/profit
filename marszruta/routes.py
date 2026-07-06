@@ -190,6 +190,26 @@ def card_detail(card_id):
     return render_template('marszruta/card_detail.html', card=card, stages=stages)
 
 
+@marszruta_bp.route('/<int:card_id>/delete', methods=['POST'])
+@login_required
+def delete_card(card_id):
+    if not current_user.is_admin:
+        abort(403)
+    card = RoutingCard.query.get_or_404(card_id)
+    upload_dir = current_app.config['MARSZRUTA_UPLOAD_FOLDER']
+    for stage in card.stages:
+        for photo in stage.photos:
+            path = os.path.join(upload_dir, photo.filename)
+            if os.path.exists(path):
+                os.remove(path)
+    identifier = card.identifier
+    db.session.delete(card)
+    db.session.commit()
+    _audit('marszruta_card_delete', 'RoutingCard', card_id, f'identifier={identifier}')
+    flash(f'Karta marszrutowa „{identifier}" usunięta.', 'success')
+    return redirect(url_for('marszruta.list_cards'))
+
+
 @marszruta_bp.route('/stage/<int:stage_id>/edit', methods=['GET', 'POST'])
 @login_required
 @marszruta_required

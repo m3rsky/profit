@@ -17,6 +17,15 @@
     <a href="{{ url_for('marszruta.list_cards') }}" class="btn btn-outline">
       <i class="bi bi-arrow-left"></i> Wróć do listy
     </a>
+    {% if current_user.is_admin %}
+    <form method="post" action="{{ url_for('marszruta.delete_card', card_id=card.id) }}"
+          onsubmit="return confirm('Usunąć kartę marszrutową „{{ card.identifier }}”? Tej operacji nie można cofnąć.')">
+      {{ csrf_input() }}
+      <button type="submit" class="btn btn-danger">
+        <i class="bi bi-trash"></i> Usuń kartę
+      </button>
+    </form>
+    {% endif %}
   </div>
 </div>
 
