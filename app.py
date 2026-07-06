@@ -27,7 +27,7 @@ from models import (db, User, ChecklistTemplate, Category, Task, Report, ReportI
                     CatalogProduct,
                     SpawalniaOperator, SpawalniaRecord,
                     ChecklistSession,
-                    QARReport, QARPhoto)
+                    QARReport, QARPhoto, QATask)
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -44,6 +44,9 @@ app.register_blueprint(spawalnia_bp)
 from qar import qar_bp  # noqa: E402
 app.register_blueprint(qar_bp)
 from qar.routes import _next_qar_number  # noqa: E402 — reużyte przez /api/v1/qar
+
+from zadania_qa import zadania_qa_bp  # noqa: E402
+app.register_blueprint(zadania_qa_bp)
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 _log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
@@ -2865,6 +2868,7 @@ def init_db():
         if not ChecklistTemplate.query.first():
             _seed_demo_data()
         _seed_kosztorys()
+        _seed_zadania_qa()
         db.session.commit()
 
 
@@ -3560,6 +3564,47 @@ def _seed_kosztorys():
                 width=w, height=h, depth=d,
                 catalog_price=price, sort_order=sord,
             ))
+
+
+def _seed_zadania_qa():
+    """Inicjuje domyślną listę zadań karty kontroli jakości (na podstawie
+    papierowej karty wykonania zadań – produkcja rozdzielnic)."""
+    if QATask.query.first():
+        return
+    default_tasks = [
+        ('Kontrola przekątnej PSH/PS',
+         'Sprawdzenie wymiarów i przekątnych konstrukcji/obudowy, weryfikacja zgodności '
+         'z dokumentacją techniczną, zapis wyników oraz zgłoszenie ewentualnych odchyłek.'),
+        ('Zebranie dotyczące kontroli jakości prowadzone przez Marka',
+         'Omówienie błędów na podstawie statystyk i raportu QAR, analiza niezgodności, '
+         'wyników kontroli, reklamacji, priorytetów na zmianę oraz działań korygujących.'),
+        ('Kontrola przekątnej - hala A',
+         'Kontrola wymiarów i przekątnych obudów PSH/PS, sprawdzenie zgodności '
+         'z dokumentacją oraz zapis wyników kontroli.'),
+        ('Kontrola jakości obudów typowych',
+         'Sprawdzenie zgodności wykonania obudów standardowych z dokumentacją, kontrola '
+         'wymiarów, kompletności, estetyki wykonania, oznaczeń oraz ewentualnych uszkodzeń.'),
+        ('Kontrola obudów z aplikacją',
+         'Weryfikacja wykonania obudów zgodnie z dokumentacją, wymaganiami klienta '
+         'i zapisami w aplikacji kontrolnej.'),
+        ('Wyjaśnianie reklamacji',
+         'Analiza zgłoszeń reklamacyjnych, sprawdzanie przyczyn niezgodności, kontakt '
+         'z produkcją oraz przygotowanie informacji zwrotnej.'),
+        ('Zebrania dotyczące kontroli jakości',
+         'Omówienie bieżących problemów jakościowych, ustalenie działań korygujących '
+         'i przekazanie informacji do odpowiednich działów.'),
+        ('Przygotowywanie raportów niedoskonałości',
+         'Wpisywanie wykrytych niezgodności, dokumentowanie zdjęć/opisów, klasyfikacja '
+         'problemów oraz przekazanie raportów do dalszej analizy.'),
+        ('Aktualizacje systemowe',
+         'Wprowadzanie i aktualizacja danych w systemach jakościowych, uzupełnianie '
+         'statusów kontroli, raportów, reklamacji oraz zapisów dotyczących niezgodności.'),
+        ('Podsumowanie zmiany',
+         'Zamknięcie dokumentacji, przekazanie informacji przełożonemu lub kolejnej '
+         'zmianie oraz uporządkowanie tematów otwartych.'),
+    ]
+    for i, (title, description) in enumerate(default_tasks):
+        db.session.add(QATask(title=title, description=description, order=i))
 
 
 if __name__ == '__main__':

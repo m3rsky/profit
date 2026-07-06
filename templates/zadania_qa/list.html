@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block title %}Zadania QA{% endblock %}
+
+{% block head %}
+<style>
+.qa-task-row { display: flex; gap: 12px; align-items: flex-start; padding: 14px; }
+.qa-task-row + .qa-task-row { border-top: 1px solid var(--border, #e5e5e5); }
+.qa-task-lp { width: 26px; flex-shrink: 0; font-weight: 600; color: #888; padding-top: 6px; text-align: center; }
+.qa-task-body { flex: 1; min-width: 0; }
+.qa-task-title { font-weight: 600; margin-bottom: 2px; }
+.qa-task-desc { font-size: 0.82rem; color: #666; margin-bottom: 8px; }
+.qa-task-notes { width: 100%; font-size: 0.85rem; margin-top: 6px; }
+.qa-task-actions { display: flex; flex-direction: column; gap: 6px; align-items: stretch; flex-shrink: 0; width: 108px; }
+.qa-task-order { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; padding-top: 4px; }
+.qa-task-order .btn-xs { padding: 1px 6px; }
+@media (max-width: 640px) {
+  .qa-task-row { flex-wrap: wrap; }
+  .qa-task-actions { width: 100%; flex-direction: row; }
+  .qa-print-panel .qa-print-grid { grid-template-columns: 1fr !important; }
+}
+.qa-print-panel { display: none; margin-bottom: 16px; }
+.qa-print-panel.open { display: block; }
+.qa-print-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:16px;">
+  <div>
+    <h1 class="page-title" style="margin:0;font-size:1.4rem;">
+      <i class="bi bi-card-checklist" style="color:var(--accent,#1a6e8a);margin-right:6px;"></i>
+      Zadania QA
+    </h1>
+    <span class="text-muted" style="font-size:0.82rem;">Karta wykonania zadań – produkcja rozdzielnic / obudowy</span>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button type="button" class="btn btn-outline" id="qa-print-toggle">
+      <i class="bi bi-printer"></i> Drukuj kartę
+    </button>
+    <a href="{{ url_for('zadania_qa.new_task') }}" class="btn btn-primary">
+      <i class="bi bi-plus-lg"></i> Dodaj zadanie
+    </a>
+  </div>
+</div>
+
+{# ── Panel wydruku ── #}
+<div class="card qa-print-panel" id="qa-print-panel">
+  <div class="card-body">
+    <div class="qa-print-grid">
+      <div class="form-group">
+        <label class="form-label">Data</label>
+        <input type="text" id="qa-print-date" class="form-control" value="{{ today }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Zmiana</label>
+        <input type="text" id="qa-print-shift" class="form-control" placeholder="np. 06:00-14:00">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Kontroler</label>
+        <input type="text" id="qa-print-controller" class="form-control" value="{{ current_user.username }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Obszar</label>
+        <input type="text" id="qa-print-area" class="form-control" value="Produkcja rozdzielnic / obudowy">
+      </div>
+    </div>
+    <div style="margin-top:12px;text-align:right;">
+      <button type="button" class="btn btn-primary" id="qa-print-go">
+        <i class="bi bi-file-earmark-pdf"></i> Generuj PDF
+      </button>
+    </div>
+  </div>
+</div>
+
+{% if tasks %}
+<div class="card">
+  <div class="card-body" style="padding:0;">
+    {% for task in tasks %}
+    <div class="qa-task-row" id="qa-row-{{ task.id }}">
+      <div class="qa-task-lp">{{ loop.index }}</div>
+      <div class="qa-task-order">
+        <form method="post" action="{{ url_for('zadania_qa.move_task', task_id=task.id) }}">
+          {{ csrf_input() }}
+          <input type="hidden" name="direction" value="up">
+          <button type="submit" class="btn btn-outline btn-xs" title="Wyżej" {% if loop.first %}disabled{% endif %}>
+            <i class="bi bi-chevron-up"></i>
+          </button>
+        </form>
+        <form method="post" action="{{ url_for('zadania_qa.move_task', task_id=task.id) }}">
+          {{ csrf_input() }}
+          <input type="hidden" name="direction" value="down">
+          <button type="submit" class="btn btn-outline btn-xs" title="Niżej" {% if loop.last %}disabled{% endif %}>
+            <i class="bi bi-chevron-down"></i>
+          </button>
+        </form>
+      </div>
+      <div class="qa-task-body">
+        <div class="qa-task-title">{{ task.title }}</div>
+        {% if task.description %}<div class="qa-task-desc">{{ task.description }}</div>{% endif %}
+        <textarea class="form-control qa-task-notes" rows="2" placeholder="Uwagi…"
+                  data-task-id="{{ task.id }}">{{ task.notes or '' }}</textarea>
+      </div>
+      <div class="qa-task-actions">
+        <button type="button" class="btn btn-xs qa-toggle-btn {% if task.is_done %}btn-ok active{% else %}btn-outline{% endif %}"
+                data-task-id="{{ task.id }}" data-done="{{ 'true' if task.is_done else 'false' }}">
+          <i class="bi {% if task.is_done %}bi-check-circle-fill{% else %}bi-circle{% endif %}"></i>
+          {{ 'Wykonano' if task.is_done else 'Do wykonania' }}
+        </button>
+        <a href="{{ url_for('zadania_qa.edit_task', task_id=task.id) }}" class="btn btn-outline btn-xs">
+          <i class="bi bi-pencil"></i> Edytuj
+        </a>
+        <form method="post" action="{{ url_for('zadania_qa.delete_task', task_id=task.id) }}"
+              onsubmit="return confirm('Usunąć zadanie „{{ task.title }}”?');">
+          {{ csrf_input() }}
+          <button type="submit" class="btn btn-outline btn-xs" style="width:100%;color:#c0392b;border-color:#c0392b;">
+            <i class="bi bi-trash"></i> Usuń
+          </button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="empty-state" style="text-align:center;padding:48px 0;color:#888;">
+  <i class="bi bi-card-checklist" style="font-size:3rem;display:block;margin-bottom:12px;"></i>
+  <p>Brak zadań na karcie kontroli jakości.</p>
+  <a href="{{ url_for('zadania_qa.new_task') }}" class="btn btn-primary" style="margin-top:8px;">
+    <i class="bi bi-plus-lg"></i> Dodaj pierwsze zadanie
+  </a>
+</div>
+{% endif %}
+
+<script>
+const CSRF = document.querySelector('meta[name="csrf-token"]').content;
+
+document.querySelectorAll('.qa-toggle-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const id = btn.dataset.taskId;
+    fetch(`/zadania-qa/${id}/toggle`, {
+      method: 'POST',
+      headers: { 'X-CSRF-Token': CSRF },
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (!data.ok) return;
+        btn.dataset.done = data.is_done;
+        btn.classList.toggle('btn-ok', data.is_done);
+        btn.classList.toggle('active', data.is_done);
+        btn.classList.toggle('btn-outline', !data.is_done);
+        btn.innerHTML = data.is_done
+          ? '<i class="bi bi-check-circle-fill"></i> Wykonano'
+          : '<i class="bi bi-circle"></i> Do wykonania';
+      });
+  });
+});
+
+let noteTimers = {};
+document.querySelectorAll('.qa-task-notes').forEach(el => {
+  el.addEventListener('input', () => {
+    const id = el.dataset.taskId;
+    clearTimeout(noteTimers[id]);
+    noteTimers[id] = setTimeout(() => {
+      fetch(`/zadania-qa/${id}/notes`, {
+        method: 'POST',
+        headers: { 'X-CSRF-Token': CSRF, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: el.value }),
+      });
+    }, 600);
+  });
+});
+
+const printToggle = document.getElementById('qa-print-toggle');
+const printPanel   = document.getElementById('qa-print-panel');
+printToggle.addEventListener('click', () => printPanel.classList.toggle('open'));
+
+document.getElementById('qa-print-go').addEventListener('click', () => {
+  const params = new URLSearchParams({
+    date:       document.getElementById('qa-print-date').value,
+    shift:      document.getElementById('qa-print-shift').value,
+    controller: document.getElementById('qa-print-controller').value,
+    area:       document.getElementById('qa-print-area').value,
+  });
+  window.open(`/zadania-qa/pdf?${params.toString()}`, '_blank');
+});
+</script>
+{% endblock %}

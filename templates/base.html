@@ -77,7 +77,7 @@
         <span>Raporty QA</span>
       </a>
       <a href="{{ url_for('admin_templates') }}"
-         class="{% if request.endpoint and ('template' in request.endpoint or 'category' in request.endpoint or 'task' in request.endpoint) %}active{% endif %}">
+         class="{% if request.endpoint and not request.endpoint.startswith('zadania_qa.') and ('template' in request.endpoint or 'category' in request.endpoint or 'task' in request.endpoint) %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-layout-text-sidebar-reverse"></i></span>
         <span>Szablony</span>
       </a>
@@ -100,6 +100,11 @@
          class="{% if request.endpoint and request.endpoint.startswith('qar.') %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-clipboard2-pulse"></i></span>
         <span>Raporty QAR</span>
+      </a>
+      <a href="{{ url_for('zadania_qa.list_tasks') }}"
+         class="{% if request.endpoint and request.endpoint.startswith('zadania_qa.') %}active{% endif %}">
+        <span class="nav-icon"><i class="bi bi-card-checklist"></i></span>
+        <span>Zadania QA</span>
       </a>
 
       <div class="sidebar-section">Zarządzanie</div>
@@ -225,8 +230,14 @@
           <i class="bi bi-clipboard2-pulse"></i>
           <span class="wk-nav-label">QAR</span>
         </a>
+        <a href="{{ url_for('zadania_qa.list_tasks') }}"
+           class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('zadania_qa.') %}active{% endif %}"
+           title="Zadania QA">
+          <i class="bi bi-card-checklist"></i>
+          <span class="wk-nav-label">Zadania QA</span>
+        </a>
         <a href="{{ url_for('admin_templates') }}"
-           class="wk-nav-link {% if request.endpoint and ('template' in request.endpoint or 'category' in request.endpoint or 'task' in request.endpoint) %}active{% endif %}"
+           class="wk-nav-link {% if request.endpoint and not request.endpoint.startswith('zadania_qa.') and ('template' in request.endpoint or 'category' in request.endpoint or 'task' in request.endpoint) %}active{% endif %}"
            title="Szablony">
           <i class="bi bi-layout-text-sidebar-reverse"></i>
           <span class="wk-nav-label">Szablony</span>

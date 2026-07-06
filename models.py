@@ -608,3 +608,24 @@ class QARPhoto(db.Model):
 
     def __repr__(self):
         return f'<QARPhoto {self.filename}>'
+
+
+class QATask(db.Model):
+    """Stała lista zadań karty kontroli jakości — bez historii dziennej,
+    kontroler zaznacza wykonanie i uwagi na bieżąco."""
+    __tablename__ = 'qa_tasks'
+    id            = db.Column(db.Integer, primary_key=True)
+    order         = db.Column(db.Integer, default=0)
+    title         = db.Column(db.String(256), nullable=False)
+    description   = db.Column(db.Text, nullable=True)
+    is_done       = db.Column(db.Boolean, default=False)
+    notes         = db.Column(db.Text, nullable=True)
+    is_active     = db.Column(db.Boolean, default=True)
+    updated_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    updated_at    = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    created_at    = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+
+    updated_by = db.relationship('User', foreign_keys=[updated_by_id])
+
+    def __repr__(self):
+        return f'<QATask {self.title}>'
