@@ -48,9 +48,6 @@
             <td data-label="Nazwa">
               <div class="dept-name-view">
                 <strong class="dept-name-text">{{ dept.name }}</strong>
-                <button type="button" class="btn btn-xs btn-outline dept-name-edit-btn" title="Edytuj nazwę">
-                  <i class="bi bi-pencil"></i>
-                </button>
               </div>
               <form method="post" class="dept-name-edit-form form-inline" style="display:none;">
                 {{ csrf_input() }}
@@ -78,6 +75,9 @@
                   <i class="bi bi-{{ 'pause' if dept.is_active else 'play' }}-fill"></i>
                 </button>
               </form>
+              <button type="button" class="btn btn-sm btn-outline dept-name-edit-btn" title="Edytuj nazwę">
+                <i class="bi bi-pencil"></i>
+              </button>
               <form method="post" class="form-inline" onsubmit="return confirm('Usunąć dział {{ dept.name }}?')">
                 {{ csrf_input() }}
                 <input type="hidden" name="action" value="delete">
@@ -133,9 +133,9 @@
 
   document.querySelectorAll('.dept-name-edit-btn').forEach(function (btn) {
     btn.addEventListener('click', function () {
-      const td = btn.closest('td');
-      td.querySelector('.dept-name-view').style.display = 'none';
-      const form = td.querySelector('.dept-name-edit-form');
+      const row = btn.closest('tr');
+      row.querySelector('.dept-name-view').style.display = 'none';
+      const form = row.querySelector('.dept-name-edit-form');
       form.style.display = 'flex';
       form.querySelector('input[name="name"]').focus();
     });
@@ -143,9 +143,9 @@
 
   document.querySelectorAll('.dept-name-cancel-btn').forEach(function (btn) {
     btn.addEventListener('click', function () {
-      const td = btn.closest('td');
-      td.querySelector('.dept-name-edit-form').style.display = 'none';
-      td.querySelector('.dept-name-view').style.display = '';
+      const row = btn.closest('tr');
+      row.querySelector('.dept-name-edit-form').style.display = 'none';
+      row.querySelector('.dept-name-view').style.display = '';
     });
   });
 })();
