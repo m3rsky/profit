@@ -63,11 +63,9 @@
           <div class="photo-thumb">
             <img src="{{ url_for('marszruta.serve_photo', filename=photo.filename) }}" alt="zdjęcie"
                  style="max-width:100px;border-radius:6px;">
-            <form method="post" action="{{ url_for('marszruta.delete_photo', photo_id=photo.id) }}"
-                  style="display:inline;" onsubmit="return confirm('Usunąć zdjęcie?')">
-              {{ csrf_input() }}
-              <button type="submit" class="delete-photo" title="Usuń">×</button>
-            </form>
+            <button type="button" class="delete-photo" title="Usuń"
+                    data-delete-url="{{ url_for('marszruta.delete_photo', photo_id=photo.id) }}"
+                    onclick="deleteStagePhoto(this)">×</button>
           </div>
           {% endfor %}
         </div>
@@ -104,5 +102,16 @@ document.getElementById('photos').addEventListener('change', function () {
   else if (this.files.length > 1) text.textContent = this.files.length + ' plików wybranych';
   else text.textContent = 'Wybierz lub zrób zdjęcie';
 });
+
+function deleteStagePhoto(btn) {
+  if (!confirm('Usunąć zdjęcie?')) return;
+  fetch(btn.dataset.deleteUrl, {
+    method: 'POST',
+    headers: { 'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || '' }
+  }).then(function (res) {
+    if (res.ok) btn.closest('.photo-thumb').remove();
+    else alert('Błąd usuwania zdjęcia.');
+  }).catch(function () { alert('Błąd usuwania zdjęcia.'); });
+}
 </script>
 {% endblock %}
