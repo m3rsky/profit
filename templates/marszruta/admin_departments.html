@@ -1,10 +1,17 @@
 {% extends "base.html" %}
 {% block title %}Działy produkcyjne – Marszruta{% endblock %}
 
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
+{% endblock %}
+
 {% block content %}
 <div class="page-header">
   <h1 class="page-title"><i class="bi bi-gear"></i> Działy produkcyjne</h1>
   <div class="page-actions">
+    {% if departments %}
+    <span class="drag-hint"><i class="bi bi-arrows-expand-vertical"></i> Przeciągnij wiersze by zmienić kolejność</span>
+    {% endif %}
     <a href="{{ url_for('marszruta.list_cards') }}" class="btn btn-outline">
       <i class="bi bi-arrow-left"></i> Wróć do listy
     </a>
@@ -32,32 +39,28 @@
     {% if departments %}
     <div class="table-wrap">
       <table class="data-table tbl-cards">
-        <thead><tr><th>Kolejność</th><th>Nazwa</th><th>Status</th><th class="th-actions"></th></tr></thead>
-        <tbody>
+        <thead><tr><th class="th-drag"><span class="sr-only">Przeciągnij</span></th><th>#</th><th>Nazwa</th><th>Status</th><th class="th-actions"></th></tr></thead>
+        <tbody id="sortable-departments">
           {% for dept in departments %}
-          <tr>
-            <td data-label="Kolejność">
-              <div style="display:flex;gap:2px;">
-                <form method="post">
-                  {{ csrf_input() }}
-                  <input type="hidden" name="action" value="move">
-                  <input type="hidden" name="direction" value="up">
-                  <input type="hidden" name="dept_id" value="{{ dept.id }}">
-                  <button type="submit" class="btn btn-outline btn-xs" title="Wyżej" {% if loop.first %}disabled{% endif %}>
-                    <i class="bi bi-chevron-up"></i>
-                  </button>
-                </form>
-                <form method="post">{{ csrf_input() }}
-                  <input type="hidden" name="action" value="move">
-                  <input type="hidden" name="direction" value="down">
-                  <input type="hidden" name="dept_id" value="{{ dept.id }}">
-                  <button type="submit" class="btn btn-outline btn-xs" title="Niżej" {% if loop.last %}disabled{% endif %}>
-                    <i class="bi bi-chevron-down"></i>
-                  </button>
-                </form>
+          <tr data-dept-id="{{ dept.id }}" class="sortable-row">
+            <td class="drag-handle" title="Przeciągnij">⠿</td>
+            <td class="dept-order-cell" data-label="Kolejność">{{ loop.index }}</td>
+            <td data-label="Nazwa">
+              <div class="dept-name-view">
+                <strong class="dept-name-text">{{ dept.name }}</strong>
+                <button type="button" class="btn btn-xs btn-outline dept-name-edit-btn" title="Edytuj nazwę">
+                  <i class="bi bi-pencil"></i>
+                </button>
               </div>
+              <form method="post" class="dept-name-edit-form form-inline" style="display:none;">
+                {{ csrf_input() }}
+                <input type="hidden" name="action" value="rename">
+                <input type="hidden" name="dept_id" value="{{ dept.id }}">
+                <input type="text" name="name" class="form-control form-control--sm" value="{{ dept.name }}" maxlength="64" required>
+                <button type="submit" class="btn btn-xs btn-primary" title="Zapisz"><i class="bi bi-check-lg"></i></button>
+                <button type="button" class="btn btn-xs btn-outline dept-name-cancel-btn" title="Anuluj"><i class="bi bi-x-lg"></i></button>
+              </form>
             </td>
-            <td data-label="Nazwa"><strong>{{ dept.name }}</strong></td>
             <td data-label="Status">
               {% if dept.is_active %}<span class="badge badge-ok">Aktywny</span>
               {% else %}<span class="badge badge-neutral">Nieaktywny</span>{% endif %}
@@ -98,5 +101,53 @@
 <style>
 .sp-ops-grid { display: grid; grid-template-columns: 320px 1fr; gap: 1rem; align-items: start; }
 @media (max-width: 900px) { .sp-ops-grid { grid-template-columns: 1fr; } }
+.dept-name-edit-form { align-items: center; gap: 0.25rem; }
 </style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const tbody = document.getElementById('sortable-departments');
+  if (tbody && typeof Sortable !== 'undefined') {
+    Sortable.create(tbody, {
+      handle: '.drag-handle',
+      animation: 150,
+      onEnd: async function () {
+        const rows = tbody.querySelectorAll('tr[data-dept-id]');
+        const order = Array.from(rows).map(function (r, i) {
+          r.querySelector('.dept-order-cell').textContent = i + 1;
+          return { id: Number(r.dataset.deptId) };
+        });
+        await fetch('{{ url_for("marszruta.admin_departments_reorder") }}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || ''
+          },
+          body: JSON.stringify(order),
+        });
+      },
+    });
+  }
+
+  document.querySelectorAll('.dept-name-edit-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      const td = btn.closest('td');
+      td.querySelector('.dept-name-view').style.display = 'none';
+      const form = td.querySelector('.dept-name-edit-form');
+      form.style.display = 'flex';
+      form.querySelector('input[name="name"]').focus();
+    });
+  });
+
+  document.querySelectorAll('.dept-name-cancel-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      const td = btn.closest('td');
+      td.querySelector('.dept-name-edit-form').style.display = 'none';
+      td.querySelector('.dept-name-view').style.display = '';
+    });
+  });
+})();
+</script>
 {% endblock %}

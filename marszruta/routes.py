@@ -304,6 +304,22 @@ def admin_departments():
                 _audit('marszruta_dept_add', 'ProductionDepartment', dept.id, name)
                 flash(f'Dodano dział „{name}".', 'success')
 
+        elif action == 'rename':
+            dept = ProductionDepartment.query.get_or_404(request.form.get('dept_id', type=int))
+            name = request.form.get('name', '').strip()
+            if not name:
+                flash('Nazwa działu jest wymagana.', 'warning')
+            elif ProductionDepartment.query.filter(ProductionDepartment.name == name,
+                                                    ProductionDepartment.id != dept.id).first():
+                flash(f'Dział „{name}" już istnieje.', 'warning')
+            else:
+                old_name = dept.name
+                dept.name = name
+                db.session.commit()
+                _audit('marszruta_dept_rename', 'ProductionDepartment', dept.id,
+                       f'{old_name} -> {name}')
+                flash(f'Zmieniono nazwę działu na „{name}".', 'success')
+
         elif action == 'toggle':
             dept = ProductionDepartment.query.get_or_404(request.form.get('dept_id', type=int))
             dept.is_active = not dept.is_active
@@ -323,25 +339,27 @@ def admin_departments():
                 _audit('marszruta_dept_delete', 'ProductionDepartment', dept.id, name)
                 flash(f'Dział „{name}" usunięty.', 'success')
 
-        elif action == 'move':
-            dept_id = request.form.get('dept_id', type=int)
-            direction = request.form.get('direction')
-            depts = ProductionDepartment.query.order_by(ProductionDepartment.order).all()
-            idx = next((i for i, d in enumerate(depts) if d.id == dept_id), None)
-            if idx is not None:
-                other = None
-                if direction == 'up' and idx > 0:
-                    other = depts[idx - 1]
-                elif direction == 'down' and idx < len(depts) - 1:
-                    other = depts[idx + 1]
-                if other is not None:
-                    depts[idx].order, other.order = other.order, depts[idx].order
-                    db.session.commit()
-
         return redirect(url_for('marszruta.admin_departments'))
 
     departments = ProductionDepartment.query.order_by(ProductionDepartment.order).all()
     return render_template('marszruta/admin_departments.html', departments=departments)
+
+
+@marszruta_bp.route('/admin/departments/reorder', methods=['POST'])
+@login_required
+@marszruta_required
+def admin_departments_reorder():
+    items = request.get_json(silent=True)
+    if not isinstance(items, list):
+        return jsonify({'error': 'bad request'}), 400
+    for idx, entry in enumerate(items):
+        dept = db.session.get(ProductionDepartment, entry.get('id'))
+        if dept:
+            dept.order = idx
+    db.session.commit()
+    _audit('marszruta_dept_reorder', 'ProductionDepartment', None,
+           ','.join(str(e.get('id')) for e in items))
+    return jsonify({'ok': True})
 
 
 @marszruta_bp.route('/admin/departments/<int:dept_id>/employees', methods=['GET', 'POST'])
