@@ -1,21 +1,50 @@
 {% extends "base.html" %}
 {% block title %}Marszruta produkcji{% endblock %}
 
+{% block head %}
+<style>
+/* Badge "Zakończona" – bez tła i obramowania, sama zielona czcionka */
+table.card-list-table .badge-ok {
+  background: transparent !important;
+  border-color: transparent !important;
+  border: none !important;
+}
+
+/* ── Lista kart marszrutowych – kompaktowy widok mobilny (jak Ścieżki/Działy) ── */
+@media (max-width: 640px), (hover: none) and (pointer: coarse) and (min-width: 769px) {
+  table.card-list-table tr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
+  table.card-list-table td.tpl-cell { padding: 2px 0 !important; }
+  table.card-list-table td.tpl-cell::before { display: none; }
+  table.card-list-table .td-actions {
+    border-top: none !important;
+    margin-top: 0 !important;
+    padding-top: 2px !important;
+    margin-left: auto !important;
+  }
+}
+
+/* Poniżej ~400px za mało miejsca na etykiety obok ikon – zostają same ikony */
+@media (max-width: 400px) {
+  table.card-list-table .td-actions .btn-label { display: none; }
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="page-header">
   <div>
     <h1 class="page-title"><i class="bi bi-signpost-split"></i> Marszruta produkcji</h1>
     <span class="text-muted" style="font-size:0.82rem;">Karty marszrutowe — ocena zlecenia na kolejnych działach produkcji</span>
   </div>
-  <div class="page-actions">
-    <a href="{{ url_for('marszruta.scan_page') }}" class="btn btn-primary">
+  <div class="page-header-actions">
+    <a href="{{ url_for('marszruta.scan_page') }}" class="btn btn-ghost">
       <i class="bi bi-qr-code-scan"></i> Skanuj QR
     </a>
     {% if current_user.is_admin %}
-    <a href="{{ url_for('marszruta.admin_routing_templates') }}" class="btn btn-outline">
+    <a href="{{ url_for('marszruta.admin_routing_templates') }}" class="btn btn-ghost">
       <i class="bi bi-diagram-3"></i> Ścieżki produkcyjne
     </a>
-    <a href="{{ url_for('marszruta.admin_departments') }}" class="btn btn-outline">
+    <a href="{{ url_for('marszruta.admin_departments') }}" class="btn btn-ghost">
       <i class="bi bi-gear"></i> Działy i pracownicy
     </a>
     {% endif %}
@@ -32,7 +61,7 @@
   </div>
   {% if cards %}
   <div class="table-wrap">
-    <table class="data-table tbl-cards">
+    <table class="data-table tbl-cards card-list-table">
       <thead>
         <tr>
           <th>Numer zlecenia</th>
@@ -46,18 +75,18 @@
       <tbody>
         {% for card in cards %}
         <tr>
-          <td data-label="Numer"><strong>{{ card.identifier }}</strong></td>
-          <td data-label="Produkt">{{ card.product_name }}</td>
-          <td data-label="Klient">{{ card.client or '—' }}</td>
-          <td data-label="Ilość">{{ card.quantity }} szt.</td>
-          <td data-label="Status">
+          <td data-label="Numer" class="tpl-cell"><strong>{{ card.identifier }}</strong></td>
+          <td data-label="Produkt" class="tpl-cell">{{ card.product_name }}</td>
+          <td data-label="Klient" class="tpl-cell">{{ card.client or '—' }}</td>
+          <td data-label="Ilość" class="tpl-cell">{{ card.quantity }} szt.</td>
+          <td data-label="Status" class="tpl-cell">
             {% if card.has_ng %}<span class="badge badge-danger">NG</span>{% endif %}
             {% if card.is_complete %}<span class="badge badge-ok">Zakończona</span>
             {% else %}<span class="badge badge-warning">W toku</span>{% endif %}
           </td>
           <td class="td-actions">
-            <a href="{{ url_for('marszruta.card_detail', card_id=card.id) }}" class="btn btn-sm btn-outline">
-              <i class="bi bi-eye"></i> Otwórz
+            <a href="{{ url_for('marszruta.card_detail', card_id=card.id) }}" class="btn btn-sm btn-outline" title="Otwórz">
+              <i class="bi bi-eye"></i> <span class="btn-label">Otwórz</span>
             </a>
             {% if current_user.is_admin %}
             <form method="post" action="{{ url_for('marszruta.delete_card', card_id=card.id) }}"

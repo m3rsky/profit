@@ -4,7 +4,7 @@
 {% block content %}
 <div class="page-header">
   <h1 class="page-title"><i class="bi bi-clipboard-check"></i> {{ stage.department.name }}</h1>
-  <div class="page-actions">
+  <div class="page-header-actions">
     <a href="{{ url_for('marszruta.card_detail', card_id=stage.card_id) }}" class="btn btn-outline">
       <i class="bi bi-arrow-left"></i> Wróć do karty
     </a>
@@ -76,7 +76,11 @@
 
       <div class="form-group">
         <label class="form-label" for="photos">Dodaj zdjęcia <span class="form-hint-inline">(opcjonalne)</span></label>
-        <input type="file" id="photos" name="photos" accept="image/*" capture="environment" multiple class="form-control">
+        <label for="photos" class="photo-upload-zone">
+          <i class="bi bi-camera"></i>
+          <span id="photo-upload-text">Wybierz lub zrób zdjęcie</span>
+        </label>
+        <input type="file" id="photos" name="photos" accept="image/*" capture="environment" multiple class="photo-upload-input">
       </div>
 
       <button type="submit" class="btn btn-primary btn-block">
@@ -92,6 +96,13 @@ document.querySelectorAll('.btn-result').forEach(function (label) {
     document.querySelectorAll('.btn-result').forEach(function (l) { l.classList.remove('active'); });
     label.classList.add('active');
   });
+});
+
+document.getElementById('photos').addEventListener('change', function () {
+  var text = document.getElementById('photo-upload-text');
+  if (this.files.length === 1) text.textContent = this.files[0].name;
+  else if (this.files.length > 1) text.textContent = this.files.length + ' plików wybranych';
+  else text.textContent = 'Wybierz lub zrób zdjęcie';
 });
 </script>
 {% endblock %}

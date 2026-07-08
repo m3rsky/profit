@@ -8,7 +8,7 @@
 {% block content %}
 <div class="page-header">
   <h1 class="page-title"><i class="bi bi-gear"></i> Działy produkcyjne</h1>
-  <div class="page-actions">
+  <div class="page-header-actions">
     {% if departments %}
     <span class="drag-hint"><i class="bi bi-arrows-expand-vertical"></i> Przeciągnij wiersze by zmienić kolejność</span>
     {% endif %}
@@ -38,14 +38,14 @@
     <div class="card-header">Lista działów</div>
     {% if departments %}
     <div class="table-wrap">
-      <table class="data-table tbl-cards">
+      <table class="data-table tbl-cards dept-list-table">
         <thead><tr><th class="th-drag"><span class="sr-only">Przeciągnij</span></th><th>#</th><th>Nazwa</th><th>Status</th><th class="th-actions"></th></tr></thead>
         <tbody id="sortable-departments">
           {% for dept in departments %}
           <tr data-dept-id="{{ dept.id }}" class="sortable-row">
             <td class="drag-handle" title="Przeciągnij">⠿</td>
-            <td class="dept-order-cell" data-label="Kolejność">{{ loop.index }}</td>
-            <td data-label="Nazwa">
+            <td class="dept-order-cell tpl-cell" data-label="Kolejność">{{ loop.index }}</td>
+            <td data-label="Nazwa" class="tpl-cell">
               <div class="dept-name-view">
                 <strong class="dept-name-text">{{ dept.name }}</strong>
               </div>
@@ -58,13 +58,13 @@
                 <button type="button" class="btn btn-xs btn-outline dept-name-cancel-btn" title="Anuluj"><i class="bi bi-x-lg"></i></button>
               </form>
             </td>
-            <td data-label="Status">
+            <td data-label="Status" class="tpl-cell">
               {% if dept.is_active %}<span class="badge badge-ok">Aktywny</span>
               {% else %}<span class="badge badge-neutral">Nieaktywny</span>{% endif %}
             </td>
             <td class="td-actions">
-              <a href="{{ url_for('marszruta.admin_employees', dept_id=dept.id) }}" class="btn btn-sm btn-outline">
-                <i class="bi bi-people"></i> Pracownicy ({{ dept.employees.count() }})
+              <a href="{{ url_for('marszruta.admin_employees', dept_id=dept.id) }}" class="btn btn-sm btn-outline" title="Pracownicy">
+                <i class="bi bi-people"></i> <span class="btn-label">Pracownicy</span> ({{ dept.employees.count() }})
               </a>
               <form method="post" class="form-inline">
                 {{ csrf_input() }}
@@ -102,6 +102,31 @@
 .sp-ops-grid { display: grid; grid-template-columns: 320px 1fr; gap: 1rem; align-items: start; }
 @media (max-width: 900px) { .sp-ops-grid { grid-template-columns: 1fr; } }
 .dept-name-edit-form { align-items: center; gap: 0.25rem; }
+
+/* Badge "Aktywny" – bez tła i obramowania, sama zielona czcionka */
+table.dept-list-table .badge-ok {
+  background: transparent !important;
+  border-color: transparent !important;
+  border: none !important;
+}
+
+/* ── Lista działów – kompaktowy widok mobilny (jak Ścieżki produkcyjne) ── */
+@media (max-width: 640px), (hover: none) and (pointer: coarse) and (min-width: 769px) {
+  table.dept-list-table tr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
+  table.dept-list-table td.tpl-cell { padding: 2px 0 !important; }
+  table.dept-list-table td.tpl-cell::before { display: none; }
+  table.dept-list-table .td-actions {
+    border-top: none !important;
+    margin-top: 0 !important;
+    padding-top: 2px !important;
+    margin-left: auto !important;
+  }
+}
+
+/* Poniżej ~400px za mało miejsca na etykiety obok ikon – zostają same ikony/liczby */
+@media (max-width: 400px) {
+  table.dept-list-table .td-actions .btn-label { display: none; }
+}
 </style>
 {% endblock %}
 

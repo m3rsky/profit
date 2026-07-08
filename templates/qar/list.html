@@ -5,7 +5,7 @@
 <style>
 /* ── QAR list – mobile ── */
 @media (max-width: 640px) {
-  .qar-filters { flex-direction: column; }
+  .qar-filters { flex-direction: column; padding-left: 12px; padding-right: 12px; }
   .qar-filters input, .qar-filters select { width: 100% !important; }
   .qar-filters .btn { width: 100%; }
   .qar-table-wrap { display: none; }
@@ -15,8 +15,6 @@
   .qar-card-row { display: flex; align-items: center; justify-content: space-between; }
   .qar-card-title { font-weight: 600; font-size: 0.95rem; color: var(--text, #1a1a1a); }
   .qar-card-meta { font-size: 0.78rem; color: #666; }
-  .qar-header-btn { width: 100%; justify-content: center; }
-  .qar-page-header { flex-direction: column; align-items: flex-start !important; }
 }
 @media (min-width: 641px) {
   .qar-cards { display: none !important; }
@@ -25,17 +23,19 @@
 {% endblock %}
 
 {% block content %}
-<div class="page-header qar-page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:16px;">
+<div class="page-header">
   <div>
-    <h1 class="page-title" style="margin:0;font-size:1.4rem;">
-      <i class="bi bi-clipboard2-pulse" style="color:var(--accent,#1a6e8a);margin-right:6px;"></i>
+    <h1 class="page-title">
+      <i class="bi bi-clipboard2-pulse"></i>
       Raporty QAR
     </h1>
     <span class="text-muted" style="font-size:0.82rem;">Quality Action Reports — dokumentacja niezgodności</span>
   </div>
-  <a href="{{ url_for('qar.new_report') }}" class="btn btn-primary qar-header-btn">
-    <i class="bi bi-plus-lg"></i> Nowy raport
-  </a>
+  <div class="page-header-actions">
+    <a href="{{ url_for('qar.new_report') }}" class="btn btn-primary">
+      <i class="bi bi-plus-lg"></i> Nowy raport
+    </a>
+  </div>
 </div>
 
 {# ── Filtry ── #}
