@@ -743,7 +743,7 @@ class RoutingCardStage(db.Model):
     department_id = db.Column(db.Integer, db.ForeignKey('production_departments.id'), nullable=False)
     order         = db.Column(db.Integer, default=0)
     employee_id   = db.Column(db.Integer, db.ForeignKey('department_employees.id'), nullable=True)
-    result        = db.Column(db.String(4), nullable=True)   # ok | ng | dw | None
+    result        = db.Column(db.String(4), nullable=True)   # ok | ng | None
     notes         = db.Column(db.Text, nullable=True)
     checked_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     checked_at    = db.Column(db.DateTime, nullable=True)
@@ -754,7 +754,7 @@ class RoutingCardStage(db.Model):
     photos        = db.relationship('RoutingCardPhoto', backref='stage', lazy='dynamic',
                                     cascade='all, delete-orphan')
 
-    RESULT_LABELS = {'ok': 'Zgodne', 'ng': 'Niezgodne', 'dw': 'Dopuszczone warunkowo'}
+    RESULT_LABELS = {'ok': 'Zgodne', 'ng': 'Niezgodne'}
 
     @property
     def result_label(self):

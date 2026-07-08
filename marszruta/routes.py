@@ -221,7 +221,7 @@ def edit_stage(stage_id):
 
     if request.method == 'POST':
         result = request.form.get('result') or None
-        if result not in (None, 'ok', 'ng', 'dw'):
+        if result not in (None, 'ok', 'ng'):
             abort(400)
         employee_id = request.form.get('employee_id') or None
 

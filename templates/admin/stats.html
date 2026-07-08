@@ -157,9 +157,8 @@
         <tr>
           <th>Dział</th>
           <th class="text-center">Ocenionych etapów</th>
-          <th class="text-center">OK</th>
-          <th class="text-center">NG</th>
-          <th class="text-center">DW</th>
+          <th class="text-center">PLUS</th>
+          <th class="text-center">MINUS</th>
         </tr>
       </thead>
       <tbody>
@@ -169,7 +168,6 @@
           <td class="text-center">{{ d.total }}</td>
           <td class="text-center">{{ d.ok }}</td>
           <td class="text-center"><span class="badge badge-error">{{ d.ng }}</span></td>
-          <td class="text-center"><span class="badge badge-warning">{{ d.dw }}</span></td>
         </tr>
         {% endfor %}
       </tbody>
@@ -183,7 +181,7 @@
   <div class="card-header"><i class="bi bi-people"></i> Marszruta produkcji – aktywność pracowników</div>
   <div class="card-body card-body--flush">
     <table class="data-table tbl-cards">
-      <thead><tr><th>Pracownik</th><th>Dział</th><th class="text-center">Ocenionych etapów</th><th class="text-center">NG</th></tr></thead>
+      <thead><tr><th>Pracownik</th><th>Dział</th><th class="text-center">Ocenionych etapów</th><th class="text-center">MINUS</th></tr></thead>
       <tbody>
         {% for e in marszruta_employee_stats %}
         <tr>

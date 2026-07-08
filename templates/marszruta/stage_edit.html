@@ -41,14 +41,10 @@
         <label class="form-label">Wynik</label>
         <div class="result-buttons">
           <label class="btn-result btn-ok {% if stage.result == 'ok' %}active{% endif %}">
-            <input type="radio" name="result" value="ok" {% if stage.result == 'ok' %}checked{% endif %} style="display:none;"> OK
+            <input type="radio" name="result" value="ok" {% if stage.result == 'ok' %}checked{% endif %} style="display:none;"> PLUS
           </label>
           <label class="btn-result btn-ng {% if stage.result == 'ng' %}active{% endif %}">
-            <input type="radio" name="result" value="ng" {% if stage.result == 'ng' %}checked{% endif %} style="display:none;"> NG
-          </label>
-          <label class="btn-result btn-dw {% if stage.result == 'dw' %}active{% endif %}"
-                 title="Dopuszczenie warunkowe – wymagany komentarz.">
-            <input type="radio" name="result" value="dw" {% if stage.result == 'dw' %}checked{% endif %} style="display:none;"> DW
+            <input type="radio" name="result" value="ng" {% if stage.result == 'ng' %}checked{% endif %} style="display:none;"> MINUS
           </label>
         </div>
       </div>

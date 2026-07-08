@@ -1334,7 +1334,6 @@ def admin_stats():
         func.count(RoutingCardStage.id).label('total'),
         func.sum(case((RoutingCardStage.result == 'ok', 1), else_=0)).label('ok'),
         func.sum(case((RoutingCardStage.result == 'ng', 1), else_=0)).label('ng'),
-        func.sum(case((RoutingCardStage.result == 'dw', 1), else_=0)).label('dw'),
     ).join(RoutingCardStage, RoutingCardStage.department_id == ProductionDepartment.id)
      .filter(RoutingCardStage.checked_at.isnot(None),
              _stage_day_expr >= cutoff_str)
@@ -3029,6 +3028,10 @@ def _migrate_schema():
             ]:
                 if col not in cols:
                     conn.execute(text(ddl)); conn.commit()
+        # Ocena etapu marszruty zredukowana do PLUS/MINUS — DW (dopuszczone warunkowo) usunięte.
+        if 'routing_card_stages' in insp.get_table_names():
+            conn.execute(text("UPDATE routing_card_stages SET result='ng' WHERE result='dw'"))
+            conn.commit()
         # audit_log / orders / alerts created by db.create_all()
         # qar_reports and qar_photos created by db.create_all() on first run
 
