@@ -1,5 +1,5 @@
 """
-Testy automatyczne – PSH System Kontroli Jakości
+Testy automatyczne – RP-Sys System Raportowania Produkcji
 Uruchomienie: pytest tests/ -v
 
 Fixtures `app`/`client` oraz dane startowe (użytkownicy admin/oper,

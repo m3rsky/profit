@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "System Kontroli Jakości",
-  "short_name": "Panel QC",
+  "name": "System RP - Raportowanie produkcji",
+  "short_name": "RP-Sys",
   "description": " – Firma Kubiak - ",
   "start_url": "/",
   "scope": "/",
@@ -61,7 +61,7 @@
       "sizes": "512x512",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "Panel QC – ekran główny"
+      "label": "RP-Sys – ekran główny"
     }
   ]
 }

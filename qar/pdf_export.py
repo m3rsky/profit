@@ -251,7 +251,7 @@ def generate_qar_pdf(report, upload_folder):
     story.append(Spacer(1, 2 * mm))
     story.append(_p(
         f'Wygenerowano: {datetime.now().strftime("%d.%m.%Y %H:%M")}  |  '
-        f'PS QCP – System Kontroli Jakości',
+        f'RP-Sys – System RP - Raportowanie produkcji',
         size=7, color=colors.grey, align='CENTER',
     ))
 

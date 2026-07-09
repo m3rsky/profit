@@ -12,10 +12,10 @@
   <meta name="theme-color" content="#0f172a">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="PS QCP">
+  <meta name="apple-mobile-web-app-title" content="RP-Sys">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="application-name" content="QCP – System Kontroli Jakości">
-  <title>{% block title %}QCP{% endblock %} – System Kontroli Jakości</title>
+  <meta name="application-name" content="RP-Sys – System RP - Raportowanie produkcji">
+  <title>{% block title %}RP-Sys{% endblock %} – Raportowanie produkcji</title>
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
   <link rel="apple-touch-icon" sizes="512x512" href="{{ url_for('static', filename='icons/icon-512.png') }}">
@@ -37,7 +37,7 @@
 {% if current_user.is_authenticated and current_user.is_admin %}
 
 <header class="mobile-header" id="mobile-header">
-  <span class="mobile-brand">PS QCP</span>
+  <span class="mobile-brand">RP-Sys</span>
   <div class="mobile-header-actions">
     <a href="{{ url_for('alerts_list') }}"
        class="mobile-bell-link {% if unread_alerts > 0 %}has-alerts{% endif %}"
@@ -55,10 +55,10 @@
   <aside class="sidebar" id="sidebar">
 
     <div class="sidebar-logo">
-      <div class="sidebar-logo-mark">PS</div>
+      <div class="sidebar-logo-mark">RP</div>
       <div class="sidebar-logo-text">
-        <div class="sidebar-title">Panel kontrolny<br>produkcji</div>
-        <div class="sidebar-subtitle">QCP System</div>
+        <div class="sidebar-title">Raportowanie<br>produkcji</div>
+        <div class="sidebar-subtitle">RP-Sys</div>
       </div>
       <button class="sidebar-toggle-btn" id="sidebar-toggle-btn" type="button" title="Zwiń / rozwiń">
         <i class="bi bi-chevron-left" id="sidebar-toggle-icon"></i>
@@ -186,9 +186,9 @@
   <header class="wk-header">
 
     <div class="wk-header-brand">
-      <div class="wk-logo-mark">PS</div>
+      <div class="wk-logo-mark">RP</div>
       <div class="wk-logo-text">
-        <div class="wk-app-name">PSH QCP</div>
+        <div class="wk-app-name">RP-Sys</div>
         <div class="wk-role-badge">{{ current_user.role_label if current_user.is_authenticated else '' }}</div>
       </div>
     </div>

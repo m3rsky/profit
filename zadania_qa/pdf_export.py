@@ -159,7 +159,7 @@ def generate_qa_tasks_pdf(tasks, header):
     story.append(Spacer(1, 6 * mm))
     story.append(_p(
         f'Wygenerowano: {datetime.now().strftime("%d.%m.%Y %H:%M")}  |  '
-        f'PS QCP – System Kontroli Jakości',
+        f'RP-Sys – System RP - Raportowanie produkcji',
         size=7, color=colors.grey, align='CENTER',
     ))
 

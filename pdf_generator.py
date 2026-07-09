@@ -127,7 +127,7 @@ def generate_pdf(report, items_by_category, upload_folder):
         logo_cell = Paragraph('', _s())
 
     title_block = [
-        Paragraph('System Kontroli Jakości',
+        Paragraph('System RP - Raportowanie produkcji',
                   _s(size=7, color=SECONDARY, after=2)),
         Paragraph(report.title,
                   _s(size=14, bold=True, color=PRIMARY, after=3)),
@@ -170,7 +170,7 @@ def generate_pdf(report, items_by_category, upload_folder):
                             spaceBefore=4, spaceAfter=4))
     story.append(Paragraph(
         f'Wygenerowano: {_ldt(datetime.now(timezone.utc))} '
-        f'| System Kontroli Jakości – Firma Kubiak',
+        f'| System RP - Raportowanie produkcji – Firma Kubiak',
         _s(size=7, color=colors.grey, align=1)))
 
     doc.build(story)
