@@ -331,7 +331,7 @@ document.querySelectorAll('[data-confirm]').forEach(el => {
 // ── Numeric / text value inputs ────────────────────────────────────────────
 let valueTimer = null;
 
-async function saveValue(input) {
+async function saveValue(input, allowAdvance) {
   const itemId = input.dataset.itemId;
   const row = input.closest('.checklist-item');
   const badge = input.closest('.value-row')?.querySelector('.value-result-badge');
@@ -354,20 +354,30 @@ async function saveValue(input) {
         (data.result === 'ok' ? ' badge-success' : data.result === 'ng' ? ' badge-error' : '');
     }
     if (data.progress !== undefined) updateProgress(data.progress, data.stats);
+
+    // Zadania numeryczne nie maja przyciskow OK/NG — wynik jest wyliczany
+    // automatycznie z zakresu min/max. Poprawna wartosc ma przenosic dalej,
+    // tak samo jak klikniecie OK — ale dopiero gdy uzytkownik skonczyl
+    // wpisywanie (blur / Enter), nie przy kazdym auto-zapisie w trakcie pisania.
+    const isAutoResult = row && !row.querySelector('.result-buttons');
+    if (allowAdvance && isAutoResult && data.result === 'ok') {
+      if (pendingNgRow === row) _clearNgNote(row);
+      scrollToNextItem(row);
+    }
   } catch { /* silent */ }
 }
 
 document.querySelectorAll('.value-input').forEach(input => {
   input.addEventListener('input', function () {
     clearTimeout(valueTimer);
-    valueTimer = setTimeout(() => saveValue(this), 700);
+    valueTimer = setTimeout(() => saveValue(this, false), 700);
   });
   input.addEventListener('blur', function () {
     clearTimeout(valueTimer);
-    saveValue(this);
+    saveValue(this, true);
   });
   input.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') { e.preventDefault(); clearTimeout(valueTimer); saveValue(this); }
+    if (e.key === 'Enter') { e.preventDefault(); clearTimeout(valueTimer); saveValue(this, true); }
   });
 });
 
