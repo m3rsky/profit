@@ -8,7 +8,7 @@ z tests/test_api_v1.py, bo Flask nie pozwala dwukrotnie zainicjować
 tej samej aplikacji.
 """
 from app import app as flask_app
-from models import ChecklistTemplate, ReportItem
+from models import ChecklistTemplate, ReportItem, Report
 
 
 def _csrf(client):
@@ -111,6 +111,23 @@ class TestReports:
     def test_create_report(self, client):
         resp = self._create_report(client)
         assert resp.status_code == 200
+
+    def test_double_submit_does_not_duplicate_report(self, client):
+        """Regresja: dwa szybkie POST-y tego samego formularza (double-click,
+        wolna sieć, powrót „wstecz”) nie mogą utworzyć dwóch raportów."""
+        login(client, 'oper', 'Oper1234!')
+        token = _csrf(client)
+        with flask_app.app_context():
+            tmpl = ChecklistTemplate.query.filter_by(name='Test szablon').first()
+            tmpl_id = tmpl.id
+        data = {'template_id': tmpl_id, 'title': 'Raport duplikat test',
+                '_csrf_token': token}
+        client.post('/checklist/new', data=data, follow_redirects=True)
+        client.post('/checklist/new', data=data, follow_redirects=True)
+        with flask_app.app_context():
+            count = Report.query.filter_by(
+                title='Test szablon – Raport duplikat test').count()
+        assert count == 1
 
     def test_reports_list(self, client):
         login(client, 'admin', 'Admin1234!')

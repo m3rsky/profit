@@ -288,6 +288,21 @@
     }
   }
   if (qtyInput) { qtyInput.addEventListener('input', onQtyChange); onQtyChange(); }
+
+  var checklistForm = document.getElementById('new-checklist-form');
+  if (checklistForm) {
+    checklistForm.addEventListener('submit', function (e) {
+      if (checklistForm.dataset.submitting === '1') {
+        e.preventDefault();
+        return;
+      }
+      checklistForm.dataset.submitting = '1';
+      if (btnStart) {
+        btnStart.disabled = true;
+        btnStart.innerHTML = '<i class="bi bi-hourglass-split"></i> Tworzę…';
+      }
+    });
+  }
 })();
 </script>
 

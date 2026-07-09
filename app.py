@@ -436,6 +436,23 @@ def dashboard():
 
 # ── Checklist / Reports ───────────────────────────────────────────────────────
 
+def _recent_duplicate_report(user_id, template_id, title, window_seconds=10):
+    """Zwraca istniejący raport o tym samym tytule/szablonie utworzony przez
+    tego samego użytkownika w ostatnich `window_seconds` sekund — zabezpieczenie
+    przed duplikatami z podwójnego submitu formularza (double-click, wolna sieć,
+    powrót przyciskiem „wstecz”)."""
+    cutoff = datetime.now(UTC) - timedelta(seconds=window_seconds)
+    candidate = (Report.query
+                 .filter_by(user_id=user_id, template_id=template_id, title=title)
+                 .order_by(Report.created_at.desc())
+                 .first())
+    if not candidate:
+        return None
+    created = candidate.created_at
+    created = created if created.tzinfo else created.replace(tzinfo=UTC)
+    return candidate if created >= cutoff else None
+
+
 @app.route('/checklist/new', methods=['GET', 'POST'])
 @login_required
 @kontroler_required
@@ -459,6 +476,10 @@ def new_checklist():
 
         if quantity > 1:
             # ── Tryb seryjny: bez powiązania z zamówieniem ──
+            dup = _recent_duplicate_report(current_user.id, tmpl_id, f'{base_title} – 1/{quantity}')
+            if dup:
+                flash('Taka seria kontroli została już utworzona — otwieram istniejącą.', 'warning')
+                return redirect(url_for('checklist_view', report_id=dup.id))
             bid = uuid.uuid4().hex
             first_id = None
             for i in range(1, quantity + 1):
@@ -475,6 +496,11 @@ def new_checklist():
             return redirect(url_for('checklist_view', report_id=first_id))
 
         # ── Tryb pojedynczy: z opcjonalnym powiązaniem z zamówieniem ──
+        dup = _recent_duplicate_report(current_user.id, tmpl_id, base_title)
+        if dup:
+            flash('Taka kontrola została już utworzona — otwieram istniejącą.', 'warning')
+            return redirect(url_for('checklist_view', report_id=dup.id))
+
         explicit_order_id = request.form.get('order_id', type=int)
         linked_order = None
         if explicit_order_id:
@@ -532,6 +558,17 @@ def checklist_from_qr():
         parts.append(order_no)
     now_str    = datetime.now().strftime('%d.%m.%Y %H:%M')
     base_title = ' – '.join(parts) + f' – {now_str}'
+
+    first_title = f'{base_title} – 1/{quantity}' if quantity > 1 else base_title
+    dup = _recent_duplicate_report(current_user.id, tmpl.id, first_title)
+    if dup:
+        return jsonify({
+            'ok':       True,
+            'redirect': url_for('checklist_view', report_id=dup.id),
+            'template': tmpl.name,
+            'quantity': quantity,
+            'msg':      'Taka lista kontrolna została już utworzona — otwieram istniejącą.',
+        })
 
     bid      = uuid.uuid4().hex if quantity > 1 else None
     first_id = None
