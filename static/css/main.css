@@ -1317,6 +1317,29 @@ body.dark .type-badge--monter { background: #451a03; color: #fcd34d; }
 
 .dashboard-more-link { text-align: right; }
 
+/* ── Dashboard: Ostatnie raporty + Alerty jakości obok siebie ── */
+.dash-grid-2col {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--sp-lg, 20px);
+  align-items: start;
+}
+@media (max-width: 1000px) {
+  .dash-grid-2col { grid-template-columns: 1fr; }
+}
+
+.qa-alert-list   { display: flex; flex-direction: column; }
+.qa-alert-item {
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid #ef4444;
+}
+.qa-alert-item:last-child { border-bottom: none; }
+.qa-alert-item--unread { background: var(--warn-bg); }
+.qa-alert-msg  { font-size: 0.85rem; font-weight: 700; color: var(--text); line-height: 1.35; }
+.qa-alert-meta { font-size: 0.74rem; color: var(--text-muted); margin-top: 3px; }
+.qa-alerts-empty { padding: 24px 16px; font-size: 0.82rem; }
+
 /* ══════════════════════════════════════════════════════
    DASHBOARD FILTER BAR
    ══════════════════════════════════════════════════════ */
@@ -1586,6 +1609,7 @@ body.dark .tpl-selected-bar { background: #1e3a5f; }
 .alert-item:last-child  { border-bottom: none; }
 .alert-item--unread     { background: var(--blue-bg); border-left: 3px solid var(--progress-blue); }
 .alert-item__icon       { font-size: 1.2rem; flex-shrink: 0; margin-top: 2px; }
+.alert-item__icon--ng   { color: var(--warn-text, #a16207); }
 .alert-item__body       { flex: 1; }
 .alert-item__msg        { font-size: 0.88rem; font-weight: 600; margin-bottom: 2px; color: var(--text); }
 .alert-item__meta       { font-size: 0.72rem; color: var(--text-muted); }

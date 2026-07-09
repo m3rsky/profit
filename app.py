@@ -378,7 +378,7 @@ def dashboard():
     completed_count    = (_row.completed or 0) if _row else 0
     in_progress_count  = (_row.in_progress or 0) if _row else 0
     rq = Report.query if current_user.is_admin else Report.query.filter_by(user_id=current_user.id)
-    recent_reports     = rq.order_by(Report.created_at.desc()).limit(8).all()
+    recent_reports     = rq.order_by(Report.created_at.desc()).limit(5).all()
     templates = ChecklistTemplate.query.filter_by(is_active=True).order_by(ChecklistTemplate.name).all()
     if current_user.is_kontroler:
         all_pending_reports = (Report.query
@@ -421,6 +421,13 @@ def dashboard():
         recent_orders   = []
         orders_active   = 0
         orders_ready    = 0
+    if current_user.is_admin:
+        quality_alerts = (Alert.query
+                          .filter_by(recipient_id=current_user.id, alert_type='ng')
+                          .order_by(Alert.created_at.desc())
+                          .limit(5).all())
+    else:
+        quality_alerts = []
     return render_template('dashboard.html',
                            recent_reports=recent_reports,
                            all_reports_count=all_reports_count,
@@ -431,7 +438,8 @@ def dashboard():
                            pending_order_reports=pending_order_reports,
                            recent_orders=recent_orders,
                            orders_active=orders_active,
-                           orders_ready=orders_ready)
+                           orders_ready=orders_ready,
+                           quality_alerts=quality_alerts)
 
 
 # ── Checklist / Reports ───────────────────────────────────────────────────────
@@ -1066,6 +1074,16 @@ def _can_edit_report(report):
     return False
 
 
+def _create_ng_alert(item):
+    """Tworzy alert dla adminów natychmiast po oznaczeniu zadania jako niezgodne (NG)."""
+    report = item.report
+    task_title = item.task.title if item.task else 'Zadanie'
+    msg = f'Niezgodność: {task_title} — {report.title}'
+    for u in User.query.filter_by(role='admin').all():
+        db.session.add(Alert(recipient_id=u.id, message=msg,
+                             alert_type='ng', order_id=report.order_id))
+
+
 @app.route('/api/item/<int:item_id>/result', methods=['POST'])
 @login_required
 def set_item_result(item_id):
@@ -1079,9 +1097,12 @@ def set_item_result(item_id):
     result = request.json.get('result')
     if result not in ('ok', 'ng', 'na', 'dw', None):
         return jsonify({'error': 'Nieprawidłowy wynik'}), 400
+    was_ng = item.result == 'ng'
     item.result     = result
     item.is_checked = result is not None
     item.checked_at = datetime.now(UTC) if result else None
+    if result == 'ng' and not was_ng:
+        _create_ng_alert(item)
     db.session.commit()
     s = item.report.stats
     return jsonify({'result': item.result, 'checked': item.is_checked,
@@ -1111,6 +1132,7 @@ def set_item_value(item_id):
                         'progress': item.report.completion_percent,
                         'stats': item.report.stats})
     task = item.task
+    was_ng = item.result == 'ng'
     item.value_text = value
     item.checked_at = datetime.now(UTC)
     if task.task_type == 'numeric':
@@ -1123,6 +1145,8 @@ def set_item_value(item_id):
                 in_range = False
             item.result = 'ok' if in_range else 'ng'
             item.is_checked = True
+            if item.result == 'ng' and not was_ng:
+                _create_ng_alert(item)
         except ValueError:
             return jsonify({'error': 'Nieprawidłowa wartość liczbowa'}), 400
     elif task.task_type == 'measurements':

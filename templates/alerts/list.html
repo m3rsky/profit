@@ -9,8 +9,9 @@
 <div class="card">
   {% for a in alerts %}
   <div class="alert-item {% if not a.is_read %}alert-item--unread{% endif %}">
-    <span class="alert-item__icon">
-      {%- if a.alert_type == 'urgent' -%}<i class="bi bi-bell-fill"></i>
+    <span class="alert-item__icon {% if a.alert_type == 'ng' %}alert-item__icon--ng{% endif %}">
+      {%- if a.alert_type == 'ng' -%}<i class="bi bi-exclamation-triangle-fill"></i>
+      {%- elif a.alert_type == 'urgent' -%}<i class="bi bi-bell-fill"></i>
       {%- elif a.alert_type == 'success' -%}<i class="bi bi-check-circle-fill"></i>
       {%- else -%}<i class="bi bi-info-circle-fill"></i>{%- endif -%}
     </span>

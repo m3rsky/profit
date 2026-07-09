@@ -327,63 +327,9 @@
 </div>
 {% endif %}
 
-{# ── Pending QA orders ── #}
-{% if pending_order_reports %}
-<div id="zlecenia-qa">
-  <div class="section-title">Zlecenia QA do wykonania</div>
-  <div class="card">
-    <div class="table-wrap">
-      <table class="data-table tbl-cards">
-        <thead>
-          <tr>
-            <th>Lista kontrolna</th>
-            <th>Zamówienie</th>
-            <th>Klient</th>
-            <th class="text-center">Ilość</th>
-            <th>Termin</th>
-            <th class="th-actions">Akcje</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for r in pending_order_reports %}
-          <tr>
-            <td data-label="Lista">
-              {{ r.order.product_name if r.order else r.title }}
-              {% if r.batch_total and r.batch_total > 1 %}
-              <br><span class="badge badge-neutral"><i class="bi bi-layers"></i> Seria {{ r.batch_total }} szt.</span>
-              {% endif %}
-            </td>
-            <td data-label="Zamówienie">
-              {% if r.order %}
-              <a href="{{ url_for('orders_detail', order_id=r.order.id) }}">{{ r.order.number }}</a>
-              {% endif %}
-            </td>
-            <td data-label="Klient">
-              {{ r.order.client if r.order else '—' }}
-            </td>
-            <td data-label="Ilość" class="text-center">
-              {% if r.order %}{{ r.order.quantity }} szt.{% else %}—{% endif %}
-            </td>
-            <td data-label="Termin" {% if r.order and r.order.due_date and r.order.due_date < today %}class="text-danger"{% endif %}>
-              {{ r.order.due_date.strftime('%d.%m.%Y') if r.order and r.order.due_date else '—' }}
-            </td>
-            <td data-label="" class="td-actions">
-              <a href="{{ url_for('checklist_view', report_id=r.id) }}" class="btn btn-primary btn-sm">
-                <i class="bi bi-pencil-fill"></i>
-                {% if r.batch_total and r.batch_total > 1 %}Wypełnij serię{% else %}Wypełnij{% endif %}
-              </a>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
-{% endif %}
-
-{# ── Recent reports ── #}
-<div>
+{# ── Recent reports (+ quality alerts obok, tylko admin) ── #}
+<div class="dash-grid-2col">
+  <div class="dash-col-main">
   <div class="section-title">{% if current_user.is_admin %}Ostatnie raporty (wszyscy){% else %}Ostatnie raporty{% endif %}</div>
   <div class="card">
     {% if recent_reports %}
@@ -443,7 +389,86 @@
     </div>
     {% endif %}
   </div>
+  </div>
+
+  {% if current_user.is_admin %}
+  <div class="dash-col-side">
+    <div class="section-title">Alerty jakości</div>
+    <div class="card">
+      {% if quality_alerts %}
+      <div class="qa-alert-list">
+        {% for a in quality_alerts %}
+        <div class="qa-alert-item {% if not a.is_read %}qa-alert-item--unread{% endif %}">
+          <div class="qa-alert-msg">{{ a.message }}</div>
+          <div class="qa-alert-meta">{{ a.created_at | localdt }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="all-reports-bar">
+        <a href="{{ url_for('alerts_list') }}" class="btn btn-ghost btn-sm">Wszystkie alerty <i class="bi bi-arrow-right"></i></a>
+      </div>
+      {% else %}
+      <div class="empty-state qa-alerts-empty">Brak niezgodności do wyświetlenia.</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
 </div>
+
+{# ── Pending QA orders ── #}
+{% if pending_order_reports %}
+<div id="zlecenia-qa">
+  <div class="section-title">Zlecenia QA do wykonania</div>
+  <div class="card">
+    <div class="table-wrap">
+      <table class="data-table tbl-cards">
+        <thead>
+          <tr>
+            <th>Lista kontrolna</th>
+            <th>Zamówienie</th>
+            <th>Klient</th>
+            <th class="text-center">Ilość</th>
+            <th>Termin</th>
+            <th class="th-actions">Akcje</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in pending_order_reports %}
+          <tr>
+            <td data-label="Lista">
+              {{ r.order.product_name if r.order else r.title }}
+              {% if r.batch_total and r.batch_total > 1 %}
+              <br><span class="badge badge-neutral"><i class="bi bi-layers"></i> Seria {{ r.batch_total }} szt.</span>
+              {% endif %}
+            </td>
+            <td data-label="Zamówienie">
+              {% if r.order %}
+              <a href="{{ url_for('orders_detail', order_id=r.order.id) }}">{{ r.order.number }}</a>
+              {% endif %}
+            </td>
+            <td data-label="Klient">
+              {{ r.order.client if r.order else '—' }}
+            </td>
+            <td data-label="Ilość" class="text-center">
+              {% if r.order %}{{ r.order.quantity }} szt.{% else %}—{% endif %}
+            </td>
+            <td data-label="Termin" {% if r.order and r.order.due_date and r.order.due_date < today %}class="text-danger"{% endif %}>
+              {{ r.order.due_date.strftime('%d.%m.%Y') if r.order and r.order.due_date else '—' }}
+            </td>
+            <td data-label="" class="td-actions">
+              <a href="{{ url_for('checklist_view', report_id=r.id) }}" class="btn btn-primary btn-sm">
+                <i class="bi bi-pencil-fill"></i>
+                {% if r.batch_total and r.batch_total > 1 %}Wypełnij serię{% else %}Wypełnij{% endif %}
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 {% endif %}{# end worker/admin split #}
 
