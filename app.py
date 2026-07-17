@@ -26,7 +26,7 @@ from models import (db, User, ChecklistTemplate, Category, Task, Report, ReportI
                     CabinetType, MaterialPrice, LaborRate, Quote, QuoteConfig,
                     CatalogProduct,
                     SpawalniaOperator, SpawalniaRecord,
-                    ChecklistSession,
+                    ChecklistSession, Installer,
                     QARReport, QARPhoto, QATask,
                     ProductionDepartment, DepartmentEmployee, RoutingTemplate,
                     RoutingTemplateStage, RoutingCard, RoutingCardStage, RoutingCardPhoto)
@@ -642,8 +642,9 @@ def checklist_view(report_id):
             continue
         cat = item.task.category
         items_by_category.setdefault(cat, []).append(item)
+    installers = Installer.query.filter_by(is_active=True).order_by(Installer.name).all()
     return render_template('checklist.html', report=report,
-                           items_by_category=items_by_category)
+                           items_by_category=items_by_category, installers=installers)
 
 
 @app.route('/checklist/<int:report_id>/complete', methods=['POST'])
@@ -1929,6 +1930,48 @@ def admin_tasks_bulk_delete(cat_id):
     db.session.commit()
     flash(f'Usunięto {count} {"zadanie" if count == 1 else "zadania" if 2 <= count <= 4 else "zadań"}.', 'success')
     return redirect(url_for('admin_tasks', cat_id=cat_id))
+
+
+# ── Admin: Installers (monterzy) ─────────────────────────────────────────────
+
+@app.route('/admin/installers', methods=['GET', 'POST'])
+@login_required
+@kontroler_required
+def admin_installers():
+    if request.method == 'POST':
+        action = request.form.get('action')
+
+        if action == 'add':
+            name = request.form.get('name', '').strip()
+            if not name:
+                flash('Imię i nazwisko montera jest wymagane.', 'warning')
+            else:
+                inst = Installer(name=name)
+                db.session.add(inst)
+                db.session.commit()
+                _audit('installer_add', 'Installer', inst.id, name)
+                flash(f'Dodano montera „{name}".', 'success')
+
+        elif action == 'toggle':
+            inst = Installer.query.get_or_404(request.form.get('inst_id', type=int))
+            inst.is_active = not inst.is_active
+            db.session.commit()
+            _audit('installer_toggle', 'Installer', inst.id,
+                   f'{inst.name} -> {"active" if inst.is_active else "inactive"}')
+            flash(f'Monter „{inst.name}" {"aktywowany" if inst.is_active else "dezaktywowany"}.', 'success')
+
+        elif action == 'delete':
+            inst = Installer.query.get_or_404(request.form.get('inst_id', type=int))
+            name = inst.name
+            db.session.delete(inst)
+            db.session.commit()
+            _audit('installer_delete', 'Installer', inst.id, name)
+            flash(f'Monter „{name}" usunięty.', 'success')
+
+        return redirect(url_for('admin_installers'))
+
+    installers = Installer.query.order_by(Installer.name).all()
+    return render_template('admin/installers.html', installers=installers)
 
 
 # ── Admin: Users ──────────────────────────────────────────────────────────────

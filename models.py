@@ -221,6 +221,18 @@ class ChecklistSession(db.Model):
         return f'<ChecklistSession report={self.report_id} start={self.started_at}>'
 
 
+class Installer(db.Model):
+    """Monter wybierany z listy przy wypełnianiu zadań typu 'installer' w checkliście."""
+    __tablename__ = 'installers'
+    id         = db.Column(db.Integer, primary_key=True)
+    name       = db.Column(db.String(128), nullable=False)
+    is_active  = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+
+    def __repr__(self):
+        return f'<Installer {self.name}>'
+
+
 class AuditLog(db.Model):
     __tablename__ = 'audit_log'
     id          = db.Column(db.Integer, primary_key=True)

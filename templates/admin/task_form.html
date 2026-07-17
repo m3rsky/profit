@@ -34,6 +34,7 @@
           <option value="ok_ng" {% if not task or task.task_type == 'ok_ng' %}selected{% endif %}>OK / NG / N/A</option>
           <option value="numeric" {% if task and task.task_type == 'numeric' %}selected{% endif %}>Pomiar liczbowy</option>
           <option value="measurements" {% if task and task.task_type == 'measurements' %}selected{% endif %}>Pomiary</option>
+          <option value="installer" {% if task and task.task_type == 'installer' %}selected{% endif %}>Wybór montera</option>
         </select>
       </div>
       <div id="numeric-fields">

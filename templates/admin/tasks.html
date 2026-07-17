@@ -67,6 +67,8 @@
             <td>
               {% if task.task_type == 'numeric' %}<span class="badge badge-secondary">Pomiar</span>
               {% elif task.task_type == 'text' %}<span class="badge badge-neutral">Tekst</span>
+              {% elif task.task_type == 'measurements' %}<span class="badge badge-secondary">Pomiary</span>
+              {% elif task.task_type == 'installer' %}<span class="badge badge-info">Wybór montera</span>
               {% else %}<span class="badge">OK/NG</span>{% endif %}
             </td>
             <td class="td-actions">

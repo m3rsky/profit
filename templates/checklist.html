@@ -145,6 +145,31 @@
           <button type="button" class="btn-result btn-na {% if item.result == 'na' %}active{% endif %}"
                   data-item-id="{{ item.id }}" data-result="na">N/A</button>
         </div>
+        {% elif item.task.task_type == 'installer' %}
+        <div class="value-row" data-item-id="{{ item.id }}">
+          <select class="form-control value-input"
+                  data-item-id="{{ item.id }}"
+                  aria-label="Wybór montera">
+            <option value="">— wybierz montera —</option>
+            {% for inst in installers %}
+            <option value="{{ inst.name }}" {% if item.value_text == inst.name %}selected{% endif %}>{{ inst.name }}</option>
+            {% endfor %}
+            {% if item.value_text and item.value_text not in installers | map(attribute='name') | list %}
+            <option value="{{ item.value_text }}" selected>{{ item.value_text }}</option>
+            {% endif %}
+          </select>
+          <span class="value-result-badge {% if item.result == 'ok' %}badge-success{% elif item.result == 'ng' %}badge-error{% endif %}">
+            {% if item.result %}{{ item.result | upper }}{% endif %}
+          </span>
+        </div>
+        <div class="result-buttons result-buttons--text" data-item-id="{{ item.id }}">
+          <button type="button" class="btn-result btn-ok {% if item.result == 'ok' %}active{% endif %}"
+                  data-item-id="{{ item.id }}" data-result="ok">OK</button>
+          <button type="button" class="btn-result btn-ng {% if item.result == 'ng' %}active{% endif %}"
+                  data-item-id="{{ item.id }}" data-result="ng">NG</button>
+          <button type="button" class="btn-result btn-na {% if item.result == 'na' %}active{% endif %}"
+                  data-item-id="{{ item.id }}" data-result="na">N/A</button>
+        </div>
         {% elif item.task.task_type == 'measurements' %}
         {% set m = ((item.value_text or '') + '||').split('|') %}
         <div class="value-row" data-item-id="{{ item.id }}" style="display:block;padding-bottom:4px">
@@ -194,7 +219,7 @@
         </div>
         {% endif %}
       {% else %}
-        {% if item.task.task_type in ('numeric', 'text') and item.value_text %}
+        {% if item.task.task_type in ('numeric', 'text', 'installer') and item.value_text %}
         <div class="value-readonly">
           <span class="value-readonly-text">{{ item.value_text }}{% if item.task.unit %} {{ item.task.unit }}{% endif %}</span>
           <span class="badge {% if item.result == 'ok' %}badge-success{% elif item.result == 'ng' %}badge-error{% else %}badge-neutral{% endif %}">

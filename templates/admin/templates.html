@@ -3,7 +3,10 @@
 {% block admin_content %}
 <div class="page-header">
   <h1 class="page-title">Szablony checklisty</h1>
-  <a href="{{ url_for('admin_template_new') }}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Nowy szablon</a>
+  <div class="page-header-actions">
+    <a href="{{ url_for('admin_installers') }}" class="btn btn-outline btn-sm"><i class="bi bi-people"></i> Monterzy</a>
+    <a href="{{ url_for('admin_template_new') }}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Nowy szablon</a>
+  </div>
 </div>
 
 <div class="tpl-io-bar">
