@@ -10,7 +10,7 @@ from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 from sqlalchemy import func
 
-from models import (db, AuditLog, ProductionDepartment, DepartmentEmployee,
+from models import (db, get_or_404, AuditLog, ProductionDepartment, DepartmentEmployee,
                     RoutingTemplate, RoutingTemplateStage, RoutingCard,
                     RoutingCardStage, RoutingCardPhoto)
 from . import marszruta_bp
@@ -185,7 +185,7 @@ def from_qr():
 @login_required
 @marszruta_required
 def card_detail(card_id):
-    card = RoutingCard.query.get_or_404(card_id)
+    card = get_or_404(RoutingCard, card_id)
     stages = card.stages.order_by(RoutingCardStage.order).all()
     return render_template('marszruta/card_detail.html', card=card, stages=stages)
 
@@ -195,7 +195,7 @@ def card_detail(card_id):
 def delete_card(card_id):
     if not current_user.is_admin:
         abort(403)
-    card = RoutingCard.query.get_or_404(card_id)
+    card = get_or_404(RoutingCard, card_id)
     upload_dir = current_app.config['MARSZRUTA_UPLOAD_FOLDER']
     for stage in card.stages:
         for photo in stage.photos:
@@ -214,7 +214,7 @@ def delete_card(card_id):
 @login_required
 @marszruta_required
 def edit_stage(stage_id):
-    stage = RoutingCardStage.query.get_or_404(stage_id)
+    stage = get_or_404(RoutingCardStage, stage_id)
     employees = (DepartmentEmployee.query
                 .filter_by(department_id=stage.department_id, is_active=True)
                 .order_by(DepartmentEmployee.name).all())
@@ -265,7 +265,7 @@ def edit_stage(stage_id):
 @login_required
 @marszruta_required
 def delete_photo(photo_id):
-    photo = RoutingCardPhoto.query.get_or_404(photo_id)
+    photo = get_or_404(RoutingCardPhoto, photo_id)
     stage_id = photo.stage_id
     filepath = os.path.join(current_app.config['MARSZRUTA_UPLOAD_FOLDER'], photo.filename)
     if os.path.exists(filepath):
@@ -305,7 +305,7 @@ def admin_departments():
                 flash(f'Dodano dział „{name}".', 'success')
 
         elif action == 'rename':
-            dept = ProductionDepartment.query.get_or_404(request.form.get('dept_id', type=int))
+            dept = get_or_404(ProductionDepartment, request.form.get('dept_id', type=int))
             name = request.form.get('name', '').strip()
             if not name:
                 flash('Nazwa działu jest wymagana.', 'warning')
@@ -321,7 +321,7 @@ def admin_departments():
                 flash(f'Zmieniono nazwę działu na „{name}".', 'success')
 
         elif action == 'toggle':
-            dept = ProductionDepartment.query.get_or_404(request.form.get('dept_id', type=int))
+            dept = get_or_404(ProductionDepartment, request.form.get('dept_id', type=int))
             dept.is_active = not dept.is_active
             db.session.commit()
             _audit('marszruta_dept_toggle', 'ProductionDepartment', dept.id,
@@ -329,7 +329,7 @@ def admin_departments():
             flash(f'Dział „{dept.name}" {"aktywowany" if dept.is_active else "dezaktywowany"}.', 'success')
 
         elif action == 'delete':
-            dept = ProductionDepartment.query.get_or_404(request.form.get('dept_id', type=int))
+            dept = get_or_404(ProductionDepartment, request.form.get('dept_id', type=int))
             if RoutingTemplateStage.query.filter_by(department_id=dept.id).first():
                 flash(f'Nie można usunąć „{dept.name}" — jest użyty w ścieżce produkcyjnej.', 'warning')
             else:
@@ -366,7 +366,7 @@ def admin_departments_reorder():
 @login_required
 @marszruta_required
 def admin_employees(dept_id):
-    dept = ProductionDepartment.query.get_or_404(dept_id)
+    dept = get_or_404(ProductionDepartment, dept_id)
 
     if request.method == 'POST':
         action = request.form.get('action')
@@ -384,7 +384,7 @@ def admin_employees(dept_id):
                 flash(f'Dodano pracownika „{name}".', 'success')
 
         elif action == 'toggle':
-            emp = DepartmentEmployee.query.get_or_404(request.form.get('emp_id', type=int))
+            emp = get_or_404(DepartmentEmployee, request.form.get('emp_id', type=int))
             emp.is_active = not emp.is_active
             db.session.commit()
             _audit('marszruta_employee_toggle', 'DepartmentEmployee', emp.id,
@@ -392,7 +392,7 @@ def admin_employees(dept_id):
             flash(f'Pracownik „{emp.name}" {"aktywowany" if emp.is_active else "dezaktywowany"}.', 'success')
 
         elif action == 'delete':
-            emp = DepartmentEmployee.query.get_or_404(request.form.get('emp_id', type=int))
+            emp = get_or_404(DepartmentEmployee, request.form.get('emp_id', type=int))
             if emp.stages.count() > 0:
                 flash(f'Nie można usunąć „{emp.name}" — ma przypisane oceny etapów.', 'warning')
             else:
@@ -453,7 +453,7 @@ def new_routing_template():
 @login_required
 @marszruta_required
 def edit_routing_template(tpl_id):
-    tmpl = RoutingTemplate.query.get_or_404(tpl_id)
+    tmpl = get_or_404(RoutingTemplate, tpl_id)
     departments = _departments()
 
     if request.method == 'POST':
@@ -487,7 +487,7 @@ def edit_routing_template(tpl_id):
 @login_required
 @marszruta_required
 def delete_routing_template(tpl_id):
-    tmpl = RoutingTemplate.query.get_or_404(tpl_id)
+    tmpl = get_or_404(RoutingTemplate, tpl_id)
     name = tmpl.name
     db.session.delete(tmpl)
     db.session.commit()

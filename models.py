@@ -1,11 +1,20 @@
 from datetime import datetime, timedelta, timezone
 
 UTC = timezone.utc
+from flask import abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 
 db = SQLAlchemy()
+
+
+def get_or_404(model, ident, description=None):
+    """Session.get()-based replacement for the legacy Query.get_or_404()."""
+    obj = db.session.get(model, ident)
+    if obj is None:
+        abort(404, description=description)
+    return obj
 
 
 class User(UserMixin, db.Model):

@@ -7,7 +7,7 @@ from flask import (render_template, redirect, url_for, request,
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 
-from models import db, AuditLog, QARReport, QARPhoto
+from models import db, get_or_404, AuditLog, QARReport, QARPhoto
 from . import qar_bp
 
 UTC = timezone.utc
@@ -167,7 +167,7 @@ def new_report():
 @qar_bp.route('/<int:report_id>')
 @login_required
 def detail_report(report_id):
-    report = QARReport.query.get_or_404(report_id)
+    report = get_or_404(QARReport, report_id)
     if not _qar_access(report):
         abort(403)
     return render_template('qar/detail.html', report=report,
@@ -179,7 +179,7 @@ def detail_report(report_id):
 @qar_bp.route('/<int:report_id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit_report(report_id):
-    report = QARReport.query.get_or_404(report_id)
+    report = get_or_404(QARReport, report_id)
     if not _qar_access(report):
         abort(403)
     if not _qar_edit_access(report):
@@ -231,7 +231,7 @@ def edit_report(report_id):
 @qar_bp.route('/<int:report_id>/close', methods=['POST'])
 @login_required
 def close_report(report_id):
-    report = QARReport.query.get_or_404(report_id)
+    report = get_or_404(QARReport, report_id)
     if not _qar_access(report):
         abort(403)
     if report.status == 'closed':
@@ -254,7 +254,7 @@ def close_report(report_id):
 def reopen_report(report_id):
     if not (current_user.is_admin or current_user.is_konstruktor):
         abort(403)
-    report = QARReport.query.get_or_404(report_id)
+    report = get_or_404(QARReport, report_id)
     report.status         = 'in_progress'
     report.verified_by_id = None
     report.verified_at    = None
@@ -272,7 +272,7 @@ def reopen_report(report_id):
 def delete_report(report_id):
     if not current_user.is_admin:
         abort(403)
-    report = QARReport.query.get_or_404(report_id)
+    report = get_or_404(QARReport, report_id)
     upload_dir = current_app.config.get('QAR_UPLOAD_FOLDER', '')
     for photo in report.photos.all():
         path = os.path.join(upload_dir, photo.filename)
@@ -291,7 +291,7 @@ def delete_report(report_id):
 @qar_bp.route('/<int:report_id>/photo', methods=['POST'])
 @login_required
 def upload_photo(report_id):
-    report = QARReport.query.get_or_404(report_id)
+    report = get_or_404(QARReport, report_id)
     if not _qar_access(report):
         return jsonify({'error': 'Forbidden'}), 403
     if report.status == 'closed' and not current_user.is_admin:
@@ -328,7 +328,7 @@ def upload_photo(report_id):
 @qar_bp.route('/photo/<int:photo_id>', methods=['DELETE'])
 @login_required
 def delete_photo(photo_id):
-    photo = QARPhoto.query.get_or_404(photo_id)
+    photo = get_or_404(QARPhoto, photo_id)
     report = photo.report
     if not _qar_access(report):
         return jsonify({'error': 'Forbidden'}), 403
@@ -349,7 +349,7 @@ def delete_photo(photo_id):
 @qar_bp.route('/photo/<int:photo_id>/caption', methods=['POST'])
 @login_required
 def update_caption(photo_id):
-    photo = QARPhoto.query.get_or_404(photo_id)
+    photo = get_or_404(QARPhoto, photo_id)
     report = photo.report
     if not _qar_access(report):
         return jsonify({'error': 'Forbidden'}), 403
@@ -376,7 +376,7 @@ def serve_photo(filename):
 @login_required
 def export_pdf(report_id):
     from .pdf_export import generate_qar_pdf
-    report = QARReport.query.get_or_404(report_id)
+    report = get_or_404(QARReport, report_id)
     if not _qar_access(report):
         abort(403)
     upload_dir = current_app.config.get('QAR_UPLOAD_FOLDER', '')

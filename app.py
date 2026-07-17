@@ -21,7 +21,7 @@ from werkzeug.utils import secure_filename
 from sqlalchemy import func, or_, and_, case
 from sqlalchemy.exc import IntegrityError
 from config import Config
-from models import (db, User, ChecklistTemplate, Category, Task, Report, ReportItem,
+from models import (db, get_or_404, User, ChecklistTemplate, Category, Task, Report, ReportItem,
                     Photo, AuditLog, Order, Alert,
                     CabinetType, MaterialPrice, LaborRate, Quote, QuoteConfig,
                     CatalogProduct,
@@ -254,7 +254,7 @@ def _inject_globals():
     if current_user.is_authenticated:
         unread = Alert.query.filter_by(recipient_id=current_user.id, is_read=False).count()
         if current_user.role == 'kontroler':
-            cutoff_naive = (datetime.utcnow() - timedelta(minutes=30))
+            cutoff_naive = (datetime.now(UTC).replace(tzinfo=None) - timedelta(minutes=30))
             admin_ids_sq = db.session.query(User.id).filter(User.role == 'admin')
             all_pending = (Report.query
                           .filter(
@@ -471,7 +471,7 @@ def new_checklist():
                      .order_by(Order.number).all())
     if request.method == 'POST':
         tmpl_id     = request.form.get('template_id', type=int)
-        tmpl        = ChecklistTemplate.query.get_or_404(tmpl_id)
+        tmpl        = get_or_404(ChecklistTemplate, tmpl_id)
         user_suffix = request.form.get('title', '').strip()
         quantity    = max(1, min(99, request.form.get('quantity', 1, type=int)))
         base_title  = f'{tmpl.name} – {user_suffix}' if user_suffix else \
@@ -617,7 +617,7 @@ def checklist_from_qr():
 @app.route('/checklist/<int:report_id>')
 @login_required
 def checklist_view(report_id):
-    report = Report.query.get_or_404(report_id)
+    report = get_or_404(Report, report_id)
     is_kontroler_report = report.report_type == 'kontroler' and current_user.is_kontroler
     is_monter_report = report.report_type == 'monter' and current_user.is_monter and report.user_id == current_user.id
     if (report.user_id != current_user.id and not current_user.is_admin
@@ -650,7 +650,7 @@ def checklist_view(report_id):
 @app.route('/checklist/<int:report_id>/complete', methods=['POST'])
 @login_required
 def complete_checklist(report_id):
-    report = Report.query.get_or_404(report_id)
+    report = get_or_404(Report, report_id)
     is_kontroler_report = report.report_type == 'kontroler' and current_user.is_kontroler
     is_monter_report = report.report_type == 'monter' and current_user.is_monter and report.user_id == current_user.id
     if (report.user_id != current_user.id and not current_user.is_admin
@@ -722,7 +722,7 @@ def monter_pool():
                  .all())
     # Only show reports not yet taken by anyone (user_id points to order creator — not a monter)
     raw_pool = [r for r in available
-                if not User.query.get(r.user_id) or User.query.get(r.user_id).role not in ('monter',)]
+                if not db.session.get(User, r.user_id) or db.session.get(User, r.user_id).role not in ('monter',)]
 
     # Grupuj serie — pokaż jeden wiersz na serię (pierwszy raport z batch)
     seen_batches = set()
@@ -747,13 +747,13 @@ def monter_pool():
 @monter_required
 def monter_take(report_id):
     """Monter przypisuje sobie listę montażową z puli."""
-    report = Report.query.get_or_404(report_id)
+    report = get_or_404(Report, report_id)
     if report.report_type != 'monter':
         abort(400)
     if report.status != 'in_progress':
         flash('Ta lista montażowa jest już zamknięta.', 'warning')
         return redirect(url_for('monter_pool'))
-    owner = User.query.get(report.user_id)
+    owner = db.session.get(User, report.user_id)
     if owner and owner.role == 'monter' and report.user_id != current_user.id:
         flash('Ta lista jest już przypisana do innego montera.', 'warning')
         return redirect(url_for('monter_pool'))
@@ -795,7 +795,7 @@ def reports_list():
         # 1) swoje raporty (wszystkie statusy)
         # 2) cudze in-progress raporty kontrolne, po 30 min bezczynności
         admin_ids_sq = db.session.query(User.id).filter(User.role == 'admin')
-        cutoff_naive = datetime.utcnow() - timedelta(minutes=30)
+        cutoff_naive = datetime.now(UTC).replace(tzinfo=None) - timedelta(minutes=30)
         q = Report.query.filter(
             or_(
                 Report.user_id == current_user.id,
@@ -897,7 +897,7 @@ def reports_export_csv():
 @app.route('/reports/<int:report_id>')
 @login_required
 def report_detail(report_id):
-    report = Report.query.get_or_404(report_id)
+    report = get_or_404(Report, report_id)
     is_kontroler_report = report.report_type == 'kontroler' and current_user.is_kontroler
     is_monter_report = report.report_type == 'monter' and current_user.is_monter and report.user_id == current_user.id
     if (report.user_id != current_user.id and not current_user.is_admin
@@ -919,7 +919,7 @@ def report_detail(report_id):
 @login_required
 @admin_required
 def report_edit(report_id):
-    report = Report.query.get_or_404(report_id)
+    report = get_or_404(Report, report_id)
     users = User.query.order_by(User.username).all()
     if request.method == 'POST':
         report.title   = request.form.get('title', '').strip() or report.title
@@ -937,7 +937,7 @@ def report_edit(report_id):
 @login_required
 @admin_required
 def report_reopen(report_id):
-    report = Report.query.get_or_404(report_id)
+    report = get_or_404(Report, report_id)
     ChecklistSession.query.filter_by(report_id=report_id).delete()
     now = datetime.now(UTC)
     report.status           = 'in_progress'
@@ -956,7 +956,7 @@ def report_reopen(report_id):
 @app.route('/api/report/<int:report_id>/heartbeat', methods=['POST'])
 @login_required
 def report_heartbeat(report_id):
-    report = Report.query.get_or_404(report_id)
+    report = get_or_404(Report, report_id)
     if report.locked_by_id == current_user.id:
         report.locked_at = datetime.now(UTC)
         db.session.commit()
@@ -966,7 +966,7 @@ def report_heartbeat(report_id):
 @app.route('/api/report/<int:report_id>/unlock', methods=['POST'])
 @login_required
 def report_unlock(report_id):
-    report = Report.query.get_or_404(report_id)
+    report = get_or_404(Report, report_id)
     if report.locked_by_id == current_user.id:
         now = datetime.now(UTC)
         for open_session in ChecklistSession.query.filter_by(
@@ -982,7 +982,7 @@ def report_unlock(report_id):
 @login_required
 @admin_required
 def report_force_unlock(report_id):
-    report = Report.query.get_or_404(report_id)
+    report = get_or_404(Report, report_id)
     report.locked_by_id = None
     report.locked_at    = None
     db.session.commit()
@@ -997,7 +997,7 @@ def report_force_unlock(report_id):
 @login_required
 @admin_required
 def report_delete(report_id):
-    report = Report.query.get_or_404(report_id)
+    report = get_or_404(Report, report_id)
     title = report.title
     _delete_reports([report])
     _audit('report_delete', 'report', report_id, title)
@@ -1088,7 +1088,7 @@ def _create_ng_alert(item):
 @app.route('/api/item/<int:item_id>/result', methods=['POST'])
 @login_required
 def set_item_result(item_id):
-    item = ReportItem.query.get_or_404(item_id)
+    item = get_or_404(ReportItem, item_id)
     if not _can_edit_report(item.report):
         return jsonify({'error': 'Forbidden'}), 403
     if item.report.status == 'completed':
@@ -1115,7 +1115,7 @@ def set_item_result(item_id):
 @login_required
 def set_item_value(item_id):
     """Save a numeric measurement or text entry; auto-evaluates result."""
-    item = ReportItem.query.get_or_404(item_id)
+    item = get_or_404(ReportItem, item_id)
     if not _can_edit_report(item.report):
         return jsonify({'error': 'Forbidden'}), 403
     if item.report.status == 'completed':
@@ -1199,7 +1199,7 @@ def api_categories_reorder():
 @app.route('/api/item/<int:item_id>/notes', methods=['POST'])
 @login_required
 def save_item_notes(item_id):
-    item = ReportItem.query.get_or_404(item_id)
+    item = get_or_404(ReportItem, item_id)
     if not _can_edit_report(item.report):
         return jsonify({'error': 'Forbidden'}), 403
     item.notes = request.json.get('notes', '')
@@ -1210,7 +1210,7 @@ def save_item_notes(item_id):
 @app.route('/api/item/<int:item_id>/photo', methods=['POST'])
 @login_required
 def upload_photo(item_id):
-    item = ReportItem.query.get_or_404(item_id)
+    item = get_or_404(ReportItem, item_id)
     if not _can_edit_report(item.report):
         return jsonify({'error': 'Forbidden'}), 403
     if item.report.status == 'completed':
@@ -1237,7 +1237,7 @@ def upload_photo(item_id):
 @app.route('/api/photo/<int:photo_id>', methods=['DELETE'])
 @login_required
 def delete_photo(photo_id):
-    photo = Photo.query.get_or_404(photo_id)
+    photo = get_or_404(Photo, photo_id)
     item = photo.report_item
     if not _can_edit_report(item.report):
         return jsonify({'error': 'Forbidden'}), 403
@@ -1267,7 +1267,7 @@ def uploaded_pdf(filename):
 @login_required
 def export_pdf(report_id):
     from pdf_generator import generate_pdf
-    report = Report.query.get_or_404(report_id)
+    report = get_or_404(Report, report_id)
     if report.user_id != current_user.id and not current_user.is_admin:
         abort(403)
     items_by_category = {}
@@ -1296,7 +1296,7 @@ def admin_audit_log():
 @admin_required
 def admin_stats():
     from datetime import date as _date, timedelta as td
-    now        = datetime.utcnow()          # naive UTC – spójne z SQLite string storage
+    now        = datetime.now(UTC).replace(tzinfo=None)  # naive UTC – spójne z SQLite string storage
     days       = 30
     cutoff     = now - timedelta(days=days)
     cutoff_str = cutoff.date().isoformat()  # "YYYY-MM-DD" – bezpieczne porównanie str
@@ -1497,8 +1497,8 @@ def api_ng_task_reports():
         days = int(days_raw.split('?')[0].split('&')[0].strip())
     except (ValueError, AttributeError):
         days = 30
-    cutoff_str = (datetime.utcnow() - timedelta(days=days)).date().isoformat()
-    task = Task.query.get_or_404(task_id)
+    cutoff_str = (datetime.now(UTC).replace(tzinfo=None) - timedelta(days=days)).date().isoformat()
+    task = get_or_404(Task, task_id)
     # Normalizuj po stronie Pythona — SQLite lower() obsługuje tylko ASCII,
     # dlatego porównanie robimy w Pythonie, nie w SQL
     norm_title = task.title.strip().rstrip('. ').strip().lower()
@@ -1556,7 +1556,7 @@ def api_template_duration_reports():
         template_id = None
     if not template_id:
         return jsonify({'template': None, 'reports': []})
-    template = ChecklistTemplate.query.get_or_404(template_id)
+    template = get_or_404(ChecklistTemplate, template_id)
     reports = (Report.query
                .filter_by(template_id=template_id, status='completed')
                .filter(Report.duration_seconds.isnot(None))
@@ -1708,7 +1708,7 @@ def admin_template_new():
 @login_required
 @kontroler_required
 def admin_template_edit(tmpl_id):
-    tmpl = ChecklistTemplate.query.get_or_404(tmpl_id)
+    tmpl = get_or_404(ChecklistTemplate, tmpl_id)
     if request.method == 'POST':
         tmpl.name = request.form['name'].strip()
         tmpl.description = request.form.get('description', '').strip()
@@ -1724,7 +1724,7 @@ def admin_template_edit(tmpl_id):
 @login_required
 @kontroler_required
 def admin_template_copy(tmpl_id):
-    src = ChecklistTemplate.query.get_or_404(tmpl_id)
+    src = get_or_404(ChecklistTemplate, tmpl_id)
     copy = ChecklistTemplate(
         name=f'Kopia – {src.name}',
         description=src.description,
@@ -1759,7 +1759,7 @@ def admin_template_copy(tmpl_id):
 @login_required
 @admin_required
 def admin_template_delete(tmpl_id):
-    tmpl = ChecklistTemplate.query.get_or_404(tmpl_id)
+    tmpl = get_or_404(ChecklistTemplate, tmpl_id)
     db.session.delete(tmpl)
     db.session.commit()
     flash('Szablon usunięty.', 'success')
@@ -1790,7 +1790,7 @@ def admin_templates_bulk_delete():
 @login_required
 @kontroler_required
 def admin_template_categories(tmpl_id):
-    tmpl = ChecklistTemplate.query.get_or_404(tmpl_id)
+    tmpl = get_or_404(ChecklistTemplate, tmpl_id)
     categories = tmpl.categories.order_by(Category.order).all()
     return render_template('admin/categories.html', template=tmpl, categories=categories)
 
@@ -1799,7 +1799,7 @@ def admin_template_categories(tmpl_id):
 @login_required
 @kontroler_required
 def admin_category_new(tmpl_id):
-    tmpl = ChecklistTemplate.query.get_or_404(tmpl_id)
+    tmpl = get_or_404(ChecklistTemplate, tmpl_id)
     if request.method == 'POST':
         cat = Category(
             template_id=tmpl_id,
@@ -1817,7 +1817,7 @@ def admin_category_new(tmpl_id):
 @login_required
 @kontroler_required
 def admin_category_edit(cat_id):
-    cat = Category.query.get_or_404(cat_id)
+    cat = get_or_404(Category, cat_id)
     if request.method == 'POST':
         cat.name = request.form['name'].strip()
         cat.order = int(request.form.get('order', 0))
@@ -1832,7 +1832,7 @@ def admin_category_edit(cat_id):
 @login_required
 @kontroler_required
 def admin_category_delete(cat_id):
-    cat = Category.query.get_or_404(cat_id)
+    cat = get_or_404(Category, cat_id)
     tmpl_id = cat.template_id
     db.session.delete(cat)
     db.session.commit()
@@ -1846,7 +1846,7 @@ def admin_category_delete(cat_id):
 @login_required
 @kontroler_required
 def admin_tasks(cat_id):
-    cat = Category.query.get_or_404(cat_id)
+    cat = get_or_404(Category, cat_id)
     tasks = cat.tasks.order_by(Task.order).all()
     return render_template('admin/tasks.html', category=cat, tasks=tasks)
 
@@ -1855,7 +1855,7 @@ def admin_tasks(cat_id):
 @login_required
 @kontroler_required
 def admin_task_new(cat_id):
-    cat = Category.query.get_or_404(cat_id)
+    cat = get_or_404(Category, cat_id)
     if request.method == 'POST':
         task_type = request.form.get('task_type', 'ok_ng')
         vmin = request.form.get('value_min', '').strip()
@@ -1883,7 +1883,7 @@ def admin_task_new(cat_id):
 @login_required
 @kontroler_required
 def admin_task_edit(task_id):
-    task = Task.query.get_or_404(task_id)
+    task = get_or_404(Task, task_id)
     if request.method == 'POST':
         task.title = request.form['title'].strip()
         task.description = request.form.get('description', '').strip()
@@ -1906,7 +1906,7 @@ def admin_task_edit(task_id):
 @login_required
 @kontroler_required
 def admin_task_delete(task_id):
-    task = Task.query.get_or_404(task_id)
+    task = get_or_404(Task, task_id)
     cat_id = task.category_id
     db.session.delete(task)
     db.session.commit()
@@ -1918,7 +1918,7 @@ def admin_task_delete(task_id):
 @login_required
 @kontroler_required
 def admin_tasks_bulk_delete(cat_id):
-    cat = Category.query.get_or_404(cat_id)
+    cat = get_or_404(Category, cat_id)
     ids = request.form.getlist('task_ids', type=int)
     if not ids:
         flash('Nie zaznaczono żadnych zadań.', 'warning')
@@ -1953,7 +1953,7 @@ def admin_installers():
                 flash(f'Dodano montera „{name}".', 'success')
 
         elif action == 'toggle':
-            inst = Installer.query.get_or_404(request.form.get('inst_id', type=int))
+            inst = get_or_404(Installer, request.form.get('inst_id', type=int))
             inst.is_active = not inst.is_active
             db.session.commit()
             _audit('installer_toggle', 'Installer', inst.id,
@@ -1961,7 +1961,7 @@ def admin_installers():
             flash(f'Monter „{inst.name}" {"aktywowany" if inst.is_active else "dezaktywowany"}.', 'success')
 
         elif action == 'delete':
-            inst = Installer.query.get_or_404(request.form.get('inst_id', type=int))
+            inst = get_or_404(Installer, request.form.get('inst_id', type=int))
             name = inst.name
             db.session.delete(inst)
             db.session.commit()
@@ -2020,7 +2020,7 @@ def admin_user_new():
 @login_required
 @admin_required
 def admin_user_edit(user_id):
-    user = User.query.get_or_404(user_id)
+    user = get_or_404(User, user_id)
     if request.method == 'POST':
         new_email = request.form['email'].strip()
         new_password = request.form.get('password', '')
@@ -2053,7 +2053,7 @@ def admin_user_edit(user_id):
 @login_required
 @admin_required
 def admin_user_delete(user_id):
-    user = User.query.get_or_404(user_id)
+    user = get_or_404(User, user_id)
     if user.id == current_user.id:
         flash('Nie możesz usunąć własnego konta.', 'error')
     else:
@@ -2586,7 +2586,7 @@ def orders_import_csv():
 @login_required
 @order_required
 def orders_edit(order_id):
-    order = Order.query.get_or_404(order_id)
+    order = get_or_404(Order, order_id)
     if not current_user.is_admin and order.created_by_id != current_user.id:
         abort(403)
     if request.method == 'POST':
@@ -2688,7 +2688,7 @@ def orders_delete(order_id):
 @login_required
 @order_required
 def orders_ship(order_id):
-    order = Order.query.get_or_404(order_id)
+    order = get_or_404(Order, order_id)
     order.status = 'shipped'
     db.session.commit()
     _audit('order_ship', 'order', order.id)
@@ -2701,7 +2701,7 @@ def orders_ship(order_id):
 @order_required
 def orders_regenerate(order_id):
     """Usuwa istniejące raporty (bez wypełnionych odpowiedzi) i tworzy nowe na podstawie szablonu."""
-    order = Order.query.get_or_404(order_id)
+    order = get_or_404(Order, order_id)
     if not current_user.is_admin and order.created_by_id != current_user.id:
         abort(403)
 
@@ -2738,7 +2738,7 @@ def orders_regenerate(order_id):
 @login_required
 @order_required
 def orders_upload_pdf(order_id):
-    order = Order.query.get_or_404(order_id)
+    order = get_or_404(Order, order_id)
     if not current_user.is_admin and order.created_by_id != current_user.id:
         abort(403)
     f = request.files.get('pdf')
@@ -2794,7 +2794,7 @@ def alerts_poll():
 @app.route('/alerts/read/<int:alert_id>', methods=['POST'])
 @login_required
 def alert_read(alert_id):
-    a = Alert.query.get_or_404(alert_id)
+    a = get_or_404(Alert, alert_id)
     if a.recipient_id == current_user.id:
         a.is_read = True
         db.session.commit()
@@ -2867,7 +2867,7 @@ def api_desktop_templates():
 def api_desktop_new_report():
     data    = request.get_json(silent=True) or {}
     tmpl_id = data.get('template_id')
-    tmpl    = ChecklistTemplate.query.get_or_404(tmpl_id)
+    tmpl    = get_or_404(ChecklistTemplate, tmpl_id)
     title   = (data.get('title', '').strip()
                or f'{tmpl.name} – {datetime.now().strftime("%d.%m.%Y %H:%M")}')
     report  = Report(user_id=current_user.id, template_id=tmpl_id, title=title)
@@ -2902,7 +2902,7 @@ def api_desktop_reports():
 @app.route('/api/desktop/reports/<int:report_id>')
 @login_required
 def api_desktop_report_detail(report_id):
-    report = Report.query.get_or_404(report_id)
+    report = get_or_404(Report, report_id)
     if report.user_id != current_user.id and not current_user.is_admin:
         abort(403)
     categories = []
@@ -2936,7 +2936,7 @@ def api_desktop_report_detail(report_id):
 @app.route('/api/desktop/reports/<int:report_id>/complete', methods=['POST'])
 @login_required
 def api_desktop_complete_report(report_id):
-    report = Report.query.get_or_404(report_id)
+    report = get_or_404(Report, report_id)
     if report.user_id != current_user.id and not current_user.is_admin:
         abort(403)
     now_utc = datetime.now(UTC)
@@ -2953,7 +2953,7 @@ def api_desktop_complete_report(report_id):
 @app.route('/api/desktop/reports/<int:report_id>/reopen', methods=['POST'])
 @login_required
 def api_desktop_reopen_report(report_id):
-    report = Report.query.get_or_404(report_id)
+    report = get_or_404(Report, report_id)
     if not current_user.is_admin:
         abort(403)
     report.status = 'in_progress'
@@ -3246,7 +3246,7 @@ def api_v1_create_checklist():
     if not template_id:
         return jsonify({'error': 'template_id jest wymagane'}), 400
 
-    tmpl = ChecklistTemplate.query.get(template_id)
+    tmpl = db.session.get(ChecklistTemplate, template_id)
     if not tmpl or not tmpl.is_active:
         return jsonify({'error': 'Szablon nie istnieje lub jest nieaktywny'}), 404
 
@@ -3285,7 +3285,7 @@ def api_v1_create_checklist():
 @app.route('/api/v1/checklists/<int:report_id>', methods=['GET'])
 @api_key_required
 def api_v1_checklist_detail(report_id):
-    report = Report.query.get_or_404(report_id)
+    report = get_or_404(Report, report_id)
     return jsonify(_api_checklist_dict(report))
 
 
@@ -3320,7 +3320,7 @@ def api_v1_orders():
 @app.route('/api/v1/orders/<int:order_id>', methods=['GET'])
 @api_key_required
 def api_v1_order_detail(order_id):
-    order = Order.query.get_or_404(order_id)
+    order = get_or_404(Order, order_id)
     return jsonify(_api_order_dict(order))
 
 
@@ -3370,14 +3370,14 @@ def api_v1_create_order():
 @app.route('/api/v1/report/<int:report_id>', methods=['GET'])
 @api_key_required
 def api_v1_report(report_id):
-    report = Report.query.get_or_404(report_id)
+    report = get_or_404(Report, report_id)
     return jsonify(_api_checklist_dict(report))
 
 
 @app.route('/api/v1/checklists/<int:report_id>/start', methods=['POST'])
 @api_key_required
 def api_v1_start_checklist(report_id):
-    report = Report.query.get_or_404(report_id)
+    report = get_or_404(Report, report_id)
     if report.status == 'completed':
         return jsonify({'error': 'Raport jest już zakończony'}), 400
     now = datetime.now(UTC)
@@ -3392,7 +3392,7 @@ def api_v1_start_checklist(report_id):
 @app.route('/api/v1/checklists/<int:report_id>/complete', methods=['POST'])
 @api_key_required
 def api_v1_complete_checklist(report_id):
-    report = Report.query.get_or_404(report_id)
+    report = get_or_404(Report, report_id)
     if report.status == 'completed':
         return jsonify({'error': 'Raport jest już zakończony'}), 400
     now_utc = datetime.now(UTC)
@@ -3457,7 +3457,7 @@ def api_v1_quotes():
 @app.route('/api/v1/quotes/<int:quote_id>', methods=['GET'])
 @api_key_required
 def api_v1_quote_detail(quote_id):
-    quote = Quote.query.get_or_404(quote_id)
+    quote = get_or_404(Quote, quote_id)
     cfg = quote.config
     return jsonify({
         'id': quote.id, 'number': quote.number, 'client_name': quote.client_name,
@@ -3546,7 +3546,7 @@ def api_v1_qar_list():
 @app.route('/api/v1/qar/<int:report_id>', methods=['GET'])
 @api_key_required
 def api_v1_qar_detail(report_id):
-    r = QARReport.query.get_or_404(report_id)
+    r = get_or_404(QARReport, report_id)
     return jsonify({
         'id': r.id, 'number': r.number, 'zo_number': r.zo_number,
         'drawing_number': r.drawing_number, 'title': r.title, 'category': r.category,

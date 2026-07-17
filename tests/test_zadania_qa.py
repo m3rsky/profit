@@ -84,7 +84,7 @@ class TestTaskCrud:
         assert resp.status_code == 200
         assert resp.get_json()['is_done'] is True
         with flask_app.app_context():
-            assert QATask.query.get(task_id).is_done is True
+            assert db.session.get(QATask, task_id).is_done is True
 
     def test_update_notes(self, client):
         login(client, 'oper', 'Oper1234!')
@@ -99,7 +99,7 @@ class TestTaskCrud:
                            headers={'X-CSRF-Token': _csrf(client)})
         assert resp.status_code == 200
         with flask_app.app_context():
-            assert QATask.query.get(task_id).notes == 'Odchylka 2mm'
+            assert db.session.get(QATask, task_id).notes == 'Odchylka 2mm'
 
     def test_delete_task(self, client):
         login(client, 'oper', 'Oper1234!')
@@ -114,7 +114,7 @@ class TestTaskCrud:
                            data={'_csrf_token': token}, follow_redirects=True)
         assert resp.status_code == 200
         with flask_app.app_context():
-            assert QATask.query.get(task_id) is None
+            assert db.session.get(QATask, task_id) is None
 
 
 class TestPdfExport:

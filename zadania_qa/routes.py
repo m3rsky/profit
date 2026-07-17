@@ -4,7 +4,7 @@ from flask import render_template, redirect, url_for, request, flash, abort, jso
 from flask_login import login_required, current_user
 from sqlalchemy import func
 
-from models import db, AuditLog, QATask
+from models import db, get_or_404, AuditLog, QATask
 from . import zadania_qa_bp
 
 UTC = timezone.utc
@@ -73,7 +73,7 @@ def new_task():
 def edit_task(task_id):
     if not _access():
         abort(403)
-    task = QATask.query.get_or_404(task_id)
+    task = get_or_404(QATask, task_id)
     if request.method == 'POST':
         title       = request.form.get('title', '').strip()
         description = request.form.get('description', '').strip()
@@ -98,7 +98,7 @@ def edit_task(task_id):
 def delete_task(task_id):
     if not _access():
         abort(403)
-    task = QATask.query.get_or_404(task_id)
+    task = get_or_404(QATask, task_id)
     title = task.title
     db.session.delete(task)
     db.session.commit()
@@ -137,7 +137,7 @@ def move_task(task_id):
 def toggle_task(task_id):
     if not _access():
         return jsonify({'error': 'Forbidden'}), 403
-    task = QATask.query.get_or_404(task_id)
+    task = get_or_404(QATask, task_id)
     task.is_done       = not task.is_done
     task.updated_by_id = current_user.id
     task.updated_at    = datetime.now(UTC)
@@ -152,7 +152,7 @@ def toggle_task(task_id):
 def update_notes(task_id):
     if not _access():
         return jsonify({'error': 'Forbidden'}), 403
-    task = QATask.query.get_or_404(task_id)
+    task = get_or_404(QATask, task_id)
     data = request.get_json(silent=True) or {}
     task.notes         = (data.get('notes') or '').strip() or None
     task.updated_by_id = current_user.id

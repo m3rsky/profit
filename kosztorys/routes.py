@@ -6,7 +6,7 @@ from flask import (render_template, redirect, url_for, request,
                    flash, jsonify, abort, session, current_app, make_response)
 from flask_login import login_required, current_user
 
-from models import (db, AuditLog, CabinetType, MaterialPrice, LaborRate,
+from models import (db, get_or_404, AuditLog, CabinetType, MaterialPrice, LaborRate,
                     Quote, QuoteConfig, CatalogProduct)
 from .calculator import calculate, get_prices_dict, get_labor_dict
 from . import kosztorys_bp
@@ -239,7 +239,7 @@ def kreator():
 @kosztorys_bp.route('/<int:quote_id>')
 @login_required
 def detail_quote(quote_id):
-    quote = Quote.query.get_or_404(quote_id)
+    quote = get_or_404(Quote, quote_id)
     calc  = quote.config.calculation if quote.config else {}
     return render_template('kosztorys/detail.html', quote=quote, calc=calc)
 
@@ -249,7 +249,7 @@ def detail_quote(quote_id):
 @kosztorys_bp.route('/<int:quote_id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit_quote(quote_id):
-    quote = Quote.query.get_or_404(quote_id)
+    quote = get_or_404(Quote, quote_id)
     cabinet_types = CabinetType.query.filter_by(is_active=True).all()
 
     if request.method == 'POST':
@@ -295,7 +295,7 @@ def edit_quote(quote_id):
 @kosztorys_bp.route('/<int:quote_id>/delete', methods=['POST'])
 @login_required
 def delete_quote(quote_id):
-    quote = Quote.query.get_or_404(quote_id)
+    quote = get_or_404(Quote, quote_id)
     if not current_user.is_admin and quote.created_by_id != current_user.id:
         abort(403)
     number = quote.number
@@ -508,7 +508,7 @@ def admin_catalog():
 @kosztorys_bp.route('/<int:quote_id>/excel')
 @login_required
 def export_excel(quote_id):
-    quote = Quote.query.get_or_404(quote_id)
+    quote = get_or_404(Quote, quote_id)
     from .excel_export import generate_excel
     output = generate_excel(quote)
     response = make_response(output.getvalue())
@@ -524,7 +524,7 @@ def export_excel(quote_id):
 @kosztorys_bp.route('/<int:quote_id>/pdf')
 @login_required
 def export_pdf(quote_id):
-    quote = Quote.query.get_or_404(quote_id)
+    quote = get_or_404(Quote, quote_id)
     from .pdf_export import generate_pdf
     pdf_bytes = generate_pdf(quote)
     response = make_response(pdf_bytes)

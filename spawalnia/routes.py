@@ -6,7 +6,7 @@ from flask import (render_template, redirect, url_for, request,
                    flash, abort, current_app, make_response)
 from flask_login import login_required, current_user
 
-from models import db, AuditLog, SpawalniaOperator, GiecieOperator, CiecieOperator, SpawalniaRecord
+from models import db, get_or_404, AuditLog, SpawalniaOperator, GiecieOperator, CiecieOperator, SpawalniaRecord
 from . import spawalnia_bp
 
 UTC = timezone.utc
@@ -218,7 +218,7 @@ def new_record():
 @login_required
 @spawalnia_required
 def edit_record(record_id):
-    rec = SpawalniaRecord.query.get_or_404(record_id)
+    rec = get_or_404(SpawalniaRecord, record_id)
     ops        = _operators()
     giecie_ops = _giecie_operators()
     ciecie_ops = _ciecie_operators()
@@ -263,7 +263,7 @@ def edit_record(record_id):
 @login_required
 @spawalnia_editor_required
 def delete_record(record_id):
-    rec = SpawalniaRecord.query.get_or_404(record_id)
+    rec = get_or_404(SpawalniaRecord, record_id)
     zo = rec.zo_number
     _audit('spawalnia_delete', 'SpawalniaRecord', rec.id, f'ZO={zo}')
     db.session.delete(rec)
@@ -367,7 +367,7 @@ def admin_operators():
                 flash(f'Dodano operatora {label} {initials}.', 'success')
 
         elif action == 'toggle':
-            op = Model.query.get_or_404(int(request.form.get('op_id', 0)))
+            op = get_or_404(Model, int(request.form.get('op_id', 0)))
             op.is_active = not op.is_active
             _audit(f'{audit_prefix}_toggle', model_name, op.id,
                    f'{op.initials} -> {"active" if op.is_active else "inactive"}')
@@ -375,7 +375,7 @@ def admin_operators():
             flash(f'Operator {op.initials} {"aktywowany" if op.is_active else "dezaktywowany"}.', 'success')
 
         elif action == 'delete':
-            op = Model.query.get_or_404(int(request.form.get('op_id', 0)))
+            op = get_or_404(Model, int(request.form.get('op_id', 0)))
             if op.records.count() > 0:
                 flash(f'Nie można usunąć – operator {op.initials} ma przypisane wpisy.', 'warning')
             else:

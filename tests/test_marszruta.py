@@ -91,7 +91,7 @@ class TestDepartmentsAdmin:
         }, follow_redirects=True)
         assert resp.status_code == 200
         with flask_app.app_context():
-            assert ProductionDepartment.query.get(cutting_id).is_active is False
+            assert db.session.get(ProductionDepartment, cutting_id).is_active is False
 
     def test_delete_department_blocked_when_used_in_template(self, client, routing_template, departments):
         cutting_id, _ = departments
@@ -102,7 +102,7 @@ class TestDepartmentsAdmin:
         }, follow_redirects=True)
         assert resp.status_code == 200
         with flask_app.app_context():
-            assert ProductionDepartment.query.get(cutting_id) is not None
+            assert db.session.get(ProductionDepartment, cutting_id) is not None
 
 
 class TestEmployeesAdmin:
@@ -126,7 +126,7 @@ class TestEmployeesAdmin:
         }, follow_redirects=True)
         assert resp.status_code == 200
         with flask_app.app_context():
-            assert DepartmentEmployee.query.get(emp_id).is_active is False
+            assert db.session.get(DepartmentEmployee, emp_id).is_active is False
 
 
 class TestRoutingTemplateCrud:
@@ -154,7 +154,7 @@ class TestRoutingTemplateCrud:
         }, follow_redirects=True)
         assert resp.status_code == 200
         with flask_app.app_context():
-            tmpl = RoutingTemplate.query.get(routing_template)
+            tmpl = db.session.get(RoutingTemplate, routing_template)
             assert tmpl.stages.count() == 1
 
 
@@ -217,7 +217,7 @@ class TestStageEdit:
         with flask_app.app_context():
             emp = DepartmentEmployee(department_id=cutting_id, name='Adam Testowy')
             db.session.add(emp)
-            tmpl = RoutingTemplate.query.get(routing_template)
+            tmpl = db.session.get(RoutingTemplate, routing_template)
             card = RoutingCard(identifier='ZO-9004', product_name='MRS-100 obudowa',
                                quantity=1, template_id=tmpl.id, created_by_id=User.query.filter_by(username='oper').first().id)
             db.session.add(card)
@@ -238,11 +238,11 @@ class TestStageEdit:
         assert resp.status_code == 200
 
         with flask_app.app_context():
-            stage = RoutingCardStage.query.get(stage_id)
+            stage = db.session.get(RoutingCardStage, stage_id)
             assert stage.result == 'ng'
             assert stage.employee_id == emp_id
             assert stage.notes == 'Odchyłka wymiaru'
-            card = RoutingCard.query.get(card_id)
+            card = db.session.get(RoutingCard, card_id)
             assert card.has_ng is True
             assert card.is_complete is False  # druga karta (spawanie) jeszcze nieoceniona
 
@@ -255,7 +255,7 @@ class TestStats:
         with flask_app.app_context():
             emp = DepartmentEmployee(department_id=cutting_id, name='Ewa Statystyczna')
             db.session.add(emp)
-            tmpl = RoutingTemplate.query.get(routing_template)
+            tmpl = db.session.get(RoutingTemplate, routing_template)
             card = RoutingCard(identifier='ZO-9005', product_name='MRS-100 obudowa',
                                quantity=1, template_id=tmpl.id,
                                created_by_id=User.query.filter_by(username='oper').first().id)
@@ -287,7 +287,7 @@ class TestDeleteCard:
     def test_delete_forbidden_for_kontroler(self, client, routing_template):
         login(client, 'oper', 'Oper1234!')
         with flask_app.app_context():
-            tmpl = RoutingTemplate.query.get(routing_template)
+            tmpl = db.session.get(RoutingTemplate, routing_template)
             card = RoutingCard(identifier='ZO-9006', product_name='MRS-100 obudowa',
                                quantity=1, template_id=tmpl.id,
                                created_by_id=User.query.filter_by(username='oper').first().id)
@@ -299,13 +299,13 @@ class TestDeleteCard:
         resp = client.post(f'/marszruta/{card_id}/delete', data={'_csrf_token': token})
         assert resp.status_code == 403
         with flask_app.app_context():
-            assert RoutingCard.query.get(card_id) is not None
+            assert db.session.get(RoutingCard, card_id) is not None
 
     def test_delete_allowed_for_admin_cascades_stages(self, client, routing_template, departments):
         cutting_id, welding_id = departments
         login(client, 'oper', 'Oper1234!')
         with flask_app.app_context():
-            tmpl = RoutingTemplate.query.get(routing_template)
+            tmpl = db.session.get(RoutingTemplate, routing_template)
             card = RoutingCard(identifier='ZO-9007', product_name='MRS-100 obudowa',
                                quantity=1, template_id=tmpl.id,
                                created_by_id=User.query.filter_by(username='oper').first().id)
@@ -323,5 +323,5 @@ class TestDeleteCard:
         resp = client.post(f'/marszruta/{card_id}/delete', data={'_csrf_token': token}, follow_redirects=True)
         assert resp.status_code == 200
         with flask_app.app_context():
-            assert RoutingCard.query.get(card_id) is None
+            assert db.session.get(RoutingCard, card_id) is None
             assert RoutingCardStage.query.filter_by(card_id=card_id).count() == 0
