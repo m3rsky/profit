@@ -1272,6 +1272,8 @@ def export_pdf(report_id):
         abort(403)
     items_by_category = {}
     for item in report.items.all():
+        if item.task is None:
+            continue  # zadanie zostalo usuniete po utworzeniu raportu
         cat = item.task.category
         items_by_category.setdefault(cat, []).append(item)
     return generate_pdf(report, items_by_category, app.config['UPLOAD_FOLDER'])
