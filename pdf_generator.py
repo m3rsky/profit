@@ -193,6 +193,14 @@ def generate_pdf(report, items_by_category, upload_folder):
     return response
 
 
+def _initials(name):
+    """'Jan Kowalski' -> 'J.K.' — dane montera w PDF nie mogą zawierać pełnego imienia i nazwiska."""
+    parts = [p for p in name.split() if p]
+    if not parts:
+        return name
+    return '.'.join(p[0].upper() for p in parts) + '.'
+
+
 def _append_category(story, cat, items, content_width, upload_folder):
     # Nagłówek kategorii
     cat_table = Table(
@@ -220,7 +228,9 @@ def _append_category(story, cat, items, content_width, upload_folder):
         check_cell = Paragraph(sym, _s(size=9, bold=True, color=sym_color, align=1))
 
         lines = [f'<b>{item.task.title}</b>']
-        if item.task.task_type in ('numeric', 'text', 'installer') and item.value_text:
+        if item.task.task_type == 'installer' and item.value_text:
+            lines.append(_initials(item.value_text))
+        elif item.task.task_type in ('numeric', 'text') and item.value_text:
             unit = f' {item.task.unit}' if item.task.unit else ''
             lines.append(f'{item.value_text}{unit}')
         elif item.task.task_type == 'measurements' and item.value_text:
