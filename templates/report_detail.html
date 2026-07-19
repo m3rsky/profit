@@ -85,6 +85,16 @@
     </div>
     <div class="item-body">
       <div class="item-title">{{ item.task.title }}</div>
+      {% if item.task.task_type in ('numeric', 'text', 'installer') and item.value_text %}
+      <div class="value-readonly">
+        <span class="value-readonly-text">{{ item.value_text }}{% if item.task.unit %} {{ item.task.unit }}{% endif %}</span>
+      </div>
+      {% elif item.task.task_type == 'measurements' and item.value_text %}
+      <div class="value-readonly">
+        {% set m = item.value_text.split('|') %}
+        <span class="value-readonly-text">{{ m | select | list | join(' / ') }}{% if item.task.unit %} {{ item.task.unit }}{% endif %}</span>
+      </div>
+      {% endif %}
       {% if item.notes %}
       <div class="item-note-readonly">{{ item.notes }}</div>
       {% endif %}

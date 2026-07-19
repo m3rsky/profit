@@ -220,6 +220,14 @@ def _append_category(story, cat, items, content_width, upload_folder):
         check_cell = Paragraph(sym, _s(size=9, bold=True, color=sym_color, align=1))
 
         lines = [f'<b>{item.task.title}</b>']
+        if item.task.task_type in ('numeric', 'text', 'installer') and item.value_text:
+            unit = f' {item.task.unit}' if item.task.unit else ''
+            lines.append(f'{item.value_text}{unit}')
+        elif item.task.task_type == 'measurements' and item.value_text:
+            unit = f' {item.task.unit}' if item.task.unit else ''
+            vals = ' / '.join(v for v in item.value_text.split('|') if v)
+            if vals:
+                lines.append(f'{vals}{unit}')
         if item.notes:
             lines.append(f'<i>Odnotuj: {item.notes}</i>')
         if item.checked_at:
