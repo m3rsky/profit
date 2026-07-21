@@ -59,6 +59,15 @@
         <strong>{{ report.location or '—' }}</strong>
       </div>
       <div>
+        <span class="text-muted">Osoba odpowiedzialna</span><br>
+        {% if report.employee %}
+          <strong>{{ report.employee.name }}</strong><br>
+          <span style="color:#666;font-size:0.8rem;">{{ report.employee.department.name }}</span>
+        {% else %}
+          <strong>—</strong>
+        {% endif %}
+      </div>
+      <div>
         <span class="text-muted">Autor</span><br>
         <strong>{{ report.author.username }}</strong>
       </div>

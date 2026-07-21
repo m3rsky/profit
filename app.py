@@ -3131,6 +3131,7 @@ def _migrate_schema():
             for col, ddl in [
                 ('zo_number',      'ALTER TABLE qar_reports ADD COLUMN zo_number VARCHAR(64)'),
                 ('drawing_number', 'ALTER TABLE qar_reports ADD COLUMN drawing_number VARCHAR(64)'),
+                ('employee_id',    'ALTER TABLE qar_reports ADD COLUMN employee_id INTEGER REFERENCES department_employees(id)'),
             ]:
                 if col not in cols:
                     conn.execute(text(ddl)); conn.commit()

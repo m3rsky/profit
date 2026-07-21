@@ -7,7 +7,9 @@ from flask import (render_template, redirect, url_for, request,
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 
-from models import db, get_or_404, AuditLog, QARReport, QARPhoto
+from models import (db, get_or_404, AuditLog, QARReport, QARPhoto,
+                    ProductionDepartment, DepartmentEmployee,
+                    RoutingCard, RoutingCardStage)
 from . import qar_bp
 
 UTC = timezone.utc
@@ -60,6 +62,23 @@ def _verify_image(file_stream):
         return False
 
 
+def _employee_departments():
+    """Aktywne działy z aktywnymi pracownikami — do dropdownu pogrupowanego po działach."""
+    return (ProductionDepartment.query
+            .filter_by(is_active=True)
+            .order_by(ProductionDepartment.order, ProductionDepartment.name)
+            .all())
+
+
+def _parse_employee_id(raw):
+    """Zwraca id istniejącego pracownika albo None (puste/nieprawidłowe pole)."""
+    try:
+        emp_id = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return emp_id if db.session.get(DepartmentEmployee, emp_id) else None
+
+
 def _next_qar_number():
     year = datetime.now().year
     prefix = f'QAR-{year}-'
@@ -88,6 +107,7 @@ def list_reports():
         per_page = 20
     status_f   = request.args.get('status', '')
     category_f = request.args.get('category', '')
+    employee_f = request.args.get('employee', type=int)
     search_q   = request.args.get('q', '').strip()
     date_from  = request.args.get('date_from', '')
     date_to    = request.args.get('date_to', '')
@@ -101,6 +121,8 @@ def list_reports():
         q = q.filter_by(status=status_f)
     if category_f:
         q = q.filter_by(category=category_f)
+    if employee_f:
+        q = q.filter_by(employee_id=employee_f)
     if search_q:
         q = q.filter(
             QARReport.title.ilike(f'%{search_q}%') |
@@ -123,9 +145,11 @@ def list_reports():
 
     reports = q.order_by(QARReport.created_at.desc()).paginate(page=page, per_page=per_page)
     filters = dict(status=status_f, category=category_f, q=search_q,
+                   employee=employee_f or '',
                    date_from=date_from, date_to=date_to, per_page=per_page)
     return render_template('qar/list.html', reports=reports,
-                           categories=QARReport.CATEGORIES, filters=filters)
+                           categories=QARReport.CATEGORIES, filters=filters,
+                           departments=_employee_departments())
 
 
 # ── Nowy raport ───────────────────────────────────────────────────────────────
@@ -140,10 +164,11 @@ def new_report():
         category       = request.form.get('category', '').strip()
         location       = request.form.get('location', '').strip()
         description    = request.form.get('description', '').strip()
+        employee_id    = _parse_employee_id(request.form.get('employee_id'))
         if not title or not description:
             flash('Tytuł i opis problemu są wymagane.', 'error')
             return render_template('qar/new.html', categories=QARReport.CATEGORIES,
-                                   form=request.form)
+                                   form=request.form, departments=_employee_departments())
         report = QARReport(
             number=_next_qar_number(),
             zo_number=zo_number or None,
@@ -152,6 +177,7 @@ def new_report():
             category=category or None,
             location=location or None,
             description=description,
+            employee_id=employee_id,
             user_id=current_user.id,
         )
         db.session.add(report)
@@ -159,7 +185,8 @@ def new_report():
         _audit('qar_create', report.id, f'number={report.number}')
         flash(f'Raport {report.number} został utworzony.', 'success')
         return redirect(url_for('qar.detail_report', report_id=report.id))
-    return render_template('qar/new.html', categories=QARReport.CATEGORIES, form={})
+    return render_template('qar/new.html', categories=QARReport.CATEGORIES, form={},
+                           departments=_employee_departments())
 
 
 # ── Szczegóły ─────────────────────────────────────────────────────────────────
@@ -198,7 +225,8 @@ def edit_report(report_id):
         if not title or not description:
             flash('Tytuł i opis problemu są wymagane.', 'error')
             return render_template('qar/edit.html', report=report,
-                                   categories=QARReport.CATEGORIES)
+                                   categories=QARReport.CATEGORIES,
+                                   departments=_employee_departments())
         if status not in ('open', 'in_progress', 'closed'):
             status = report.status
         report.title          = title
@@ -207,6 +235,7 @@ def edit_report(report_id):
         report.category       = category or None
         report.location       = location or None
         report.description    = description
+        report.employee_id    = _parse_employee_id(request.form.get('employee_id'))
         report.findings       = findings or None
         report.resolution     = resolution or None
         report.updated_at     = datetime.now(UTC)
@@ -223,7 +252,8 @@ def edit_report(report_id):
         _audit('qar_edit', report.id, f'status={report.status}')
         flash('Raport został zaktualizowany.', 'success')
         return redirect(url_for('qar.detail_report', report_id=report.id))
-    return render_template('qar/edit.html', report=report, categories=QARReport.CATEGORIES)
+    return render_template('qar/edit.html', report=report, categories=QARReport.CATEGORIES,
+                           departments=_employee_departments())
 
 
 # ── Zamknięcie raportu ────────────────────────────────────────────────────────
@@ -368,6 +398,100 @@ def update_caption(photo_id):
 def serve_photo(filename):
     upload_dir = current_app.config.get('QAR_UPLOAD_FOLDER', '')
     return send_from_directory(upload_dir, filename)
+
+
+# ── Podpowiedź pracowników z marszruty (AJAX) ────────────────────────────────
+
+@qar_bp.route('/suggest-employees')
+@login_required
+def suggest_employees():
+    """Pracownicy przypisani do etapów karty marszrutowej o podanym numerze ZO."""
+    zo = request.args.get('zo', '').strip()
+    if not zo:
+        return jsonify({'employees': []})
+    card = (RoutingCard.query
+            .filter(RoutingCard.identifier == zo)
+            .order_by(RoutingCard.created_at.desc())
+            .first())
+    if not card:
+        return jsonify({'employees': []})
+    seen, employees = set(), []
+    for stage in card.stages:
+        emp = stage.employee
+        if emp and emp.id not in seen:
+            seen.add(emp.id)
+            employees.append({
+                'id': emp.id,
+                'name': emp.name,
+                'department': stage.department.name if stage.department else '',
+            })
+    return jsonify({'employees': employees})
+
+
+# ── Statystyki błędów per pracownik ──────────────────────────────────────────
+
+@qar_bp.route('/stats')
+@login_required
+def stats():
+    if not (current_user.is_admin or current_user.is_kontroler or current_user.is_konstruktor):
+        abort(403)
+    from sqlalchemy import func, case
+    date_from = request.args.get('date_from', '')
+    date_to   = request.args.get('date_to', '')
+
+    unassigned_q = QARReport.query.filter(QARReport.employee_id.is_(None))
+
+    q = (db.session.query(
+            DepartmentEmployee.id.label('emp_id'),
+            DepartmentEmployee.name.label('emp_name'),
+            ProductionDepartment.name.label('dept_name'),
+            func.count(QARReport.id).label('total'),
+            func.sum(case((QARReport.status == 'open', 1), else_=0)).label('open'),
+            func.sum(case((QARReport.status == 'in_progress', 1), else_=0)).label('in_progress'),
+            func.sum(case((QARReport.status == 'closed', 1), else_=0)).label('closed'),
+        )
+        .join(QARReport, QARReport.employee_id == DepartmentEmployee.id)
+        .join(ProductionDepartment, DepartmentEmployee.department_id == ProductionDepartment.id))
+
+    cat_q = (db.session.query(
+                QARReport.employee_id,
+                QARReport.category,
+                func.count(QARReport.id).label('cnt'),
+            )
+            .filter(QARReport.employee_id.isnot(None)))
+
+    if date_from:
+        try:
+            dt = datetime.strptime(date_from, '%Y-%m-%d')
+            q     = q.filter(QARReport.created_at >= dt)
+            cat_q = cat_q.filter(QARReport.created_at >= dt)
+            unassigned_q = unassigned_q.filter(QARReport.created_at >= dt)
+        except ValueError:
+            date_from = ''
+    if date_to:
+        from datetime import timedelta
+        try:
+            dt = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)
+            q     = q.filter(QARReport.created_at < dt)
+            cat_q = cat_q.filter(QARReport.created_at < dt)
+            unassigned_q = unassigned_q.filter(QARReport.created_at < dt)
+        except ValueError:
+            date_to = ''
+
+    rows = (q.group_by(DepartmentEmployee.id)
+             .order_by(func.count(QARReport.id).desc(), DepartmentEmployee.name)
+             .all())
+
+    categories = {}
+    for emp_id, category, cnt in cat_q.group_by(QARReport.employee_id, QARReport.category).all():
+        categories.setdefault(emp_id, []).append((category or 'Bez kategorii', cnt))
+    for cats in categories.values():
+        cats.sort(key=lambda c: -c[1])
+
+    unassigned = unassigned_q.count()
+    return render_template('qar/stats.html', rows=rows, categories=categories,
+                           unassigned=unassigned,
+                           date_from=date_from, date_to=date_to)
 
 
 # ── PDF ───────────────────────────────────────────────────────────────────────

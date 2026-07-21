@@ -73,6 +73,12 @@
       </div>
 
       <div class="form-group" style="margin-bottom:14px;">
+        {% with selected_employee_id = form.get('employee_id', '') | int(0), selected_employee = none %}
+          {% include 'qar/_employee_select.html' %}
+        {% endwith %}
+      </div>
+
+      <div class="form-group" style="margin-bottom:14px;">
         <label class="form-label">Opis problemu <span style="color:#c0392b;">*</span></label>
         <textarea name="description" class="form-control" rows="5"
                   placeholder="Szczegółowy opis wykrytej niezgodności…"

@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Statystyki QAR — błędy per pracownik{% endblock %}
+
+{% block head %}
+<style>
+@media (max-width: 640px) {
+  .qar-stats-filters { flex-direction: column; }
+  .qar-stats-filters input, .qar-stats-filters .btn { width: 100% !important; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">
+      <i class="bi bi-bar-chart"></i>
+      Statystyki QAR — błędy per pracownik
+    </h1>
+    <span class="text-muted" style="font-size:0.82rem;">Liczba raportów niezgodności przypisanych do osoby odpowiedzialnej</span>
+  </div>
+  <div class="page-header-actions">
+    <a href="{{ url_for('qar.list_reports') }}" class="btn btn-outline">
+      <i class="bi bi-arrow-left"></i> Lista raportów
+    </a>
+  </div>
+</div>
+
+{# ── Filtry ── #}
+<form method="get" class="qar-stats-filters" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;align-items:flex-end;">
+  <input type="date" name="date_from" value="{{ date_from }}" class="form-control" style="width:150px;" title="Data od">
+  <input type="date" name="date_to"   value="{{ date_to }}"   class="form-control" style="width:150px;" title="Data do">
+  <button type="submit" class="btn btn-secondary"><i class="bi bi-search"></i> Filtruj</button>
+  {% if date_from or date_to %}
+    <a href="{{ url_for('qar.stats') }}" class="btn btn-outline" title="Wyczyść filtry">
+      <i class="bi bi-x-lg"></i>
+    </a>
+  {% endif %}
+</form>
+
+{% if rows %}
+<div class="table-responsive">
+  <table class="table table-hover" style="font-size:0.88rem;">
+    <thead>
+      <tr>
+        <th>Pracownik</th>
+        <th style="width:130px;">Dział</th>
+        <th style="width:80px;text-align:center;">Razem</th>
+        <th style="width:80px;text-align:center;">Otwarte</th>
+        <th style="width:80px;text-align:center;">W toku</th>
+        <th style="width:90px;text-align:center;">Zamknięte</th>
+        <th>Kategorie błędów</th>
+        <th style="width:70px;"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td><strong>{{ row.emp_name }}</strong></td>
+        <td style="color:#555;">{{ row.dept_name }}</td>
+        <td style="text-align:center;"><strong>{{ row.total }}</strong></td>
+        <td style="text-align:center;">
+          {% if row.open %}<span class="badge status-warning">{{ row.open }}</span>{% else %}<span style="color:#bbb;">0</span>{% endif %}
+        </td>
+        <td style="text-align:center;">
+          {% if row.in_progress %}<span class="badge status-info">{{ row.in_progress }}</span>{% else %}<span style="color:#bbb;">0</span>{% endif %}
+        </td>
+        <td style="text-align:center;">
+          {% if row.closed %}<span class="badge status-success">{{ row.closed }}</span>{% else %}<span style="color:#bbb;">0</span>{% endif %}
+        </td>
+        <td style="color:#555;font-size:0.82rem;">
+          {% for cat, cnt in categories.get(row.emp_id, []) %}
+            <span style="white-space:nowrap;">{{ cat }} ({{ cnt }}){% if not loop.last %}, {% endif %}</span>
+          {% endfor %}
+        </td>
+        <td style="text-align:right;">
+          <a href="{{ url_for('qar.list_reports', employee=row.emp_id, date_from=date_from, date_to=date_to) }}"
+             class="btn btn-outline btn-xs" title="Pokaż raporty tej osoby">
+            <i class="bi bi-list-ul"></i>
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty-state" style="text-align:center;padding:48px 0;color:#888;">
+  <i class="bi bi-bar-chart" style="font-size:3rem;display:block;margin-bottom:12px;"></i>
+  <p>Brak raportów QAR z przypisaną osobą odpowiedzialną{% if date_from or date_to %} w wybranym okresie{% endif %}.</p>
+</div>
+{% endif %}
+
+{% if unassigned %}
+<p class="text-muted" style="font-size:0.82rem;margin-top:12px;">
+  <i class="bi bi-info-circle"></i>
+  Raporty bez przypisanej osoby{% if date_from or date_to %} (w wybranym okresie){% endif %}: <strong>{{ unassigned }}</strong>
+</p>
+{% endif %}
+{% endblock %}

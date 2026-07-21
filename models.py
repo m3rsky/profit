@@ -593,6 +593,7 @@ class QARReport(db.Model):
     findings       = db.Column(db.Text, nullable=True)
     resolution     = db.Column(db.Text, nullable=True)
     status         = db.Column(db.String(16), default='open')  # open | in_progress | closed
+    employee_id    = db.Column(db.Integer, db.ForeignKey('department_employees.id'), nullable=True)
     user_id        = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     verified_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     verified_at    = db.Column(db.DateTime, nullable=True)
@@ -601,6 +602,8 @@ class QARReport(db.Model):
 
     author      = db.relationship('User', foreign_keys=[user_id], backref='qar_reports')
     verified_by = db.relationship('User', foreign_keys=[verified_by_id])
+    employee    = db.relationship('DepartmentEmployee', foreign_keys=[employee_id],
+                                  backref=db.backref('qar_reports', lazy='dynamic'))
     photos      = db.relationship('QARPhoto', backref='report', lazy='dynamic',
                                   cascade='all, delete-orphan')
 

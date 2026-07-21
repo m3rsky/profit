@@ -68,6 +68,12 @@
       </div>
 
       <div class="form-group" style="margin-bottom:14px;">
+        {% with selected_employee_id = report.employee_id, selected_employee = report.employee %}
+          {% include 'qar/_employee_select.html' %}
+        {% endwith %}
+      </div>
+
+      <div class="form-group" style="margin-bottom:14px;">
         <label class="form-label" style="color:#c0392b;">
           <i class="bi bi-exclamation-triangle"></i> Opis problemu <span>*</span>
         </label>

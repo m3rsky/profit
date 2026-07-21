@@ -121,6 +121,8 @@ def generate_qar_pdf(report, upload_folder):
         [_p('Tytuł', FONT_BOLD, 9, NAVY),           _p(report.title, size=9)],
         [_p('Kategoria', FONT_BOLD, 9, NAVY),        _p(report.category or '—', size=9)],
         [_p('Lokalizacja / obiekt', FONT_BOLD, 9, NAVY), _p(report.location or '—', size=9)],
+        [_p('Osoba odpowiedzialna', FONT_BOLD, 9, NAVY),
+         _p(f'{report.employee.name} ({report.employee.department.name})' if report.employee else '—', size=9)],
         [_p('Autor', FONT_BOLD, 9, NAVY),
          _p(f'{report.author.username}  ({report.created_at.strftime("%d.%m.%Y %H:%M")})', size=9)],
     ]
