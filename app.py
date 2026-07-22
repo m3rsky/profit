@@ -675,6 +675,7 @@ def complete_checklist(report_id):
     report.locked_at        = None
     report.duration_seconds = total_seconds if total_seconds > 0 else None
     db.session.flush()
+    _create_ng_alerts_on_complete(report)
     if report.order_id:
         _notify_order_report_done(report)
         _check_order_complete(report.order)
@@ -1075,12 +1076,18 @@ def _can_edit_report(report):
     return False
 
 
-def _create_ng_alert(item):
-    """Tworzy alert dla adminów natychmiast po oznaczeniu zadania jako niezgodne (NG)."""
-    report = item.report
-    task_title = item.task.title if item.task else 'Zadanie'
-    msg = f'Niezgodność: {task_title} — {report.title}'
-    for u in User.query.filter_by(role='admin').all():
+def _create_ng_alerts_on_complete(report):
+    """Tworzy jeden zbiorczy alert NG dla adminów i kontrolerów przy zamknięciu
+    listy kontrolnej — na podstawie faktycznego stanu pozycji, więc omyłkowe NG
+    poprawione przed zamknięciem nie generuje alertu."""
+    ng_items = [i for i in report.items.all() if i.result == 'ng']
+    if not ng_items:
+        return
+    titles = [i.task.title if i.task else 'Zadanie' for i in ng_items]
+    msg = f'Niezgodności ({len(ng_items)}): {report.title} — {", ".join(titles)}'
+    if len(msg) > 512:
+        msg = msg[:511] + '…'
+    for u in User.query.filter(User.role.in_(['admin', 'kontroler'])).all():
         db.session.add(Alert(recipient_id=u.id, message=msg,
                              alert_type='ng', order_id=report.order_id))
 
@@ -1098,12 +1105,9 @@ def set_item_result(item_id):
     result = request.json.get('result')
     if result not in ('ok', 'ng', 'na', 'dw', None):
         return jsonify({'error': 'Nieprawidłowy wynik'}), 400
-    was_ng = item.result == 'ng'
     item.result     = result
     item.is_checked = result is not None
     item.checked_at = datetime.now(UTC) if result else None
-    if result == 'ng' and not was_ng:
-        _create_ng_alert(item)
     db.session.commit()
     s = item.report.stats
     return jsonify({'result': item.result, 'checked': item.is_checked,
@@ -1133,7 +1137,6 @@ def set_item_value(item_id):
                         'progress': item.report.completion_percent,
                         'stats': item.report.stats})
     task = item.task
-    was_ng = item.result == 'ng'
     item.value_text = value
     item.checked_at = datetime.now(UTC)
     if task.task_type == 'numeric':
@@ -1146,8 +1149,6 @@ def set_item_value(item_id):
                 in_range = False
             item.result = 'ok' if in_range else 'ng'
             item.is_checked = True
-            if item.result == 'ng' and not was_ng:
-                _create_ng_alert(item)
         except ValueError:
             return jsonify({'error': 'Nieprawidłowa wartość liczbowa'}), 400
     elif task.task_type == 'measurements':
