@@ -83,10 +83,16 @@ def generate_qar_pdf(report, upload_folder):
 
     # ── Nagłówek ──────────────────────────────────────────────────────────────
     logo_cell = ''
+    logo_col_w = 35 * mm
     if os.path.exists(LOGO_PATH):
         try:
-            logo_cell = Image(LOGO_PATH, width=30 * mm, height=12 * mm,
-                              kind='proportional')
+            from PIL import Image as PILImage
+            logo_h = 20 * mm + 10  # ten sam rozmiar co w pdf_generator.py
+            with PILImage.open(LOGO_PATH) as im:
+                iw, ih = im.size
+            logo_w = logo_h * (iw / ih)
+            logo_cell = Image(LOGO_PATH, width=logo_w, height=logo_h)
+            logo_col_w = logo_w + 4 * mm
         except Exception:
             pass
 
@@ -96,7 +102,8 @@ def generate_qar_pdf(report, upload_folder):
         _p('RAPORT JAKOŚCI – QAR', FONT_BOLD, 14, NAVY, 'CENTER'),
         _p(_status_label(report.status), FONT_BOLD, 11, WHITE, 'CENTER'),
     ]]
-    header_table = Table(header_data, colWidths=[35 * mm, page_w - 70 * mm, 35 * mm])
+    header_table = Table(header_data,
+                         colWidths=[logo_col_w, page_w - logo_col_w - 35 * mm, 35 * mm])
     header_table.setStyle(TableStyle([
         ('VALIGN',      (0, 0), (-1, -1), 'MIDDLE'),
         ('BACKGROUND',  (2, 0), (2, 0),   status_color),
