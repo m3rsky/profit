@@ -23,7 +23,7 @@ WHITE = colors.white
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FONT_DIR = os.path.join(BASE_DIR, 'fonts')
-LOGO_PATH = os.path.join(BASE_DIR, 'static', 'k_logo.png')
+LOGO_PATH = os.path.join(BASE_DIR, 'static', 'k_logo.jpg')
 
 _FONTS_REGISTERED = False
 
