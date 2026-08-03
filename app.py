@@ -1434,6 +1434,36 @@ def admin_stats():
                         .order_by(DailyBriefing.generated_at.desc())
                         .limit(10).all())
 
+    # ── Błędy NG wg montera (wybierany zakres dat, niezależny od reszty strony) ──
+    inst_date_from = request.args.get('inst_date_from', '') or cutoff.date().isoformat()
+    inst_date_to   = request.args.get('inst_date_to', '') or _date.today().isoformat()
+    try:
+        datetime.strptime(inst_date_from, '%Y-%m-%d')
+        datetime.strptime(inst_date_to, '%Y-%m-%d')
+    except ValueError:
+        inst_date_from = cutoff.date().isoformat()
+        inst_date_to   = _date.today().isoformat()
+
+    installer_raw = (db.session.query(
+        ReportItem.value_text.label('name'),
+        func.sum(case((ReportItem.result == 'ng', 1), else_=0)).label('ng'),
+        func.sum(case((ReportItem.result == 'ok', 1), else_=0)).label('ok'),
+    ).join(Task, Task.id == ReportItem.task_id)
+     .join(Report, Report.id == ReportItem.report_id)
+     .filter(Task.task_type == 'installer',
+             ReportItem.value_text.isnot(None),
+             ReportItem.result.in_(('ok', 'ng')),
+             Report.status == 'completed',
+             _day_expr >= inst_date_from, _day_expr <= inst_date_to)
+     .group_by(ReportItem.value_text)
+     .order_by(func.sum(case((ReportItem.result == 'ng', 1), else_=0)).desc())
+     .all())
+    installer_stats = [
+        {'name': r.name, 'ng': r.ng, 'ok': r.ok, 'total': r.ng + r.ok,
+         'ng_pct': round(r.ng / (r.ng + r.ok) * 100) if (r.ng + r.ok) else 0}
+        for r in installer_raw
+    ]
+
     resp = make_response(render_template('admin/stats.html',
                            labels=labels, daily_counts=daily_counts,
                            ok_total=ok_total, ng_total=ng_total,
@@ -1448,7 +1478,9 @@ def admin_stats():
                            marszruta_employee_stats=marszruta_employee_stats,
                            total_routing_cards=total_routing_cards,
                            completed_routing_cards=completed_routing_cards,
-                           recent_briefings=recent_briefings))
+                           recent_briefings=recent_briefings,
+                           installer_stats=installer_stats,
+                           inst_date_from=inst_date_from, inst_date_to=inst_date_to))
     resp.headers['Cache-Control'] = 'no-store'
     return resp
 
@@ -1525,6 +1557,33 @@ def admin_briefing_detail(briefing_id):
     return resp
 
 
+_BRIEFING_SECTION_STYLES = {
+    'Podsumowanie':       ('bi-clipboard-data',      'blue'),
+    'Anomalie i trendy':  ('bi-exclamation-triangle', 'warn'),
+    'Priorytety':         ('bi-flag',                 'ok'),
+}
+
+
+def _render_briefing_html(content):
+    """Renderuje markdown Claude jako kolorowe, podpisane sekcje zamiast gołego HTML."""
+    parts = re.split(r'(?m)^##\s+(.+)$', content)
+    html_parts = []
+    if parts[0].strip():
+        html_parts.append(markdown.markdown(parts[0].strip()))
+    for i in range(1, len(parts), 2):
+        title = parts[i].strip()
+        body = parts[i + 1] if i + 1 < len(parts) else ''
+        icon, tone = _BRIEFING_SECTION_STYLES.get(title, ('bi-info-circle', 'neutral'))
+        body_html = markdown.markdown(body.strip())
+        html_parts.append(
+            f'<div class="briefing-section briefing-section--{tone}">'
+            f'<div class="briefing-section-title"><i class="bi {icon}"></i> {title}</div>'
+            f'<div class="briefing-section-body">{body_html}</div>'
+            f'</div>'
+        )
+    return ''.join(html_parts)
+
+
 def _briefing_to_dict(briefing):
     return {
         'id': briefing.id,
@@ -1534,7 +1593,7 @@ def _briefing_to_dict(briefing):
         'model_used': briefing.model_used,
         'input_tokens': briefing.input_token_count,
         'output_tokens': briefing.output_token_count,
-        'content_html': markdown.markdown(briefing.content),
+        'content_html': _render_briefing_html(briefing.content),
     }
 
 
