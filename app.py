@@ -1435,14 +1435,24 @@ def admin_stats():
                         .limit(10).all())
 
     # ── Błędy NG wg montera (wybierany zakres dat, niezależny od reszty strony) ──
-    inst_date_from = request.args.get('inst_date_from', '') or cutoff.date().isoformat()
-    inst_date_to   = request.args.get('inst_date_to', '') or _date.today().isoformat()
+    # Infrastruktura hostingu potrafi zdublować query string, doklejając go
+    # ponownie ze znakiem '?' na końcu ostatniego parametru (potwierdzone przez
+    # curl -v — żądanie wychodzi czyste, serwer i tak zwraca zdublowany ciąg).
+    # Poprawna data nigdy nie zawiera '?', więc obcinamy od niego obronnie.
+    def _clean_date_param(raw):
+        return raw.split('?', 1)[0] if raw else raw
+
+    inst_date_from = _clean_date_param(request.args.get('inst_date_from', '')) or cutoff.date().isoformat()
+    inst_date_to   = _clean_date_param(request.args.get('inst_date_to', ''))   or _date.today().isoformat()
+    # Walidacja niezależna per pole — awaria jednego nie powinna kasować drugiego.
     try:
         datetime.strptime(inst_date_from, '%Y-%m-%d')
-        datetime.strptime(inst_date_to, '%Y-%m-%d')
     except ValueError:
         inst_date_from = cutoff.date().isoformat()
-        inst_date_to   = _date.today().isoformat()
+    try:
+        datetime.strptime(inst_date_to, '%Y-%m-%d')
+    except ValueError:
+        inst_date_to = _date.today().isoformat()
 
     installer_raw = (db.session.query(
         ReportItem.value_text.label('name'),

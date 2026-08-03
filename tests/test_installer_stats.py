@@ -76,3 +76,19 @@ class TestInstallerNgStats:
         resp = client.get('/admin/stats')
         assert resp.status_code == 403
         logout(client)
+
+    def test_stats_page_survives_duplicated_query_string(self, client, installer_stats_fixtures):
+        """Regresja: infrastruktura hostingu potrafi zdublować query string,
+        doklejając go ponownie ze znakiem '?' na końcu ostatniego parametru
+        (np. 'inst_date_to=2018-06-30?inst_date_from=2018-06-01&inst_date_to=2018-06-30').
+        Filtr powinien mimo to poprawnie zadziałać dla pierwszego (czystego) wystąpienia."""
+        login(client, 'admin', 'Admin1234!')
+        resp = client.get(
+            '/admin/stats?inst_date_from=2018-06-01&inst_date_to=2018-06-30'
+            '?inst_date_from=2018-06-01&inst_date_to=2018-06-30'
+        )
+        assert resp.status_code == 200
+        html = resp.data.decode('utf-8')
+        assert installer_stats_fixtures['installer_name'] in html
+        assert '67%' in html
+        logout(client)
