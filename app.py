@@ -1482,6 +1482,7 @@ def admin_stats():
                            installer_stats=installer_stats,
                            inst_date_from=inst_date_from, inst_date_to=inst_date_to))
     resp.headers['Cache-Control'] = 'no-store'
+    resp.headers['X-LiteSpeed-Cache-Control'] = 'no-cache'
     return resp
 
 
@@ -1554,6 +1555,7 @@ def admin_briefing_detail(briefing_id):
     briefing = get_or_404(DailyBriefing, briefing_id)
     resp = jsonify({'success': True, 'briefing': _briefing_to_dict(briefing)})
     resp.headers['Cache-Control'] = 'no-store'
+    resp.headers['X-LiteSpeed-Cache-Control'] = 'no-cache'
     return resp
 
 
