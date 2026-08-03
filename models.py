@@ -242,6 +242,26 @@ class Installer(db.Model):
         return f'<Installer {self.name}>'
 
 
+class DailyBriefing(db.Model):
+    """Podsumowanie analityczne wygenerowane przez Claude API za wybrany zakres dat."""
+    __tablename__ = 'daily_briefings'
+    id                   = db.Column(db.Integer, primary_key=True)
+    start_date           = db.Column(db.Date, nullable=False)
+    end_date             = db.Column(db.Date, nullable=False)
+    generated_at         = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    generated_by_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    model_used           = db.Column(db.String(64), nullable=False)
+    input_token_count    = db.Column(db.Integer, nullable=True)
+    output_token_count   = db.Column(db.Integer, nullable=True)
+    content              = db.Column(db.Text, nullable=False)
+    raw_aggregated_data  = db.Column(db.Text, nullable=True)
+
+    generated_by = db.relationship('User', foreign_keys=[generated_by_user_id])
+
+    def __repr__(self):
+        return f'<DailyBriefing {self.start_date}..{self.end_date}>'
+
+
 class AuditLog(db.Model):
     __tablename__ = 'audit_log'
     id          = db.Column(db.Integer, primary_key=True)

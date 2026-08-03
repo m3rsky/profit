@@ -1,9 +1,11 @@
 import os
 import re
 import csv
+import json
 import uuid
 import secrets
 import logging
+import markdown
 from io import StringIO
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
@@ -29,7 +31,10 @@ from models import (db, get_or_404, User, ChecklistTemplate, Category, Task, Rep
                     ChecklistSession, Installer,
                     QARReport, QARPhoto, QATask,
                     ProductionDepartment, DepartmentEmployee, RoutingTemplate,
-                    RoutingTemplateStage, RoutingCard, RoutingCardStage, RoutingCardPhoto)
+                    RoutingTemplateStage, RoutingCard, RoutingCardStage, RoutingCardPhoto,
+                    DailyBriefing)
+import anthropic
+import briefing_service
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -1425,6 +1430,10 @@ def admin_stats():
                                .filter(~RoutingCard.id.in_(_incomplete_card_ids))
                                .count())
 
+    recent_briefings = (DailyBriefing.query
+                        .order_by(DailyBriefing.generated_at.desc())
+                        .limit(10).all())
+
     resp = make_response(render_template('admin/stats.html',
                            labels=labels, daily_counts=daily_counts,
                            ok_total=ok_total, ng_total=ng_total,
@@ -1438,9 +1447,95 @@ def admin_stats():
                            marszruta_dept_stats=marszruta_dept_stats,
                            marszruta_employee_stats=marszruta_employee_stats,
                            total_routing_cards=total_routing_cards,
-                           completed_routing_cards=completed_routing_cards))
+                           completed_routing_cards=completed_routing_cards,
+                           recent_briefings=recent_briefings))
     resp.headers['Cache-Control'] = 'no-store'
     return resp
+
+
+# ── Admin: Poranny Briefing (analiza Claude API) ─────────────────────────────
+
+_BRIEFING_MAX_RANGE_DAYS = 366
+
+
+@app.route('/admin/briefing/generate', methods=['POST'])
+@login_required
+@admin_required
+def admin_briefing_generate():
+    from datetime import date as _date
+
+    start_raw = request.form.get('start_date', '')
+    end_raw   = request.form.get('end_date', '')
+    try:
+        start_date = _date.fromisoformat(start_raw)
+        end_date   = _date.fromisoformat(end_raw)
+    except ValueError:
+        return jsonify({'success': False, 'error': 'Podaj poprawny zakres dat (od–do).'}), 400
+
+    if start_date > end_date:
+        return jsonify({'success': False, 'error': 'Data początkowa musi być wcześniejsza niż końcowa.'}), 400
+    if (end_date - start_date).days > _BRIEFING_MAX_RANGE_DAYS:
+        return jsonify({'success': False, 'error': f'Zakres dat nie może przekraczać {_BRIEFING_MAX_RANGE_DAYS} dni.'}), 400
+
+    if not app.config.get('ANTHROPIC_API_KEY'):
+        return jsonify({'success': False, 'error': 'Usługa AI nie jest skonfigurowana — brak klucza API.'}), 400
+
+    payload = briefing_service.generate_briefing_payload(start_date, end_date)
+
+    try:
+        result = briefing_service.call_claude(payload)
+    except anthropic.RateLimitError:
+        return jsonify({'success': False, 'error': 'Przekroczono limit zapytań do Claude API — spróbuj ponownie za chwilę.'}), 502
+    except anthropic.AuthenticationError:
+        app.logger.error('Briefing: błąd autoryzacji Claude API (nieprawidłowy klucz)')
+        return jsonify({'success': False, 'error': 'Błąd konfiguracji usługi AI — skontaktuj się z administratorem systemu.'}), 502
+    except anthropic.APIConnectionError:
+        return jsonify({'success': False, 'error': 'Brak połączenia z Claude API.'}), 502
+    except anthropic.APIStatusError as e:
+        app.logger.error('Briefing: błąd Claude API status=%s', e.status_code)
+        return jsonify({'success': False, 'error': 'Usługa AI zwróciła błąd — spróbuj ponownie później.'}), 502
+    except briefing_service.BriefingGenerationError as e:
+        return jsonify({'success': False, 'error': str(e)}), 502
+
+    briefing = DailyBriefing(
+        start_date=start_date, end_date=end_date,
+        generated_by_user_id=current_user.id,
+        model_used=result['model'],
+        input_token_count=result['input_tokens'],
+        output_token_count=result['output_tokens'],
+        content=result['content'],
+        raw_aggregated_data=json.dumps(payload, ensure_ascii=False),
+    )
+    db.session.add(briefing)
+    db.session.commit()
+
+    _audit('briefing_generated', 'DailyBriefing', briefing.id,
+          f'{start_date.isoformat()}..{end_date.isoformat()}')
+
+    return jsonify({'success': True, 'briefing': _briefing_to_dict(briefing)})
+
+
+@app.route('/admin/briefing/<int:briefing_id>')
+@login_required
+@admin_required
+def admin_briefing_detail(briefing_id):
+    briefing = get_or_404(DailyBriefing, briefing_id)
+    resp = jsonify({'success': True, 'briefing': _briefing_to_dict(briefing)})
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
+
+def _briefing_to_dict(briefing):
+    return {
+        'id': briefing.id,
+        'start_date': briefing.start_date.isoformat(),
+        'end_date': briefing.end_date.isoformat(),
+        'generated_at': briefing.generated_at.isoformat(),
+        'model_used': briefing.model_used,
+        'input_tokens': briefing.input_token_count,
+        'output_tokens': briefing.output_token_count,
+        'content_html': markdown.markdown(briefing.content),
+    }
 
 
 # ── Admin: Stats debug (diagnostyka) ─────────────────────────────────────────

@@ -8,6 +8,37 @@
   <h1 class="page-title">Statystyki systemu</h1>
 </div>
 
+<div class="card" id="briefing-card">
+  <div class="card-header"><i class="bi bi-robot"></i> Poranny Briefing (analiza AI)</div>
+  <div class="card-body">
+    <form id="briefing-form" class="briefing-form">
+      <label>Od <input type="date" name="start_date" id="briefing-start" required></label>
+      <label>Do <input type="date" name="end_date" id="briefing-end" required></label>
+      <button type="submit" class="btn btn-primary" id="briefing-generate-btn">
+        <i class="bi bi-magic"></i> Generuj briefing
+      </button>
+      {% if recent_briefings %}
+      <label>Historia
+        <select id="briefing-history">
+          <option value="">— wybierz z historii —</option>
+          {% for b in recent_briefings %}
+          <option value="{{ b.id }}">{{ b.start_date }} – {{ b.end_date }} ({{ b.generated_at.strftime('%Y-%m-%d %H:%M') }})</option>
+          {% endfor %}
+        </select>
+      </label>
+      {% endif %}
+    </form>
+    <div id="briefing-meta" class="briefing-meta"></div>
+    <div id="briefing-content" class="briefing-content">
+      {% if recent_briefings %}
+      <p class="text-muted">Wybierz zakres dat i kliknij „Generuj briefing”, albo wybierz wcześniejszy briefing z historii powyżej.</p>
+      {% else %}
+      <p class="text-muted">Brak wygenerowanych briefingów. Wybierz zakres dat i kliknij „Generuj briefing”.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
 <div class="stat-grid">
   <div class="stat-card">
     <div class="stat-number">{{ total_completed }}</div>
@@ -297,6 +328,65 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function escHtml(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  /* ── Poranny Briefing (AI) ── */
+  const briefingForm    = document.getElementById('briefing-form');
+  const briefingMeta    = document.getElementById('briefing-meta');
+  const briefingContent = document.getElementById('briefing-content');
+  const briefingHistory = document.getElementById('briefing-history');
+  const briefingBtn     = document.getElementById('briefing-generate-btn');
+
+  function renderBriefing(b) {
+    briefingContent.innerHTML = b.content_html;
+    briefingMeta.innerHTML = 'Wygenerowano: ' + escHtml(b.generated_at.replace('T', ' ').slice(0, 16))
+      + ' &middot; Model: ' + escHtml(b.model_used)
+      + ' &middot; Tokeny: ' + (b.input_tokens ?? '—') + ' wej. / ' + (b.output_tokens ?? '—') + ' wyj.';
+  }
+
+  if (briefingForm) {
+    briefingForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      briefingBtn.disabled = true;
+      briefingContent.innerHTML = '<p class="ng-modal-loading"><i class="bi bi-hourglass-split"></i> Generowanie briefingu…</p>';
+      briefingMeta.innerHTML = '';
+      try {
+        const res = await fetch('{{ url_for("admin_briefing_generate") }}', {
+          method: 'POST',
+          headers: { 'X-CSRF-Token': '{{ csrf_token() }}' },
+          body: new URLSearchParams(new FormData(briefingForm)),
+        });
+        const data = await res.json();
+        if (!data.success) {
+          briefingContent.innerHTML = '<p class="ng-modal-empty">' + escHtml(data.error || 'Błąd generowania briefingu.') + '</p>';
+          return;
+        }
+        renderBriefing(data.briefing);
+      } catch (err) {
+        briefingContent.innerHTML = '<p class="ng-modal-empty">Błąd połączenia podczas generowania briefingu.</p>';
+      } finally {
+        briefingBtn.disabled = false;
+      }
+    });
+  }
+
+  if (briefingHistory) {
+    briefingHistory.addEventListener('change', async () => {
+      const id = briefingHistory.value;
+      if (!id) return;
+      briefingContent.innerHTML = '<p class="ng-modal-loading"><i class="bi bi-hourglass-split"></i> Ładowanie…</p>';
+      try {
+        const res = await fetch('/admin/briefing/' + encodeURIComponent(id), { cache: 'no-store' });
+        const data = await res.json();
+        if (!data.success) {
+          briefingContent.innerHTML = '<p class="ng-modal-empty">Nie udało się wczytać briefingu.</p>';
+          return;
+        }
+        renderBriefing(data.briefing);
+      } catch (err) {
+        briefingContent.innerHTML = '<p class="ng-modal-empty">Błąd połączenia.</p>';
+      }
+    });
   }
 
   /* ── Modal: lista kontroli wg czasu dla szablonu ── */

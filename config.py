@@ -16,3 +16,4 @@ class Config:
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
     PDF_EXTENSIONS = {'pdf'}
     API_KEY = os.environ.get('API_KEY', 'change-this-api-key')
+    ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
