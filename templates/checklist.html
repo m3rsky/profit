@@ -91,6 +91,21 @@
   <div class="wizard-cat-label" id="w-cat"></div>
 </div>
 {% endif %}
+<template id="installer-row-template">
+  <div class="installer-row">
+    <select class="form-control installer-select" aria-label="Wybór montera">
+      <option value="">— wybierz montera —</option>
+      {% for inst in installers %}
+      <option value="{{ inst.id }}">{{ inst.name }}</option>
+      {% endfor %}
+    </select>
+    <input type="text" class="form-control installer-role" placeholder="Rola (opcjonalnie, np. Obudowa)" aria-label="Rola montera">
+    <label class="installer-fault-toggle">
+      <input type="checkbox" class="installer-fault" checked> <span>zawinił</span>
+    </label>
+    <button type="button" class="installer-row-remove" title="Usuń montera">×</button>
+  </div>
+</template>
 {% for cat, items in items_by_category.items() %}
 <div class="checklist-category">
   <div class="category-header">
@@ -146,18 +161,48 @@
                   data-item-id="{{ item.id }}" data-result="na">N/A</button>
         </div>
         {% elif item.task.task_type == 'installer' %}
+        {% set inst_rows = item.installers.all() %}
+        <div class="installer-rows" data-item-id="{{ item.id }}">
+          {% for ri in inst_rows %}
+          <div class="installer-row" data-item-id="{{ item.id }}">
+            <select class="form-control installer-select" data-item-id="{{ item.id }}" aria-label="Wybór montera">
+              <option value="">— wybierz montera —</option>
+              {% for inst in installers %}
+              <option value="{{ inst.id }}" {% if ri.installer_id == inst.id %}selected{% endif %}>{{ inst.name }}</option>
+              {% endfor %}
+              {% if ri.installer and not ri.installer.is_active %}
+              <option value="{{ ri.installer.id }}" selected>{{ ri.installer.name }}</option>
+              {% endif %}
+            </select>
+            <input type="text" class="form-control installer-role" data-item-id="{{ item.id }}"
+                   value="{{ ri.role or '' }}" placeholder="Rola (opcjonalnie, np. Obudowa)" aria-label="Rola montera">
+            <label class="installer-fault-toggle">
+              <input type="checkbox" class="installer-fault" data-item-id="{{ item.id }}" {% if ri.is_at_fault %}checked{% endif %}> <span>zawinił</span>
+            </label>
+            <button type="button" class="installer-row-remove" data-item-id="{{ item.id }}" title="Usuń montera">×</button>
+          </div>
+          {% endfor %}
+          {% if not inst_rows %}
+          <div class="installer-row" data-item-id="{{ item.id }}">
+            <select class="form-control installer-select" data-item-id="{{ item.id }}" aria-label="Wybór montera">
+              <option value="">— wybierz montera —</option>
+              {% for inst in installers %}
+              <option value="{{ inst.id }}">{{ inst.name }}</option>
+              {% endfor %}
+            </select>
+            <input type="text" class="form-control installer-role" data-item-id="{{ item.id }}"
+                   placeholder="Rola (opcjonalnie, np. Obudowa)" aria-label="Rola montera">
+            <label class="installer-fault-toggle">
+              <input type="checkbox" class="installer-fault" data-item-id="{{ item.id }}" checked> <span>zawinił</span>
+            </label>
+            <button type="button" class="installer-row-remove" data-item-id="{{ item.id }}" title="Usuń montera">×</button>
+          </div>
+          {% endif %}
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm installer-row-add" data-item-id="{{ item.id }}">
+          <i class="bi bi-plus-lg"></i> Dodaj montera
+        </button>
         <div class="value-row" data-item-id="{{ item.id }}">
-          <select class="form-control value-input"
-                  data-item-id="{{ item.id }}"
-                  aria-label="Wybór montera">
-            <option value="">— wybierz montera —</option>
-            {% for inst in installers %}
-            <option value="{{ inst.name }}" {% if item.value_text == inst.name %}selected{% endif %}>{{ inst.name }}</option>
-            {% endfor %}
-            {% if item.value_text and item.value_text not in installers | map(attribute='name') | list %}
-            <option value="{{ item.value_text }}" selected>{{ item.value_text }}</option>
-            {% endif %}
-          </select>
           <span class="value-result-badge {% if item.result == 'ok' %}badge-success{% elif item.result == 'ng' %}badge-error{% endif %}">
             {% if item.result %}{{ item.result | upper }}{% endif %}
           </span>
@@ -219,9 +264,19 @@
         </div>
         {% endif %}
       {% else %}
-        {% if item.task.task_type in ('numeric', 'text', 'installer') and item.value_text %}
+        {% if item.task.task_type in ('numeric', 'text') and item.value_text %}
         <div class="value-readonly">
           <span class="value-readonly-text">{{ item.value_text }}{% if item.task.unit %} {{ item.task.unit }}{% endif %}</span>
+          <span class="badge {% if item.result == 'ok' %}badge-success{% elif item.result == 'ng' %}badge-error{% else %}badge-neutral{% endif %}">
+            {{ item.result | upper if item.result else '—' }}
+          </span>
+        </div>
+        {% elif item.task.task_type == 'installer' and item.installers.count() %}
+        {% set inst_rows_ro = item.installers.all() %}
+        <div class="value-readonly">
+          <span class="value-readonly-text">
+            {% for ri in inst_rows_ro %}{% if ri.role %}{{ ri.role }}: {% endif %}{{ ri.installer.name }}{% if item.result == 'ng' and inst_rows_ro|length > 1 and ri.is_at_fault %} (zawinił){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
+          </span>
           <span class="badge {% if item.result == 'ok' %}badge-success{% elif item.result == 'ng' %}badge-error{% else %}badge-neutral{% endif %}">
             {{ item.result | upper if item.result else '—' }}
           </span>

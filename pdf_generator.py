@@ -228,8 +228,17 @@ def _append_category(story, cat, items, content_width, upload_folder):
         check_cell = Paragraph(sym, _s(size=9, bold=True, color=sym_color, align=1))
 
         lines = [f'<b>{item.task.title}</b>']
-        if item.task.task_type == 'installer' and item.value_text:
-            lines.append(_initials(item.value_text))
+        if item.task.task_type == 'installer' and item.installers.count():
+            inst_rows = item.installers.all()
+            parts = []
+            for ri in inst_rows:
+                label = _initials(ri.installer.name)
+                if ri.role:
+                    label = f'{ri.role}: {label}'
+                if item.result == 'ng' and len(inst_rows) > 1 and ri.is_at_fault:
+                    label += ' (zawinił)'
+                parts.append(label)
+            lines.append(' / '.join(parts))
         elif item.task.task_type in ('numeric', 'text') and item.value_text:
             unit = f' {item.task.unit}' if item.task.unit else ''
             lines.append(f'{item.value_text}{unit}')

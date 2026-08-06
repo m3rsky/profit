@@ -28,7 +28,7 @@ from models import (db, get_or_404, User, ChecklistTemplate, Category, Task, Rep
                     CabinetType, MaterialPrice, LaborRate, Quote, QuoteConfig,
                     CatalogProduct,
                     SpawalniaOperator, SpawalniaRecord,
-                    ChecklistSession, Installer,
+                    ChecklistSession, Installer, ReportItemInstaller,
                     QARReport, QARPhoto, QATask,
                     ProductionDepartment, DepartmentEmployee, RoutingTemplate,
                     RoutingTemplateStage, RoutingCard, RoutingCardStage, RoutingCardPhoto,
@@ -1172,6 +1172,52 @@ def set_item_value(item_id):
                     'stats': item.report.stats})
 
 
+@app.route('/api/item/<int:item_id>/installers', methods=['POST'])
+@login_required
+def set_item_installers(item_id):
+    """Save the installer(s) assigned to a checklist item (task_type == 'installer').
+    Supports one or several monterzy per item, each with an optional role
+    (e.g. 'Obudowa' / 'Drzwi') when the work on one product was split between them."""
+    item = get_or_404(ReportItem, item_id)
+    if not _can_edit_report(item.report):
+        return jsonify({'error': 'Forbidden'}), 403
+    if item.report.status == 'completed':
+        return jsonify({'error': 'Raport jest zamknięty'}), 400
+    if item.report.lock_active and item.report.locked_by_id != current_user.id:
+        return jsonify({'error': 'Raport jest edytowany przez innego użytkownika'}), 423
+    entries = request.json.get('installers', [])
+    if not isinstance(entries, list):
+        return jsonify({'error': 'Nieprawidłowe dane'}), 400
+
+    ReportItemInstaller.query.filter_by(report_item_id=item.id).delete()
+    seen_ids = set()
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        try:
+            installer_id = int(entry.get('installer_id'))
+        except (TypeError, ValueError):
+            continue
+        if installer_id in seen_ids or not db.session.get(Installer, installer_id):
+            continue
+        seen_ids.add(installer_id)
+        role = (entry.get('role') or '').strip() or None
+        is_at_fault = bool(entry.get('is_at_fault', True))
+        db.session.add(ReportItemInstaller(report_item_id=item.id,
+                                           installer_id=installer_id, role=role,
+                                           is_at_fault=is_at_fault))
+    if seen_ids:
+        item.checked_at = datetime.now(UTC)
+    else:
+        item.result = None
+        item.is_checked = False
+        item.checked_at = None
+    db.session.commit()
+    return jsonify({'ok': True, 'result': item.result,
+                    'progress': item.report.completion_percent,
+                    'stats': item.report.stats})
+
+
 @app.route('/api/tasks/reorder', methods=['POST'])
 @login_required
 @admin_required
@@ -1455,17 +1501,20 @@ def admin_stats():
         inst_date_to = _date.today().isoformat()
 
     installer_raw = (db.session.query(
-        ReportItem.value_text.label('name'),
-        func.sum(case((ReportItem.result == 'ng', 1), else_=0)).label('ng'),
+        Installer.name.label('name'),
+        func.sum(case((and_(ReportItem.result == 'ng', ReportItemInstaller.is_at_fault.is_(True)), 1),
+                     else_=0)).label('ng'),
         func.sum(case((ReportItem.result == 'ok', 1), else_=0)).label('ok'),
-    ).join(Task, Task.id == ReportItem.task_id)
+    ).select_from(ReportItemInstaller)
+     .join(Installer, Installer.id == ReportItemInstaller.installer_id)
+     .join(ReportItem, ReportItem.id == ReportItemInstaller.report_item_id)
+     .join(Task, Task.id == ReportItem.task_id)
      .join(Report, Report.id == ReportItem.report_id)
      .filter(Task.task_type == 'installer',
-             ReportItem.value_text.isnot(None),
              ReportItem.result.in_(('ok', 'ng')),
              Report.status == 'completed',
              _day_expr >= inst_date_from, _day_expr <= inst_date_to)
-     .group_by(ReportItem.value_text)
+     .group_by(Installer.name)
      .order_by(func.sum(case((ReportItem.result == 'ng', 1), else_=0)).desc())
      .all())
     installer_stats = [
@@ -3177,6 +3226,7 @@ def init_db():
     with app.app_context():
         _migrate_schema()
         db.create_all()
+        _migrate_installer_data()
         if not User.query.filter_by(username='admin').first():
             admin = User(username='admin', email='admin@psh.pl', role='admin')
             admin.set_password('admin123')
@@ -3186,6 +3236,39 @@ def init_db():
         _seed_kosztorys()
         _seed_zadania_qa()
         _seed_marszruta()
+        db.session.commit()
+
+
+def _migrate_installer_data():
+    """Jednorazowe przeniesienie starych wpisów ReportItem.value_text (typ zadania
+    'installer') do tabeli report_item_installers, wprowadzonej dla obsługi
+    kilku monterów na jednym punkcie checklisty. Wymaga, by tabela już istniała
+    (tworzona przez db.create_all() tuż wcześniej w init_db())."""
+    from sqlalchemy import inspect
+    insp = inspect(db.engine)
+    if 'report_item_installers' not in insp.get_table_names():
+        return
+    candidates = (ReportItem.query
+                  .join(Task, Task.id == ReportItem.task_id)
+                  .filter(Task.task_type == 'installer',
+                          ReportItem.value_text.isnot(None),
+                          ReportItem.value_text != '')
+                  .all())
+    changed = False
+    for item in candidates:
+        if item.installers.count() > 0:
+            continue
+        name = item.value_text.strip()
+        if not name:
+            continue
+        inst = Installer.query.filter_by(name=name).first()
+        if not inst:
+            inst = Installer(name=name, is_active=False)
+            db.session.add(inst)
+            db.session.flush()
+        db.session.add(ReportItemInstaller(report_item_id=item.id, installer_id=inst.id))
+        changed = True
+    if changed:
         db.session.commit()
 
 
@@ -3306,6 +3389,11 @@ def _migrate_schema():
         if 'routing_card_stages' in insp.get_table_names():
             conn.execute(text("UPDATE routing_card_stages SET result='ng' WHERE result='dw'"))
             conn.commit()
+        if 'report_item_installers' in insp.get_table_names():
+            cols = [c['name'] for c in insp.get_columns('report_item_installers')]
+            if 'is_at_fault' not in cols:
+                conn.execute(text('ALTER TABLE report_item_installers ADD COLUMN is_at_fault BOOLEAN DEFAULT 1'))
+                conn.commit()
         # audit_log / orders / alerts created by db.create_all()
         # qar_reports and qar_photos created by db.create_all() on first run
 

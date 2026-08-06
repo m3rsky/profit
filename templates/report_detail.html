@@ -85,9 +85,16 @@
     </div>
     <div class="item-body">
       <div class="item-title">{{ item.task.title }}</div>
-      {% if item.task.task_type in ('numeric', 'text', 'installer') and item.value_text %}
+      {% if item.task.task_type in ('numeric', 'text') and item.value_text %}
       <div class="value-readonly">
         <span class="value-readonly-text">{{ item.value_text }}{% if item.task.unit %} {{ item.task.unit }}{% endif %}</span>
+      </div>
+      {% elif item.task.task_type == 'installer' and item.installers.count() %}
+      {% set inst_rows_ro = item.installers.all() %}
+      <div class="value-readonly">
+        <span class="value-readonly-text">
+          {% for ri in inst_rows_ro %}{% if ri.role %}{{ ri.role }}: {% endif %}{{ ri.installer.name }}{% if item.result == 'ng' and inst_rows_ro|length > 1 and ri.is_at_fault %} (zawinił){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
+        </span>
       </div>
       {% elif item.task.task_type == 'measurements' and item.value_text %}
       <div class="value-readonly">

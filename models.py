@@ -211,6 +211,8 @@ class ReportItem(db.Model):
     value_text = db.Column(db.String(256), nullable=True)  # measured/entered value
     photos = db.relationship('Photo', backref='report_item', lazy='dynamic',
                              cascade='all, delete-orphan')
+    installers = db.relationship('ReportItemInstaller', backref='report_item',
+                                 lazy='dynamic', cascade='all, delete-orphan')
     task = db.relationship('Task')
 
     def __repr__(self):
@@ -240,6 +242,21 @@ class Installer(db.Model):
 
     def __repr__(self):
         return f'<Installer {self.name}>'
+
+
+class ReportItemInstaller(db.Model):
+    """Monter przypisany do punktu checklisty; opcjonalna rola (np. 'Obudowa', 'Drzwi')
+    pozwala rozdzielić odpowiedzialność, gdy jeden produkt montuje kilku monterów."""
+    __tablename__ = 'report_item_installers'
+    id              = db.Column(db.Integer, primary_key=True)
+    report_item_id  = db.Column(db.Integer, db.ForeignKey('report_items.id'), nullable=False)
+    installer_id    = db.Column(db.Integer, db.ForeignKey('installers.id'), nullable=False)
+    role            = db.Column(db.String(64), nullable=True)
+    is_at_fault     = db.Column(db.Boolean, default=True)  # liczy się do statystyk NG tego montera
+    installer       = db.relationship('Installer')
+
+    def __repr__(self):
+        return f'<ReportItemInstaller item={self.report_item_id} installer={self.installer_id} role={self.role}>'
 
 
 class DailyBriefing(db.Model):

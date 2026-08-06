@@ -678,6 +678,35 @@ body.dark .badge-warning  { box-shadow: 0 0 8px rgba(251,191,36,.15); }
 .value-readonly            { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
 .value-readonly-text       { font-weight: 600; }
 
+/* ── Installer rows (jeden lub kilku monterów na punkt checklisty) ── */
+.installer-rows            { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.installer-row              { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.installer-row .installer-select { flex: 1 1 160px; min-width: 0; }
+.installer-row .installer-role   { flex: 1 1 140px; min-width: 0; }
+.installer-row-remove {
+  flex: 0 0 auto;
+  width: 28px; height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  line-height: 1;
+  font-size: 1rem;
+}
+.installer-row-remove:hover { background: var(--hover-row); color: var(--text); }
+.installer-row-add          { margin-top: 6px; }
+.installer-fault-toggle {
+  display: none;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.installer-rows.multi .installer-fault-toggle { display: inline-flex; }
+
 .report-duration-badge {
   display: inline-flex; align-items: center; gap: 5px;
   margin-left: 12px;

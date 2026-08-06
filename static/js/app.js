@@ -414,6 +414,89 @@ document.querySelectorAll('.measurement-input').forEach(input => {
   });
 });
 
+// ── Installer rows (jeden lub kilku monterów na punkt checklisty) ──────────
+let installerTimer = null;
+
+function _installerRowTemplate() {
+  const tpl = document.getElementById('installer-row-template');
+  return tpl ? tpl.content.firstElementChild.cloneNode(true) : null;
+}
+
+function _updateInstallerFaultVisibility(container) {
+  if (!container) return;
+  const multi = container.querySelectorAll('.installer-row').length > 1;
+  container.classList.toggle('multi', multi);
+}
+
+async function saveInstallers(itemId) {
+  const rows = document.querySelectorAll(`.installer-row[data-item-id="${itemId}"]`);
+  const installersPayload = Array.from(rows).map(row => ({
+    installer_id: row.querySelector('.installer-select').value,
+    role: row.querySelector('.installer-role').value.trim(),
+    is_at_fault: row.querySelector('.installer-fault')?.checked ?? true,
+  })).filter(r => r.installer_id);
+  try {
+    const res = await fetch(`/api/item/${itemId}/installers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': _csrf() },
+      body: JSON.stringify({ installers: installersPayload }),
+    });
+    const data = await res.json();
+    if (!res.ok) return;
+    if (data.progress !== undefined) updateProgress(data.progress, data.stats);
+  } catch { /* silent */ }
+}
+
+function _addInstallerRow(container, itemId) {
+  const row = _installerRowTemplate();
+  if (!row) return null;
+  row.dataset.itemId = itemId;
+  row.querySelector('.installer-select').dataset.itemId = itemId;
+  row.querySelector('.installer-role').dataset.itemId = itemId;
+  const faultInput = row.querySelector('.installer-fault');
+  if (faultInput) faultInput.dataset.itemId = itemId;
+  row.querySelector('.installer-row-remove').dataset.itemId = itemId;
+  container.appendChild(row);
+  _bindInstallerRow(row);
+  _updateInstallerFaultVisibility(container);
+  return row;
+}
+
+function _bindInstallerRow(row) {
+  const itemId = row.dataset.itemId;
+  const select = row.querySelector('.installer-select');
+  const role = row.querySelector('.installer-role');
+  const fault = row.querySelector('.installer-fault');
+  const removeBtn = row.querySelector('.installer-row-remove');
+  select.addEventListener('change', () => saveInstallers(itemId));
+  role.addEventListener('input', () => {
+    clearTimeout(installerTimer);
+    installerTimer = setTimeout(() => saveInstallers(itemId), 700);
+  });
+  role.addEventListener('blur', () => { clearTimeout(installerTimer); saveInstallers(itemId); });
+  if (fault) fault.addEventListener('change', () => saveInstallers(itemId));
+  removeBtn.addEventListener('click', () => {
+    const container = row.closest('.installer-rows');
+    row.remove();
+    if (container && !container.querySelector('.installer-row')) {
+      _addInstallerRow(container, itemId);
+    }
+    _updateInstallerFaultVisibility(container);
+    saveInstallers(itemId);
+  });
+}
+
+document.querySelectorAll('.installer-row').forEach(_bindInstallerRow);
+document.querySelectorAll('.installer-rows').forEach(_updateInstallerFaultVisibility);
+
+document.querySelectorAll('.installer-row-add').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const itemId = btn.dataset.itemId;
+    const container = document.querySelector(`.installer-rows[data-item-id="${itemId}"]`);
+    if (container) _addInstallerRow(container, itemId);
+  });
+});
+
 // ── Notes autosave ─────────────────────────────────────────────────────────
 let notesTimer = null;
 document.querySelectorAll('.item-notes').forEach(textarea => {
