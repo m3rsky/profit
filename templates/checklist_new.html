@@ -23,6 +23,8 @@
 .qr-status.info{background:var(--info-bg,#eff6ff);color:var(--info,#2563eb)}
 .qr-actions{display:flex;gap:.75rem;max-width:480px;margin:.75rem auto 0;flex-wrap:wrap}
 .qr-actions .btn{flex:1}
+.qr-qty-edit{display:flex;align-items:center;gap:.4rem}
+.qr-qty-input{width:64px;text-align:center;padding:.25rem .4rem}
 </style>
 {% endblock %}
 {% block content %}
@@ -353,7 +355,10 @@
       </div>
       <div class="qr-row">
         <span class="qr-label">Ilość sztuk</span>
-        <span class="qr-val"><span id="qr-qty-val"></span> szt.</span>
+        <span class="qr-val qr-qty-edit">
+          <input type="number" class="form-control qr-qty-input" id="qr-qty-input" min="1" max="99">
+          szt.
+        </span>
       </div>
       <div class="qr-row" id="qr-tpl-row" hidden>
         <span class="qr-label">Szablon</span>
@@ -407,7 +412,7 @@
   var elInfoMsg    = document.getElementById('qr-info-msg');
   var elActions    = document.getElementById('qr-actions');
   var elProduct    = document.getElementById('qr-product-name');
-  var elQty        = document.getElementById('qr-qty-val');
+  var elQtyInput   = document.getElementById('qr-qty-input');
   var elClientRow  = document.getElementById('qr-client-row');
   var elClientVal  = document.getElementById('qr-client-val');
   var elOrderRow   = document.getElementById('qr-order-row');
@@ -494,7 +499,7 @@
     }
     scannedData = data;
     elProduct.textContent = data.p;
-    elQty.textContent     = data.q;
+    elQtyInput.value      = data.q;
     if (data.c) { elClientVal.textContent = data.c; elClientRow.hidden = false; }
     else { elClientRow.hidden = true; }
     if (data.o) { elOrderVal.textContent = data.o; elOrderRow.hidden = false; }
@@ -521,9 +526,23 @@
     return null;
   }
 
+  // ── Edycja ilości zeskanowanej z kodu QR ───────────────────────
+  function clampQty(val) {
+    return Math.max(1, Math.min(99, parseInt(val, 10) || 1));
+  }
+  if (elQtyInput) {
+    elQtyInput.addEventListener('input', function () {
+      if (scannedData) scannedData.q = clampQty(elQtyInput.value);
+    });
+    elQtyInput.addEventListener('blur', function () {
+      elQtyInput.value = clampQty(elQtyInput.value);
+    });
+  }
+
   // ── Tworzenie list kontrolnych ────────────────────────────────
   btnCreate.addEventListener('click', function () {
     if (!scannedData) return;
+    scannedData.q = clampQty(elQtyInput.value);
     btnCreate.disabled = true;
     elActions.hidden   = true;
     elError.hidden     = true;
