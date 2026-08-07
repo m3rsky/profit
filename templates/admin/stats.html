@@ -30,6 +30,9 @@
       <a href="#" class="btn btn-outline" id="briefing-pdf-btn" target="_blank" hidden>
         <i class="bi bi-file-earmark-pdf"></i> Pobierz PDF
       </a>
+      <button type="button" class="btn btn-outline" id="briefing-copy-link-btn" hidden>
+        <i class="bi bi-link-45deg"></i> Kopiuj link publiczny
+      </button>
     </form>
     <div id="briefing-content" class="briefing-content">
       {% if recent_briefings %}
@@ -368,6 +371,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const briefingHistory = document.getElementById('briefing-history');
   const briefingBtn     = document.getElementById('briefing-generate-btn');
   const briefingPdfBtn  = document.getElementById('briefing-pdf-btn');
+  const briefingCopyBtn = document.getElementById('briefing-copy-link-btn');
+  let   briefingPublicUrl = '';
 
   function renderBriefing(b) {
     briefingContent.innerHTML = b.content_html;
@@ -375,6 +380,24 @@ document.addEventListener('DOMContentLoaded', () => {
       briefingPdfBtn.href = '/admin/briefing/' + encodeURIComponent(b.id) + '/pdf';
       briefingPdfBtn.hidden = false;
     }
+    if (briefingCopyBtn) {
+      briefingPublicUrl = window.location.origin + b.public_pdf_url;
+      briefingCopyBtn.hidden = false;
+    }
+  }
+
+  if (briefingCopyBtn) {
+    briefingCopyBtn.addEventListener('click', async () => {
+      if (!briefingPublicUrl) return;
+      try {
+        await navigator.clipboard.writeText(briefingPublicUrl);
+        const original = briefingCopyBtn.innerHTML;
+        briefingCopyBtn.innerHTML = '<i class="bi bi-check-lg"></i> Skopiowano!';
+        setTimeout(() => { briefingCopyBtn.innerHTML = original; }, 1800);
+      } catch (err) {
+        window.prompt('Skopiuj link ręcznie (Ctrl+C):', briefingPublicUrl);
+      }
+    });
   }
 
   if (briefingForm) {
@@ -382,6 +405,7 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       briefingBtn.disabled = true;
       if (briefingPdfBtn) briefingPdfBtn.hidden = true;
+      if (briefingCopyBtn) briefingCopyBtn.hidden = true;
       briefingContent.innerHTML = '<p class="ng-modal-loading"><i class="bi bi-hourglass-split"></i> Generowanie briefingu…</p>';
       try {
         const res = await fetch('{{ url_for("admin_briefing_generate") }}', {
@@ -408,6 +432,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const id = briefingHistory.value;
       if (!id) return;
       if (briefingPdfBtn) briefingPdfBtn.hidden = true;
+      if (briefingCopyBtn) briefingCopyBtn.hidden = true;
       briefingContent.innerHTML = '<p class="ng-modal-loading"><i class="bi bi-hourglass-split"></i> Ładowanie…</p>';
       try {
         const res = await fetch('/admin/briefing/' + encodeURIComponent(id), { cache: 'no-store' });

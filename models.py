@@ -273,6 +273,7 @@ class DailyBriefing(db.Model):
     content              = db.Column(db.Text, nullable=False)
     raw_aggregated_data  = db.Column(db.Text, nullable=True)
     pdf_filename         = db.Column(db.String(256), nullable=True)
+    public_token         = db.Column(db.String(64), unique=True, nullable=True)  # link bez logowania
 
     generated_by = db.relationship('User', foreign_keys=[generated_by_user_id])
 

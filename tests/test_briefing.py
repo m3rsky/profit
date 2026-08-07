@@ -271,7 +271,9 @@ class TestBriefingPdf:
         resp = client.get(f'/admin/briefing/{bid}/pdf')
         assert resp.status_code == 200
         assert resp.headers['Content-Type'] == 'application/pdf'
-        assert 'attachment' in resp.headers['Content-Disposition']
+        # inline (nie 'attachment') - PDF ma sie otwierac w karcie przegladarki,
+        # zeby link byl widoczny w pasku adresu i mozna go bylo skopiowac
+        assert 'inline' in resp.headers['Content-Disposition']
         assert resp.data.startswith(b'%PDF')
         logout(client)
 
@@ -292,6 +294,46 @@ class TestBriefingPdf:
         assert resp2.status_code == 200
         with app.app_context():
             assert db.session.get(DailyBriefing, bid).pdf_filename == saved_name
+        logout(client)
+
+
+class TestBriefingPublicPdf:
+    def _make_briefing(self, app):
+        return TestBriefingPdf()._make_briefing(app)
+
+    def test_detail_response_includes_public_pdf_url(self, client, app, briefing_fixtures):
+        bid = self._make_briefing(app)
+        login(client, 'admin', 'Admin1234!')
+        resp = client.get(f'/admin/briefing/{bid}')
+        assert resp.status_code == 200
+        url = resp.get_json()['briefing']['public_pdf_url']
+        assert url.startswith('/briefing/pdf/')
+        assert len(url.rsplit('/', 1)[-1]) > 20  # token dlugi/nieodgadnywalny
+        logout(client)
+
+    def test_public_link_works_without_login(self, client, app, briefing_fixtures):
+        bid = self._make_briefing(app)
+        login(client, 'admin', 'Admin1234!')
+        resp = client.get(f'/admin/briefing/{bid}')
+        url = resp.get_json()['briefing']['public_pdf_url']
+        logout(client)
+
+        # Bez zadnej sesji logowania.
+        resp = client.get(url)
+        assert resp.status_code == 200
+        assert resp.headers['Content-Type'] == 'application/pdf'
+        assert resp.data.startswith(b'%PDF')
+
+    def test_public_link_unknown_token_404(self, client, briefing_fixtures):
+        resp = client.get('/briefing/pdf/nieistniejacy-token-xyz')
+        assert resp.status_code == 404
+
+    def test_public_token_is_stable_across_requests(self, client, app, briefing_fixtures):
+        bid = self._make_briefing(app)
+        login(client, 'admin', 'Admin1234!')
+        url1 = client.get(f'/admin/briefing/{bid}').get_json()['briefing']['public_pdf_url']
+        url2 = client.get(f'/admin/briefing/{bid}').get_json()['briefing']['public_pdf_url']
+        assert url1 == url2
         logout(client)
 
 

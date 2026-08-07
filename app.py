@@ -1618,14 +1618,10 @@ def admin_briefing_detail(briefing_id):
     return resp
 
 
-@app.route('/admin/briefing/<int:briefing_id>/pdf')
-@login_required
-@admin_required
-def admin_briefing_pdf(briefing_id):
-    """Serwuje PDF briefingu z dysku (stały, współdzielny link) — generuje
-    i zapisuje go przy pierwszym żądaniu, potem zwraca ten sam plik."""
-    briefing     = get_or_404(DailyBriefing, briefing_id)
-    upload_path  = app.config['UPLOAD_FOLDER']
+def _serve_briefing_pdf(briefing):
+    """Serwuje PDF briefingu z dysku (stały link) — generuje i zapisuje go
+    przy pierwszym żądaniu, potem zawsze zwraca ten sam plik."""
+    upload_path   = app.config['UPLOAD_FOLDER']
     download_name = f'Briefing_Kontroli_Jakosci_{briefing.start_date}_{briefing.end_date}.pdf'
 
     if not briefing.pdf_filename or not os.path.exists(os.path.join(upload_path, briefing.pdf_filename)):
@@ -1639,7 +1635,26 @@ def admin_briefing_pdf(briefing_id):
         db.session.commit()
 
     return send_from_directory(upload_path, briefing.pdf_filename,
-                               as_attachment=True, download_name=download_name)
+                               as_attachment=False, download_name=download_name)
+
+
+@app.route('/admin/briefing/<int:briefing_id>/pdf')
+@login_required
+@admin_required
+def admin_briefing_pdf(briefing_id):
+    briefing = get_or_404(DailyBriefing, briefing_id)
+    return _serve_briefing_pdf(briefing)
+
+
+@app.route('/briefing/pdf/<token>')
+def public_briefing_pdf(token):
+    """Link do PDF bez logowania — dostępny wyłącznie pod długim, losowym
+    tokenem (nie po numerze ID), żeby nie dało się go zgadnąć ani wyliczyć."""
+    briefing = DailyBriefing.query.filter_by(public_token=token).first()
+    if not briefing:
+        abort(404)
+    _audit('briefing_pdf_public_view', 'DailyBriefing', briefing.id)
+    return _serve_briefing_pdf(briefing)
 
 
 _BRIEFING_SECTION_STYLES = {
@@ -1669,7 +1684,15 @@ def _render_briefing_html(content):
     return ''.join(html_parts)
 
 
+def _get_or_create_public_token(briefing):
+    if not briefing.public_token:
+        briefing.public_token = secrets.token_urlsafe(32)
+        db.session.commit()
+    return briefing.public_token
+
+
 def _briefing_to_dict(briefing):
+    token = _get_or_create_public_token(briefing)
     return {
         'id': briefing.id,
         'start_date': briefing.start_date.isoformat(),
@@ -1679,6 +1702,7 @@ def _briefing_to_dict(briefing):
         'input_tokens': briefing.input_token_count,
         'output_tokens': briefing.output_token_count,
         'content_html': _render_briefing_html(briefing.content),
+        'public_pdf_url': url_for('public_briefing_pdf', token=token),
     }
 
 
@@ -3422,6 +3446,9 @@ def _migrate_schema():
             cols = [c['name'] for c in insp.get_columns('daily_briefings')]
             if 'pdf_filename' not in cols:
                 conn.execute(text('ALTER TABLE daily_briefings ADD COLUMN pdf_filename VARCHAR(256)'))
+                conn.commit()
+            if 'public_token' not in cols:
+                conn.execute(text('ALTER TABLE daily_briefings ADD COLUMN public_token VARCHAR(64)'))
                 conn.commit()
         # audit_log / orders / alerts created by db.create_all()
         # qar_reports and qar_photos created by db.create_all() on first run
