@@ -1,4 +1,5 @@
 import os
+import re
 from io import BytesIO
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
@@ -318,4 +319,140 @@ def _build_photo_table(items, upload_folder, content_width):
         ('LEFTPADDING',   (0, 0), (-1, -1), 2),
         ('RIGHTPADDING',  (0, 0), (-1, -1), 2),
     ]))
+    return table
+
+
+_BRIEFING_SECTION_COLORS = {
+    'Podsumowanie':       PRIMARY,
+    'Anomalie i trendy':  colors.HexColor('#b7791f'),
+    'Priorytety':         SUCCESS,
+}
+
+
+def _md_inline(text):
+    """'**bold**' / '*italic*' -> znaczniki obsługiwane natywnie przez reportlab Paragraph."""
+    text = text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+    text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
+    text = re.sub(r'(?<!\*)\*([^*]+?)\*(?!\*)', r'<i>\1</i>', text)
+    return text
+
+
+def _md_block_flowables(md_text, body_style, bullet_style):
+    """Minimalny konwerter Markdown -> flowables reportlab: akapity + listy '- '/'* '."""
+    flowables = []
+    para_buf  = []
+
+    def flush_para():
+        if para_buf:
+            joined = ' '.join(para_buf).strip()
+            if joined:
+                flowables.append(Paragraph(_md_inline(joined), body_style))
+            para_buf.clear()
+
+    for raw_line in md_text.strip().splitlines():
+        line = raw_line.strip()
+        if not line:
+            flush_para()
+            continue
+        m = re.match(r'^[-*]\s+(.+)$', line)
+        if m:
+            flush_para()
+            flowables.append(Paragraph('•&nbsp;&nbsp;' + _md_inline(m.group(1)), bullet_style))
+        else:
+            para_buf.append(line)
+    flush_para()
+    return flowables
+
+
+def generate_briefing_pdf(briefing):
+    """Eksportuje zapisany 'Poranny Briefing' (analiza AI) do PDF."""
+    _register_fonts()
+    buf = BytesIO()
+    period_title = f'Poranny Briefing {briefing.start_date} – {briefing.end_date}'
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=MARGIN, rightMargin=MARGIN,
+        topMargin=MARGIN, bottomMargin=MARGIN,
+        title=period_title,
+    )
+
+    content_width = W - 2 * MARGIN
+    story = []
+
+    # ── Logo + tytuł (tabela 2-kolumnowa, jak w raporcie checklisty) ──────────
+    logo_path = os.path.join(os.path.dirname(__file__), 'static', 'k_logo.jpg')
+    logo_h = 20 * mm + 10
+    logo_w = logo_h
+    if os.path.exists(logo_path):
+        try:
+            from PIL import Image as PILImage
+            with PILImage.open(logo_path) as im:
+                iw, ih = im.size
+                logo_w = logo_h * (iw / ih)
+            logo_cell = RLImage(logo_path, width=logo_w, height=logo_h)
+        except Exception:
+            logo_cell = Paragraph('', _s())
+    else:
+        logo_cell = Paragraph('', _s())
+
+    title_block = [
+        Paragraph('System RP - Raportowanie produkcji', _s(size=7, color=SECONDARY, after=2)),
+        Paragraph('Poranny Briefing (analiza AI)', _s(size=14, bold=True, color=PRIMARY, after=3)),
+        Paragraph(f'Okres: {briefing.start_date.strftime("%d.%m.%Y")} – {briefing.end_date.strftime("%d.%m.%Y")}',
+                  _s(size=8, color=SECONDARY, after=1)),
+        Paragraph(f'Wygenerowano: {_ldt(briefing.generated_at)} przez {briefing.generated_by.username} '
+                  f'| model: {briefing.model_used}',
+                  _s(size=8, color=SECONDARY, after=1)),
+    ]
+
+    logo_col_w = logo_w + 4 * mm
+    header_table = Table(
+        [[logo_cell, title_block]],
+        colWidths=[logo_col_w, content_width - logo_col_w],
+    )
+    header_table.setStyle(TableStyle([
+        ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING',   (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING',  (0, 0), (-1, -1), 6),
+        ('TOPPADDING',    (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+    ]))
+    story.append(header_table)
+    story.append(HRFlowable(width='100%', thickness=1.5, color=PRIMARY,
+                            spaceBefore=6, spaceAfter=10))
+
+    # ── Sekcje briefingu (## Podsumowanie / ## Anomalie i trendy / ## Priorytety) ──
+    body_style   = _s(size=9.5, after=6)
+    bullet_style = _s(size=9.5, after=4, indent=4 * mm)
+
+    parts = re.split(r'(?m)^##\s+(.+)$', briefing.content)
+    if parts[0].strip():
+        story.extend(_md_block_flowables(parts[0], body_style, bullet_style))
+        story.append(Spacer(1, 3 * mm))
+    for i in range(1, len(parts), 2):
+        title = parts[i].strip()
+        body  = parts[i + 1] if i + 1 < len(parts) else ''
+        color = _BRIEFING_SECTION_COLORS.get(title, SECONDARY)
+        story.append(Paragraph(title, _s(size=11.5, bold=True, color=color, after=6)))
+        story.append(HRFlowable(width='25%', thickness=1, color=color, hAlign='LEFT',
+                                spaceBefore=0, spaceAfter=4))
+        story.extend(_md_block_flowables(body, body_style, bullet_style))
+        story.append(Spacer(1, 5 * mm))
+
+    # ── Stopka ───────────────────────────────────────────────────────────────
+    story.append(HRFlowable(width='100%', thickness=0.5, color=colors.grey,
+                            spaceBefore=4, spaceAfter=4))
+    story.append(Paragraph(
+        f'Wygenerowano: {_ldt(datetime.now(timezone.utc))} '
+        f'| System RP - Raportowanie produkcji – Firma Kubiak',
+        _s(size=7, color=colors.grey, align=1)))
+
+    doc.build(story)
+    buf.seek(0)
+
+    response = make_response(buf.read())
+    fname = f'briefing_{briefing.start_date}_{briefing.end_date}.pdf'
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = f'attachment; filename="{fname}"'
+    return response
     return table

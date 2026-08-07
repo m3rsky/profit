@@ -27,6 +27,9 @@
         </select>
       </label>
       {% endif %}
+      <a href="#" class="btn btn-outline" id="briefing-pdf-btn" target="_blank" hidden>
+        <i class="bi bi-file-earmark-pdf"></i> Pobierz PDF
+      </a>
     </form>
     <div id="briefing-content" class="briefing-content">
       {% if recent_briefings %}
@@ -364,15 +367,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const briefingContent = document.getElementById('briefing-content');
   const briefingHistory = document.getElementById('briefing-history');
   const briefingBtn     = document.getElementById('briefing-generate-btn');
+  const briefingPdfBtn  = document.getElementById('briefing-pdf-btn');
 
   function renderBriefing(b) {
     briefingContent.innerHTML = b.content_html;
+    if (briefingPdfBtn) {
+      briefingPdfBtn.href = '/admin/briefing/' + encodeURIComponent(b.id) + '/pdf';
+      briefingPdfBtn.hidden = false;
+    }
   }
 
   if (briefingForm) {
     briefingForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       briefingBtn.disabled = true;
+      if (briefingPdfBtn) briefingPdfBtn.hidden = true;
       briefingContent.innerHTML = '<p class="ng-modal-loading"><i class="bi bi-hourglass-split"></i> Generowanie briefingu…</p>';
       try {
         const res = await fetch('{{ url_for("admin_briefing_generate") }}', {
@@ -398,6 +407,7 @@ document.addEventListener('DOMContentLoaded', () => {
     briefingHistory.addEventListener('change', async () => {
       const id = briefingHistory.value;
       if (!id) return;
+      if (briefingPdfBtn) briefingPdfBtn.hidden = true;
       briefingContent.innerHTML = '<p class="ng-modal-loading"><i class="bi bi-hourglass-split"></i> Ładowanie…</p>';
       try {
         const res = await fetch('/admin/briefing/' + encodeURIComponent(id), { cache: 'no-store' });

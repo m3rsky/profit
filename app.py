@@ -1618,6 +1618,15 @@ def admin_briefing_detail(briefing_id):
     return resp
 
 
+@app.route('/admin/briefing/<int:briefing_id>/pdf')
+@login_required
+@admin_required
+def admin_briefing_pdf(briefing_id):
+    from pdf_generator import generate_briefing_pdf
+    briefing = get_or_404(DailyBriefing, briefing_id)
+    return generate_briefing_pdf(briefing)
+
+
 _BRIEFING_SECTION_STYLES = {
     'Podsumowanie':       ('bi-clipboard-data',      'blue'),
     'Anomalie i trendy':  ('bi-exclamation-triangle', 'warn'),

@@ -229,6 +229,52 @@ class TestBriefingRoute:
         assert resp.status_code in (302, 401)
 
 
+class TestBriefingPdf:
+    def _make_briefing(self, app):
+        with app.app_context():
+            admin = User.query.filter_by(username='admin').first()
+            b = DailyBriefing(
+                start_date=QC_START, end_date=QC_END,
+                generated_by_user_id=admin.id,
+                model_used='claude-sonnet-5',
+                input_token_count=10, output_token_count=5,
+                content=('## Podsumowanie\nWszystko w porządku, **liczba NG** spadła.\n\n'
+                         '## Anomalie i trendy\n- wzrost NG na linii 2\n- brak danych o spawaniu\n\n'
+                         '## Priorytety\nSkupić się na kontroli linii 2.'),
+            )
+            db.session.add(b)
+            db.session.commit()
+            return b.id
+
+    def test_pdf_requires_login(self, client, app, briefing_fixtures):
+        bid = self._make_briefing(app)
+        resp = client.get(f'/admin/briefing/{bid}/pdf')
+        assert resp.status_code in (302, 401)
+
+    def test_pdf_requires_admin(self, client, app, briefing_fixtures):
+        bid = self._make_briefing(app)
+        login(client, 'oper', 'Oper1234!')
+        resp = client.get(f'/admin/briefing/{bid}/pdf')
+        assert resp.status_code == 403
+        logout(client)
+
+    def test_pdf_unknown_briefing_404(self, client, briefing_fixtures):
+        login(client, 'admin', 'Admin1234!')
+        resp = client.get('/admin/briefing/999999/pdf')
+        assert resp.status_code == 404
+        logout(client)
+
+    def test_pdf_generates_valid_pdf(self, client, app, briefing_fixtures):
+        bid = self._make_briefing(app)
+        login(client, 'admin', 'Admin1234!')
+        resp = client.get(f'/admin/briefing/{bid}/pdf')
+        assert resp.status_code == 200
+        assert resp.headers['Content-Type'] == 'application/pdf'
+        assert 'attachment' in resp.headers['Content-Disposition']
+        assert resp.data.startswith(b'%PDF')
+        logout(client)
+
+
 class TestStatsTemplateSmoke:
     def test_admin_stats_renders_with_briefings(self, client, briefing_fixtures):
         login(client, 'admin', 'Admin1234!')
