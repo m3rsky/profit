@@ -272,6 +272,7 @@ class DailyBriefing(db.Model):
     output_token_count   = db.Column(db.Integer, nullable=True)
     content              = db.Column(db.Text, nullable=False)
     raw_aggregated_data  = db.Column(db.Text, nullable=True)
+    pdf_filename         = db.Column(db.String(256), nullable=True)
 
     generated_by = db.relationship('User', foreign_keys=[generated_by_user_id])
 

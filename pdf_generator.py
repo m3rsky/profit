@@ -364,11 +364,13 @@ def _md_block_flowables(md_text, body_style, bullet_style):
     return flowables
 
 
-def generate_briefing_pdf(briefing):
-    """Eksportuje zapisany 'Poranny Briefing' (analiza AI) do PDF."""
+def build_briefing_pdf_bytes(briefing):
+    """Renderuje zapisany 'Poranny Briefing' (analiza AI) do bajtów PDF.
+    Zwraca surowe bajty (nie odpowiedź Flask), żeby wołający mógł je zarówno
+    zwrócić klientowi jak i zapisać na dysku pod stałą nazwą pliku."""
     _register_fonts()
     buf = BytesIO()
-    period_title = f'Poranny Briefing {briefing.start_date} – {briefing.end_date}'
+    period_title = f'Briefing Kontroli Jakości {briefing.start_date} – {briefing.end_date}'
     doc = SimpleDocTemplate(
         buf, pagesize=A4,
         leftMargin=MARGIN, rightMargin=MARGIN,
@@ -397,7 +399,7 @@ def generate_briefing_pdf(briefing):
 
     title_block = [
         Paragraph('System RP - Raportowanie produkcji', _s(size=7, color=SECONDARY, after=2)),
-        Paragraph('Poranny Briefing (analiza AI)', _s(size=14, bold=True, color=PRIMARY, after=3)),
+        Paragraph('Briefing Kontroli Jakości (analiza AI)', _s(size=14, bold=True, color=PRIMARY, after=3)),
         Paragraph(f'Okres: {briefing.start_date.strftime("%d.%m.%Y")} – {briefing.end_date.strftime("%d.%m.%Y")}',
                   _s(size=8, color=SECONDARY, after=1)),
         Paragraph(f'Wygenerowano: {_ldt(briefing.generated_at)} przez {briefing.generated_by.username} '
@@ -449,10 +451,5 @@ def generate_briefing_pdf(briefing):
 
     doc.build(story)
     buf.seek(0)
-
-    response = make_response(buf.read())
-    fname = f'briefing_{briefing.start_date}_{briefing.end_date}.pdf'
-    response.headers['Content-Type'] = 'application/pdf'
-    response.headers['Content-Disposition'] = f'attachment; filename="{fname}"'
-    return response
+    return buf.read()
     return table

@@ -1622,9 +1622,24 @@ def admin_briefing_detail(briefing_id):
 @login_required
 @admin_required
 def admin_briefing_pdf(briefing_id):
-    from pdf_generator import generate_briefing_pdf
-    briefing = get_or_404(DailyBriefing, briefing_id)
-    return generate_briefing_pdf(briefing)
+    """Serwuje PDF briefingu z dysku (stały, współdzielny link) — generuje
+    i zapisuje go przy pierwszym żądaniu, potem zwraca ten sam plik."""
+    briefing     = get_or_404(DailyBriefing, briefing_id)
+    upload_path  = app.config['UPLOAD_FOLDER']
+    download_name = f'Briefing_Kontroli_Jakosci_{briefing.start_date}_{briefing.end_date}.pdf'
+
+    if not briefing.pdf_filename or not os.path.exists(os.path.join(upload_path, briefing.pdf_filename)):
+        from pdf_generator import build_briefing_pdf_bytes
+        pdf_bytes = build_briefing_pdf_bytes(briefing)
+        os.makedirs(upload_path, exist_ok=True)
+        filename = f'briefing_{briefing.id}_{uuid.uuid4().hex[:8]}.pdf'
+        with open(os.path.join(upload_path, filename), 'wb') as f:
+            f.write(pdf_bytes)
+        briefing.pdf_filename = filename
+        db.session.commit()
+
+    return send_from_directory(upload_path, briefing.pdf_filename,
+                               as_attachment=True, download_name=download_name)
 
 
 _BRIEFING_SECTION_STYLES = {
@@ -3402,6 +3417,11 @@ def _migrate_schema():
             cols = [c['name'] for c in insp.get_columns('report_item_installers')]
             if 'is_at_fault' not in cols:
                 conn.execute(text('ALTER TABLE report_item_installers ADD COLUMN is_at_fault BOOLEAN DEFAULT 1'))
+                conn.commit()
+        if 'daily_briefings' in insp.get_table_names():
+            cols = [c['name'] for c in insp.get_columns('daily_briefings')]
+            if 'pdf_filename' not in cols:
+                conn.execute(text('ALTER TABLE daily_briefings ADD COLUMN pdf_filename VARCHAR(256)'))
                 conn.commit()
         # audit_log / orders / alerts created by db.create_all()
         # qar_reports and qar_photos created by db.create_all() on first run

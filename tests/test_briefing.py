@@ -3,6 +3,7 @@
 Wywołania Claude API są zawsze mockowane — te testy nigdy nie łączą się z siecią.
 """
 import json
+import os
 from datetime import date, datetime
 from types import SimpleNamespace
 
@@ -274,11 +275,30 @@ class TestBriefingPdf:
         assert resp.data.startswith(b'%PDF')
         logout(client)
 
+    def test_pdf_persists_to_disk_and_reuses_saved_file(self, client, app, briefing_fixtures):
+        bid = self._make_briefing(app)
+        login(client, 'admin', 'Admin1234!')
+
+        resp1 = client.get(f'/admin/briefing/{bid}/pdf')
+        assert resp1.status_code == 200
+        with app.app_context():
+            saved_name = db.session.get(DailyBriefing, bid).pdf_filename
+        assert saved_name
+        filepath = os.path.join(flask_app.config['UPLOAD_FOLDER'], saved_name)
+        assert os.path.exists(filepath)
+
+        # Drugie zadanie ma zwrocic ten sam, juz zapisany plik (staly link).
+        resp2 = client.get(f'/admin/briefing/{bid}/pdf')
+        assert resp2.status_code == 200
+        with app.app_context():
+            assert db.session.get(DailyBriefing, bid).pdf_filename == saved_name
+        logout(client)
+
 
 class TestStatsTemplateSmoke:
     def test_admin_stats_renders_with_briefings(self, client, briefing_fixtures):
         login(client, 'admin', 'Admin1234!')
         resp = client.get('/admin/stats')
         assert resp.status_code == 200
-        assert b'Poranny Briefing' in resp.data
+        assert 'Briefing Kontroli Jakości'.encode('utf-8') in resp.data
         logout(client)
