@@ -649,8 +649,6 @@ class QARReport(db.Model):
     STATUS_LABELS = {'open': 'Otwarty', 'in_progress': 'W toku', 'closed': 'Zamknięty'}
     STATUS_CSS    = {'open': 'status-warning', 'in_progress': 'status-info', 'closed': 'status-success'}
 
-    CATEGORIES = ['Spawanie', 'Montaż', 'Materiał', 'Malowanie', 'Konstrukcja', 'Dokumentacja', 'Cięcie', 'Szlifiernia', 'Myjnia', 'Inne']
-
     @property
     def status_label(self): return self.STATUS_LABELS.get(self.status, self.status)
     @property
@@ -692,6 +690,19 @@ class QATask(db.Model):
 
     def __repr__(self):
         return f'<QATask {self.title}>'
+
+
+class QARCategory(db.Model):
+    """Kategoria niezgodności QAR (Spawanie, Cięcie, ...) — słownik edytowalny w panelu admina."""
+    __tablename__ = 'qar_categories'
+    id         = db.Column(db.Integer, primary_key=True)
+    name       = db.Column(db.String(64), unique=True, nullable=False)
+    order      = db.Column(db.Integer, default=0)
+    is_active  = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+
+    def __repr__(self):
+        return f'<QARCategory {self.name}>'
 
 
 # ── Marszruta produkcji ────────────────────────────────────────────────────────

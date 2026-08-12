@@ -29,7 +29,7 @@ from models import (db, get_or_404, User, ChecklistTemplate, Category, Task, Rep
                     CatalogProduct,
                     SpawalniaOperator, SpawalniaRecord,
                     ChecklistSession, Installer, ReportItemInstaller,
-                    QARReport, QARPhoto, QATask,
+                    QARReport, QARPhoto, QATask, QARCategory,
                     ProductionDepartment, DepartmentEmployee, RoutingTemplate,
                     RoutingTemplateStage, RoutingCard, RoutingCardStage, RoutingCardPhoto,
                     DailyBriefing)
@@ -3284,6 +3284,7 @@ def init_db():
         _seed_kosztorys()
         _seed_zadania_qa()
         _seed_marszruta()
+        _seed_qar_categories()
         db.session.commit()
 
 
@@ -4083,6 +4084,18 @@ def _seed_marszruta():
     ]
     for i, name in enumerate(default_departments):
         db.session.add(ProductionDepartment(name=name, order=i))
+
+
+def _seed_qar_categories():
+    """Inicjuje domyślną listę kategorii raportów QAR."""
+    if QARCategory.query.first():
+        return
+    default_categories = [
+        'Spawanie', 'Montaż', 'Materiał', 'Malowanie', 'Konstrukcja',
+        'Dokumentacja', 'Cięcie', 'Szlifiernia', 'Myjnia', 'Inne',
+    ]
+    for i, name in enumerate(default_categories):
+        db.session.add(QARCategory(name=name, order=i))
 
 
 if __name__ == '__main__':

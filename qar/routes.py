@@ -6,8 +6,9 @@ from flask import (render_template, redirect, url_for, request,
                    flash, abort, current_app, jsonify, send_from_directory)
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
+from sqlalchemy import func
 
-from models import (db, get_or_404, AuditLog, QARReport, QARPhoto,
+from models import (db, get_or_404, AuditLog, QARReport, QARPhoto, QARCategory,
                     ProductionDepartment, DepartmentEmployee,
                     RoutingCard, RoutingCardStage)
 from . import qar_bp
@@ -60,6 +61,29 @@ def _verify_image(file_stream):
     except Exception:
         file_stream.seek(0)
         return False
+
+
+def _category_names(include=None):
+    """Nazwy aktywnych kategorii QAR do dropdownu; `include` dogrywa aktualną
+    kategorię raportu, nawet jeśli została w międzyczasie dezaktywowana."""
+    names = [c.name for c in QARCategory.query.filter_by(is_active=True)
+             .order_by(QARCategory.order, QARCategory.name).all()]
+    if include and include not in names:
+        names.append(include)
+    return names
+
+
+def _audit_category(action, target_id=None, detail=None):
+    try:
+        db.session.add(AuditLog(
+            user_id=current_user.id, action=action,
+            target_type='qar_category', target_id=target_id,
+            detail=detail, ip=request.remote_addr,
+        ))
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        current_app.logger.error('QAR category audit error: %s', exc)
 
 
 def _employee_departments():
@@ -148,7 +172,8 @@ def list_reports():
                    employee=employee_f or '',
                    date_from=date_from, date_to=date_to, per_page=per_page)
     return render_template('qar/list.html', reports=reports,
-                           categories=QARReport.CATEGORIES, filters=filters,
+                           categories=_category_names(include=category_f or None),
+                           filters=filters,
                            departments=_employee_departments())
 
 
@@ -167,7 +192,7 @@ def new_report():
         employee_id    = _parse_employee_id(request.form.get('employee_id'))
         if not title or not description:
             flash('Tytuł i opis problemu są wymagane.', 'error')
-            return render_template('qar/new.html', categories=QARReport.CATEGORIES,
+            return render_template('qar/new.html', categories=_category_names(include=category or None),
                                    form=request.form, departments=_employee_departments())
         report = QARReport(
             number=_next_qar_number(),
@@ -185,7 +210,7 @@ def new_report():
         _audit('qar_create', report.id, f'number={report.number}')
         flash(f'Raport {report.number} został utworzony.', 'success')
         return redirect(url_for('qar.detail_report', report_id=report.id))
-    return render_template('qar/new.html', categories=QARReport.CATEGORIES, form={},
+    return render_template('qar/new.html', categories=_category_names(), form={},
                            departments=_employee_departments())
 
 
@@ -225,7 +250,7 @@ def edit_report(report_id):
         if not title or not description:
             flash('Tytuł i opis problemu są wymagane.', 'error')
             return render_template('qar/edit.html', report=report,
-                                   categories=QARReport.CATEGORIES,
+                                   categories=_category_names(include=report.category),
                                    departments=_employee_departments())
         if status not in ('open', 'in_progress', 'closed'):
             status = report.status
@@ -252,7 +277,8 @@ def edit_report(report_id):
         _audit('qar_edit', report.id, f'status={report.status}')
         flash('Raport został zaktualizowany.', 'success')
         return redirect(url_for('qar.detail_report', report_id=report.id))
-    return render_template('qar/edit.html', report=report, categories=QARReport.CATEGORIES,
+    return render_template('qar/edit.html', report=report,
+                           categories=_category_names(include=report.category),
                            departments=_employee_departments())
 
 
@@ -492,6 +518,56 @@ def stats():
     return render_template('qar/stats.html', rows=rows, categories=categories,
                            unassigned=unassigned,
                            date_from=date_from, date_to=date_to)
+
+
+# ── Admin: kategorie ──────────────────────────────────────────────────────────
+
+@qar_bp.route('/admin/categories', methods=['GET', 'POST'])
+@login_required
+def admin_categories():
+    if not current_user.is_admin:
+        abort(403)
+    if request.method == 'POST':
+        action = request.form.get('action')
+
+        if action == 'add':
+            name = request.form.get('name', '').strip()
+            if not name:
+                flash('Nazwa kategorii jest wymagana.', 'warning')
+            elif QARCategory.query.filter_by(name=name).first():
+                flash(f'Kategoria „{name}" już istnieje.', 'warning')
+            else:
+                max_order = db.session.query(func.max(QARCategory.order)).scalar() or 0
+                cat = QARCategory(name=name, order=max_order + 1)
+                db.session.add(cat)
+                db.session.commit()
+                _audit_category('qar_category_add', cat.id, name)
+                flash(f'Dodano kategorię „{name}".', 'success')
+
+        elif action == 'toggle':
+            cat = get_or_404(QARCategory, request.form.get('cat_id', type=int))
+            cat.is_active = not cat.is_active
+            db.session.commit()
+            _audit_category('qar_category_toggle', cat.id,
+                            f'{cat.name} -> {"active" if cat.is_active else "inactive"}')
+            flash(f'Kategoria „{cat.name}" {"aktywowana" if cat.is_active else "dezaktywowana"}.', 'success')
+
+        elif action == 'delete':
+            cat = get_or_404(QARCategory, request.form.get('cat_id', type=int))
+            if QARReport.query.filter_by(category=cat.name).first():
+                flash(f'Nie można usunąć „{cat.name}" — jest użyta w istniejących raportach. '
+                      f'Możesz ją dezaktywować.', 'warning')
+            else:
+                name = cat.name
+                db.session.delete(cat)
+                db.session.commit()
+                _audit_category('qar_category_delete', cat.id, name)
+                flash(f'Kategoria „{name}" usunięta.', 'success')
+
+        return redirect(url_for('qar.admin_categories'))
+
+    categories = QARCategory.query.order_by(QARCategory.order, QARCategory.name).all()
+    return render_template('qar/admin_categories.html', categories=categories)
 
 
 # ── PDF ───────────────────────────────────────────────────────────────────────
