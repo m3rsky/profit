@@ -848,3 +848,131 @@ class RoutingCardPhoto(db.Model):
 
     def __repr__(self):
         return f'<RoutingCardPhoto {self.filename}>'
+
+
+# ── Moduł DOKUMENTACJA ───────────────────────────────────────────────────────
+
+class DocEntry(db.Model):
+    """Teczka dokumentacji — tytuł + opcjonalny opis, z załączonymi
+    dokumentami, zdjęciami i notatkami."""
+    __tablename__ = 'doc_entries'
+    id          = db.Column(db.Integer, primary_key=True)
+    title       = db.Column(db.String(256), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    user_id     = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    created_at  = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    updated_at  = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+
+    author = db.relationship('User', foreign_keys=[user_id])
+    files  = db.relationship('DocFile', backref='entry', lazy='dynamic',
+                             cascade='all, delete-orphan')
+    notes  = db.relationship('DocNote', backref='entry', lazy='dynamic',
+                             cascade='all, delete-orphan')
+
+    @property
+    def documents(self):
+        return self.files.filter_by(kind='document').order_by(DocFile.created_at).all()
+
+    @property
+    def images(self):
+        return self.files.filter_by(kind='image').order_by(DocFile.created_at).all()
+
+    @property
+    def document_count(self):
+        return self.files.filter_by(kind='document').count()
+
+    @property
+    def image_count(self):
+        return self.files.filter_by(kind='image').count()
+
+    @property
+    def note_count(self):
+        return self.notes.count()
+
+    @property
+    def notes_desc(self):
+        return self.notes.order_by(DocNote.created_at.desc()).all()
+
+    def __repr__(self):
+        return f'<DocEntry {self.id} {self.title!r}>'
+
+
+class DocFile(db.Model):
+    """Pojedynczy załącznik teczki — dokument z dysku lub zdjęcie."""
+    __tablename__ = 'doc_files'
+    id               = db.Column(db.Integer, primary_key=True)
+    entry_id         = db.Column(db.Integer, db.ForeignKey('doc_entries.id'), nullable=False)
+    kind             = db.Column(db.String(16), nullable=False, default='document')  # document | image
+    filename         = db.Column(db.String(256), nullable=False)   # nazwa na dysku (uuid.ext)
+    original_name    = db.Column(db.String(256), nullable=True)
+    preview_filename = db.Column(db.String(256), nullable=True)     # np. JPEG dla HEIC; NULL = podgląd = sam plik
+    thumb_filename   = db.Column(db.String(256), nullable=True)     # miniatura zdjęcia
+    mime_type        = db.Column(db.String(128), nullable=True)
+    size_bytes       = db.Column(db.Integer, nullable=True)
+    caption          = db.Column(db.String(256), nullable=True)
+    user_id          = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at       = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+
+    author = db.relationship('User', foreign_keys=[user_id])
+
+    @property
+    def ext(self):
+        return (self.original_name or self.filename).rsplit('.', 1)[-1].lower() if '.' in (self.original_name or self.filename) else ''
+
+    @property
+    def is_pdf(self):
+        return self.ext == 'pdf'
+
+    @property
+    def preview_name(self):
+        """Nazwa pliku do podglądu inline (preview jeśli jest, inaczej oryginał)."""
+        return self.preview_filename or self.filename
+
+    @property
+    def previewable(self):
+        """Czy da się pokazać podgląd w aplikacji (obraz albo PDF)."""
+        return self.kind == 'image' or self.is_pdf or (
+            self.preview_filename or '').lower().endswith('.pdf')
+
+    @property
+    def size_human(self):
+        n = self.size_bytes or 0
+        for unit in ('B', 'KB', 'MB', 'GB'):
+            if n < 1024:
+                return f'{n:.0f} {unit}' if unit == 'B' else f'{n:.1f} {unit}'
+            n /= 1024
+        return f'{n:.1f} TB'
+
+    ICONS = {
+        'pdf': 'bi-file-earmark-pdf', 'doc': 'bi-file-earmark-word', 'docx': 'bi-file-earmark-word',
+        'xls': 'bi-file-earmark-excel', 'xlsx': 'bi-file-earmark-excel', 'csv': 'bi-file-earmark-spreadsheet',
+        'ppt': 'bi-file-earmark-ppt', 'pptx': 'bi-file-earmark-ppt',
+        'txt': 'bi-file-earmark-text', 'odt': 'bi-file-earmark-text', 'ods': 'bi-file-earmark-spreadsheet',
+        'zip': 'bi-file-earmark-zip', 'rar': 'bi-file-earmark-zip', '7z': 'bi-file-earmark-zip',
+        'dwg': 'bi-file-earmark-ruled', 'dxf': 'bi-file-earmark-ruled',
+    }
+
+    @property
+    def icon(self):
+        if self.kind == 'image':
+            return 'bi-file-earmark-image'
+        return self.ICONS.get(self.ext, 'bi-file-earmark')
+
+    def __repr__(self):
+        return f'<DocFile {self.id} {self.kind} {self.filename}>'
+
+
+class DocNote(db.Model):
+    """Notatka tekstowa dopięta do teczki dokumentacji."""
+    __tablename__ = 'doc_notes'
+    id         = db.Column(db.Integer, primary_key=True)
+    entry_id   = db.Column(db.Integer, db.ForeignKey('doc_entries.id'), nullable=False)
+    body       = db.Column(db.Text, nullable=False)
+    user_id    = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+
+    author = db.relationship('User', foreign_keys=[user_id])
+
+    def __repr__(self):
+        return f'<DocNote {self.id} entry={self.entry_id}>'

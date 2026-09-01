@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Dokumentacja{% endblock %}
+
+{% block head %}
+<style>
+.doc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.doc-tile {
+  display: block; border: 1px solid var(--border, #ddd); border-radius: 8px;
+  padding: 16px; background: var(--card-bg, #fff); text-decoration: none; color: inherit;
+  transition: box-shadow .15s, transform .15s;
+}
+.doc-tile:hover { box-shadow: 0 4px 14px rgba(0,0,0,.08); transform: translateY(-1px); }
+.doc-tile-title { font-weight: 600; font-size: .98rem; margin-bottom: 6px; overflow-wrap: break-word; }
+.doc-tile-desc { color: #777; font-size: .84rem; line-height: 1.5; margin-bottom: 10px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.doc-tile-meta { display: flex; flex-wrap: wrap; gap: 10px; font-size: .78rem; color: #888; }
+.doc-tile-meta .chip i { margin-right: 3px; }
+@media (max-width: 640px) { .doc-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-folder2-open"></i> Dokumentacja</h1>
+    <span class="text-muted" style="font-size:.82rem;">Teczki z dokumentami, zdjęciami i notatkami</span>
+  </div>
+  <div class="page-header-actions">
+    <a href="{{ url_for('dokumentacja.new_entry') }}" class="btn btn-primary">
+      <i class="bi bi-plus-lg"></i> Nowa teczka
+    </a>
+  </div>
+</div>
+
+<div class="card card--spaced-top">
+  <div class="card-body" style="padding-bottom:0;">
+    <form method="get" class="form-inline" style="margin-bottom:1rem;">
+      <input type="search" name="q" class="form-control" placeholder="Szukaj po tytule lub opisie…"
+             value="{{ q }}" style="max-width:320px;">
+      <button type="submit" class="btn btn-outline"><i class="bi bi-search"></i> Szukaj</button>
+      {% if q %}<a href="{{ url_for('dokumentacja.list_entries') }}" class="btn btn-ghost">Wyczyść</a>{% endif %}
+    </form>
+  </div>
+
+  <div class="card-body">
+    {% if entries %}
+    <div class="doc-grid">
+      {% for e in entries %}
+      <a class="doc-tile" href="{{ url_for('dokumentacja.entry_detail', entry_id=e.id) }}">
+        <div class="doc-tile-title">{{ e.title }}</div>
+        {% if e.description %}<div class="doc-tile-desc">{{ e.description }}</div>{% endif %}
+        <div class="doc-tile-meta">
+          <span class="chip"><i class="bi bi-file-earmark"></i>{{ e.document_count }}</span>
+          <span class="chip"><i class="bi bi-image"></i>{{ e.image_count }}</span>
+          <span class="chip"><i class="bi bi-sticky"></i>{{ e.note_count }}</span>
+          <span class="chip" style="margin-left:auto;"><i class="bi bi-clock"></i>{{ e.created_at | localdt }}</span>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state" style="text-align:center;padding:48px 0;color:#888;">
+      <i class="bi bi-folder2-open" style="font-size:3rem;display:block;margin-bottom:12px;"></i>
+      <p>{% if q %}Brak teczek pasujących do wyszukiwania.{% else %}Brak teczek dokumentacji.{% endif %}</p>
+      <a href="{{ url_for('dokumentacja.new_entry') }}" class="btn btn-primary" style="margin-top:8px;">
+        <i class="bi bi-plus-lg"></i> Utwórz pierwszą teczkę
+      </a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

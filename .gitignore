@@ -1,4 +1,7 @@
 static/uploads/
+static/qar_uploads/
+static/marszruta_uploads/
+static/dokumentacja_uploads/
 instance/
 logs/
 venv/

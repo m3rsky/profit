@@ -111,6 +111,11 @@
         <span class="nav-icon"><i class="bi bi-signpost-split"></i></span>
         <span>Marszruta produkcji</span>
       </a>
+      <a href="{{ url_for('dokumentacja.list_entries') }}"
+         class="{% if request.endpoint and request.endpoint.startswith('dokumentacja.') %}active{% endif %}">
+        <span class="nav-icon"><i class="bi bi-folder2-open"></i></span>
+        <span>Dokumentacja</span>
+      </a>
 
       <div class="sidebar-section">Zarządzanie</div>
       <a href="{{ url_for('orders_import_csv') }}"
@@ -310,6 +315,13 @@
           <span class="wk-nav-label">QAR</span>
         </a>
       {% endif %}
+
+      <a href="{{ url_for('dokumentacja.list_entries') }}"
+         class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('dokumentacja.') %}active{% endif %}"
+         title="Dokumentacja">
+        <i class="bi bi-folder2-open"></i>
+        <span class="wk-nav-label">Dokumentacja</span>
+      </a>
     </nav>
     {% endif %}
 

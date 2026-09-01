@@ -32,7 +32,7 @@ from models import (db, get_or_404, User, ChecklistTemplate, Category, Task, Rep
                     QARReport, QARPhoto, QATask, QARCategory,
                     ProductionDepartment, DepartmentEmployee, RoutingTemplate,
                     RoutingTemplateStage, RoutingCard, RoutingCardStage, RoutingCardPhoto,
-                    DailyBriefing)
+                    DailyBriefing, DocEntry, DocFile, DocNote)
 import anthropic
 import briefing_service
 
@@ -57,6 +57,9 @@ app.register_blueprint(zadania_qa_bp)
 
 from marszruta import marszruta_bp  # noqa: E402
 app.register_blueprint(marszruta_bp)
+
+from dokumentacja import dokumentacja_bp  # noqa: E402
+app.register_blueprint(dokumentacja_bp)
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 _log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
@@ -3256,6 +3259,16 @@ def not_found(e):
     return render_template('errors/404.html'), 404
 
 
+@app.errorhandler(413)
+def payload_too_large(e):
+    limit_mb = app.config.get('MAX_CONTENT_LENGTH', 0) // (1024 * 1024)
+    msg = f'Plik jest za duży. Maksymalny rozmiar przesyłki to {limit_mb} MB.'
+    if request.accept_mimetypes.accept_json and not request.accept_mimetypes.accept_html:
+        return jsonify(ok=False, error=msg), 413
+    flash(msg, 'error')
+    return redirect(request.referrer or url_for('dashboard'))
+
+
 @app.errorhandler(500)
 def internal_error(e):
     app.logger.error('500 error: %s | path=%s | ip=%s', e, request.path, request.remote_addr,
@@ -3271,6 +3284,7 @@ def init_db():
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     os.makedirs(app.config['QAR_UPLOAD_FOLDER'], exist_ok=True)
     os.makedirs(app.config['MARSZRUTA_UPLOAD_FOLDER'], exist_ok=True)
+    os.makedirs(app.config['DOKUMENTACJA_UPLOAD_FOLDER'], exist_ok=True)
     with app.app_context():
         _migrate_schema()
         db.create_all()

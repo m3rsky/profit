@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+{% block title %}{{ entry.title }}{% endblock %}
+
+{% block head %}
+<style>
+.doc-sec { margin-bottom: 18px; }
+.doc-sec-head {
+  background: #1a3a5c; color: #fff; padding: 10px 16px; font-weight: 600; font-size: .9rem;
+  border-radius: var(--radius, 6px) var(--radius, 6px) 0 0;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+}
+.doc-sec-head .count { font-weight: 400; font-size: .8rem; opacity: .85; margin-left: 6px; }
+.doc-dropzone {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border: 2px dashed var(--border, #ccc); border-radius: 8px; padding: 22px; cursor: pointer;
+  color: #888; gap: 6px; text-align: center; transition: background .15s, border-color .15s;
+}
+.doc-dropzone.dragover { background: #eef5fb; border-color: #1a6e8a; color: #1a6e8a; }
+.doc-file-list { list-style: none; margin: 12px 0 0; padding: 0; }
+.doc-file-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 4px;
+  border-bottom: 1px solid var(--border, #eee); font-size: .88rem;
+}
+.doc-file-row .fi { font-size: 1.4rem; color: #5b7a99; flex-shrink: 0; }
+.doc-file-row .fname { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.doc-file-row .fmeta { color: #999; font-size: .78rem; white-space: nowrap; }
+.doc-file-row .facts { display: flex; gap: 4px; flex-shrink: 0; }
+.doc-photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-top: 12px; }
+.doc-photo-card { border: 1px solid var(--border, #ddd); border-radius: 6px; overflow: hidden; background: #fafafa; }
+.doc-photo-card img { width: 100%; height: 140px; object-fit: cover; display: block; cursor: zoom-in; }
+.doc-photo-card .pc-body { padding: 8px; }
+.doc-note { border: 1px solid var(--border, #e3e3e3); border-radius: 6px; padding: 10px 12px; margin-bottom: 10px; background: #fff; }
+.doc-note-meta { font-size: .76rem; color: #999; margin-top: 6px; }
+.doc-note-body { white-space: pre-wrap; font-size: .9rem; line-height: 1.6; }
+#doc-viewer {
+  position: fixed; inset: 0; background: rgba(0,0,0,.8); z-index: 3000;
+  display: none; flex-direction: column; padding: 24px;
+}
+#doc-viewer.open { display: flex; }
+#doc-viewer .dv-bar { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 8px; }
+#doc-viewer iframe { flex: 1; width: 100%; border: 0; background: #fff; border-radius: 6px; }
+@media (max-width: 640px) {
+  .form-control, textarea.form-control { font-size: 16px; }
+  .doc-file-row { flex-wrap: wrap; }
+  .doc-file-row .facts { width: 100%; }
+  .doc-file-row .facts .btn { flex: 1; }
+  #doc-viewer { padding: 8px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:12px;display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
+  <a href="{{ url_for('dokumentacja.list_entries') }}" class="btn btn-outline btn-sm">
+    <i class="bi bi-arrow-left"></i> Lista
+  </a>
+  <h1 class="page-title" style="font-size:1.15rem;margin:0;flex:1;min-width:0;overflow-wrap:break-word;">
+    <i class="bi bi-folder2-open" style="color:var(--accent,#1a6e8a);margin-right:6px;"></i>{{ entry.title }}
+  </h1>
+</div>
+
+{# ── Opis + metadane ── #}
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-body" style="padding:14px 18px;">
+    <div id="entry-view">
+      {% if entry.description %}
+      <div style="white-space:pre-wrap;font-size:.9rem;line-height:1.7;margin-bottom:8px;">{{ entry.description }}</div>
+      {% else %}
+      <div class="text-muted" style="font-size:.85rem;margin-bottom:8px;">Bez opisu.</div>
+      {% endif %}
+      <div style="font-size:.78rem;color:#999;">
+        Autor: <strong>{{ entry.author.username if entry.author else '—' }}</strong> ·
+        Utworzono: {{ entry.created_at | localdt }}
+        {% if entry.updated_at and entry.updated_at != entry.created_at %} · Zmieniono: {{ entry.updated_at | localdt }}{% endif %}
+      </div>
+      {% if can_edit %}
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" class="btn btn-outline btn-sm" onclick="toggleEntryEdit(true)">
+          <i class="bi bi-pencil"></i> Edytuj tytuł / opis
+        </button>
+        <form method="post" action="{{ url_for('dokumentacja.delete_entry', entry_id=entry.id) }}"
+              onsubmit="return confirm('Usunąć całą teczkę „{{ entry.title }}” wraz z plikami i notatkami? Tej operacji nie można cofnąć.');">
+          {{ csrf_input() }}
+          <button type="submit" class="btn btn-sm btn-outline" style="color:#c0392b;border-color:#c0392b;">
+            <i class="bi bi-trash"></i> Usuń teczkę
+          </button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if can_edit %}
+    <form id="entry-edit" method="post" action="{{ url_for('dokumentacja.edit_entry', entry_id=entry.id) }}" style="display:none;">
+      {{ csrf_input() }}
+      <div class="form-group" style="margin-bottom:10px;">
+        <label class="form-label">Tytuł <span style="color:#c0392b;">*</span></label>
+        <input type="text" name="title" class="form-control" required maxlength="256" value="{{ entry.title }}">
+      </div>
+      <div class="form-group" style="margin-bottom:10px;">
+        <label class="form-label">Opis</label>
+        <textarea name="description" class="form-control" rows="4">{{ entry.description or '' }}</textarea>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check-lg"></i> Zapisz</button>
+        <button type="button" class="btn btn-outline btn-sm" onclick="toggleEntryEdit(false)">Anuluj</button>
+      </div>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Dokumenty ── #}
+<div class="doc-sec card" id="dokumenty">
+  <div class="doc-sec-head">
+    <span><i class="bi bi-file-earmark-text" style="margin-right:6px;"></i>Dokumenty
+      <span class="count">({{ entry.document_count }})</span></span>
+  </div>
+  <div class="card-body" style="padding:14px;">
+    <form method="post" action="{{ url_for('dokumentacja.add_documents', entry_id=entry.id) }}"
+          enctype="multipart/form-data" class="doc-upload-form" data-input="doc-file-input">
+      {{ csrf_input() }}
+      <label class="doc-dropzone" for="doc-file-input">
+        <i class="bi bi-cloud-arrow-up" style="font-size:1.8rem;"></i>
+        <span>Przeciągnij pliki tutaj albo dotknij, aby wybrać z dysku</span>
+        <span class="text-muted" style="font-size:.78rem;">PDF, Word, Excel, PowerPoint, obrazy, archiwa · maks. 32 MB/plik</span>
+        <input type="file" id="doc-file-input" name="files" multiple style="display:none;">
+      </label>
+      <div class="doc-upload-actions" style="display:none;margin-top:10px;gap:8px;align-items:center;flex-wrap:wrap;">
+        <span class="doc-upload-info text-muted" style="font-size:.85rem;"></span>
+        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-upload"></i> Wgraj</button>
+      </div>
+    </form>
+
+    {% if entry.documents %}
+    <ul class="doc-file-list">
+      {% for f in entry.documents %}
+      <li class="doc-file-row">
+        <i class="bi {{ f.icon }} fi"></i>
+        <span class="fname">{{ f.original_name or f.filename }}</span>
+        <span class="fmeta">{{ f.size_human }} · {{ f.created_at | localdt }}</span>
+        <span class="facts">
+          {% if f.is_pdf %}
+          <button type="button" class="btn btn-outline btn-xs doc-pdf-link"
+                  data-src="{{ url_for('dokumentacja.serve_file', filename=f.filename) }}">
+            <i class="bi bi-eye"></i> Podgląd
+          </button>
+          {% endif %}
+          <a class="btn btn-outline btn-xs" href="{{ url_for('dokumentacja.serve_file', filename=f.filename, download=1) }}">
+            <i class="bi bi-download"></i> Pobierz
+          </a>
+          {% if can_edit or f.user_id == current_user.id %}
+          <form method="post" action="{{ url_for('dokumentacja.delete_file', file_id=f.id) }}"
+                onsubmit="return confirm('Usunąć plik „{{ f.original_name or f.filename }}”?');">
+            {{ csrf_input() }}
+            <button type="submit" class="btn btn-outline btn-xs" style="color:#c0392b;border-color:#c0392b;">
+              <i class="bi bi-trash"></i>
+            </button>
+          </form>
+          {% endif %}
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-muted" style="font-size:.85rem;margin:12px 0 0;">Brak dokumentów.</p>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Zdjęcia ── #}
+<div class="doc-sec card" id="zdjecia">
+  <div class="doc-sec-head">
+    <span><i class="bi bi-camera" style="margin-right:6px;"></i>Zdjęcia
+      <span class="count">({{ entry.image_count }})</span></span>
+  </div>
+  <div class="card-body" style="padding:14px;">
+    <form method="post" action="{{ url_for('dokumentacja.add_images', entry_id=entry.id) }}"
+          enctype="multipart/form-data" class="doc-upload-form" data-input="doc-img-input">
+      {{ csrf_input() }}
+      <label class="doc-dropzone" for="doc-img-input">
+        <i class="bi bi-camera-fill" style="font-size:1.8rem;"></i>
+        <span>Zrób zdjęcie lub wybierz z galerii</span>
+        <span class="text-muted" style="font-size:.78rem;">Można dodać wiele zdjęć naraz</span>
+        <input type="file" id="doc-img-input" name="images" accept="image/*" capture="environment" multiple style="display:none;">
+      </label>
+      <div class="doc-upload-actions" style="display:none;margin-top:10px;gap:8px;align-items:center;flex-wrap:wrap;">
+        <span class="doc-upload-info text-muted" style="font-size:.85rem;"></span>
+        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-upload"></i> Wgraj</button>
+      </div>
+    </form>
+
+    {% if entry.images %}
+    <div class="doc-photo-grid">
+      {% for f in entry.images %}
+      <div class="doc-photo-card">
+        <img class="photo-zoomable"
+             src="{{ url_for('dokumentacja.serve_file', filename=f.thumb_filename or f.filename) }}"
+             data-src="{{ url_for('dokumentacja.serve_file', filename=f.preview_name) }}"
+             alt="{{ f.caption or f.original_name or '' }}">
+        <div class="pc-body">
+          {% if can_edit or f.user_id == current_user.id %}
+          <form method="post" action="{{ url_for('dokumentacja.update_file_caption', file_id=f.id) }}">
+            {{ csrf_input() }}
+            <input type="text" name="caption" class="form-control" style="font-size:.82rem;padding:4px 8px;"
+                   placeholder="Podpis…" value="{{ f.caption or '' }}"
+                   onchange="this.form.submit()">
+          </form>
+          <div style="display:flex;gap:4px;margin-top:6px;">
+            <a class="btn btn-outline btn-xs" style="flex:1;"
+               href="{{ url_for('dokumentacja.serve_file', filename=f.filename, download=1) }}">
+              <i class="bi bi-download"></i>
+            </a>
+            <form method="post" action="{{ url_for('dokumentacja.delete_file', file_id=f.id) }}" style="flex:1;"
+                  onsubmit="return confirm('Usunąć to zdjęcie?');">
+              {{ csrf_input() }}
+              <button type="submit" class="btn btn-outline btn-xs" style="width:100%;color:#c0392b;border-color:#c0392b;">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+          </div>
+          {% elif f.caption %}
+          <span style="font-size:.8rem;color:#666;">{{ f.caption }}</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted" style="font-size:.85rem;margin:12px 0 0;">Brak zdjęć.</p>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Notatki ── #}
+<div class="doc-sec card" id="notatki">
+  <div class="doc-sec-head">
+    <span><i class="bi bi-sticky" style="margin-right:6px;"></i>Notatki
+      <span class="count">({{ entry.note_count }})</span></span>
+  </div>
+  <div class="card-body" style="padding:14px;">
+    <form method="post" action="{{ url_for('dokumentacja.add_note', entry_id=entry.id) }}" style="margin-bottom:14px;">
+      {{ csrf_input() }}
+      <textarea name="body" class="form-control" rows="3" placeholder="Dodaj notatkę…" required></textarea>
+      <div style="display:flex;justify-content:flex-end;margin-top:8px;">
+        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Dodaj notatkę</button>
+      </div>
+    </form>
+
+    {% for n in entry.notes_desc %}
+    <div class="doc-note" id="note-{{ n.id }}">
+      <div class="doc-note-body">{{ n.body }}</div>
+      <div class="doc-note-meta">
+        {{ n.author.username if n.author else '—' }} · {{ n.created_at | localdt }}
+        {% if n.updated_at and n.updated_at != n.created_at %} · edytowano {{ n.updated_at | localdt }}{% endif %}
+      </div>
+      {% if current_user.is_admin or n.user_id == current_user.id %}
+      <div style="margin-top:6px;display:flex;gap:6px;">
+        <button type="button" class="btn btn-outline btn-xs" onclick="toggleNoteEdit({{ n.id }}, true)">
+          <i class="bi bi-pencil"></i> Edytuj
+        </button>
+        <form method="post" action="{{ url_for('dokumentacja.delete_note', note_id=n.id) }}"
+              onsubmit="return confirm('Usunąć notatkę?');">
+          {{ csrf_input() }}
+          <button type="submit" class="btn btn-outline btn-xs" style="color:#c0392b;border-color:#c0392b;">
+            <i class="bi bi-trash"></i>
+          </button>
+        </form>
+      </div>
+      <form class="note-edit" method="post" action="{{ url_for('dokumentacja.edit_note', note_id=n.id) }}"
+            style="display:none;margin-top:8px;">
+        {{ csrf_input() }}
+        <textarea name="body" class="form-control" rows="3" required>{{ n.body }}</textarea>
+        <div style="display:flex;gap:6px;margin-top:6px;">
+          <button type="submit" class="btn btn-primary btn-xs"><i class="bi bi-check-lg"></i> Zapisz</button>
+          <button type="button" class="btn btn-outline btn-xs" onclick="toggleNoteEdit({{ n.id }}, false)">Anuluj</button>
+        </div>
+      </form>
+      {% endif %}
+    </div>
+    {% else %}
+    <p class="text-muted" style="font-size:.85rem;">Brak notatek.</p>
+    {% endfor %}
+  </div>
+</div>
+
+<div id="doc-viewer" aria-hidden="true">
+  <div class="dv-bar">
+    <a id="dv-open" class="btn btn-outline btn-sm" target="_blank" href="#"><i class="bi bi-box-arrow-up-right"></i> Nowa karta</a>
+    <button type="button" class="btn btn-outline btn-sm" id="dv-close"><i class="bi bi-x-lg"></i> Zamknij</button>
+  </div>
+  <iframe id="dv-frame" title="Podgląd dokumentu"></iframe>
+</div>
+
+<script>
+function toggleEntryEdit(on) {
+  document.getElementById('entry-view').style.display = on ? 'none' : '';
+  document.getElementById('entry-edit').style.display = on ? '' : 'none';
+}
+function toggleNoteEdit(id, on) {
+  const box = document.getElementById('note-' + id);
+  if (!box) return;
+  box.querySelector('.note-edit').style.display = on ? '' : 'none';
+}
+
+// Dropzone: drag & drop + podgląd liczby wybranych plików
+document.querySelectorAll('.doc-upload-form').forEach(function (form) {
+  const input = form.querySelector('input[type="file"]');
+  const zone = form.querySelector('.doc-dropzone');
+  const actions = form.querySelector('.doc-upload-actions');
+  const info = form.querySelector('.doc-upload-info');
+
+  function refresh() {
+    const n = input.files.length;
+    if (n) {
+      actions.style.display = 'flex';
+      info.textContent = n === 1 ? ('Wybrano: ' + input.files[0].name)
+                                 : ('Wybrano plików: ' + n);
+    } else {
+      actions.style.display = 'none';
+    }
+  }
+  input.addEventListener('change', refresh);
+
+  ['dragenter', 'dragover'].forEach(function (ev) {
+    zone.addEventListener(ev, function (e) { e.preventDefault(); zone.classList.add('dragover'); });
+  });
+  ['dragleave', 'drop'].forEach(function (ev) {
+    zone.addEventListener(ev, function (e) { e.preventDefault(); zone.classList.remove('dragover'); });
+  });
+  zone.addEventListener('drop', function (e) {
+    if (e.dataTransfer && e.dataTransfer.files.length) {
+      input.files = e.dataTransfer.files;
+      refresh();
+    }
+  });
+});
+
+// Podgląd PDF w nakładce
+(function () {
+  const viewer = document.getElementById('doc-viewer');
+  const frame = document.getElementById('dv-frame');
+  const openLink = document.getElementById('dv-open');
+  function close() { viewer.classList.remove('open'); frame.src = 'about:blank'; }
+  document.querySelectorAll('.doc-pdf-link').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      const src = btn.dataset.src;
+      frame.src = src;
+      openLink.href = src;
+      viewer.classList.add('open');
+    });
+  });
+  document.getElementById('dv-close').addEventListener('click', close);
+  viewer.addEventListener('click', function (e) { if (e.target === viewer) close(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+})();
+</script>
+{% endblock %}
