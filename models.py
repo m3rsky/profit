@@ -82,6 +82,9 @@ class Category(db.Model):
     name = db.Column(db.String(128), nullable=False)
     order = db.Column(db.Integer, default=0)
     is_active = db.Column(db.Boolean, default=True)
+    # Domyślna kategoria QAR podpowiadana przy szybkim zgłoszeniu niezgodności
+    # z punktu kontrolnego (nazwa z QARCategory; puste = użytkownik wybiera sam).
+    qar_category = db.Column(db.String(64), nullable=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
     tasks = db.relationship('Task', backref='category', lazy='dynamic',
                             cascade='all, delete-orphan', order_by='Task.order')
@@ -209,11 +212,16 @@ class ReportItem(db.Model):
     checked_at = db.Column(db.DateTime, nullable=True)
     notes = db.Column(db.Text, nullable=True)
     value_text = db.Column(db.String(256), nullable=True)  # measured/entered value
+    # Powiązanie z raportem QAR zgłoszonym z tego punktu kontrolnego (opcjonalne).
+    qar_report_id = db.Column(db.Integer, db.ForeignKey('qar_reports.id',
+                                                        ondelete='SET NULL'), nullable=True)
     photos = db.relationship('Photo', backref='report_item', lazy='dynamic',
                              cascade='all, delete-orphan')
     installers = db.relationship('ReportItemInstaller', backref='report_item',
                                  lazy='dynamic', cascade='all, delete-orphan')
     task = db.relationship('Task')
+    qar_report = db.relationship('QARReport', foreign_keys=[qar_report_id],
+                                 backref=db.backref('source_items', lazy='dynamic'))
 
     def __repr__(self):
         return f'<ReportItem report={self.report_id} task={self.task_id}>'

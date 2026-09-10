@@ -1,4 +1,5 @@
 import os
+import shutil
 import uuid
 from datetime import datetime, timezone
 
@@ -10,7 +11,7 @@ from sqlalchemy import func
 
 from models import (db, get_or_404, AuditLog, QARReport, QARPhoto, QARCategory,
                     ProductionDepartment, DepartmentEmployee,
-                    RoutingCard, RoutingCardStage)
+                    RoutingCard, RoutingCardStage, ReportItem)
 from . import qar_bp
 
 UTC = timezone.utc
@@ -212,6 +213,79 @@ def new_report():
         return redirect(url_for('qar.detail_report', report_id=report.id))
     return render_template('qar/new.html', categories=_category_names(), form={},
                            departments=_employee_departments())
+
+
+# ── Szybkie zgłoszenie z punktu kontrolnego listy QA (AJAX) ───────────────────
+
+@qar_bp.route('/from-checklist-item/<int:item_id>', methods=['POST'])
+@login_required
+def create_from_checklist_item(item_id):
+    """Tworzy raport QAR bezpośrednio z pozycji listy kontrolnej (punktu NG),
+    wiąże go z tą pozycją i kopiuje wskazane zdjęcia punktu do galerii QAR.
+    Zwraca JSON — front zamyka modal i wraca do dalszej kontroli."""
+    item   = get_or_404(ReportItem, item_id)
+    report = item.report
+    if not (current_user.is_admin or current_user.is_kontroler
+            or report.user_id == current_user.id):
+        return jsonify({'error': 'Brak uprawnień'}), 403
+
+    if item.qar_report_id and item.qar_report:
+        return jsonify({'ok': True, 'already': True,
+                        'number': item.qar_report.number,
+                        'url': url_for('qar.detail_report', report_id=item.qar_report.id)})
+
+    data        = request.get_json(silent=True) or {}
+    title       = (data.get('title') or '').strip()
+    description = (data.get('description') or '').strip()
+    if not title or not description:
+        return jsonify({'error': 'Tytuł i opis problemu są wymagane.'}), 400
+
+    category = (data.get('category') or '').strip()
+    if category and category not in _category_names():
+        category = ''
+
+    qar = QARReport(
+        number=_next_qar_number(),
+        zo_number=(data.get('zo_number') or '').strip() or None,
+        drawing_number=(data.get('drawing_number') or '').strip() or None,
+        title=title,
+        category=category or None,
+        location=(data.get('location') or '').strip() or None,
+        description=description,
+        employee_id=_parse_employee_id(data.get('employee_id')),
+        user_id=current_user.id,
+    )
+    db.session.add(qar)
+    db.session.flush()
+
+    photo_ids = data.get('photo_ids') or []
+    wanted = {int(p) for p in photo_ids if str(p).isdigit()} if isinstance(photo_ids, list) else set()
+    if wanted:
+        src_dir = current_app.config.get('UPLOAD_FOLDER', '')
+        dst_dir = current_app.config.get('QAR_UPLOAD_FOLDER', '')
+        os.makedirs(dst_dir, exist_ok=True)
+        for photo in item.photos.all():
+            if photo.id not in wanted:
+                continue
+            src = os.path.join(src_dir, photo.filename)
+            if not os.path.exists(src):
+                continue
+            ext = photo.filename.rsplit('.', 1)[-1].lower() if '.' in photo.filename else 'jpg'
+            new_name = f'qar_{uuid.uuid4().hex}.{ext}'
+            try:
+                shutil.copy2(src, os.path.join(dst_dir, new_name))
+            except OSError:
+                continue
+            db.session.add(QARPhoto(report_id=qar.id, filename=new_name,
+                                    original_name=photo.original_name,
+                                    caption=photo.caption))
+
+    item.qar_report_id = qar.id
+    db.session.commit()
+    _audit('qar_create_from_checklist', qar.id,
+           f'number={qar.number} report={report.id} item={item.id}')
+    return jsonify({'ok': True, 'number': qar.number,
+                    'url': url_for('qar.detail_report', report_id=qar.id)})
 
 
 # ── Szczegóły ─────────────────────────────────────────────────────────────────

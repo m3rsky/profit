@@ -125,6 +125,7 @@ document.querySelectorAll('.btn-result').forEach(btn => {
       row.classList.toggle('result-ng',  data.result === 'ng');
       row.classList.toggle('result-na',  data.result === 'na');
       row.classList.toggle('result-dw', data.result === 'dw');
+      window.onItemResultChange?.(row, data.result);
       const badge = row.querySelector('.value-result-badge');
       if (badge) {
         badge.textContent = data.result ? data.result.toUpperCase() : '';
@@ -347,6 +348,7 @@ async function saveValue(input, allowAdvance) {
       row.classList.toggle('result-ok', data.result === 'ok');
       row.classList.toggle('result-ng', data.result === 'ng');
       row.classList.remove('result-na');
+      window.onItemResultChange?.(row, data.result);
     }
     if (badge) {
       badge.textContent = data.result ? data.result.toUpperCase() : '';

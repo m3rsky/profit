@@ -88,6 +88,15 @@
         {% if report.verified_at %}<br><span style="color:#666;font-size:0.8rem;">{{ report.verified_at | localdt }}</span>{% endif %}
       </div>
       {% endif %}
+      {% set src_item = report.source_items.first() %}
+      {% if src_item %}
+      <div>
+        <span class="text-muted">Źródło</span><br>
+        <a href="{{ url_for('report_detail', report_id=src_item.report_id) }}">
+          Lista kontrolna: {{ src_item.task.title if src_item.task else 'punkt' }}
+        </a>
+      </div>
+      {% endif %}
     </div>
   </div>
 </div>

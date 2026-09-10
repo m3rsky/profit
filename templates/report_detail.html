@@ -116,6 +116,14 @@
         {% endfor %}
       </div>
       {% endif %}
+      {% if item.qar_report %}
+      <div class="qar-item-row">
+        <a class="qar-chip" href="{{ url_for('qar.detail_report', report_id=item.qar_report.id) }}"
+           target="_blank" rel="noopener">
+          <i class="bi bi-clipboard2-check-fill"></i> {{ item.qar_report.number }}
+        </a>
+      </div>
+      {% endif %}
     </div>
   </div>
   {% endfor %}

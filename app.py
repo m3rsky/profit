@@ -651,8 +651,15 @@ def checklist_view(report_id):
         cat = item.task.category
         items_by_category.setdefault(cat, []).append(item)
     installers = Installer.query.filter_by(is_active=True).order_by(Installer.name).all()
+    qar_categories = [c.name for c in QARCategory.query.filter_by(is_active=True)
+                      .order_by(QARCategory.order, QARCategory.name).all()]
+    qar_departments = (ProductionDepartment.query.filter_by(is_active=True)
+                       .order_by(ProductionDepartment.order, ProductionDepartment.name).all())
+    qar_zo = report.order.number if report.order else ''
     return render_template('checklist.html', report=report,
-                           items_by_category=items_by_category, installers=installers)
+                           items_by_category=items_by_category, installers=installers,
+                           qar_categories=qar_categories, qar_departments=qar_departments,
+                           qar_zo=qar_zo)
 
 
 @app.route('/checklist/<int:report_id>/complete', methods=['POST'])
@@ -1091,7 +1098,12 @@ def _create_ng_alerts_on_complete(report):
     ng_items = [i for i in report.items.all() if i.result == 'ng']
     if not ng_items:
         return
-    titles = [i.task.title if i.task else 'Zadanie' for i in ng_items]
+    titles = []
+    for i in ng_items:
+        t = i.task.title if i.task else 'Zadanie'
+        if i.qar_report:
+            t += f' ({i.qar_report.number})'
+        titles.append(t)
     msg = f'Niezgodności ({len(ng_items)}): {report.title} — {", ".join(titles)}'
     if len(msg) > 512:
         msg = msg[:511] + '…'
@@ -3346,6 +3358,9 @@ def _migrate_schema():
             if 'template_id' not in cols:
                 conn.execute(text('ALTER TABLE categories ADD COLUMN template_id INTEGER'))
                 conn.commit()
+            if 'qar_category' not in cols:
+                conn.execute(text('ALTER TABLE categories ADD COLUMN qar_category VARCHAR(64)'))
+                conn.commit()
         if 'reports' in insp.get_table_names():
             cols = [c['name'] for c in insp.get_columns('reports')]
             if 'template_id' not in cols:
@@ -3388,6 +3403,10 @@ def _migrate_schema():
             cols = [c['name'] for c in insp.get_columns('report_items')]
             if 'value_text' not in cols:
                 conn.execute(text('ALTER TABLE report_items ADD COLUMN value_text VARCHAR(256)'))
+                conn.commit()
+            if 'qar_report_id' not in cols:
+                conn.execute(text('ALTER TABLE report_items ADD COLUMN qar_report_id INTEGER '
+                                  'REFERENCES qar_reports(id)'))
                 conn.commit()
         if 'checklist_templates' in insp.get_table_names():
             cols = [c['name'] for c in insp.get_columns('checklist_templates')]
