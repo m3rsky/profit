@@ -12,7 +12,7 @@ from sqlalchemy.pool import StaticPool
 from app import app as flask_app, db as _db
 from models import (User, ChecklistTemplate, Category, Task,
                     Order, CabinetType, MaterialPrice, LaborRate, Quote, QuoteConfig,
-                    SpawalniaOperator, QARReport)
+                    SpawalniaOperator, QARReport, Installer)
 
 API_KEY = 'test-api-key-12345'
 
@@ -65,7 +65,11 @@ def _seed():
     _db.session.add(api_cat)
     _db.session.flush()
     _db.session.add(Task(category_id=api_cat.id, title='Zadanie API', order=0, is_active=True))
+    _db.session.add(Task(category_id=api_cat.id, title='Montaż', order=1, is_active=True,
+                         task_type='installer'))
     _db.session.flush()
+
+    _db.session.add(Installer(name='Jan Kowalski', is_active=True))
 
     order = Order(number='ZAM-API-001', product_name='Produkt testowy',
                   client='Klient testowy', quantity=1, created_by_id=admin.id)

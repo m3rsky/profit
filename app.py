@@ -3505,6 +3505,10 @@ def _api_checklist_dict(report):
             'result': item.result,
             'notes': item.notes,
             'checked_at': item.checked_at.isoformat() if item.checked_at else None,
+            'installers': [
+                {'name': ri.installer.name, 'role': ri.role, 'is_at_fault': ri.is_at_fault}
+                for ri in item.installers.all()
+            ] if item.task.task_type == 'installer' else None,
         })
     return {
         'id': report.id, 'title': report.title, 'status': report.status,
@@ -3619,6 +3623,42 @@ def _parse_performed_at(s):
     return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 
 
+def _resolve_installers(data):
+    """Rozwiązuje `installers` z payloadu na listę gotową do zapisu jako
+    ReportItemInstaller. Każdy wpis to nazwa montera (string) albo obiekt
+    {installer_id|name, role, is_at_fault}. Ta sama lista jest przypisywana
+    do KAŻDEGO punktu checklisty typu 'installer' w KAŻDYM raporcie serii —
+    czyli jednej ekipy montującej cały produkt/serię.
+    Zwraca (lista, None) albo (None, komunikat_błędu)."""
+    raw = data.get('installers')
+    if not raw:
+        return [], None
+    if not isinstance(raw, list):
+        return None, 'installers musi być listą'
+    resolved = []
+    for entry in raw:
+        if isinstance(entry, str):
+            entry = {'name': entry}
+        if not isinstance(entry, dict):
+            return None, 'Każdy wpis w installers musi być tekstem albo obiektem {name, role}'
+        inst = None
+        if entry.get('installer_id'):
+            inst = db.session.get(Installer, entry['installer_id'])
+        elif (entry.get('name') or '').strip():
+            inst = Installer.query.filter(Installer.name.ilike(entry['name'].strip())).first()
+        else:
+            return None, 'Każdy wpis w installers musi mieć name albo installer_id'
+        if not inst or not inst.is_active:
+            label = entry.get('name') or entry.get('installer_id')
+            return None, f'Monter {label!r} nie istnieje lub jest nieaktywny'
+        resolved.append({
+            'installer_id': inst.id,
+            'role': (entry.get('role') or '').strip() or None,
+            'is_at_fault': bool(entry.get('is_at_fault', True)),
+        })
+    return resolved, None
+
+
 @app.route('/api/v1/checklists', methods=['POST'])
 @api_key_required
 def api_v1_create_checklist():
@@ -3642,6 +3682,10 @@ def api_v1_create_checklist():
         return jsonify({'error': 'Szablon nie istnieje lub jest nieaktywny'}), 404
 
     operator, err = _resolve_operator(data)
+    if err:
+        return jsonify({'error': err}), 404
+
+    installers_spec, err = _resolve_installers(data)
     if err:
         return jsonify({'error': err}), 404
 
@@ -3676,6 +3720,12 @@ def api_v1_create_checklist():
                     item.result     = 'ok'
                     item.checked_at = performed_at
                 db.session.add(item)
+                if task.task_type == 'installer' and installers_spec:
+                    db.session.flush()  # potrzebne item.id dla FK
+                    for spec in installers_spec:
+                        db.session.add(ReportItemInstaller(
+                            report_item_id=item.id, installer_id=spec['installer_id'],
+                            role=spec['role'], is_at_fault=spec['is_at_fault']))
 
     bid = uuid.uuid4().hex if quantity > 1 else None
     created = []
@@ -3728,6 +3778,15 @@ def api_v1_users():
     """Lista kontrolerów/adminów — do wyboru operatora w zewnętrznych narzędziach."""
     users = User.query.filter(User.role.in_(('admin', 'kontroler'))).order_by(User.username).all()
     return jsonify([{'id': u.id, 'username': u.username, 'role': u.role} for u in users])
+
+
+@app.route('/api/v1/installers', methods=['GET'])
+@api_key_required
+def api_v1_installers():
+    """Lista aktywnych monterów — do przypisywania w punktach checklisty typu
+    'installer' przy zbiorczym tworzeniu list kontrolnych przez API."""
+    installers = Installer.query.filter_by(is_active=True).order_by(Installer.name).all()
+    return jsonify([{'id': i.id, 'name': i.name} for i in installers])
 
 
 @app.route('/api/v1/checklists/<int:report_id>', methods=['GET'])

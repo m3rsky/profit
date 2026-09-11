@@ -104,10 +104,14 @@ class BulkChecklistApp(tk.Tk):
         self.templates = []   # [{'id', 'name', 'type', 'task_count'}]
         self.operators = []   # [{'id', 'username', 'role'}]
         self.orders = []      # [{'id', 'number', 'client', 'product_name', ...}]
+        self.installers = []  # [{'id', 'name'}]
+        self.chosen_installers = []  # [{'name', 'role'}] dodani do bieżącej serii
 
         cfg = load_config()
         self._build_connection_frame(cfg)
         self._build_form_frame()
+        self._build_installers_frame()
+        self._build_actions_frame()
         self._set_form_state('disabled')
 
         if cfg.get('server_url') and cfg.get('api_key'):
@@ -150,6 +154,10 @@ class BulkChecklistApp(tk.Tk):
                                if o.get('status') != 'shipped']
             except ApiError:
                 self.orders = []
+            try:
+                self.installers = api_request(server, key, 'GET', '/api/v1/installers')
+            except ApiError:
+                self.installers = []
         except ApiError as exc:
             self.lbl_status.config(text='Błąd połączenia', foreground='#a33')
             messagebox.showerror('Nie udało się połączyć', str(exc))
@@ -165,6 +173,7 @@ class BulkChecklistApp(tk.Tk):
         self.cmb_order['values'] = [''] + [
             f"{o['number']} — {o['client']} — {o['product_name']}" for o in self.orders
         ]
+        self.cmb_installer_pick['values'] = [i['name'] for i in self.installers]
         self._set_form_state('normal')
 
     # -- Sekcja formularza -------------------------------------------------------
@@ -216,11 +225,73 @@ class BulkChecklistApp(tk.Tk):
         ttk.Label(frame, text='Wszystkie punkty zostaną zapisane jako zakończone, wynik OK.',
                  foreground='#777').grid(row=r, column=0, columnspan=2, sticky='w', padx=5, pady=(0, 4))
 
-        r += 1
-        self.btn_submit = ttk.Button(frame, text='Zapisz serię do bazy', command=self.submit)
-        self.btn_submit.grid(row=r, column=0, columnspan=2, pady=10)
+        self._form_widgets = [self.cmb_template, self.cmb_operator, self.cmb_order]
 
-        self._form_widgets = [self.cmb_template, self.cmb_operator, self.cmb_order, self.btn_submit]
+    def _build_installers_frame(self):
+        """Zadania typu 'installer' (np. „Montaż”) wymagają przypisania montera —
+        samo zaznaczenie OK nie wystarcza (patrz ReportItemInstaller). Ta sama
+        lista monterów zostaje przypisana do każdego takiego punktu w każdej
+        liście kontrolnej tworzonej serii."""
+        frame = ttk.LabelFrame(
+            self, text='Monterzy (dla zadań typu „monter” w szablonie — jeśli szablon takich nie ma, pomiń)')
+        frame.grid(row=2, column=0, padx=10, pady=5, sticky='ew')
+
+        ttk.Label(frame, text='Monter:').grid(row=0, column=0, sticky='e', padx=5, pady=4)
+        self.cmb_installer_pick = ttk.Combobox(frame, state='readonly', width=24)
+        self.cmb_installer_pick.grid(row=0, column=1, padx=5, pady=4)
+
+        ttk.Label(frame, text='Rola (opcjonalnie):').grid(row=0, column=2, sticky='e', padx=5, pady=4)
+        self.var_installer_role = tk.StringVar()
+        ttk.Entry(frame, textvariable=self.var_installer_role, width=16
+                 ).grid(row=0, column=3, padx=5, pady=4)
+
+        self.btn_add_installer = ttk.Button(frame, text='Dodaj do listy', command=self._add_installer)
+        self.btn_add_installer.grid(row=0, column=4, padx=5, pady=4)
+
+        self.lst_installers = tk.Listbox(frame, height=4, width=55)
+        self.lst_installers.grid(row=1, column=0, columnspan=4, padx=5, pady=4, sticky='ew')
+
+        self.btn_remove_installer = ttk.Button(frame, text='Usuń zaznaczonego',
+                                               command=self._remove_installer)
+        self.btn_remove_installer.grid(row=1, column=4, padx=5, pady=4, sticky='n')
+
+        self._form_widgets += [self.cmb_installer_pick, self.btn_add_installer,
+                               self.btn_remove_installer]
+
+        self.btn_clear_installers = ttk.Button(frame, text='Wyczyść listę',
+                                               command=self._clear_installers)
+        self.btn_clear_installers.grid(row=2, column=4, padx=5, pady=(0, 4), sticky='n')
+        self._form_widgets.append(self.btn_clear_installers)
+
+    def _clear_installers(self):
+        self.chosen_installers.clear()
+        self.lst_installers.delete(0, 'end')
+
+    def _add_installer(self):
+        name = self.cmb_installer_pick.get().strip()
+        if not name:
+            messagebox.showerror('Brak danych', 'Wybierz montera z listy.')
+            return
+        role = self.var_installer_role.get().strip() or None
+        self.chosen_installers.append({'name': name, 'role': role})
+        label = f'{name} ({role})' if role else name
+        self.lst_installers.insert('end', label)
+        self.var_installer_role.set('')
+
+    def _remove_installer(self):
+        sel = self.lst_installers.curselection()
+        if not sel:
+            return
+        idx = sel[0]
+        self.lst_installers.delete(idx)
+        del self.chosen_installers[idx]
+
+    def _build_actions_frame(self):
+        frame = ttk.Frame(self)
+        frame.grid(row=3, column=0, pady=10)
+        self.btn_submit = ttk.Button(frame, text='Zapisz serię do bazy', command=self.submit)
+        self.btn_submit.pack()
+        self._form_widgets.append(self.btn_submit)
 
     def _set_form_state(self, state):
         for w in getattr(self, '_form_widgets', []):
@@ -266,13 +337,20 @@ class BulkChecklistApp(tk.Tk):
             'order_number': order_number,
             'completed': True,
             'performed_at': performed_at.isoformat(),
+            'installers': list(self.chosen_installers),
         }
 
         count_label = f'{quantity} list kontrolnych' if quantity > 1 else '1 listę kontrolną'
+        if self.chosen_installers:
+            names = ', '.join(f"{e['name']}" + (f" ({e['role']})" if e['role'] else '')
+                              for e in self.chosen_installers)
+            installers_line = f'\nmonterzy: {names}'
+        else:
+            installers_line = '\nmonterzy: brak (jeśli szablon ma zadanie montera, zostanie puste!)'
         if not messagebox.askyesno(
             'Potwierdź zapis',
             f'Zapisać do bazy {count_label} jako już zakończone (wynik OK),\n'
-            f'operator: {operator}, data: {performed_at.strftime("%d.%m.%Y %H:%M")}?'
+            f'operator: {operator}, data: {performed_at.strftime("%d.%m.%Y %H:%M")}?{installers_line}'
         ):
             return
 
