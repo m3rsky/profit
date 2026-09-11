@@ -3586,48 +3586,148 @@ def api_v1_checklists():
     })
 
 
+def _resolve_operator(data):
+    """Znajduje użytkownika-operatora po `operator` (username) lub `operator_id`.
+    Gdy żadne z nich nie podano — zachowanie wsteczne integracji istniejących
+    (np. Streamsoft): pierwszy użytkownik z rolą admin.
+    Zwraca (User, None) albo (None, komunikat_błędu)."""
+    operator_id = data.get('operator_id')
+    operator_name = (data.get('operator') or '').strip()
+    if operator_id:
+        user = db.session.get(User, operator_id)
+    elif operator_name:
+        user = User.query.filter(User.username.ilike(operator_name)).first()
+    else:
+        user = User.query.filter_by(role='admin').first()
+        if not user:
+            return None, 'Brak użytkownika systemowego'
+        return user, None
+    if not user:
+        return None, f'Operator {operator_name or operator_id!r} nie istnieje'
+    if not user.is_kontroler:
+        return None, f'Użytkownik {user.username!r} nie ma uprawnień kontrolera'
+    return user, None
+
+
+def _parse_performed_at(s):
+    if not s:
+        return datetime.now(UTC)
+    try:
+        dt = datetime.fromisoformat(s)
+    except ValueError:
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+
+
 @app.route('/api/v1/checklists', methods=['POST'])
 @api_key_required
 def api_v1_create_checklist():
+    """Tworzy jeden raport albo — z `quantity` > 1 — całą serię (batch), tak jak
+    tryb seryjny w UI (`new_checklist`). Służy do zbiorczego wpisywania do bazy
+    list kontrolnych wypełnionych ręcznie poza systemem (np. na papierze)."""
     data        = request.get_json(silent=True) or {}
     template_id = data.get('template_id')
-    if not template_id:
-        return jsonify({'error': 'template_id jest wymagane'}), 400
+    template_name = (data.get('template_name') or '').strip()
 
-    tmpl = db.session.get(ChecklistTemplate, template_id)
+    tmpl = None
+    if template_id:
+        tmpl = db.session.get(ChecklistTemplate, template_id)
+    elif template_name:
+        tmpl = ChecklistTemplate.query.filter(
+            ChecklistTemplate.name.ilike(template_name), ChecklistTemplate.is_active == True
+        ).first()
+    else:
+        return jsonify({'error': 'template_id lub template_name jest wymagane'}), 400
     if not tmpl or not tmpl.is_active:
         return jsonify({'error': 'Szablon nie istnieje lub jest nieaktywny'}), 404
 
-    title = (data.get('title', '').strip()
-             or f'{tmpl.name} – {datetime.now().strftime("%d.%m.%Y %H:%M")}')
+    operator, err = _resolve_operator(data)
+    if err:
+        return jsonify({'error': err}), 404
+
+    try:
+        quantity = max(1, min(99, int(data.get('quantity', 1))))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'quantity musi być liczbą całkowitą 1-99'}), 400
+
+    completed = bool(data.get('completed', False))
+    performed_at = _parse_performed_at(data.get('performed_at'))
+    if performed_at is None:
+        return jsonify({'error': 'performed_at musi być datą w formacie ISO 8601'}), 400
 
     order_id = None
-    order_number = data.get('order_number', '').strip()
+    order_number = (data.get('order_number') or '').strip()
     if order_number:
         order = Order.query.filter_by(number=order_number).first()
         if not order:
             return jsonify({'error': f'Zamówienie {order_number!r} nie istnieje'}), 404
         order_id = order.id
 
-    author = User.query.filter_by(role='admin').first()
-    if not author:
-        return jsonify({'error': 'Brak użytkownika systemowego'}), 500
+    user_suffix = (data.get('title') or '').strip()
+    base_title  = (user_suffix
+                   or f'{tmpl.name} – {performed_at.strftime("%d.%m.%Y %H:%M")}')
 
-    report = Report(user_id=author.id, template_id=template_id,
-                    title=title, order_id=order_id)
-    db.session.add(report)
-    db.session.flush()
-    for cat in tmpl.categories.filter_by(is_active=True).order_by(Category.order):
-        for task in cat.tasks.filter_by(is_active=True).order_by(Task.order):
-            db.session.add(ReportItem(report_id=report.id, task_id=task.id))
+    def _fill_items(rpt):
+        for cat in tmpl.categories.filter_by(is_active=True).order_by(Category.order):
+            for task in cat.tasks.filter_by(is_active=True).order_by(Task.order):
+                item = ReportItem(report_id=rpt.id, task_id=task.id)
+                if completed:
+                    item.is_checked = True
+                    item.result     = 'ok'
+                    item.checked_at = performed_at
+                db.session.add(item)
+
+    bid = uuid.uuid4().hex if quantity > 1 else None
+    created = []
+    for i in range(1, quantity + 1):
+        title = f'{base_title} – {i}/{quantity}' if quantity > 1 else base_title
+        report = Report(
+            user_id=operator.id, template_id=tmpl.id, title=title,
+            order_id=order_id, created_at=performed_at,
+            batch_id=bid, batch_index=i if bid else None,
+            batch_total=quantity if bid else None,
+        )
+        if completed:
+            report.status       = 'completed'
+            report.started_at   = performed_at
+            report.completed_at = performed_at
+        db.session.add(report)
+        db.session.flush()
+        _fill_items(report)
+        created.append(report)
+        if order_id and completed:
+            _notify_order_report_done(report)
+
+    if order_id:
+        order = db.session.get(Order, order_id)
+        if order.status == 'active':
+            order.status = 'in_control'
+        if completed:
+            _check_order_complete(order)
     db.session.commit()
-    _audit('api_create_checklist', 'report', report.id, title)
+    _audit('api_create_checklist', 'report', created[0].id,
+           f'{base_title} x{quantity} operator={operator.username} completed={completed}')
+
+    if quantity == 1:
+        r = created[0]
+        return jsonify({
+            'ok': True, 'id': r.id, 'title': r.title, 'template': tmpl.name,
+            'operator': operator.username, 'order_number': order_number or None,
+            'status': r.status, 'created_at': r.created_at.isoformat(),
+        }), 201
     return jsonify({
-        'ok': True, 'id': report.id, 'title': report.title,
-        'template': tmpl.name,
-        'order_number': order_number or None,
-        'created_at': report.created_at.isoformat(),
+        'ok': True, 'batch_id': bid, 'quantity': quantity, 'template': tmpl.name,
+        'operator': operator.username, 'order_number': order_number or None,
+        'items': [{'id': r.id, 'title': r.title, 'status': r.status} for r in created],
     }), 201
+
+
+@app.route('/api/v1/users', methods=['GET'])
+@api_key_required
+def api_v1_users():
+    """Lista kontrolerów/adminów — do wyboru operatora w zewnętrznych narzędziach."""
+    users = User.query.filter(User.role.in_(('admin', 'kontroler'))).order_by(User.username).all()
+    return jsonify([{'id': u.id, 'username': u.username, 'role': u.role} for u in users])
 
 
 @app.route('/api/v1/checklists/<int:report_id>', methods=['GET'])

@@ -118,6 +118,59 @@ class TestChecklistsApi:
         assert resp.status_code == 201
         assert resp.get_json()['ok'] is True
 
+    def test_create_checklist_unknown_operator_rejected(self, client):
+        templates = auth(client, 'get', '/api/v1/templates').get_json()
+        tmpl_id = next(t['id'] for t in templates if t['name'] == 'Kontrola ZO API')
+        resp = auth(client, 'post', '/api/v1/checklists', json={
+            'template_id': tmpl_id, 'operator': 'nieznany',
+        })
+        assert resp.status_code == 404
+
+    def test_create_completed_series_with_operator(self, client):
+        """Zbiorczy wpis serii list kontrolnych 'jakby kontrola się odbyła' —
+        przypadek zewnętrznego programu do ręcznego wpisywania serii do bazy."""
+        templates = auth(client, 'get', '/api/v1/templates').get_json()
+        tmpl_id = next(t['id'] for t in templates if t['name'] == 'Kontrola ZO API')
+        resp = auth(client, 'post', '/api/v1/checklists', json={
+            'template_id': tmpl_id,
+            'template_name': 'Kontrola ZO API',
+            'title': 'Seria dla klienta X',
+            'quantity': 3,
+            'operator': 'oper',
+            'completed': True,
+            'performed_at': '2026-09-01T08:00:00',
+        })
+        assert resp.status_code == 201
+        data = resp.get_json()
+        assert data['ok'] is True
+        assert data['quantity'] == 3
+        assert data['operator'] == 'oper'
+        assert len(data['items']) == 3
+        assert all(item['status'] == 'completed' for item in data['items'])
+        assert data['items'][0]['title'] == 'Seria dla klienta X – 1/3'
+
+        detail = auth(client, 'get', f"/api/v1/checklists/{data['items'][0]['id']}").get_json()
+        assert detail['status'] == 'completed'
+        assert detail['author'] == 'oper'
+        assert detail['completed_at'].startswith('2026-09-01T08:00:00')
+        assert detail['compliant'] is True
+        assert all(item['result'] == 'ok' for item in detail['items'])
+
+    def test_create_checklist_bad_performed_at_rejected(self, client):
+        templates = auth(client, 'get', '/api/v1/templates').get_json()
+        tmpl_id = next(t['id'] for t in templates if t['name'] == 'Kontrola ZO API')
+        resp = auth(client, 'post', '/api/v1/checklists', json={
+            'template_id': tmpl_id, 'performed_at': 'not-a-date',
+        })
+        assert resp.status_code == 400
+
+    def test_list_users(self, client):
+        resp = auth(client, 'get', '/api/v1/users')
+        assert resp.status_code == 200
+        usernames = [u['username'] for u in resp.get_json()]
+        assert 'oper' in usernames
+        assert 'admin' in usernames
+
 
 # ── Kosztorysy ─────────────────────────────────────────────────────────────────
 
