@@ -171,6 +171,59 @@ class TestChecklistsApi:
         assert 'oper' in usernames
         assert 'admin' in usernames
 
+    def test_list_installers(self, client):
+        resp = auth(client, 'get', '/api/v1/installers')
+        assert resp.status_code == 200
+        names = [i['name'] for i in resp.get_json()]
+        assert 'Jan Kowalski' in names
+
+    def test_create_completed_checklist_assigns_installer(self, client):
+        """Zadanie typu 'installer' (np. 'Montaż') musi dostać przypisanego
+        montera, samo zaznaczenie OK nie wystarcza."""
+        templates = auth(client, 'get', '/api/v1/templates').get_json()
+        tmpl_id = next(t['id'] for t in templates if t['name'] == 'Kontrola ZO API')
+        resp = auth(client, 'post', '/api/v1/checklists', json={
+            'template_id': tmpl_id,
+            'operator': 'oper',
+            'completed': True,
+            'installers': [{'name': 'Jan Kowalski', 'role': 'Obudowa'}],
+        })
+        assert resp.status_code == 201
+        rid = resp.get_json()['id']
+
+        detail = auth(client, 'get', f'/api/v1/checklists/{rid}').get_json()
+        installer_item = next(i for i in detail['items'] if i['task'] == 'Montaż')
+        assert installer_item['result'] == 'ok'
+        assert installer_item['installers'] == [
+            {'name': 'Jan Kowalski', 'role': 'Obudowa', 'is_at_fault': True}
+        ]
+        # Zadanie innego typu nie ma pola installers.
+        other_item = next(i for i in detail['items'] if i['task'] == 'Zadanie API')
+        assert other_item['installers'] is None
+
+    def test_create_checklist_unknown_installer_rejected(self, client):
+        templates = auth(client, 'get', '/api/v1/templates').get_json()
+        tmpl_id = next(t['id'] for t in templates if t['name'] == 'Kontrola ZO API')
+        resp = auth(client, 'post', '/api/v1/checklists', json={
+            'template_id': tmpl_id, 'installers': ['Nieznany Monter'],
+        })
+        assert resp.status_code == 404
+
+    def test_create_checklist_installers_as_plain_strings(self, client):
+        templates = auth(client, 'get', '/api/v1/templates').get_json()
+        tmpl_id = next(t['id'] for t in templates if t['name'] == 'Kontrola ZO API')
+        resp = auth(client, 'post', '/api/v1/checklists', json={
+            'template_id': tmpl_id, 'completed': True,
+            'installers': ['Jan Kowalski'],
+        })
+        assert resp.status_code == 201
+        rid = resp.get_json()['id']
+        detail = auth(client, 'get', f'/api/v1/checklists/{rid}').get_json()
+        installer_item = next(i for i in detail['items'] if i['task'] == 'Montaż')
+        assert installer_item['installers'] == [
+            {'name': 'Jan Kowalski', 'role': None, 'is_at_fault': True}
+        ]
+
 
 # ── Kosztorysy ─────────────────────────────────────────────────────────────────
 

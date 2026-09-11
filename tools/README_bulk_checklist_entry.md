@@ -55,6 +55,15 @@ z rolą kontroler/admin) i aktywnych zamówień z serwera.
 | Operator | Kontroler/admin zapisywany jako autor kontroli |
 | Zamówienie | Opcjonalne powiązanie z istniejącym zamówieniem (numer ZO) |
 | Data / godzina kontroli | Kiedy kontrola "się odbyła" — trafia do `created_at`/`completed_at` wpisów |
+| Monterzy | Lista monterów (+opcjonalna rola), przypisywana do każdego punktu checklisty typu „monter” w każdej liście serii |
+
+### Monterzy — dlaczego to osobna sekcja
+
+Część szablonów ma punkty specjalnego typu „monter” (np. „Montaż”), gdzie samo
+zaznaczenie OK nie wystarcza — trzeba wskazać, kto montował (jeden monter albo
+kilku, każdy z opcjonalną rolą, np. „Obudowa” / „Drzwi”). Program dodaje ten sam
+zestaw monterów do wszystkich takich punktów w całej tworzonej serii. Jeśli
+wybrany szablon nie ma żadnego punktu tego typu, sekcja jest po prostu ignorowana.
 
 Po zatwierdzeniu program prosi o potwierdzenie i wysyła jedno zapytanie
 `POST /api/v1/checklists`, które tworzy całą serię naraz (ten sam mechanizm
@@ -73,7 +82,11 @@ w samej aplikacji).
   "operator": "jkowalski",
   "order_number": "ZAM-2026-001",
   "completed": true,
-  "performed_at": "2026-09-01T08:00:00"
+  "performed_at": "2026-09-01T08:00:00",
+  "installers": [
+    {"name": "Jan Kowalski", "role": "Obudowa"},
+    "Adam Nowak"
+  ]
 }
 ```
 
@@ -86,9 +99,17 @@ w samej aplikacji).
   i ustawia status `completed`.
 - `performed_at` — ISO 8601, domyślnie teraz; ustawia `created_at`/
   `started_at`/`completed_at` utworzonych raportów.
+- `installers` — opcjonalna lista monterów (string z nazwą, albo obiekt
+  `{name lub installer_id, role, is_at_fault}`); przypisywana do KAŻDEGO
+  punktu checklisty typu `installer` (np. „Montaż”) w KAŻDYM raporcie serii.
+  Bez tego pola takie punkty zostają odhaczone jako OK, ale bez przypisanego
+  montera — dokładnie ten przypadek zgłoszony jako niewystarczający.
 
 Odpowiedź dla `quantity == 1` jest jak dotychczas; dla serii zwraca
-`batch_id` i listę utworzonych `items`.
+`batch_id` i listę utworzonych `items`. Szczegóły raportu (`GET
+/api/v1/checklists/<id>`) pokazują przypisanych monterów w polu
+`items[].installers`.
 
-Zobacz też: `GET /api/v1/users` (lista kontrolerów/adminów) i
-`GET /api/v1/templates` (lista aktywnych szablonów).
+Zobacz też: `GET /api/v1/users` (lista kontrolerów/adminów),
+`GET /api/v1/templates` (lista aktywnych szablonów) i
+`GET /api/v1/installers` (lista aktywnych monterów).
