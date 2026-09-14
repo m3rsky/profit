@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from flask import (render_template, redirect, url_for, request,
                    flash, abort, current_app, jsonify, send_from_directory)
 from flask_login import login_required, current_user
+from werkzeug.exceptions import HTTPException
 from werkzeug.utils import secure_filename
 from sqlalchemy import func
 
@@ -222,69 +223,85 @@ def new_report():
 def create_from_checklist_item(item_id):
     """Tworzy raport QAR bezpośrednio z pozycji listy kontrolnej (punktu NG),
     wiąże go z tą pozycją i kopiuje wskazane zdjęcia punktu do galerii QAR.
-    Zwraca JSON — front zamyka modal i wraca do dalszej kontroli."""
-    item   = get_or_404(ReportItem, item_id)
-    report = item.report
-    if not (current_user.is_admin or current_user.is_kontroler
-            or report.user_id == current_user.id):
-        return jsonify({'error': 'Brak uprawnień'}), 403
+    Zwraca JSON — front zamyka modal i wraca do dalszej kontroli.
 
-    if item.qar_report_id and item.qar_report:
-        return jsonify({'ok': True, 'already': True,
-                        'number': item.qar_report.number,
-                        'url': url_for('qar.detail_report', report_id=item.qar_report.id)})
+    Cała logika jest opakowana w try/except: bez tego niespodziewany wyjątek
+    kończy się globalnym error-handlerem 500, który renderuje stronę HTML —
+    front robi na niej `r.json()`, dostaje błąd parsowania i pokazuje mylące
+    „Błąd połączenia" zamiast prawdziwej przyczyny."""
+    try:
+        item   = get_or_404(ReportItem, item_id)
+        report = item.report
+        if not (current_user.is_admin or current_user.is_kontroler
+                or report.user_id == current_user.id):
+            return jsonify({'error': 'Brak uprawnień'}), 403
 
-    data        = request.get_json(silent=True) or {}
-    title       = (data.get('title') or '').strip()
-    description = (data.get('description') or '').strip()
-    if not title or not description:
-        return jsonify({'error': 'Tytuł i opis problemu są wymagane.'}), 400
+        if item.qar_report_id and item.qar_report:
+            return jsonify({'ok': True, 'already': True,
+                            'number': item.qar_report.number,
+                            'url': url_for('qar.detail_report', report_id=item.qar_report.id)})
 
-    category = (data.get('category') or '').strip()
-    if category and category not in _category_names():
-        category = ''
+        data        = request.get_json(silent=True) or {}
+        title       = (data.get('title') or '').strip()
+        description = (data.get('description') or '').strip()
+        if not title or not description:
+            return jsonify({'error': 'Tytuł i opis problemu są wymagane.'}), 400
 
-    qar = QARReport(
-        number=_next_qar_number(),
-        zo_number=(data.get('zo_number') or '').strip() or None,
-        drawing_number=(data.get('drawing_number') or '').strip() or None,
-        title=title,
-        category=category or None,
-        location=(data.get('location') or '').strip() or None,
-        description=description,
-        employee_id=_parse_employee_id(data.get('employee_id')),
-        user_id=current_user.id,
-    )
-    db.session.add(qar)
-    db.session.flush()
+        category = (data.get('category') or '').strip()
+        if category and category not in _category_names():
+            category = ''
 
-    photo_ids = data.get('photo_ids') or []
-    wanted = {int(p) for p in photo_ids if str(p).isdigit()} if isinstance(photo_ids, list) else set()
-    if wanted:
-        src_dir = current_app.config.get('UPLOAD_FOLDER', '')
-        dst_dir = current_app.config.get('QAR_UPLOAD_FOLDER', '')
-        os.makedirs(dst_dir, exist_ok=True)
-        for photo in item.photos.all():
-            if photo.id not in wanted:
-                continue
-            src = os.path.join(src_dir, photo.filename)
-            if not os.path.exists(src):
-                continue
-            ext = photo.filename.rsplit('.', 1)[-1].lower() if '.' in photo.filename else 'jpg'
-            new_name = f'qar_{uuid.uuid4().hex}.{ext}'
-            try:
-                shutil.copy2(src, os.path.join(dst_dir, new_name))
-            except OSError:
-                continue
-            db.session.add(QARPhoto(report_id=qar.id, filename=new_name,
-                                    original_name=photo.original_name))
+        qar = QARReport(
+            number=_next_qar_number(),
+            zo_number=(data.get('zo_number') or '').strip() or None,
+            drawing_number=(data.get('drawing_number') or '').strip() or None,
+            title=title,
+            category=category or None,
+            location=(data.get('location') or '').strip() or None,
+            description=description,
+            employee_id=_parse_employee_id(data.get('employee_id')),
+            user_id=current_user.id,
+        )
+        db.session.add(qar)
+        db.session.flush()
 
-    item.qar_report_id = qar.id
-    db.session.commit()
-    _audit('qar_create_from_checklist', qar.id,
-           f'number={qar.number} report={report.id} item={item.id}')
-    return jsonify({'ok': True, 'number': qar.number,
-                    'url': url_for('qar.detail_report', report_id=qar.id)})
+        photo_ids = data.get('photo_ids') or []
+        wanted = ({int(p) for p in photo_ids if str(p).isdigit()}
+                 if isinstance(photo_ids, list) else set())
+        if wanted:
+            src_dir = current_app.config.get('UPLOAD_FOLDER', '')
+            dst_dir = current_app.config.get('QAR_UPLOAD_FOLDER', '')
+            os.makedirs(dst_dir, exist_ok=True)
+            for photo in item.photos.all():
+                if photo.id not in wanted:
+                    continue
+                src = os.path.join(src_dir, photo.filename)
+                if not os.path.exists(src):
+                    continue
+                ext = photo.filename.rsplit('.', 1)[-1].lower() if '.' in photo.filename else 'jpg'
+                new_name = f'qar_{uuid.uuid4().hex}.{ext}'
+                try:
+                    shutil.copy2(src, os.path.join(dst_dir, new_name))
+                except OSError:
+                    continue
+                db.session.add(QARPhoto(report_id=qar.id, filename=new_name,
+                                        original_name=photo.original_name))
+
+        item.qar_report_id = qar.id
+        db.session.commit()
+        _audit('qar_create_from_checklist', qar.id,
+               f'number={qar.number} report={report.id} item={item.id}')
+        return jsonify({'ok': True, 'number': qar.number,
+                        'url': url_for('qar.detail_report', report_id=qar.id)})
+    except HTTPException:
+        raise  # 403/404 z abort()/get_or_404 — niech Flask obsłuży normalnie
+    except Exception as exc:
+        db.session.rollback()
+        current_app.logger.exception(
+            'Błąd tworzenia QAR z punktu kontrolnego item_id=%s', item_id)
+        detail = f'{type(exc).__name__}: {exc}'[:300]
+        return jsonify({'error': f'Błąd serwera przy tworzeniu QAR ({detail}). '
+                                 'Zgłoś administratorowi.'}), 500
 
 
 # ── Szczegóły ─────────────────────────────────────────────────────────────────

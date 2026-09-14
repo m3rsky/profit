@@ -108,6 +108,29 @@ class TestQarFromChecklistItem:
         assert num.encode('utf-8') in resp.data
 
 
+class TestQarFromChecklistItemErrorHandling:
+    """Regresja: dowolny niespodziewany wyjątek w endpointcie musi wrócić jako
+    JSON 500 (z komunikatem), a nie jako strona HTML globalnego error-handlera
+    — front robi na odpowiedzi `r.json()`/parsuje tekst i przy HTML pokazywał
+    mylące „Błąd połączenia" zamiast prawdziwej przyczyny."""
+
+    def test_unexpected_exception_returns_json_500(self, client, monkeypatch):
+        import qar.routes as qar_routes
+        _, item_id = _new_report_with_item(client)
+
+        def _boom():
+            raise RuntimeError('symulowana awaria numeracji QAR')
+        monkeypatch.setattr(qar_routes, '_next_qar_number', _boom)
+
+        resp = _post_qar(client, item_id, title='Awaria', description='Opis')
+        assert resp.status_code == 500
+        data = resp.get_json()
+        assert data is not None
+        assert 'RuntimeError' in data['error']
+        with flask_app.app_context():
+            assert db.session.get(ReportItem, item_id).qar_report_id is None
+
+
 class TestQarFromChecklistItemWithPhoto:
     """Regresja: kopiowanie zdjęcia punktu do galerii QAR (Photo nie ma pola
     'caption' — wcześniej powodowało AttributeError -> 500 -> 'Błąd połączenia'

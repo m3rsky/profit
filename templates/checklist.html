@@ -806,11 +806,22 @@ document.querySelectorAll('.batch-progress-fill[data-pct]').forEach(function (el
         photo_ids:   photoIds,
       }),
     })
-      .then(r => r.json().then(d => ({ ok: r.ok, d })))
+      .then(function (r) {
+        return r.text().then(function (txt) {
+          let d;
+          try { d = txt ? JSON.parse(txt) : {}; }
+          catch (parseErr) {
+            // Serwer zwrócił coś innego niż JSON (np. stronę błędu spoza tego
+            // endpointu) — pokaż status zamiast milczącego "Błąd połączenia".
+            throw new Error('Nieoczekiwana odpowiedź serwera (HTTP ' + r.status + ').');
+          }
+          return { ok: r.ok, status: r.status, d: d };
+        });
+      })
       .then(function (res) {
         submitBtn.disabled = false;
         if (!res.ok || !res.d.ok) {
-          errBox.textContent = res.d.error || 'Nie udało się utworzyć QAR.';
+          errBox.textContent = res.d.error || ('Nie udało się utworzyć QAR (HTTP ' + res.status + ').');
           errBox.hidden = false;
           return;
         }
@@ -824,10 +835,11 @@ document.querySelectorAll('.batch-progress-fill[data-pct]').forEach(function (el
         closeModal();
         if (window.showToast) window.showToast('Utworzono ' + res.d.number + '.');
       })
-      .catch(function () {
+      .catch(function (err) {
         submitBtn.disabled = false;
-        errBox.textContent = 'Błąd połączenia.';
+        errBox.textContent = err && err.message ? err.message : 'Błąd połączenia (sieć/serwer niedostępny).';
         errBox.hidden = false;
+        console.error('Zgłoszenie QAR z punktu kontrolnego nie powiodło się:', err);
       });
   });
 
