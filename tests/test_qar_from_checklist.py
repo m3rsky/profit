@@ -1,8 +1,10 @@
 """Testy szybkiego zgłaszania QAR z punktu kontrolnego listy QA."""
+import os
+
 import pytest
 
 from app import app as flask_app, db
-from models import ChecklistTemplate, Report, ReportItem, QARReport, User
+from models import ChecklistTemplate, Report, ReportItem, Photo, QARReport, User
 from test_app import login, logout, _csrf
 
 
@@ -37,7 +39,7 @@ def _cleanup():
             {'qar_report_id': None}, synchronize_session=False)
         QARReport.query.filter(QARReport.number.like('QAR-%')).filter(
             QARReport.title.in_(['Zadanie testowe', 'Pęknięta spoina',
-                                 'Zła kategoria', 'Dobra kategoria'])).delete(
+                                 'Zła kategoria', 'Dobra kategoria', 'Z fotką'])).delete(
             synchronize_session=False)
         db.session.commit()
 
@@ -104,3 +106,47 @@ class TestQarFromChecklistItem:
         resp = client.get(f'/checklist/{report_id}')
         assert resp.status_code == 200
         assert num.encode('utf-8') in resp.data
+
+
+class TestQarFromChecklistItemWithPhoto:
+    """Regresja: kopiowanie zdjęcia punktu do galerii QAR (Photo nie ma pola
+    'caption' — wcześniej powodowało AttributeError -> 500 -> 'Błąd połączenia'
+    po stronie frontu za każdym razem, gdy NG miało dołączone zdjęcie)."""
+
+    def test_copies_item_photo_into_qar(self, app, client):
+        report_id, item_id = _new_report_with_item(client)
+        upload_dir = app.config['UPLOAD_FOLDER']
+        qar_dir    = app.config['QAR_UPLOAD_FOLDER']
+        os.makedirs(upload_dir, exist_ok=True)
+        os.makedirs(qar_dir, exist_ok=True)
+        fname = f'test_ng_photo_{item_id}.jpg'
+        src_path = os.path.join(upload_dir, fname)
+        with open(src_path, 'wb') as f:
+            f.write(b'fake-jpeg-bytes')
+
+        with flask_app.app_context():
+            photo = Photo(report_item_id=item_id, filename=fname, original_name='orig.jpg')
+            db.session.add(photo)
+            db.session.commit()
+            photo_id = photo.id
+
+        try:
+            resp = _post_qar(client, item_id, title='Z fotką', description='Opis',
+                             photo_ids=[str(photo_id)])
+            assert resp.status_code == 200
+            data = resp.get_json()
+            assert data['ok'] is True
+
+            with flask_app.app_context():
+                qar = QARReport.query.filter_by(number=data['number']).first()
+                assert qar.photos.count() == 1
+                qphoto = qar.photos.first()
+                dst_path = os.path.join(qar_dir, qphoto.filename)
+                assert os.path.exists(dst_path)
+                os.remove(dst_path)
+        finally:
+            if os.path.exists(src_path):
+                os.remove(src_path)
+            with flask_app.app_context():
+                Photo.query.filter_by(id=photo_id).delete()
+                db.session.commit()

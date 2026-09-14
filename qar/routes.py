@@ -277,8 +277,7 @@ def create_from_checklist_item(item_id):
             except OSError:
                 continue
             db.session.add(QARPhoto(report_id=qar.id, filename=new_name,
-                                    original_name=photo.original_name,
-                                    caption=photo.caption))
+                                    original_name=photo.original_name))
 
     item.qar_report_id = qar.id
     db.session.commit()
