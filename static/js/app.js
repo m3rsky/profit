@@ -560,3 +560,28 @@ rowChecks.forEach(cb => cb.addEventListener('change', updateBar));
 function selectOnly(id) {
   rowChecks.forEach(cb => { cb.checked = String(cb.value) === String(id); });
 }
+
+// Naprawia polskie znaki zniekształcone przez skaner QR (html5-qrcode/ZXing),
+// gdy kod QR wygenerowany przez Streamsoft koduje tekst w Windows-1250, a skaner
+// bez wskazanej strony kodowej (ECI) odczytuje bajty jako ISO-8859-1 (np. „Ł” -> „£”).
+// Naprawia tylko odwracalne przypadki 1:1 bajt-na-znak; nie odtworzy znaków już
+// utraconych przez skaner jako znak zastępczy „�” (U+FFFD) — to wymaga poprawy
+// kodowania po stronie Streamsoftu.
+function repairPolishText(s) {
+  if (!s) return s;
+  for (let i = 0; i < s.length; i++) {
+    if (s.charCodeAt(i) > 0xFF) return s;
+  }
+  const bytes = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) bytes[i] = s.charCodeAt(i);
+
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch (e) {}
+
+  try {
+    return new TextDecoder('windows-1250', { fatal: true }).decode(bytes);
+  } catch (e) {}
+
+  return s;
+}

@@ -158,7 +158,7 @@
   }
 
   function parseQr(text) {
-    text = text.trim();
+    text = repairPolishText(text.trim());
     try {
       var obj = JSON.parse(text);
       if (obj && obj.p && obj.q) {
