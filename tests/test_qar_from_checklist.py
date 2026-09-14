@@ -107,6 +107,17 @@ class TestQarFromChecklistItem:
         assert resp.status_code == 200
         assert num.encode('utf-8') in resp.data
 
+    def test_checklist_item_row_carries_item_id_attribute(self, client):
+        """Regresja: modal QAR czytał item id z data-item-id na .checklist-item,
+        którego ten element nie miał — dawało JS string "undefined" i front
+        wołał POST /qar/from-checklist-item/undefined -> 404 ('Nieoczekiwana
+        odpowiedź serwera HTTP 404'). Element musi nosić ten atrybut."""
+        report_id, item_id = _new_report_with_item(client)
+        resp = client.get(f'/checklist/{report_id}')
+        assert resp.status_code == 200
+        html = resp.data.decode('utf-8')
+        assert f'id="item-{item_id}" data-item-id="{item_id}"' in html
+
 
 class TestQarFromChecklistItemErrorHandling:
     """Regresja: dowolny niespodziewany wyjątek w endpointcie musi wrócić jako

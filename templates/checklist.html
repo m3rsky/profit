@@ -113,7 +113,7 @@
     <small>{{ items | selectattr('is_checked') | list | length }}/{{ items | length }}</small>
   </div>
   {% for item in items %}
-  <div class="checklist-item {% if item.result == 'ok' %}result-ok{% elif item.result == 'ng' %}result-ng{% endif %}" id="item-{{ item.id }}">
+  <div class="checklist-item {% if item.result == 'ok' %}result-ok{% elif item.result == 'ng' %}result-ng{% endif %}" id="item-{{ item.id }}" data-item-id="{{ item.id }}">
     <div class="item-body">
       <div class="item-title">{{ item.task.title }}</div>
       {% if item.task.description %}
@@ -701,7 +701,13 @@ document.querySelectorAll('.batch-progress-fill[data-pct]').forEach(function (el
     activeRow = row;
     const btn = row.querySelector('.qar-item-btn');
     errBox.hidden = true; errBox.textContent = '';
-    fItem.value  = row.dataset.itemId;
+    // Uwaga: .checklist-item (row) NIE ma atrybutu data-item-id — trzeba go
+    // brać z przycisku (lub zapasowo z .qar-item-row), inaczej fItem.value
+    // wychodzi jako literalny string "undefined" i POST leci pod
+    // /qar/from-checklist-item/undefined -> 404.
+    fItem.value  = (btn && btn.dataset.itemId)
+                   || row.querySelector('.qar-item-row')?.dataset.itemId
+                   || '';
     fTitle.value = btn ? (btn.dataset.taskTitle || '') : '';
     fCat.value   = btn && btn.dataset.qarCategory
                    && [...fCat.options].some(o => o.value === btn.dataset.qarCategory)
@@ -785,6 +791,11 @@ document.querySelectorAll('.batch-progress-fill[data-pct]').forEach(function (el
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     const itemId = fItem.value;
+    if (!itemId || !/^\d+$/.test(itemId)) {
+      errBox.textContent = 'Nie udało się ustalić punktu kontrolnego — odśwież stronę i spróbuj ponownie.';
+      errBox.hidden = false;
+      return;
+    }
     if (!fTitle.value.trim() || !fDesc.value.trim()) {
       errBox.textContent = 'Tytuł i opis problemu są wymagane.';
       errBox.hidden = false;
