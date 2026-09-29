@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Kontrola – {{ record.zo_number }}{% endblock %}
+{% block title %}Kontrola etapów – {{ record.zo_number }}{% endblock %}
 
 {% block content %}
 <div class="sp-wrap">
@@ -7,7 +7,7 @@
   {# ── Górna belka ── #}
   <div class="sp-topbar">
     <div class="sp-topbar-info">
-      <i class="bi bi-fire sp-fire"></i>
+      <i class="bi bi-clipboard2-check sp-fire"></i>
       <span class="sp-zo-label">ZO:</span>
       <strong class="sp-zo-val">{{ record.zo_number }}</strong>
     </div>
@@ -36,165 +36,81 @@
     {{ csrf_input() }}
     <input type="hidden" name="zo_number" value="{{ record.zo_number }}">
 
-    {# Wiersz 1: OTWOROWANIE + PRZEKĄTNA (z odchyłką w tej samej karcie) #}
-    <div class="sp-row">
+    {% if record.product_name or record.client %}
+    <div class="sp-meta">
+      {% if record.product_name %}<span><i class="bi bi-box-seam"></i> {{ record.product_name }}</span>{% endif %}
+      {% if record.client %}<span><i class="bi bi-person"></i> {{ record.client }}</span>{% endif %}
+    </div>
+    {% endif %}
 
-      <div class="sp-field">
-        <span class="sp-lbl">Otworowanie</span>
-        <div class="sp-okng">
-          <label class="sp-cb sp-cb--ok">
-            <input type="radio" name="otworowanie" value="OK"
-                   {% if record.otworowanie == 'OK' %}checked{% endif %}>OK
-          </label>
-          <label class="sp-cb sp-cb--ng">
-            <input type="radio" name="otworowanie" value="NG"
-                   {% if record.otworowanie == 'NG' %}checked{% endif %}>NG
-          </label>
-          <label class="sp-cb">
-            <input type="radio" name="otworowanie" value=""
-                   {% if not record.otworowanie %}checked{% endif %}>—
-          </label>
-        </div>
+    {# Jeden blok na etap: wynik OK/NG, osoba z Marszruty, uwagi (przy NG powstaje raport QAR) #}
+    {% for st in stages %}
+    {% set chk = checks.get(st.key) %}
+    {% set emps = stage_employees[st.key] %}
+    <div class="sp-field sp-stage">
+      <div class="sp-stage-head">
+        <span class="sp-lbl">{{ st.label }}</span>
+        {% if chk and chk.qar_report %}
+        <a class="badge badge-ng" href="{{ url_for('qar.detail_report', report_id=chk.qar_report.id) }}"
+           title="Raport niezgodności">{{ chk.qar_report.number }}</a>
+        {% endif %}
+        {% if chk and chk.checked_by and chk.checked_at %}
+        <span class="sp-hint">{{ chk.checked_by.username }}, {{ chk.checked_at|localdt('%d.%m %H:%M') }}</span>
+        {% endif %}
       </div>
-
-      <div class="sp-field">
-        <span class="sp-lbl">Przekątna</span>
-        <div class="sp-okng">
-          <label class="sp-cb sp-cb--ok">
-            <input type="radio" name="przekatna" value="OK"
-                   {% if record.przekatna == 'OK' %}checked{% endif %}>OK
-          </label>
-          <label class="sp-cb sp-cb--ng">
-            <input type="radio" name="przekatna" value="NG"
-                   {% if record.przekatna == 'NG' %}checked{% endif %}>NG
-          </label>
-          <label class="sp-cb">
-            <input type="radio" name="przekatna" value=""
-                   {% if not record.przekatna %}checked{% endif %}>—
-          </label>
-        </div>
-        <label class="sp-lbl sp-lbl--sub" for="sp-odch">Odchyłka [mm]</label>
-        <input type="text" id="sp-odch" name="przekatna_odchylka" class="sp-txt"
-               value="{{ '%.2f'|format(record.przekatna_odchylka)|replace('.',',') if record.przekatna_odchylka is not none else '' }}"
-               placeholder="0,00" inputmode="decimal">
-      </div>
-
-    </div>{# /row 1 #}
-
-    {# Wiersz 2: JAKOŚĆ WYCIĘCIA (pełna szerokość) #}
-    <div class="sp-field sp-field--wide">
-      <span class="sp-lbl">Jakość wycięcia</span>
       <div class="sp-okng">
         <label class="sp-cb sp-cb--ok">
-          <input type="radio" name="jakosc_wyciecia" value="OK"
-                 {% if record.jakosc_wyciecia == 'OK' %}checked{% endif %}>OK
+          <input type="radio" name="result_{{ st.key }}" value="OK"
+                 {% if chk and chk.result == 'OK' %}checked{% endif %}>OK
         </label>
         <label class="sp-cb sp-cb--ng">
-          <input type="radio" name="jakosc_wyciecia" value="NG"
-                 {% if record.jakosc_wyciecia == 'NG' %}checked{% endif %}>NG
+          <input type="radio" name="result_{{ st.key }}" value="NG"
+                 {% if chk and chk.result == 'NG' %}checked{% endif %}>NG
         </label>
         <label class="sp-cb">
-          <input type="radio" name="jakosc_wyciecia" value=""
-                 {% if not record.jakosc_wyciecia %}checked{% endif %}>—
+          <input type="radio" name="result_{{ st.key }}" value=""
+                 {% if not chk or not chk.result %}checked{% endif %}>—
         </label>
       </div>
+
+      <span class="sp-lbl sp-lbl--sub">Osoba</span>
+      {% if emps %}
+      <div class="sp-ops sp-ops--sm">
+        <label class="sp-op sp-op--sm">
+          <input type="radio" name="employee_{{ st.key }}" value=""
+                 {% if not chk or not chk.employee_id %}checked{% endif %}>—
+        </label>
+        {% for e in emps %}
+        <label class="sp-op sp-op--sm" title="{{ e.department.name }}">
+          <input type="radio" name="employee_{{ st.key }}" value="{{ e.id }}"
+                 {% if chk and chk.employee_id == e.id %}checked{% endif %}>
+          {{ e.name }}
+        </label>
+        {% endfor %}
+      </div>
+      {% else %}
+      <input type="hidden" name="employee_{{ st.key }}" value="">
+      <span class="sp-hint">Brak pracowników{% if current_user.is_kontroler %} - <a href="{{ url_for('marszruta.admin_departments') }}">dodaj w Marszrucie</a>{% endif %}</span>
+      {% endif %}
+
+      <textarea name="notes_{{ st.key }}" class="sp-txt sp-notes" rows="2"
+                placeholder="Opis niezgodności (trafi do raportu QAR)">{{ chk.notes if chk and chk.notes else '' }}</textarea>
     </div>
+    {% endfor %}
 
-    {# Wiersz 3: POMIARY (pełna szerokość, 3 kolumny) #}
-    <div class="sp-field sp-field--wide">
-      <span class="sp-lbl">Pomiary szerokości [cm]</span>
-      <div class="sp-pomiary">
-        <div class="sp-pomiar">
-          <label class="sp-pomiar-lbl" for="sp-p1">Pomiar 1</label>
-          <input type="text" id="sp-p1" name="pomiar1" class="sp-txt"
-                 value="{{ '%.2f'|format(record.pomiar1)|replace('.',',') if record.pomiar1 is not none else '' }}"
-                 placeholder="0,00" inputmode="decimal">
-        </div>
-        <div class="sp-pomiar">
-          <label class="sp-pomiar-lbl" for="sp-p2">Pomiar 2</label>
-          <input type="text" id="sp-p2" name="pomiar2" class="sp-txt"
-                 value="{{ '%.2f'|format(record.pomiar2)|replace('.',',') if record.pomiar2 is not none else '' }}"
-                 placeholder="0,00" inputmode="decimal">
-        </div>
-        <div class="sp-pomiar">
-          <label class="sp-pomiar-lbl" for="sp-p3">Pomiar 3</label>
-          <input type="text" id="sp-p3" name="pomiar3" class="sp-txt"
-                 value="{{ '%.2f'|format(record.pomiar3)|replace('.',',') if record.pomiar3 is not none else '' }}"
-                 placeholder="0,00" inputmode="decimal">
-        </div>
-      </div>
+    {% if record.has_legacy_data %}
+    <div class="sp-field sp-legacy">
+      <span class="sp-lbl">Dane archiwalne (poprzednia wersja kontroli)</span>
+      <span class="sp-hint">
+        Otworowanie: {{ record.otworowanie or '-' }} | Przekątna: {{ record.przekatna or '-' }}
+        {% if record.przekatna_odchylka is not none %}({{ record.przekatna_odchylka }} mm){% endif %}
+        | Jakość wycięcia: {{ record.jakosc_wyciecia or '-' }}
+        | Pomiary: {{ record.pomiar1 if record.pomiar1 is not none else '-' }} /
+        {{ record.pomiar2 if record.pomiar2 is not none else '-' }} /
+        {{ record.pomiar3 if record.pomiar3 is not none else '-' }} cm
+      </span>
     </div>
-
-    {# Wiersz 4: SPAWACZ + GIĘCIE + CIĘCIE (3 kolumny obok siebie) #}
-    <div class="sp-row sp-row--ops">
-
-      <div class="sp-field">
-        <span class="sp-lbl">Spawacz</span>
-        {% if operators %}
-        <div class="sp-ops sp-ops--sm">
-          <label class="sp-op sp-op--sm">
-            <input type="radio" name="operator_id" value=""
-                   {% if not record.operator_id %}checked{% endif %}>—
-          </label>
-          {% for op in operators %}
-          <label class="sp-op sp-op--sm" title="{{ op.name }}">
-            <input type="radio" name="operator_id" value="{{ op.id }}"
-                   {% if record.operator_id == op.id %}checked{% endif %}>
-            {{ op.initials }}
-          </label>
-          {% endfor %}
-        </div>
-        {% else %}
-        <input type="hidden" name="operator_id" value="">
-        <span class="sp-hint">Brak{% if current_user.is_admin %} — <a href="{{ url_for('spawalnia.admin_operators') }}">dodaj</a>{% endif %}</span>
-        {% endif %}
-      </div>
-
-      <div class="sp-field">
-        <span class="sp-lbl">Gięcie</span>
-        {% if giecie_operators %}
-        <div class="sp-ops sp-ops--sm">
-          <label class="sp-op sp-op--sm">
-            <input type="radio" name="giecie_operator_id" value=""
-                   {% if not record.giecie_operator_id %}checked{% endif %}>—
-          </label>
-          {% for op in giecie_operators %}
-          <label class="sp-op sp-op--sm" title="{{ op.name }}">
-            <input type="radio" name="giecie_operator_id" value="{{ op.id }}"
-                   {% if record.giecie_operator_id == op.id %}checked{% endif %}>
-            {{ op.initials }}
-          </label>
-          {% endfor %}
-        </div>
-        {% else %}
-        <input type="hidden" name="giecie_operator_id" value="">
-        <span class="sp-hint">Brak{% if current_user.is_admin %} — <a href="{{ url_for('spawalnia.admin_giecie_operators') }}">dodaj</a>{% endif %}</span>
-        {% endif %}
-      </div>
-
-      <div class="sp-field">
-        <span class="sp-lbl">Cięcie</span>
-        {% if ciecie_operators %}
-        <div class="sp-ops sp-ops--sm">
-          <label class="sp-op sp-op--sm">
-            <input type="radio" name="ciecie_operator_id" value=""
-                   {% if not record.ciecie_operator_id %}checked{% endif %}>—
-          </label>
-          {% for op in ciecie_operators %}
-          <label class="sp-op sp-op--sm" title="{{ op.name }}">
-            <input type="radio" name="ciecie_operator_id" value="{{ op.id }}"
-                   {% if record.ciecie_operator_id == op.id %}checked{% endif %}>
-            {{ op.initials }}
-          </label>
-          {% endfor %}
-        </div>
-        {% else %}
-        <input type="hidden" name="ciecie_operator_id" value="">
-        <span class="sp-hint">Brak{% if current_user.is_admin %} — <a href="{{ url_for('spawalnia.admin_ciecie_operators') }}">dodaj</a>{% endif %}</span>
-        {% endif %}
-      </div>
-
-    </div>{# /sp-row--ops #}
+    {% endif %}
 
     {# Przycisk Zapisz #}
     <button type="submit" class="sp-save">
@@ -211,7 +127,7 @@
 </div>{# /.sp-wrap #}
 
 <style>
-/* ═══ Spawalnia — tablet-first compact form ═══════════════════════════════ */
+/* ═══ Kontrola międzyetapowa — tablet-first compact form ═══════════════════════════════ */
 
 .sp-wrap {
   display: flex;
@@ -251,6 +167,14 @@
 
 /* Formularz */
 .sp-form { display: flex; flex-direction: column; gap: clamp(.4rem, 1.2vh, .9rem); }
+
+/* Uwagi etapu: widoczne tylko przy NG */
+.sp-notes { display: none; min-height: 60px; resize: vertical; margin-top: .3rem; }
+.sp-stage:has(input[value=NG]:checked) .sp-notes { display: block; }
+.sp-stage-head { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.sp-meta { display: flex; gap: 1rem; flex-wrap: wrap; font-size: .85rem; color: var(--text-muted); }
+.sp-legacy { opacity: .8; }
+.sp-op { text-align: center; }
 
 /* Wiersz 2-kolumnowy — min 260px na kolumnę, max 2 kolumny */
 .sp-row {

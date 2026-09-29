@@ -27,7 +27,8 @@ from models import (db, get_or_404, User, ChecklistTemplate, Category, Task, Rep
                     Photo, AuditLog, Order, Alert,
                     CabinetType, MaterialPrice, LaborRate, Quote, QuoteConfig,
                     CatalogProduct,
-                    SpawalniaOperator, SpawalniaRecord,
+                    SpawalniaOperator, SpawalniaRecord, InterstageCheck,
+                    INTERSTAGE_STAGES, ensure_interstage_checks,
                     ChecklistSession, Installer, ReportItemInstaller,
                     QARReport, QARPhoto, QATask, QARCategory,
                     ProductionDepartment, DepartmentEmployee, RoutingTemplate,
@@ -3455,6 +3456,8 @@ def _migrate_schema():
                 ('przekatna_odchylka', 'ALTER TABLE spawalnia_records ADD COLUMN przekatna_odchylka FLOAT'),
                 ('giecie_operator_id', 'ALTER TABLE spawalnia_records ADD COLUMN giecie_operator_id INTEGER REFERENCES giecie_operators(id)'),
                 ('ciecie_operator_id', 'ALTER TABLE spawalnia_records ADD COLUMN ciecie_operator_id INTEGER REFERENCES ciecie_operators(id)'),
+                ('product_name',       'ALTER TABLE spawalnia_records ADD COLUMN product_name VARCHAR(256)'),
+                ('client',             'ALTER TABLE spawalnia_records ADD COLUMN client VARCHAR(256)'),
             ]:
                 if col not in cols:
                     conn.execute(text(ddl)); conn.commit()
@@ -3986,6 +3989,16 @@ def _api_spawalnia_record_dict(r):
         'operator': r.operator.initials if r.operator else None,
         'giecie_operator': r.giecie_operator.initials if r.giecie_operator else None,
         'ciecie_operator': r.ciecie_operator.initials if r.ciecie_operator else None,
+        'product_name': r.product_name, 'client': r.client,
+        'stages': [
+            {'stage': st['key'], 'label': st['label'],
+             'result': c.result if c else None,
+             'employee': c.employee.name if c and c.employee else None,
+             'notes': c.notes if c else None,
+             'checked_at': c.checked_at.isoformat() if c and c.checked_at else None,
+             'qar_number': c.qar_report.number if c and c.qar_report else None}
+            for st in INTERSTAGE_STAGES for c in [r.check_map.get(st['key'])]
+        ],
         'created_at': r.created_at.isoformat(),
         'updated_at': r.updated_at.isoformat(),
     }
@@ -4025,10 +4038,13 @@ def api_v1_spawalnia_create(zo_number):
             zo_number=zo_number, batch_id=bid,
             batch_index=i if quantity > 1 else None,
             batch_total=quantity if quantity > 1 else None,
+            product_name=(data.get('product_name') or '').strip() or None,
+            client=(data.get('client') or '').strip() or None,
             created_by_id=admin_user.id,
         )
         db.session.add(rec)
         db.session.flush()
+        ensure_interstage_checks(rec)
         created_ids.append(rec.id)
     db.session.commit()
     _audit('api_spawalnia_create', 'SpawalniaRecord', created_ids[0], f'ZO={zo_number} qty={quantity}')
@@ -4281,10 +4297,19 @@ def _seed_marszruta():
 def _seed_qar_categories():
     """Inicjuje domyślną listę kategorii raportów QAR."""
     if QARCategory.query.first():
+        # Kontrola międzyetapowa tworzy QAR w kategoriach Gięcie i Czyszczenie.
+        # Dodajemy je do istniejącej bazy tylko raz (przed pierwszym użyciem modułu),
+        # żeby nie przywracać kategorii świadomie usuniętych przez admina.
+        if not InterstageCheck.query.first():
+            last = db.session.query(db.func.max(QARCategory.order)).scalar() or 0
+            for name in ('Gięcie', 'Czyszczenie'):
+                if not QARCategory.query.filter_by(name=name).first():
+                    last += 1
+                    db.session.add(QARCategory(name=name, order=last))
         return
     default_categories = [
         'Spawanie', 'Montaż', 'Materiał', 'Malowanie', 'Konstrukcja',
-        'Dokumentacja', 'Cięcie', 'Szlifiernia', 'Myjnia', 'Inne',
+        'Dokumentacja', 'Cięcie', 'Gięcie', 'Czyszczenie', 'Szlifiernia', 'Myjnia', 'Inne',
     ]
     for i, name in enumerate(default_categories):
         db.session.add(QARCategory(name=name, order=i))

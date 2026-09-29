@@ -1,13 +1,13 @@
 {% extends "base.html" %}
-{% block title %}Nowy wpis – Spawalnia{% endblock %}
+{% block title %}Nowy wpis – Kontrola etapów{% endblock %}
 
 {% block content %}
 <div class="sp-new-wrap">
 
   <div class="sp-new-header">
     <span class="sp-new-title">
-      <i class="bi bi-fire" style="color:var(--danger-text);margin-right:.3rem;"></i>
-      Nowy wpis kontroli spawalni
+      <i class="bi bi-clipboard2-check" style="color:var(--danger-text);margin-right:.3rem;"></i>
+      Nowa kontrola międzyetapowa
     </span>
     <a href="{{ url_for('spawalnia.list_records') }}" class="btn btn-sm btn-ghost">
       <i class="bi bi-list-ul"></i>
@@ -26,19 +26,22 @@
       </div>
 
       <div class="sp-new-field">
-        <label class="sp-new-lbl" for="quantity">Ilość list kontrolnych</label>
+        <label class="sp-new-lbl" for="quantity">Ilość wpisów kontroli</label>
         <div class="sp-qty-row">
           <button type="button" class="sp-qty-btn" id="qty-minus" aria-label="Mniej">−</button>
           <input type="number" id="quantity" name="quantity" class="sp-qty-input"
                  value="1" min="1" max="99" readonly>
           <button type="button" class="sp-qty-btn" id="qty-plus" aria-label="Więcej">+</button>
         </div>
-        <span class="sp-new-hint">Każda lista wypełniana osobno po kolei.</span>
+        <span class="sp-new-hint">Każdy wpis wypełniany osobno po kolei.</span>
       </div>
 
       <button type="submit" class="sp-new-submit">
-        <i class="bi bi-arrow-right"></i> Dalej — wypełnij listę
+        <i class="bi bi-arrow-right"></i> Dalej, wypełnij kontrolę
       </button>
+      <a href="{{ url_for('spawalnia.scan_page') }}" class="btn btn-outline" style="margin-top:.5rem;width:100%;">
+        <i class="bi bi-qr-code-scan"></i> Skanuj kod QR
+      </a>
     </form>
   </div>
 </div>

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Spawalnia{% endblock %}
+{% block title %}Kontrola międzyetapowa{% endblock %}
 
 {% macro ok_ng_badge(val) %}
   {% if val == 'OK' %}<span class="badge badge-ok">OK</span>
@@ -37,12 +37,15 @@
         <i class="bi bi-file-earmark-pdf"></i>
       </a>
     {% endif %}
-    {% if current_user.is_admin %}
+    {% if current_user.role in ('admin', 'kontroler') %}
       <a href="{{ url_for('spawalnia.admin_operators') }}"
-         class="btn btn-outline sp-list-action-btn" title="Operatorzy">
+         class="btn btn-outline sp-list-action-btn" title="Osoby (pracownicy działów)">
         <i class="bi bi-person-badge"></i>
       </a>
     {% endif %}
+    <a href="{{ url_for('spawalnia.scan_page') }}" class="btn btn-outline" title="Skanuj kod QR">
+      <i class="bi bi-qr-code-scan"></i><span class="sp-btn-txt"> Skanuj QR</span>
+    </a>
     <a href="{{ url_for('spawalnia.new_record') }}" class="btn btn-primary">
       <i class="bi bi-plus-lg"></i><span class="sp-btn-txt"> Nowy wpis</span>
     </a>
@@ -56,7 +59,7 @@
   {% set has_ng     = grp | selectattr('has_ng')      | list | length > 0 %}
   {% set empty_list = grp | selectattr('is_empty')    | list %}
   {% set any_empty  = empty_list | length > 0 %}
-  {% set any_filled = grp | selectattr('otworowanie') | list | length > 0 %}
+  {% set any_filled = grp | rejectattr('is_empty') | list | length > 0 %}
   <details class="sp-group">
 
     <summary class="sp-group-summary">
@@ -144,43 +147,19 @@
                 <i class="bi bi-pencil-fill"></i> Do wypełnienia
               </span>
             {% else %}
-              <span class="sp-badge-item">
-                <span class="sp-badge-lbl">Otw</span>{{ ok_ng_badge(rec.otworowanie) }}
-              </span>
-              <span class="sp-badge-item">
-                <span class="sp-badge-lbl">Prz</span>{{ ok_ng_badge(rec.przekatna) }}
-                {% if rec.przekatna_odchylka is not none %}
-                <span class="sp-rec-odch">{{ '%.1f'|format(rec.przekatna_odchylka) }}mm</span>
-                {% endif %}
-              </span>
-              <span class="sp-badge-item">
-                <span class="sp-badge-lbl">Jak</span>{{ ok_ng_badge(rec.jakosc_wyciecia) }}
-              </span>
-              {% if rec.pomiar1 is not none %}
-              <span class="sp-badge-item sp-badge-meas">
-                <span class="sp-badge-lbl">cm</span>
-                {{ '%.1f'|format(rec.pomiar1) }}
-                {% if rec.pomiar2 is not none %} / {{ '%.1f'|format(rec.pomiar2) }}{% endif %}
-                {% if rec.pomiar3 is not none %} / {{ '%.1f'|format(rec.pomiar3) }}{% endif %}
+              {% set cmap = rec.check_map %}
+              {% for st in stages %}
+              {% set chk = cmap.get(st.key) %}
+              {% if chk and chk.result %}
+              <span class="sp-badge-item" title="{{ st.label }}{% if chk.employee %}: {{ chk.employee.name }}{% endif %}">
+                <span class="sp-badge-lbl">{{ st.label[:3] }}</span>{{ ok_ng_badge(chk.result) }}
+                {% if chk.employee %}<span class="sp-rec-op">{{ chk.employee.name.split()[-1][:8] }}</span>{% endif %}
+                {% if chk.qar_report %}<a href="{{ url_for('qar.detail_report', report_id=chk.qar_report.id) }}" class="sp-rec-odch">{{ chk.qar_report.number }}</a>{% endif %}
               </span>
               {% endif %}
-              {% if rec.operator %}
-              <span class="sp-badge-item">
-                <span class="sp-badge-lbl">Sp</span>
-                <span class="sp-rec-op">{{ rec.operator.initials }}</span>
-              </span>
-              {% endif %}
-              {% if rec.giecie_operator %}
-              <span class="sp-badge-item">
-                <span class="sp-badge-lbl">Gi</span>
-                <span class="sp-rec-op">{{ rec.giecie_operator.initials }}</span>
-              </span>
-              {% endif %}
-              {% if rec.ciecie_operator %}
-              <span class="sp-badge-item">
-                <span class="sp-badge-lbl">Ci</span>
-                <span class="sp-rec-op">{{ rec.ciecie_operator.initials }}</span>
-              </span>
+              {% endfor %}
+              {% if rec.has_legacy_data %}
+              <span class="badge badge-neutral" title="Wpis zawiera dane ze starej wersji kontroli">archiwalne</span>
               {% endif %}
             {% endif %}
           </div>
@@ -243,7 +222,7 @@
 {% endif %}
 
 <style>
-/* ── Spawalnia lista ───────────────────────────────────────────────── */
+/* ── Kontrola międzyetapowa lista ───────────────────────────────────────────────── */
 
 /* Badges */
 .badge-ng { background: var(--danger-bg); color: var(--danger-text);

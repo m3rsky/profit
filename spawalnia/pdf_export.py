@@ -10,6 +10,8 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
+from models import INTERSTAGE_STAGES
+
 NAVY  = colors.HexColor('#1a5276')
 TEAL  = colors.HexColor('#1a6e8a')
 LIGHT = colors.HexColor('#eaf2f8')
@@ -63,7 +65,7 @@ def generate_pdf(records, zo_filter='') -> bytes:
         pagesize=landscape(A4),
         leftMargin=12*mm, rightMargin=12*mm,
         topMargin=14*mm, bottomMargin=14*mm,
-        title='Kontrola spawalni',
+        title='Kontrola międzyetapowa',
     )
 
     normal = ParagraphStyle('n', fontName=FONT, fontSize=8, leading=10)
@@ -76,7 +78,7 @@ def generate_pdf(records, zo_filter='') -> bytes:
     # ── Nagłówek ──────────────────────────────────────────────────────────────
     subtitle = f'Filtr ZO: {zo_filter}' if zo_filter else 'Wszystkie rekordy'
     hdr_data = [[
-        P('KONTROLA SPAWALNI', title),
+        P('KONTROLA MIĘDZYETAPOWA', title),
         P(subtitle, title),
         P(datetime.now().strftime('%d.%m.%Y'), title),
     ]]
@@ -91,48 +93,29 @@ def generate_pdf(records, zo_filter='') -> bytes:
     story.append(Spacer(1, 5*mm))
 
     # ── Tabela danych ─────────────────────────────────────────────────────────
-    col_headers = [
-        P('NR ZO', bold),
-        P('OTWOROWANIE', bold),
-        P('PRZEKĄTNA', bold),
-        P('ODCHYŁKA\n[mm]', bold),
-        P('POMIAR 1\n[cm]', bold),
-        P('POMIAR 2\n[cm]', bold),
-        P('POMIAR 3\n[cm]', bold),
-        P('JAKOŚĆ\nWYCIĘCIA', bold),
-        P('SPAWACZ', bold),
-        P('GIĘCIE', bold),
-        P('CIĘCIE', bold),
-        P('DATA', bold),
+    col_headers = [P('NR ZO', bold)] + [P(st['label'], bold) for st in INTERSTAGE_STAGES] + [
+        P('QAR', bold), P('DATA', bold),
     ]
     rows = [col_headers]
 
-    for i, rec in enumerate(records):
-        def fmt_float(v):
-            return f'{v:.2f}'.replace('.', ',') if v is not None else '—'
+    def stage_cell(chk):
+        if not chk or not chk.result:
+            return P('—')
+        who = chk.employee.name if chk.employee else ''
+        st = ParagraphStyle('s', fontName=FONT_BOLD, fontSize=8, textColor=_ok_ng_color(chk.result), leading=10)
+        return [Paragraph(chk.result, st), Paragraph(who, small)] if who else Paragraph(chk.result, st)
 
-        op_label     = rec.operator.initials        if rec.operator        else '—'
-        giecie_label = rec.giecie_operator.initials if rec.giecie_operator else '—'
-        ciecie_label = rec.ciecie_operator.initials if rec.ciecie_operator else '—'
-        date_label   = rec.created_at.strftime('%d.%m.%Y') if rec.created_at else '—'
-        bg = WHITE if i % 2 == 0 else GRAY
+    for rec in records:
+        cmap = rec.check_map
+        qars = ', '.join(c.qar_report.number for c in rec.checks if c.qar_report)
+        date_label = rec.created_at.strftime('%d.%m.%Y') if rec.created_at else '—'
+        rows.append(
+            [P(rec.zo_number, bold)]
+            + [stage_cell(cmap.get(st['key'])) for st in INTERSTAGE_STAGES]
+            + [P(qars or '—'), P(date_label)]
+        )
 
-        rows.append([
-            P(rec.zo_number, bold),
-            status_p(rec.otworowanie),
-            status_p(rec.przekatna),
-            P(fmt_float(rec.przekatna_odchylka)),
-            P(fmt_float(rec.pomiar1)),
-            P(fmt_float(rec.pomiar2)),
-            P(fmt_float(rec.pomiar3)),
-            status_p(rec.jakosc_wyciecia),
-            P(op_label),
-            P(giecie_label),
-            P(ciecie_label),
-            P(date_label),
-        ])
-
-    col_widths = [32*mm, 22*mm, 22*mm, 18*mm, 18*mm, 18*mm, 18*mm, 24*mm, 18*mm, 18*mm, 18*mm, 22*mm]
+    col_widths = [32*mm] + [27*mm] * len(INTERSTAGE_STAGES) + [30*mm, 22*mm]
     tbl = Table(rows, colWidths=col_widths, repeatRows=1)
     tbl.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), TEAL),

@@ -62,7 +62,7 @@ Przykład formatu:
 ## Informacje o projekcie
 
 - **Stack:** Python 3.14 (lokalnie, `venv`), Flask 3.0.3, Flask-SQLAlchemy 3.1.1, Flask-Login, Flask-WTF, SQLite. Pełna lista w `requirements.txt`.
-- **Testy:** `.\venv\Scripts\python.exe -m pytest tests/ -v` - 155 testów w `tests/` (m.in. `test_app.py`, `test_api_v1.py`, `test_briefing.py`, `test_dokumentacja.py`, `test_installer_stats.py`, `test_marszruta.py`, `test_qar_employee.py`, `test_qar_from_checklist.py`, `test_zadania_qa.py`), wszystkie muszą przejść. Współdzielone fixture'y są w `tests/conftest.py`.
+- **Testy:** `.\venv\Scripts\python.exe -m pytest tests/ -v` - 162 testy w `tests/` (m.in. `test_app.py`, `test_api_v1.py`, `test_briefing.py`, `test_dokumentacja.py`, `test_installer_stats.py`, `test_marszruta.py`, `test_qar_employee.py`, `test_qar_from_checklist.py`, `test_zadania_qa.py`), wszystkie muszą przejść. Współdzielone fixture'y są w `tests/conftest.py`.
 - **Uruchomienie lokalne:** `.\venv\Scripts\python.exe app.py` → http://127.0.0.1:5000
 - **Pre-commit hook:** automatycznie uruchamia testy przed każdym commitem
 - **Migracje schematu:** wszystkie realizowane przez `_migrate_schema()` w `app.py` - bez Alembic. Nowe kolumny dodawane jako `ALTER TABLE ... ADD COLUMN ...`.
@@ -101,6 +101,18 @@ Wcześniej hardkodowane ilości zastąpiono polami formularza. Pozycja pojawia s
 zyskowność = (price_bonus - cost_total) / price_bonus * 100
 ```
 gdzie `price_bonus` = cena po rabacie powiększona o bonus procentowy.
+
+---
+
+## Moduł "Kontrola międzyetapowa" (dawniej Spawalnia, menu: "Kontrola etapów")
+
+Zmiana 2026-09-29. URL `/spawalnia/*`, tabela `spawalnia_records` i API `/api/v1/spawalnia/<zo>` zostały bez zmian nazwy (zgodność wsteczna), zmieniły się etykiety w UI.
+
+- Model `InterstageCheck` (tabela `interstage_checks`): jedna ocena etapu OK/NG na wpis (`SpawalniaRecord`) i etap, z pracownikiem (`DepartmentEmployee` z Marszruty), uwagami, kontrolerem i czasem. Etapy w `INTERSTAGE_STAGES` (models.py): CIĘCIE/LASER, GIĘCIE, SPAWANIE, CZYSZCZENIE, MALOWANIE, MONTAŻ. Kolejność nie jest wymuszana.
+- NG tworzy automatycznie raport QAR (kategoria wg etapu, pracownik z etapu, uwagi jako opis), `qar_report_id` na kontroli chroni przed duplikatami.
+- Osoby pochodzą z działów Marszruty (`/marszruta/admin/departments`), `/spawalnia/admin/operators` przekierowuje tam. Stare tabele operatorów (`spawalnia_operators`, `giecie_operators`, `ciecie_operators`) i stare pola pomiarowe zostają w bazie jako dane archiwalne, nowy UI ich nie edytuje.
+- Start ze skanu QR: `/spawalnia/scan` i `POST /spawalnia/from-qr` (te same pola `p`, `c`, `o`, `q`; `o` wymagane, istniejące ZO otwiera się zamiast dublować).
+- Testy: `tests/test_interstage.py`.
 
 ---
 

@@ -94,7 +94,7 @@
       <a href="{{ url_for('spawalnia.list_records') }}"
          class="{% if request.endpoint and request.endpoint.startswith('spawalnia.') %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-fire"></i></span>
-        <span>Spawalnia</span>
+        <span>Kontrola etapów</span>
       </a>
       <a href="{{ url_for('qar.list_reports') }}"
          class="{% if request.endpoint and request.endpoint.startswith('qar.') %}active{% endif %}">
@@ -230,9 +230,9 @@
         {% endif %}
         <a href="{{ url_for('spawalnia.list_records') }}"
            class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('spawalnia.') %}active{% endif %}"
-           title="Spawalnia">
+           title="Kontrola etapów">
           <i class="bi bi-fire"></i>
-          <span class="wk-nav-label">Spawalnia</span>
+          <span class="wk-nav-label">Kontrola etapów</span>
         </a>
         <a href="{{ url_for('qar.list_reports') }}"
            class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('qar.') %}active{% endif %}"

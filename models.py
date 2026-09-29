@@ -604,27 +604,100 @@ class SpawalniaRecord(db.Model):
     batch_id           = db.Column(db.String(32), nullable=True)
     batch_index        = db.Column(db.Integer, nullable=True)
     batch_total        = db.Column(db.Integer, nullable=True)
+    product_name       = db.Column(db.String(256), nullable=True)   # ze skanu QR
+    client             = db.Column(db.String(256), nullable=True)   # ze skanu QR
     created_by_id      = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     created_at         = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
     updated_at         = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    checks             = db.relationship('InterstageCheck', back_populates='record',
+                                         cascade='all, delete-orphan', lazy='select')
     operator           = db.relationship('SpawalniaOperator', back_populates='records')
     giecie_operator    = db.relationship('GiecieOperator', back_populates='records')
     ciecie_operator    = db.relationship('CiecieOperator', back_populates='records')
     created_by         = db.relationship('User', foreign_keys=[created_by_id])
 
     @property
-    def has_ng(self):
-        return 'NG' in [self.otworowanie, self.przekatna, self.jakosc_wyciecia]
+    def check_map(self):
+        """stage_key -> InterstageCheck (brakujące etapy nie występują w słowniku)."""
+        return {c.stage: c for c in self.checks}
 
     @property
-    def is_empty(self):
-        return all(v is None for v in [
+    def has_ng(self):
+        legacy = 'NG' in [self.otworowanie, self.przekatna, self.jakosc_wyciecia]
+        return legacy or any(c.result == 'NG' for c in self.checks)
+
+    @property
+    def checked_count(self):
+        return sum(1 for c in self.checks if c.result)
+
+    @property
+    def has_legacy_data(self):
+        return any(v is not None for v in [
             self.otworowanie, self.przekatna, self.jakosc_wyciecia,
             self.pomiar1, self.pomiar2, self.pomiar3,
         ])
 
+    @property
+    def is_empty(self):
+        return self.checked_count == 0 and not self.has_legacy_data
+
     def __repr__(self):
         return f'<SpawalniaRecord {self.zo_number}>'
+
+
+# Etapy kontroli międzyetapowej. `departments` to nazwy działów Marszruty, z których
+# pochodzą pracownicy wybierani przy etapie; `qar_category` to kategoria raportu QAR
+# tworzonego automatycznie po wybraniu NG.
+INTERSTAGE_STAGES = [
+    {'key': 'ciecie_laser', 'label': 'CIĘCIE/LASER', 'qar_category': 'Cięcie',
+     'departments': ('Cięcie', 'Laser')},
+    {'key': 'giecie',       'label': 'GIĘCIE',       'qar_category': 'Gięcie',
+     'departments': ('Gięcie',)},
+    {'key': 'spawanie',     'label': 'SPAWANIE',     'qar_category': 'Spawanie',
+     'departments': ('Spawanie', 'Zgrzewanie')},
+    {'key': 'czyszczenie',  'label': 'CZYSZCZENIE',  'qar_category': 'Czyszczenie',
+     'departments': ('Czyszczenie', 'Mycie')},
+    {'key': 'malowanie',    'label': 'MALOWANIE',    'qar_category': 'Malowanie',
+     'departments': ('Malowanie',)},
+    {'key': 'montaz',       'label': 'MONTAŻ',       'qar_category': 'Montaż',
+     'departments': ('Składanie', 'Montaż')},
+]
+INTERSTAGE_STAGE_BY_KEY = {st['key']: st for st in INTERSTAGE_STAGES}
+
+
+class InterstageCheck(db.Model):
+    """Ocena jednego etapu produkcji (OK/NG) w ramach wpisu kontroli międzyetapowej.
+    Kolejność etapów nie jest wymuszana: każdy można ocenić w dowolnym momencie."""
+    __tablename__ = 'interstage_checks'
+    __table_args__ = (db.UniqueConstraint('record_id', 'stage', name='uq_interstage_record_stage'),)
+    id            = db.Column(db.Integer, primary_key=True)
+    record_id     = db.Column(db.Integer, db.ForeignKey('spawalnia_records.id'), nullable=False)
+    stage         = db.Column(db.String(16), nullable=False)
+    result        = db.Column(db.String(2), nullable=True)      # OK | NG | None
+    employee_id   = db.Column(db.Integer, db.ForeignKey('department_employees.id'), nullable=True)
+    notes         = db.Column(db.Text, nullable=True)
+    checked_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    checked_at    = db.Column(db.DateTime, nullable=True)
+    qar_report_id = db.Column(db.Integer, db.ForeignKey('qar_reports.id'), nullable=True)
+    record        = db.relationship('SpawalniaRecord', back_populates='checks')
+    employee      = db.relationship('DepartmentEmployee', foreign_keys=[employee_id])
+    checked_by    = db.relationship('User', foreign_keys=[checked_by_id])
+    qar_report    = db.relationship('QARReport', foreign_keys=[qar_report_id])
+
+    @property
+    def label(self):
+        return INTERSTAGE_STAGE_BY_KEY.get(self.stage, {}).get('label', self.stage)
+
+    def __repr__(self):
+        return f'<InterstageCheck {self.record_id}/{self.stage}={self.result}>'
+
+
+def ensure_interstage_checks(rec):
+    """Dodaje do wpisu brakujące wiersze etapów (bez commitu)."""
+    have = {c.stage for c in rec.checks}
+    for st in INTERSTAGE_STAGES:
+        if st['key'] not in have:
+            db.session.add(InterstageCheck(record=rec, stage=st['key']))
 
 
 class QARReport(db.Model):
