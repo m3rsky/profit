@@ -129,6 +129,8 @@ class Report(db.Model):
     batch_index = db.Column(db.Integer, nullable=True)
     batch_total = db.Column(db.Integer, nullable=True)
     notes        = db.Column(db.Text, nullable=True)
+    # Klucz kodu QR (produkt|klient|ZO), po którym skan tego samego kodu odnajduje listę.
+    qr_key       = db.Column(db.String(256), nullable=True, index=True)
     locked_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     locked_at    = db.Column(db.DateTime, nullable=True)
     items = db.relationship('ReportItem', backref='report', lazy='dynamic',

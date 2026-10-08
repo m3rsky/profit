@@ -547,6 +547,61 @@ def new_checklist():
                            active_orders=active_orders)
 
 
+def _qr_key(product_name, client, order_no):
+    """Stabilny klucz kodu QR. Bez numeru ZO zwraca None, bo sam produkt i klient
+    nie identyfikują jednoznacznie zlecenia (różne ZO mogą mieć ten sam produkt)."""
+    if not order_no:
+        return None
+    norm = lambda s: ' '.join((s or '').upper().split())
+    return f'{norm(product_name)}|{norm(client)}|{norm(order_no)}'
+
+
+def _qr_title_prefix(product_name, client, order_no):
+    parts = [product_name] + ([client] if client else []) + ([order_no] if order_no else [])
+    return ' – '.join(parts)
+
+
+def _find_qr_reports(product_name, client, order_no):
+    """Listy kontrolne utworzone wcześniej z tego samego kodu QR (po `qr_key`,
+    a dla starszych list bez klucza po schemacie tytułu „prefix – dd.mm.rrrr gg:mm”)."""
+    key = _qr_key(product_name, client, order_no)
+    if not key:
+        return []
+    prefix = _qr_title_prefix(product_name, client, order_no)
+    esc = prefix.replace('!', '!!').replace('%', '!%').replace('_', '!_')
+    legacy = and_(Report.qr_key.is_(None),
+                  Report.title.like(esc + ' – __.__.____ __:__%', escape='!'))
+    return (Report.query
+            .filter(Report.report_type == 'kontroler', or_(Report.qr_key == key, legacy))
+            .order_by(Report.created_at, Report.batch_index, Report.id).all())
+
+
+def _qr_report_info(report):
+    st = report.stats
+    return {
+        'id':       report.id,
+        'title':    report.title,
+        'status':   report.status,
+        'done':     st['done'],
+        'total':    st['total'],
+        'url':      url_for('checklist_view', report_id=report.id),
+        'action':   'Otwórz' if report.status == 'completed' else
+                    ('Kontynuuj' if st['done'] else 'Rozpocznij'),
+    }
+
+
+@app.route('/checklist/qr-lookup', methods=['POST'])
+@login_required
+@kontroler_required
+def checklist_qr_lookup():
+    """Sprawdza po zeskanowaniu kodu, czy listy z tego QR już istnieją."""
+    data = request.get_json(silent=True) or {}
+    found = _find_qr_reports((data.get('p') or '').strip(),
+                             (data.get('c') or '').strip(),
+                             (data.get('o') or '').strip())
+    return jsonify({'ok': True, 'reports': [_qr_report_info(r) for r in found]})
+
+
 @app.route('/checklist/from-qr', methods=['POST'])
 @login_required
 @kontroler_required
@@ -562,6 +617,19 @@ def checklist_from_qr():
 
     if not product_name:
         return jsonify({'error': 'Brak nazwy produktu w kodzie QR'}), 400
+
+    # Najpierw sprawdź, czy listy z tego kodu QR już istnieją (chyba że force)
+    if not data.get('force'):
+        existing = _find_qr_reports(product_name, client, order_no)
+        if existing:
+            target = next((r for r in existing if r.status != 'completed'), existing[0])
+            return jsonify({
+                'ok':       True,
+                'existing': True,
+                'redirect': url_for('checklist_view', report_id=target.id),
+                'quantity': len(existing),
+                'msg':      'Lista z tego kodu QR już istnieje, otwieram.',
+            })
 
     tmpl = _find_matching_template(product_name, 'kontroler')
     if not tmpl:
@@ -596,6 +664,7 @@ def checklist_from_qr():
             user_id=current_user.id,
             template_id=tmpl.id,
             title=title,
+            qr_key=_qr_key(product_name, client, order_no),
             batch_id=bid,
             batch_index=i if bid else None,
             batch_total=quantity if bid else None,
@@ -3371,6 +3440,12 @@ def _migrate_schema():
             cols = [c['name'] for c in insp.get_columns('report_items')]
             if 'result' not in cols:
                 conn.execute(text('ALTER TABLE report_items ADD COLUMN result VARCHAR(4)'))
+                conn.commit()
+        if 'reports' in insp.get_table_names():
+            cols = [c['name'] for c in insp.get_columns('reports')]
+            if 'qr_key' not in cols:
+                conn.execute(text('ALTER TABLE reports ADD COLUMN qr_key VARCHAR(256)'))
+                conn.execute(text('CREATE INDEX IF NOT EXISTS ix_reports_qr_key ON reports (qr_key)'))
                 conn.commit()
         if 'reports' in insp.get_table_names():
             cols = [c['name'] for c in insp.get_columns('reports')]

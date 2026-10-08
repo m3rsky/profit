@@ -21,6 +21,11 @@
 .qr-status{max-width:480px;margin:.75rem auto 0;padding:.75rem 1rem;border-radius:var(--radius-md,8px);display:flex;align-items:center;gap:.6rem}
 .qr-status.error{background:var(--danger-bg,#fef2f2);color:var(--danger,#dc2626)}
 .qr-status.info{background:var(--info-bg,#eff6ff);color:var(--info,#2563eb)}
+.qr-existing{max-width:480px;margin:.75rem auto 0}
+.qr-existing-item{display:flex;gap:.75rem;align-items:center;justify-content:space-between;padding:.5rem 0;border-bottom:1px solid var(--border,#e2e8f0)}
+.qr-existing-item:last-child{border-bottom:none}
+.qr-existing-title{font-size:.9rem;word-break:break-word}
+.qr-existing-meta{color:var(--text-muted,#64748b);font-size:.8rem}
 .qr-actions{display:flex;gap:.75rem;max-width:480px;margin:.75rem auto 0;flex-wrap:wrap}
 .qr-actions .btn{flex:1}
 .qr-qty-edit{display:flex;align-items:center;gap:.4rem}
@@ -367,6 +372,14 @@
     </div>
   </div>
 
+  {# Istniejące listy z tego kodu QR #}
+  <div id="qr-existing" class="card qr-existing" hidden>
+    <div class="card-body">
+      <strong><i class="bi bi-info-circle"></i> Dla tego kodu QR istnieją już listy kontrolne</strong>
+      <div id="qr-existing-list"></div>
+    </div>
+  </div>
+
   {# Komunikat błędu #}
   <div id="qr-error" class="qr-status error" hidden>
     <i class="bi bi-exclamation-triangle-fill"></i>
@@ -419,7 +432,11 @@
   var elOrderVal   = document.getElementById('qr-order-val');
   var elTplRow     = document.getElementById('qr-tpl-row');
   var elTplName    = document.getElementById('qr-tpl-name');
+  var elExisting   = document.getElementById('qr-existing');
+  var elExistList  = document.getElementById('qr-existing-list');
   var btnCreate    = document.getElementById('btn-qr-create');
+  var createLabel  = btnCreate.innerHTML;
+  var forceCreate  = false;
   var btnRescan    = document.getElementById('btn-qr-rescan');
 
   var csrfToken = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
@@ -507,7 +524,51 @@
     elTplRow.hidden  = true;
     elConfirm.hidden = false;
     elActions.hidden = false;
-    btnCreate.hidden = false;
+    btnCreate.hidden = true;
+    lookupExisting(data);
+  }
+
+  // Najpierw sprawdź, czy listy z tego kodu QR już istnieją
+  function lookupExisting(data) {
+    fetch('/checklist/qr-lookup', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+      body: JSON.stringify(data),
+    })
+    .then(function (resp) { return resp.json(); })
+    .then(function (d) {
+      if (scannedData !== data) return;
+      var reports = (d && d.reports) || [];
+      if (reports.length) {
+        reports.forEach(function (r) {
+          var row = document.createElement('div');
+          row.className = 'qr-existing-item';
+          var info = document.createElement('div');
+          var title = document.createElement('div');
+          title.className = 'qr-existing-title';
+          title.textContent = r.title;
+          var meta = document.createElement('div');
+          meta.className = 'qr-existing-meta';
+          meta.textContent = (r.status === 'completed' ? 'Zakończona' : 'W toku') +
+                             ' · ' + r.done + '/' + r.total;
+          info.appendChild(title);
+          info.appendChild(meta);
+          var link = document.createElement('a');
+          link.className = 'btn btn-primary btn-sm';
+          link.href = r.url;
+          link.textContent = r.action;
+          row.appendChild(info);
+          row.appendChild(link);
+          elExistList.appendChild(row);
+        });
+        elExisting.hidden = false;
+        btnCreate.innerHTML = '<i class="bi bi-plus-lg"></i> Utwórz nową listę mimo to';
+        btnCreate.classList.replace('btn-primary', 'btn-secondary');
+        forceCreate = true;
+      }
+      btnCreate.hidden = false;
+    })
+    .catch(function () { btnCreate.hidden = false; });
   }
 
   function parseQr(text) {
@@ -555,7 +616,7 @@
         'Content-Type':  'application/json',
         'X-CSRF-Token':  csrfToken,
       },
-      body: JSON.stringify(scannedData),
+      body: JSON.stringify(Object.assign({ force: forceCreate }, scannedData)),
     })
     .then(function (resp) { return resp.json().then(function (d) { return { ok: resp.ok, d: d }; }); })
     .then(function (res) {
@@ -603,6 +664,11 @@
     elTplRow.hidden    = true;
     elClientRow.hidden = true;
     elOrderRow.hidden  = true;
+    elExisting.hidden  = true;
+    elExistList.innerHTML = '';
+    forceCreate = false;
+    btnCreate.innerHTML = createLabel;
+    btnCreate.classList.replace('btn-secondary', 'btn-primary');
     btnCreate.disabled = false;
     btnCreate.hidden   = false;
   }
