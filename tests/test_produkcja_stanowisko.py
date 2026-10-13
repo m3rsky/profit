@@ -210,3 +210,12 @@ def test_stage_config_page_and_reimport_keeps_config(app, client):
     with app.app_context():
         new_sid = _sheet_id(app, 'PSH')
         assert [(s.label, s.col_index) for s in ProdStageColumn.query.filter_by(sheet_id=new_sid)] == [('Kontrola', 10)]
+
+
+def test_scan_page_supports_hardware_scanner_input(app, client, station):
+    """Skaner pracujący jak klawiatura: pole z autofocusem, kamera tylko opcjonalnie."""
+    login(client, station, 'Stan1234!')
+    html = client.get('/produkcja/skan').get_data(as_text=True)
+    assert 'id="st-scan"' in html and 'autofocus' in html
+    assert 'id="st-cam-toggle"' in html
+    assert 'id="qr-reader-wrap" hidden' in html        # kamera domyślnie ukryta

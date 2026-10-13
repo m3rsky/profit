@@ -23,7 +23,7 @@
 .st-btn.mine{background:var(--success-bg,#f0fdf4);border-color:var(--success,#16a34a)}
 .st-btn.done .val{color:var(--text,#0f172a);font-weight:600}
 .st-btn:disabled{opacity:.45;cursor:not-allowed}
-.st-manual{max-width:420px;margin:.75rem auto 0;display:flex;gap:.5rem}
+.st-manual{max-width:640px;margin:.75rem auto 0;display:flex;gap:.5rem}
 </style>
 {% endblock %}
 
@@ -37,12 +37,16 @@
   <button type="button" class="btn btn-outline btn-sm" id="st-logout" hidden>Zmień pracownika</button>
 </div>
 
-<div id="qr-reader-wrap"><div id="qr-reader"></div></div>
-
-<form class="st-manual" id="st-manual">
-  <input class="form-control" id="st-zo" placeholder="albo wpisz numer ZO" autocomplete="off">
-  <button type="submit" class="btn btn-outline">Szukaj</button>
+<form class="st-manual" id="st-manual" autocomplete="off">
+  <input class="form-control" id="st-scan" placeholder="Zeskanuj kod skanerem (lub wpisz numer ZO i naciśnij Enter)"
+         autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" autofocus>
+  <button type="submit" class="btn btn-outline">OK</button>
 </form>
+<p class="text-muted" style="text-align:center;font-size:.8rem;margin:.4rem 0;">
+  Skaner: kliknij pole powyżej i skanuj, kursor wraca tam automatycznie.
+  <button type="button" class="btn btn-ghost btn-sm" id="st-cam-toggle"><i class="bi bi-camera"></i> Użyj kamery</button>
+</p>
+<div id="qr-reader-wrap" hidden><div id="qr-reader"></div></div>
 
 <div id="st-msg" class="st-msg" hidden></div>
 <div id="st-orders"></div>
@@ -168,18 +172,58 @@
     else { msg('Nierozpoznany kod QR. Zeskanuj plakietkę lub kod zlecenia.', 'error'); }
   }
 
-  document.getElementById('st-manual').addEventListener('submit', function (e) {
-    e.preventDefault();
-    var zo = document.getElementById('st-zo').value.trim();
-    if (zo) lookupOrder({o: zo, p: ''});
-  });
+  var scanInput = document.getElementById('st-scan');
+  function focusScanner() { if (document.activeElement !== scanInput) scanInput.focus(); }
 
-  var reader = new Html5Qrcode('qr-reader');
-  Html5Qrcode.getCameras().then(function (cams) {
-    if (!cams || !cams.length) { msg('Brak dostępnej kamery. Użyj pola numeru ZO.', 'error'); return; }
-    return reader.start(cams[cams.length - 1].id, {fps: 10, qrbox: {width: 260, height: 260}}, onScan, function () {});
-  }).catch(function () { msg('Brak dostępu do kamery. Sprawdź uprawnienia przeglądarki.', 'error'); });
-  window.addEventListener('beforeunload', function () { try { reader.stop(); } catch (e) {} });
+  // Skaner pracujący jak klawiatura: kod trafia do pola i kończy się Enterem (czasem Tab).
+  function submitScan() {
+    var v = scanInput.value.trim();
+    scanInput.value = '';
+    if (!v) return;
+    lastText = ''; lastAt = 0;   // ponowne zeskanowanie tego samego kodu ma zadziałać
+    if (v.indexOf(PREFIX) === 0 || v.charAt(0) === '{') { onScan(v); }
+    else { lookupOrder({o: v, p: ''}); }   // zwykły tekst traktujemy jak numer ZO
+  }
+  document.getElementById('st-manual').addEventListener('submit', function (e) {
+    e.preventDefault(); submitScan(); scanInput.focus();
+  });
+  scanInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Tab') { e.preventDefault(); submitScan(); }
+  });
+  // po kliknięciu poza przyciskami i listami kursor wraca do pola skanera
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('button, select, a, input, textarea, label')) focusScanner();
+  });
+  document.addEventListener('focusin', function (e) {
+    if (!e.target.closest('input, select, textarea')) setTimeout(focusScanner, 50);
+  });
+  setInterval(function () {
+    var a = document.activeElement;
+    if (!a || a === document.body) focusScanner();
+  }, 1500);
+  scanInput.focus();
+
+  // Kamera (telefon/tablet): włączana przyciskiem, na urządzeniach dotykowych od razu.
+  var reader = null, camOn = false;
+  var camWrap = document.getElementById('qr-reader-wrap');
+  var camBtn = document.getElementById('st-cam-toggle');
+  function startCamera() {
+    if (camOn) return;
+    camWrap.hidden = false; camOn = true; reader = new Html5Qrcode('qr-reader');
+    Html5Qrcode.getCameras().then(function (cams) {
+      if (!cams || !cams.length) { throw new Error('no camera'); }
+      return reader.start(cams[cams.length - 1].id, {fps: 10, qrbox: {width: 260, height: 260}}, onScan, function () {});
+    }).catch(function () {
+      camOn = false; camWrap.hidden = true; msg('Brak dostępu do kamery. Użyj skanera lub wpisz numer ZO.', 'error');
+    });
+  }
+  function stopCamera() {
+    if (reader && camOn) { reader.stop().catch(function () {}); }
+    camOn = false; camWrap.hidden = true;
+  }
+  camBtn.addEventListener('click', function () { if (camOn) { stopCamera(); } else { startCamera(); } scanInput.focus(); });
+  if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) { startCamera(); }
+  window.addEventListener('beforeunload', stopCamera);
 })();
 </script>
 {% endblock %}
