@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Wczytaj plik – Lista produkcyjna{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title"><i class="bi bi-upload"></i> Wczytaj plik produkcyjny</h1>
+  <div class="page-header-actions">
+    <a href="{{ url_for('produkcja.index') }}" class="btn btn-ghost"><i class="bi bi-arrow-left"></i> Wróć</a>
+  </div>
+</div>
+
+<div class="card card--spaced-top">
+  <div class="card-body">
+    <form method="post" enctype="multipart/form-data" style="max-width:520px;" id="import-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group">
+        <label class="form-label" for="file">Plik Excel (.xlsx)</label>
+        <input class="form-control" type="file" id="file" name="file" accept=".xlsx" required>
+      </div>
+      {% if has_data %}
+      <p class="section-hint">
+        Dane w aplikacji zostaną <strong>zastąpione</strong> zawartością pliku. Przed zastąpieniem aplikacja
+        automatycznie zapisze kopię obecnego stanu (zakładka „Pliki i kopie”). Dostęp do arkuszy i powiązania
+        z listami kontrolnymi zostają zachowane dla arkuszy o tych samych nazwach.
+      </p>
+      {% endif %}
+      <p class="text-muted" style="font-size:.82rem;">Wczytywanie dużego pliku może potrwać około minuty. Nie zamykaj strony.</p>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" id="import-btn">Wczytaj</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+document.getElementById('import-form').addEventListener('submit', function () {
+  var b = document.getElementById('import-btn');
+  b.disabled = true; b.textContent = 'Wczytuję…';
+});
+</script>
+{% endblock %}

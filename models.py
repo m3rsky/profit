@@ -43,6 +43,8 @@ class User(UserMixin, db.Model):
     @property
     def is_order_user(self): return self.role in ('admin', 'order')
     @property
+    def is_planning(self): return self.role in ('admin', 'planowanie')
+    @property
     def is_spawacz(self): return self.role == 'spawacz'
     @property
     def is_spawalnia_user(self): return self.role in ('admin', 'kontroler', 'spawacz')
@@ -52,7 +54,8 @@ class User(UserMixin, db.Model):
     def role_label(self):
         return {'admin': 'Administrator', 'order': 'Zamawiający',
                 'kontroler': 'Kontroler', 'monter': 'Monter',
-                'spawacz': 'Spawacz', 'konstruktor': 'Konstruktor'}.get(self.role, self.role)
+                'spawacz': 'Spawacz', 'konstruktor': 'Konstruktor',
+                'planowanie': 'Planowanie'}.get(self.role, self.role)
 
 
 class ChecklistTemplate(db.Model):
@@ -1059,3 +1062,89 @@ class DocNote(db.Model):
 
     def __repr__(self):
         return f'<DocNote {self.id} entry={self.entry_id}>'
+
+
+# ── Lista produkcyjna (import z Excela) ───────────────────────────────────────
+
+class ProdFile(db.Model):
+    """Plik .xlsx powiązany z listą produkcyjną: wczytany oryginał, kopia z
+    wprowadzonych zmian (export) albo automatyczny backup sprzed ponownego wczytania."""
+    __tablename__ = 'prod_files'
+    id            = db.Column(db.Integer, primary_key=True)
+    kind          = db.Column(db.String(16), nullable=False)   # import | export | backup
+    original_name = db.Column(db.String(256), nullable=False)
+    stored_name   = db.Column(db.String(256), nullable=False)
+    size          = db.Column(db.Integer, default=0)
+    note          = db.Column(db.String(256), nullable=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at    = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    created_by    = db.relationship('User', foreign_keys=[created_by_id])
+
+    KIND_LABELS = {'import': 'Wczytany plik', 'export': 'Kopia ze zmianami',
+                   'backup': 'Backup przed ponownym wczytaniem'}
+
+    @property
+    def kind_label(self): return self.KIND_LABELS.get(self.kind, self.kind)
+
+
+class ProdSheet(db.Model):
+    """Jeden arkusz wczytanego pliku (np. PSH, SP, RZ RW IF)."""
+    __tablename__ = 'prod_sheets'
+    id              = db.Column(db.Integer, primary_key=True)
+    name            = db.Column(db.String(64), unique=True, nullable=False)
+    position        = db.Column(db.Integer, default=0)
+    hidden          = db.Column(db.Boolean, default=False)
+    header_row      = db.Column(db.Integer, nullable=True)      # numer wiersza nagłówków w Excelu
+    columns_json    = db.Column(db.Text, nullable=False, default='[]')   # nazwy kolumn
+    mapping_json    = db.Column(db.Text, nullable=False, default='{}')   # pole logiczne -> indeks kolumny
+    formula_cols_json = db.Column(db.Text, nullable=False, default='[]') # kolumny liczone formułą
+    deleted_rows_json = db.Column(db.Text, nullable=False, default='[]') # usunięte wiersze źródłowe
+    file_id         = db.Column(db.Integer, db.ForeignKey('prod_files.id'), nullable=True)
+    imported_at     = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    rows            = db.relationship('ProdRow', backref='sheet', lazy='dynamic',
+                                      cascade='all, delete-orphan')
+
+    def _load(self, field, default):
+        import json
+        try:
+            return json.loads(getattr(self, field) or '')
+        except ValueError:
+            return default
+
+    @property
+    def columns(self): return self._load('columns_json', [])
+    @property
+    def mapping(self): return self._load('mapping_json', {})
+    @property
+    def formula_cols(self): return self._load('formula_cols_json', [])
+    @property
+    def deleted_rows(self): return self._load('deleted_rows_json', [])
+
+
+class ProdRow(db.Model):
+    """Jedno zlecenie (wiersz) arkusza. Wartości komórek w `data` (lista JSON
+    wyrównana do kolumn arkusza), formuły oryginału w `formulas`."""
+    __tablename__ = 'prod_rows'
+    id        = db.Column(db.Integer, primary_key=True)
+    sheet_id  = db.Column(db.Integer, db.ForeignKey('prod_sheets.id'), nullable=False, index=True)
+    position  = db.Column(db.Integer, nullable=False, default=0)   # numer wiersza w Excelu
+    src_row   = db.Column(db.Integer, nullable=True)               # None = dodany w aplikacji
+    data      = db.Column(db.Text, nullable=False, default='[]')
+    formulas  = db.Column(db.Text, nullable=True)                  # {kol: "=..."}
+    changed   = db.Column(db.Text, nullable=True)                  # [kol,...] zmienione w aplikacji
+    zo        = db.Column(db.String(64), nullable=True, index=True)
+    search    = db.Column(db.Text, nullable=True)
+    order_id  = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=True)
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    order     = db.relationship('Order')
+
+    __table_args__ = (db.Index('ix_prod_rows_sheet_pos', 'sheet_id', 'position'),)
+
+
+class ProdSheetAccess(db.Model):
+    """Dostęp użytkownika (roli Planowanie) do wybranego arkusza."""
+    __tablename__ = 'prod_sheet_access'
+    id       = db.Column(db.Integer, primary_key=True)
+    user_id  = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    sheet_id = db.Column(db.Integer, db.ForeignKey('prod_sheets.id'), nullable=False)
+    __table_args__ = (db.UniqueConstraint('user_id', 'sheet_id', name='uq_prod_access'),)

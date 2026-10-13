@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Dostęp do arkuszy – Lista produkcyjna{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-people"></i> Dostęp do arkuszy</h1>
+    <span class="text-muted" style="font-size:0.82rem;">Użytkownik z rolą Planowanie widzi tylko zaznaczone arkusze. Administrator widzi wszystkie.</span>
+  </div>
+  <div class="page-header-actions">
+    <a href="{{ url_for('produkcja.index') }}" class="btn btn-ghost"><i class="bi bi-arrow-left"></i> Wróć</a>
+  </div>
+</div>
+
+<div class="card card--spaced-top">
+  {% if not users %}
+  <div class="empty-state"><p>Brak użytkowników z rolą Planowanie. Dodaj ich w panelu użytkowników (rola „Planowanie”).</p></div>
+  {% elif not sheets %}
+  <div class="empty-state"><p>Najpierw wczytaj plik z arkuszami.</p></div>
+  {% else %}
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr><th>Arkusz</th>{% for u in users %}<th>{{ u.username }}</th>{% endfor %}</tr>
+        </thead>
+        <tbody>
+          {% for s in sheets %}
+          <tr>
+            <td data-label="Arkusz"><strong>{{ s.name }}</strong></td>
+            {% for u in users %}
+            <td data-label="{{ u.username }}">
+              <input type="checkbox" name="access" value="{{ u.id }}:{{ s.id }}"
+                     {% if (u.id, s.id) in granted %}checked{% endif %} aria-label="{{ u.username }}: {{ s.name }}">
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="card-body"><button type="submit" class="btn btn-primary">Zapisz</button></div>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

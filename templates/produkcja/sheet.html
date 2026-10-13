@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}{{ sheet.name }} – Lista produkcyjna{% endblock %}
+
+{% block head %}
+<style>
+.prod-wrap { overflow: auto; max-height: calc(100vh - 290px); border: 1px solid var(--border, #e2e8f0); border-radius: 8px; }
+table.prod-table { border-collapse: separate; border-spacing: 0; font-size: .82rem; min-width: 100%; }
+table.prod-table th, table.prod-table td { padding: 4px 8px; border-bottom: 1px solid var(--border, #e2e8f0); border-right: 1px solid var(--border, #e2e8f0); white-space: nowrap; max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+table.prod-table thead th { position: sticky; top: 0; background: var(--card-bg, #f8fafc); z-index: 3; text-align: left; font-weight: 600; }
+table.prod-table td.pc { cursor: cell; min-width: 46px; }
+table.prod-table td.pc:hover { background: var(--info-bg, #eff6ff); }
+table.prod-table td.pf { background: var(--bg-muted, #f1f5f9); color: var(--text-muted, #64748b); cursor: not-allowed; }
+table.prod-table td.pc input { width: 100%; min-width: 90px; font: inherit; padding: 1px 4px; }
+table.prod-table td.sel { position: sticky; left: 0; background: var(--card-bg, #fff); z-index: 2; width: 34px; }
+table.prod-table thead th.sel { z-index: 4; }
+table.prod-table tr.saved td.pc.flash { background: var(--success-bg, #f0fdf4); }
+.prod-rownum { color: var(--text-muted, #64748b); font-size: .72rem; }
+.prod-bar { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin: .75rem 0; }
+.prod-qa a, .prod-qa span { text-decoration: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-table"></i> {{ sheet.name }}</h1>
+    <span class="text-muted" style="font-size:0.82rem;">{{ pag.total }} zleceń{% if q %} dla „{{ q }}”{% endif %}. Kliknij komórkę, aby ją edytować (Enter zapisuje, Esc anuluje). Szare kolumny liczy Excel.</span>
+  </div>
+  <div class="page-header-actions">
+    <a href="{{ url_for('produkcja.index') }}" class="btn btn-ghost"><i class="bi bi-arrow-left"></i> Arkusze</a>
+    <a href="{{ url_for('produkcja.row_new', sheet_id=sheet.id) }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nowe zlecenie</a>
+    <form method="post" action="{{ url_for('produkcja.export_file') }}" style="display:inline;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="sheet_id" value="{{ sheet.id }}">
+      <button type="submit" class="btn btn-outline"><i class="bi bi-download"></i> Kopia arkusza .xlsx</button>
+    </form>
+  </div>
+</div>
+
+<form method="get" class="filter-bar" style="margin-top:.75rem;">
+  <input type="search" name="q" class="form-control filter-input" value="{{ q }}" placeholder="Szukaj: towar, odbiorca, ZO…" style="max-width:320px;">
+  <select name="state" class="form-control" style="max-width:220px;">
+    <option value="" {% if not state %}selected{% endif %}>Wszystkie</option>
+    <option value="linked" {% if state == 'linked' %}selected{% endif %}>Z listami kontrolnymi</option>
+    <option value="unlinked" {% if state == 'unlinked' %}selected{% endif %}>Bez list kontrolnych</option>
+  </select>
+  <button type="submit" class="btn btn-outline"><i class="bi bi-search"></i> Filtruj</button>
+</form>
+
+<form method="post" id="rows-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="prod-bar">
+    <button type="submit" class="btn btn-primary btn-sm" formaction="{{ url_for('produkcja.create_checklists', sheet_id=sheet.id) }}">
+      <i class="bi bi-clipboard-check"></i> Utwórz listy kontrolne
+    </button>
+    <button type="submit" class="btn btn-outline btn-sm" style="color:var(--danger,#dc2626);"
+            formaction="{{ url_for('produkcja.rows_delete', sheet_id=sheet.id) }}"
+            onclick="return confirm('Usunąć zaznaczone zlecenia z listy?');">
+      <i class="bi bi-trash"></i> Usuń zaznaczone
+    </button>
+    <span class="text-muted" style="font-size:.8rem;">Operacje dotyczą zaznaczonych wierszy.</span>
+  </div>
+
+  <div class="prod-wrap">
+    <table class="prod-table" id="prod-table">
+      <thead>
+        <tr>
+          <th class="sel"><input type="checkbox" id="chk-all" aria-label="Zaznacz wszystkie"></th>
+          <th>Wiersz</th>
+          <th>Listy QA</th>
+          {% for c in sheet.columns %}<th>{{ c }}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in rows %}
+        {% set r = item.row %}
+        {% set p = pairing.get(r.id) %}
+        <tr id="row-{{ r.id }}" data-row="{{ r.id }}">
+          <td class="sel"><input type="checkbox" name="row_ids" value="{{ r.id }}" class="chk-row"></td>
+          <td class="prod-rownum">{{ r.position }}</td>
+          <td class="prod-qa">
+            {% if p %}
+              <span class="badge {% if p.ng %}badge-danger{% elif p.done == p.total %}badge-success{% else %}badge-warning{% endif %}"
+                    title="Zakończone: {{ p.done }} z {{ p.total }}{% if p.ng %}, z niezgodnościami{% endif %}">
+                {% if current_user.is_kontroler %}<a href="{{ url_for('report_detail', report_id=p.ids[0]) }}">{{ p.done }}/{{ p.total }}</a>{% else %}{{ p.done }}/{{ p.total }}{% endif %}
+              </span>
+            {% else %}<span class="text-muted">-</span>{% endif %}
+          </td>
+          {% for v in item.cells %}
+          <td class="{% if loop.index0 in formula_cols %}pf{% else %}pc{% endif %}" data-c="{{ loop.index0 }}">{{ v }}</td>
+          {% endfor %}
+        </tr>
+        {% else %}
+        <tr><td colspan="{{ sheet.columns|length + 3 }}" class="text-muted" style="padding:1rem;">Brak zleceń.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</form>
+
+{% if pag.pages > 1 %}
+<div class="pagination-bar" style="display:flex;gap:6px;justify-content:center;margin-top:12px;flex-wrap:wrap;align-items:center;">
+  {% if pag.has_prev %}<a class="btn btn-outline btn-sm" href="{{ url_for('produkcja.sheet_view', sheet_id=sheet.id, page=pag.prev_num, q=q, state=state) }}">&laquo; Poprzednia</a>{% endif %}
+  <span class="pagination-info">Strona {{ pag.page }} / {{ pag.pages }}</span>
+  {% if pag.has_next %}<a class="btn btn-outline btn-sm" href="{{ url_for('produkcja.sheet_view', sheet_id=sheet.id, page=pag.next_num, q=q, state=state) }}">Następna &raquo;</a>{% endif %}
+</div>
+{% endif %}
+
+<script>
+(function () {
+  var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+  var cellUrl = "{{ url_for('produkcja.cell_update', row_id=0) }}".replace(/0$/, '');
+  var table = document.getElementById('prod-table');
+
+  document.getElementById('chk-all').addEventListener('change', function (e) {
+    document.querySelectorAll('.chk-row').forEach(function (c) { c.checked = e.target.checked; });
+  });
+
+  table.addEventListener('click', function (e) {
+    var td = e.target.closest('td.pc');
+    if (!td || td.querySelector('input')) return;
+    var old = td.textContent;
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.value = old;
+    td.textContent = '';
+    td.appendChild(input);
+    input.focus();
+    input.select();
+    var done = false;
+
+    function finish(save) {
+      if (done) return;
+      done = true;
+      var val = input.value;
+      td.textContent = old;
+      if (!save || val === old) return;
+      td.textContent = val;
+      var tr = td.closest('tr');
+      fetch(cellUrl + tr.dataset.row + '/cell', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrf},
+        body: JSON.stringify({col: parseInt(td.dataset.c, 10), value: val})
+      }).then(function (r) { return r.json().then(function (d) { return {ok: r.ok, d: d}; }); })
+        .then(function (res) {
+          if (!res.ok || !res.d.ok) {
+            td.textContent = old;
+            alert(res.d.error || 'Nie udało się zapisać zmiany.');
+            return;
+          }
+          Object.keys(res.d.cells).forEach(function (c) {
+            var t = tr.querySelector('td[data-c="' + c + '"]');
+            if (t) { t.textContent = res.d.cells[c]; t.classList.add('flash'); }
+          });
+          tr.classList.add('saved');
+          setTimeout(function () {
+            tr.classList.remove('saved');
+            tr.querySelectorAll('.flash').forEach(function (x) { x.classList.remove('flash'); });
+          }, 1200);
+        })
+        .catch(function () { td.textContent = old; alert('Błąd sieci, zmiana nie została zapisana.'); });
+    }
+
+    input.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); finish(true); }
+      else if (ev.key === 'Escape') { finish(false); }
+    });
+    input.addEventListener('blur', function () { finish(true); });
+  });
+})();
+</script>
+{% endblock %}

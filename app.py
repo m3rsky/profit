@@ -62,6 +62,9 @@ app.register_blueprint(marszruta_bp)
 from dokumentacja import dokumentacja_bp  # noqa: E402
 app.register_blueprint(dokumentacja_bp)
 
+from produkcja import produkcja_bp  # noqa: E402
+app.register_blueprint(produkcja_bp)
+
 # ── Logging ────────────────────────────────────────────────────────────────────
 _log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
 os.makedirs(_log_dir, exist_ok=True)
@@ -353,6 +356,8 @@ def theme_preview():
 def dashboard():
     if current_user.role == 'konstruktor':
         return redirect(url_for('qar.list_reports'))
+    if current_user.role == 'planowanie':
+        return redirect(url_for('produkcja.index'))
 
     # Pracownicy niebędący adminem dostają uproszczony dashboard z kafelkami
     if current_user.role in ('order', 'spawacz', 'monter'):
@@ -3367,6 +3372,7 @@ def init_db():
     os.makedirs(app.config['QAR_UPLOAD_FOLDER'], exist_ok=True)
     os.makedirs(app.config['MARSZRUTA_UPLOAD_FOLDER'], exist_ok=True)
     os.makedirs(app.config['DOKUMENTACJA_UPLOAD_FOLDER'], exist_ok=True)
+    os.makedirs(app.config['PRODUKCJA_FOLDER'], exist_ok=True)
     with app.app_context():
         _migrate_schema()
         db.create_all()
@@ -4388,6 +4394,15 @@ def _seed_qar_categories():
     ]
     for i, name in enumerate(default_categories):
         db.session.add(QARCategory(name=name, order=i))
+
+
+# Funkcje listy kontrolnej udostępnione modułowi produkcja (bez importu `from app`,
+# który przy uruchomieniu `python app.py` załadowałby moduł drugi raz).
+from produkcja import register_helpers  # noqa: E402
+register_helpers(find_matching_template=_find_matching_template,
+                 create_order_reports=_create_order_reports,
+                 qr_key=_qr_key,
+                 find_qr_reports=_find_qr_reports)
 
 
 if __name__ == '__main__':

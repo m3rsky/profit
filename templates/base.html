@@ -111,6 +111,11 @@
         <span class="nav-icon"><i class="bi bi-signpost-split"></i></span>
         <span>Marszruta produkcji</span>
       </a>
+      <a href="{{ url_for('produkcja.index') }}"
+         class="{% if request.endpoint and request.endpoint.startswith('produkcja.') %}active{% endif %}">
+        <span class="nav-icon"><i class="bi bi-table"></i></span>
+        <span>Lista produkcyjna</span>
+      </a>
       <a href="{{ url_for('dokumentacja.list_entries') }}"
          class="{% if request.endpoint and request.endpoint.startswith('dokumentacja.') %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-folder2-open"></i></span>
@@ -305,6 +310,14 @@
            title="Listy montażowe">
           <i class="bi bi-tools"></i>
           <span class="wk-nav-label">Pula montaży</span>
+        </a>
+
+      {% elif current_user.role == 'planowanie' %}
+        <a href="{{ url_for('produkcja.index') }}"
+           class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('produkcja.') %}active{% endif %}"
+           title="Lista produkcyjna">
+          <i class="bi bi-table"></i>
+          <span class="wk-nav-label">Lista produkcyjna</span>
         </a>
 
       {% elif current_user.role == 'konstruktor' %}

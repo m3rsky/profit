@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Pliki i kopie – Lista produkcyjna{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title"><i class="bi bi-files"></i> Pliki i kopie</h1>
+  <div class="page-header-actions">
+    <a href="{{ url_for('produkcja.index') }}" class="btn btn-ghost"><i class="bi bi-arrow-left"></i> Wróć</a>
+  </div>
+</div>
+
+<div class="card card--spaced-top">
+  {% if files %}
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead><tr><th>Data</th><th>Rodzaj</th><th>Nazwa</th><th>Autor</th><th>Rozmiar</th><th>Opis</th><th></th></tr></thead>
+      <tbody>
+        {% for f in files %}
+        <tr>
+          <td data-label="Data">{{ f.created_at | localdt('%d.%m.%Y %H:%M') }}</td>
+          <td data-label="Rodzaj">{{ f.kind_label }}</td>
+          <td data-label="Nazwa">{{ f.original_name }}</td>
+          <td data-label="Autor">{{ f.created_by.username if f.created_by else '-' }}</td>
+          <td data-label="Rozmiar">{{ (f.size / 1048576) | round(1) }} MB</td>
+          <td data-label="Opis">{{ f.note or '' }}</td>
+          <td class="td-actions"><a class="btn btn-outline btn-sm" href="{{ url_for('produkcja.file_download', file_id=f.id) }}"><i class="bi bi-download"></i> Pobierz</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state"><p>Brak zapisanych plików.</p></div>
+  {% endif %}
+</div>
+{% endblock %}

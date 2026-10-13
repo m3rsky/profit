@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Nowe zlecenie – {{ sheet.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title"><i class="bi bi-plus-lg"></i> Nowe zlecenie: {{ sheet.name }}</h1>
+  <div class="page-header-actions">
+    <a href="{{ url_for('produkcja.sheet_view', sheet_id=sheet.id) }}" class="btn btn-ghost"><i class="bi bi-arrow-left"></i> Wróć do arkusza</a>
+  </div>
+</div>
+
+<div class="card card--spaced-top">
+  <div class="card-body">
+    <form method="post" style="max-width:520px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% for key, label in fields %}
+      <div class="form-group">
+        <label class="form-label" for="f-{{ key }}">{{ label }}{% if key == 'product' %} *{% endif %}</label>
+        {% if key == 'order_date' %}
+          <input class="form-control" type="date" id="f-{{ key }}" name="{{ key }}" value="{{ form.get(key) or today }}">
+        {% elif key in ('qty', 'lead_days') %}
+          <input class="form-control" type="number" min="0" id="f-{{ key }}" name="{{ key }}" value="{{ form.get(key, '') }}">
+        {% else %}
+          <input class="form-control" type="text" id="f-{{ key }}" name="{{ key }}" value="{{ form.get(key, '') }}" {% if key == 'product' %}required{% endif %}>
+        {% endif %}
+      </div>
+      {% endfor %}
+      <p class="text-muted" style="font-size:.82rem;">Pozostałe kolumny (etapy produkcji) uzupełnisz w tabeli arkusza.</p>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Dodaj zlecenie</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

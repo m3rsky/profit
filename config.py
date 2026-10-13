@@ -13,6 +13,8 @@ class Config:
     QAR_UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'qar_uploads')
     MARSZRUTA_UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'marszruta_uploads')
     DOKUMENTACJA_UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'dokumentacja_uploads')
+    # Pliki listy produkcyjnej (import/kopie) poza static, żeby nie były serwowane publicznie
+    PRODUKCJA_FOLDER = os.path.join(BASE_DIR, 'instance', 'produkcja')
     MAX_CONTENT_LENGTH = 32 * 1024 * 1024
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
     PDF_EXTENSIONS = {'pdf'}

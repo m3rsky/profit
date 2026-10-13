@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Lista produkcyjna{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-table"></i> Lista produkcyjna</h1>
+    <span class="text-muted" style="font-size:0.82rem;">Arkusze wczytane z pliku Excel. Widzisz tylko te, do których masz dostęp.</span>
+  </div>
+  {% if current_user.is_admin %}
+  <div class="page-header-actions">
+    <a href="{{ url_for('produkcja.import_file') }}" class="btn btn-primary"><i class="bi bi-upload"></i> Wczytaj plik</a>
+    <a href="{{ url_for('produkcja.access') }}" class="btn btn-ghost"><i class="bi bi-people"></i> Dostęp do arkuszy</a>
+    <a href="{{ url_for('produkcja.files') }}" class="btn btn-ghost"><i class="bi bi-files"></i> Pliki i kopie</a>
+    {% if has_data %}
+    <form method="post" action="{{ url_for('produkcja.export_file') }}" style="display:inline;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-outline"><i class="bi bi-download"></i> Pobierz kopię .xlsx</button>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<div class="card card--spaced-top">
+  {% if sheets %}
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr><th>Arkusz</th><th>Zleceń</th><th>Z listami kontrolnymi</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for s in sheets %}
+        <tr>
+          <td data-label="Arkusz">
+            <strong>{{ s.name }}</strong>
+            {% if s.hidden %}<span class="badge badge-neutral">ukryty w Excelu</span>{% endif %}
+          </td>
+          <td data-label="Zleceń">{{ counts.get(s.id, 0) }}</td>
+          <td data-label="Z listami kontrolnymi">{{ linked.get(s.id, 0) }}</td>
+          <td class="td-actions">
+            <a href="{{ url_for('produkcja.sheet_view', sheet_id=s.id) }}" class="btn btn-outline btn-sm">Otwórz</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    {% if not has_data %}
+      <p>Nie wczytano jeszcze żadnego pliku.{% if current_user.is_admin %} Użyj przycisku „Wczytaj plik”.{% endif %}</p>
+    {% else %}
+      <p>Nie masz przydzielonych arkuszy. Poproś administratora o nadanie dostępu.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
