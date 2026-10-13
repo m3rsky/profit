@@ -18,7 +18,7 @@
 <div class="card card--spaced-top">
   <div class="card-body">
     <form method="post" action="{{ url_for('produkcja.employees_settings') }}" class="form-inline" style="gap:.75rem;flex-wrap:wrap;align-items:center;">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
       <label style="display:flex;gap:.5rem;align-items:center;">
         <input type="checkbox" name="enforce_assignments" value="1" {% if enforce %}checked{% endif %}>
         Ogranicz wpisy do przydziałów (pracownik wpisuje się tylko w etapy swoich działów)
@@ -47,7 +47,7 @@
             <a class="btn btn-outline btn-sm" href="{{ url_for('produkcja.employee_badge', emp_id=e.id) }}"><i class="bi bi-qr-code"></i> Plakietka</a>
             <form method="post" action="{{ url_for('produkcja.employee_new_token', emp_id=e.id) }}" style="display:inline;"
                   onsubmit="return confirm('Wygenerować nowy kod? Dotychczasowa plakietka przestanie działać.');">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="btn btn-outline btn-sm" title="Unieważnij stary kod">Nowy kod</button>
             </form>
           </td>

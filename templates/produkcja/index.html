@@ -16,7 +16,7 @@
     <a href="{{ url_for('produkcja.files') }}" class="btn btn-ghost"><i class="bi bi-files"></i> Pliki i kopie</a>
     {% if has_data %}
     <form method="post" action="{{ url_for('produkcja.export_file') }}" style="display:inline;">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="btn btn-outline"><i class="bi bi-download"></i> Pobierz kopię .xlsx</button>
     </form>
     {% endif %}

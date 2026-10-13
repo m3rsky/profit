@@ -31,7 +31,7 @@ table.prod-table tr.saved td.pc.flash { background: var(--success-bg, #f0fdf4); 
     <a href="{{ url_for('produkcja.sheet_stages', sheet_id=sheet.id) }}" class="btn btn-ghost"><i class="bi bi-list-check"></i> Kolumny etapów</a>
     <a href="{{ url_for('produkcja.row_new', sheet_id=sheet.id) }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nowe zlecenie</a>
     <form method="post" action="{{ url_for('produkcja.export_file') }}" style="display:inline;">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="sheet_id" value="{{ sheet.id }}">
       <button type="submit" class="btn btn-outline"><i class="bi bi-download"></i> Kopia arkusza .xlsx</button>
     </form>
@@ -49,7 +49,7 @@ table.prod-table tr.saved td.pc.flash { background: var(--success-bg, #f0fdf4); 
 </form>
 
 <form method="post" id="rows-form">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
   <div class="prod-bar">
     <button type="submit" class="btn btn-primary btn-sm" formaction="{{ url_for('produkcja.create_checklists', sheet_id=sheet.id) }}">
       <i class="bi bi-clipboard-check"></i> Utwórz listy kontrolne

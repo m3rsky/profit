@@ -12,7 +12,7 @@
 <div class="card card--spaced-top">
   <div class="card-body">
     <form method="post" style="max-width:520px;">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
       <div class="form-group">
         <label class="form-label" for="name">Imię i nazwisko *</label>
         <input class="form-control" id="name" name="name" required value="{{ form.get('name', emp.name if emp else '') }}">

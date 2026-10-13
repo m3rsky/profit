@@ -19,7 +19,7 @@
   <div class="empty-state"><p>Najpierw wczytaj plik z arkuszami.</p></div>
   {% else %}
   <form method="post">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
     <div class="table-wrap">
       <table class="data-table">
         <thead>

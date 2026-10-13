@@ -244,3 +244,20 @@ def test_checklists_without_template_do_not_create_order(app, client):
     with app.app_context():
         assert db.session.get(ProdRow, rid).order_id is None
         assert Order.query.filter_by(number='ZO-T2').first() is None
+
+
+def test_forms_use_the_csrf_field_name_the_app_expects(app, client, planner):
+    """Regresja: formularze muszą wysyłać `_csrf_token` (nazwę sprawdza csrf_protect),
+    a nie `csrf_token`. Testy POST podają token ręcznie, więc tego nie wychwytują."""
+    import re
+    _admin(client)
+    _import(client)
+    sid = _sheet_id(app, 'PSH')
+    pages = ['/produkcja/', '/produkcja/import', '/produkcja/access', f'/produkcja/sheet/{sid}',
+             f'/produkcja/sheet/{sid}/new', f'/produkcja/sheet/{sid}/etapy',
+             '/produkcja/pracownicy', '/produkcja/pracownicy/nowy']
+    for url in pages:
+        html = client.get(url).get_data(as_text=True)
+        names = re.findall(r'<input[^>]*type="hidden"[^>]*name="(\w*csrf_token)"', html)
+        assert names, f'{url}: brak pola CSRF'
+        assert set(names) == {'_csrf_token'}, f'{url}: zła nazwa pola CSRF {set(names)}'

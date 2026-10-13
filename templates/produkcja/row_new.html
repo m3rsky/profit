@@ -12,7 +12,7 @@
 <div class="card card--spaced-top">
   <div class="card-body">
     <form method="post" style="max-width:520px;">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
       {% for key, label in fields %}
       <div class="form-group">
         <label class="form-label" for="f-{{ key }}">{{ label }}{% if key == 'product' %} *{% endif %}</label>
