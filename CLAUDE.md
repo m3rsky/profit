@@ -62,7 +62,7 @@ Przykład formatu:
 ## Informacje o projekcie
 
 - **Stack:** Python 3.14 (lokalnie, `venv`), Flask 3.0.3, Flask-SQLAlchemy 3.1.1, Flask-Login, Flask-WTF, SQLite. Pełna lista w `requirements.txt`.
-- **Testy:** `.\venv\Scripts\python.exe -m pytest tests/ -v` - 162 testy w `tests/` (m.in. `test_app.py`, `test_api_v1.py`, `test_briefing.py`, `test_dokumentacja.py`, `test_installer_stats.py`, `test_marszruta.py`, `test_qar_employee.py`, `test_qar_from_checklist.py`, `test_zadania_qa.py`), wszystkie muszą przejść. Współdzielone fixture'y są w `tests/conftest.py`.
+- **Testy:** `.\venv\Scripts\python.exe -m pytest tests/ -v` - 185 testów w `tests/` (m.in. `test_app.py`, `test_api_v1.py`, `test_briefing.py`, `test_dokumentacja.py`, `test_installer_stats.py`, `test_marszruta.py`, `test_produkcja.py`, `test_produkcja_stanowisko.py`, `test_qar_employee.py`, `test_qar_from_checklist.py`, `test_zadania_qa.py`), wszystkie muszą przejść. Współdzielone fixture'y są w `tests/conftest.py`.
 - **Uruchomienie lokalne:** `.\venv\Scripts\python.exe app.py` → http://127.0.0.1:5000
 - **Pre-commit hook:** automatycznie uruchamia testy przed każdym commitem
 - **Migracje schematu:** wszystkie realizowane przez `_migrate_schema()` w `app.py` - bez Alembic. Nowe kolumny dodawane jako `ALTER TABLE ... ADD COLUMN ...`.
@@ -113,6 +113,23 @@ Zmiana 2026-09-29. URL `/spawalnia/*`, tabela `spawalnia_records` i API `/api/v1
 - Osoby pochodzą z działów Marszruty (`/marszruta/admin/departments`), `/spawalnia/admin/operators` przekierowuje tam. Stare tabele operatorów (`spawalnia_operators`, `giecie_operators`, `ciecie_operators`) i stare pola pomiarowe zostają w bazie jako dane archiwalne, nowy UI ich nie edytuje.
 - Start ze skanu QR: `/spawalnia/scan` i `POST /spawalnia/from-qr` (te same pola `p`, `c`, `o`, `q`; `o` wymagane, istniejące ZO otwiera się zamiast dublować).
 - Testy: `tests/test_interstage.py`.
+
+---
+
+## Moduł "Lista produkcyjna" (`/produkcja`)
+
+Wdrożony 2026-10-13. Wczytuje ręcznie plik Excel z listą produkcyjną (wszystkie niepuste arkusze, także ukryte), pozwala go przeglądać i edytować w aplikacji, dodawać i usuwać zlecenia, tworzyć z nich listy kontrolne i wpisywać pracowników w kolumny etapów skanem QR.
+
+- **Kod:** pakiet `produkcja/` (blueprint `produkcja_bp`): `routes.py` (arkusze, edycja, import/eksport, listy kontrolne, dostęp), `excel_io.py` (odczyt/zapis xlsx), `entries.py` (wpis inicjałów), `staff.py` (pracownicy, plakietki PDF, kolumny etapów, historia), `scan.py` (stanowisko). Szablony w `templates/produkcja/`.
+- **Modele (models.py):** `ProdFile`, `ProdSheet`, `ProdRow`, `ProdSheetAccess`, `ProdEmployee`, `ProdEmployeeDept`, `ProdStageColumn`, `ProdEntry`, `ProdSetting`. Tabele tworzy `db.create_all()`, bez `ALTER`.
+- **Dane w bazie, nie w pliku:** wiersz to JSON z komórkami (`ProdRow.data`), formuły oryginału osobno (`formulas`), zmiany z aplikacji w `changed`. Pliki (import, kopie, backupy) w `instance/produkcja/` (poza `static`).
+- **Eksport:** ładuje wczytany oryginał i nadpisuje tylko zmienione komórki, więc formuły (np. `WORKDAY` w kolumnie terminu), formatowanie i ukryte arkusze zostają. Usunięte zlecenia są czyszczone w tym samym wierszu (przesunięcie wierszy zepsułoby formuły), nowe dopisywane na końcu z przesuniętą formułą. Kolumny liczone formułą są w aplikacji tylko do odczytu. Ponowne wczytanie pliku robi automatyczny backup i zachowuje dostęp do arkuszy, powiązania z zamówieniami i konfigurację etapów (po nazwie kolumny).
+- **Role:** `planowanie` (planista: edycja planu, pracownicy, etapy, listy kontrolne, tylko przydzielone arkusze, przydział w `/produkcja/access` robi admin), `produkcja` (wspólne konto stanowiska, tylko `/produkcja/skan`), `admin` (wszystko, import pliku). Dekoratory `planning_required`, `admin_only`, `station_required`.
+- **Listy kontrolne:** przycisk tworzy `Order` i listy istniejącym `_create_order_reports`, ustawia `Report.qr_key` (produkt|klient|ZO), więc skan QR kontroli jakości znajduje te listy. Bez pasującego szablonu QA zamówienie nie powstaje. Funkcje z `app.py` trafiają do modułu przez `register_helpers()` (nie `from app import`, bo przy `python app.py` załadowałoby to moduł drugi raz).
+- **Pracownicy i skan:** pracownik nie ma loginu, tylko plakietkę QR (`PSH-EMP:<token>`, token losowy, "Nowy kod" unieważnia). Skan plakietki zapisuje pracownika w sesji urządzenia na 12 h, potem skan kodu QR zlecenia (te same pola `p`,`c`,`o`) i wybór etapu wpisuje inicjały. W komórce do 2 osób (`JK/AN`), trzecia i nietypowe wartości (`-`, data, liczba) wymagają potwierdzenia. Historia w `ProdEntry`. Przełącznik `enforce_assignments` (domyślnie wyłączony) ogranicza wpisy do działów pracownika.
+- **Kolumny etapów:** wykrywane po nagłówkach (`STAGE_KEYWORDS` w `excel_io.py`), edytowalne w `/produkcja/sheet/<id>/etapy`. Arkusz `PROFIT` nie ma nagłówków, więc etapy trzeba tam zaznaczyć ręcznie.
+- **Znane ograniczenia:** termin realizacji przeliczany w aplikacji bez świąt (święta liczy Excel po otwarciu kopii), import ok. 15 s i eksport ok. 25 s dla pliku 4 MB (ok. 40 tys. wierszy).
+- Testy: `tests/test_produkcja.py`, `tests/test_produkcja_stanowisko.py`.
 
 ---
 
