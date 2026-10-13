@@ -28,7 +28,7 @@ table.prod-table tr.saved td.pc.flash { background: var(--success-bg, #f0fdf4); 
   </div>
   <div class="page-header-actions">
     <a href="{{ url_for('produkcja.index') }}" class="btn btn-ghost"><i class="bi bi-arrow-left"></i> Arkusze</a>
-    <a href="{{ url_for('produkcja.sheet_stages', sheet_id=sheet.id) }}" class="btn btn-ghost"><i class="bi bi-list-check"></i> Kolumny etapów</a>
+    <a href="{{ url_for('produkcja.sheet_stages', sheet_id=sheet.id) }}" class="btn btn-ghost"><i class="bi bi-list-check"></i> Kolumny i etapy</a>
     <a href="{{ url_for('produkcja.row_new', sheet_id=sheet.id) }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nowe zlecenie</a>
     <form method="post" action="{{ url_for('produkcja.export_file') }}" style="display:inline;">
       <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
@@ -69,7 +69,7 @@ table.prod-table tr.saved td.pc.flash { background: var(--success-bg, #f0fdf4); 
           <th class="sel"><input type="checkbox" id="chk-all" aria-label="Zaznacz wszystkie"></th>
           <th>Wiersz</th>
           <th>Listy QA</th>
-          {% for c in sheet.columns %}<th>{{ c }}</th>{% endfor %}
+          {% for c in sheet.columns %}<th title="Kolumna {{ loop.index }}">{{ c }}</th>{% endfor %}
         </tr>
       </thead>
       <tbody>

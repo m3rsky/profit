@@ -1,32 +1,58 @@
 {% extends "base.html" %}
-{% block title %}Kolumny etapów – {{ sheet.name }}{% endblock %}
+{% block title %}Kolumny arkusza – {{ sheet.name }}{% endblock %}
+
+{% block head %}
+<style>
+.ex { color: var(--text-muted, #64748b); font-size: .8rem; max-width: 340px; }
+.ex span { display: inline-block; background: var(--bg-muted, #f1f5f9); border-radius: 4px; padding: 0 6px; margin: 1px 3px 1px 0; white-space: nowrap; }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="page-header">
   <div>
-    <h1 class="page-title"><i class="bi bi-list-check"></i> Kolumny etapów: {{ sheet.name }}</h1>
-    <span class="text-muted" style="font-size:0.82rem;">Zaznacz kolumny, w które pracownik wpisuje się skanem QR. Dział jest potrzebny tylko przy włączonym ograniczeniu do przydziałów.</span>
+    <h1 class="page-title"><i class="bi bi-list-check"></i> Kolumny arkusza: {{ sheet.name }}</h1>
+    <span class="text-muted" style="font-size:0.82rem;">
+      Nadaj kolumnom nazwy, wskaż pola zlecenia (towar, odbiorca, ZO…) i zaznacz kolumny etapów, w które pracownik wpisuje się skanem QR.
+      Przykłady po prawej pokazują, co faktycznie jest w kolumnie.
+    </span>
   </div>
   <div class="page-header-actions">
     <a href="{{ url_for('produkcja.sheet_view', sheet_id=sheet.id) }}" class="btn btn-ghost"><i class="bi bi-arrow-left"></i> Wróć do arkusza</a>
   </div>
 </div>
 
+{% if headerless %}
+<div class="card card--spaced-top"><div class="card-body">
+  <strong>Ten arkusz nie ma wiersza nagłówków w pliku.</strong> Pierwsze kolumny (A do I) nazwałem domyślnie tak jak w pozostałych arkuszach,
+  pozostałe mają litery. Na podstawie przykładów nadaj im nazwy. Zapisane nazwy zostaną zachowane przy ponownym wczytaniu pliku.
+</div></div>
+{% endif %}
+
 <div class="card card--spaced-top">
   <form method="post">
     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
     <div class="table-wrap">
       <table class="data-table">
-        <thead><tr><th>Etap</th><th>Kolumna</th><th>Nazwa na stanowisku</th><th>Dział</th></tr></thead>
+        <thead><tr><th>Etap</th><th>Nr</th><th>Nazwa kolumny</th><th>Pole zlecenia</th><th>Przykładowe wartości</th><th>Dział (etap)</th></tr></thead>
         <tbody>
           {% for c in columns %}
-          {% set st = existing.get(loop.index0) %}
+          {% set i = loop.index0 %}
+          {% set st = existing.get(i) %}
           <tr>
-            <td data-label="Etap"><input type="checkbox" name="stage" value="{{ loop.index0 }}" {% if st %}checked{% endif %} aria-label="{{ c }}"></td>
-            <td data-label="Kolumna">{{ c }}</td>
-            <td data-label="Nazwa"><input class="form-control" name="label_{{ loop.index0 }}" value="{{ st.label if st else c }}" maxlength="64"></td>
+            <td data-label="Etap"><input type="checkbox" name="stage" value="{{ i }}" {% if st %}checked{% endif %} aria-label="Etap: {{ c }}"></td>
+            <td data-label="Nr">{{ i + 1 }}</td>
+            <td data-label="Nazwa"><input class="form-control" name="name_{{ i }}" value="{{ c }}" maxlength="64"></td>
+            <td data-label="Pole">
+              <select class="form-control" name="role_{{ i }}">
+                <option value="">-</option>
+                {% for key, label in roles.items() %}<option value="{{ key }}" {% if role_of.get(i) == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+              </select>
+            </td>
+            <td data-label="Przykłady" class="ex">{% for e in examples[i] %}<span>{{ e }}</span>{% else %}<em>pusta</em>{% endfor %}</td>
             <td data-label="Dział">
-              <select class="form-control" name="dept_{{ loop.index0 }}">
+              <input type="hidden" name="label_{{ i }}" value="{{ st.label if st else c }}">
+              <select class="form-control" name="dept_{{ i }}">
                 <option value="">(wszyscy)</option>
                 {% for d in departments %}<option value="{{ d.id }}" {% if st and st.department_id == d.id %}selected{% endif %}>{{ d.name }}</option>{% endfor %}
               </select>

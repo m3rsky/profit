@@ -71,6 +71,15 @@ def _norm_header(s):
     return re.sub(r'\s+', ' ', str(s or '')).strip().upper()
 
 
+HEADERLESS_NAMES = ['ZAM', 'ROZP.', 'CZAS REALIZACJI', 'TERMIN REALIZACJI', 'NAZWA TOW.',
+                    'ILOŚĆ', 'Z', 'ODBIORCA', 'NUMER ZO']
+
+ROLE_LABELS = {
+    'order_date': 'Data zamówienia', 'lead_days': 'Czas realizacji (dni)', 'due': 'Termin realizacji',
+    'product': 'Nazwa towaru', 'qty': 'Ilość', 'client': 'Odbiorca', 'zo': 'Numer ZO', 'color': 'Kolor',
+}
+
+
 def detect_mapping(columns, headerless):
     """Pola logiczne arkusza -> indeks kolumny, wg nagłówków (a bez nagłówków wg stałego układu)."""
     if headerless:
@@ -139,6 +148,10 @@ def read_workbook(path):
             start = hdr + 1
         else:
             columns = [get_column_letter(j + 1) for j in range(ncols)]
+            # arkusz bez nagłówków (np. PROFIT): pierwsze kolumny mają ten sam układ co w
+            # pozostałych arkuszach, resztę użytkownik nazwie w aplikacji
+            for j, name in enumerate(HEADERLESS_NAMES[:ncols]):
+                columns[j] = name
             start = 0
         mapping = detect_mapping(columns, headerless=hdr is None)
         rows, fcount = [], {}

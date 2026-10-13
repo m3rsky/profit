@@ -13,7 +13,7 @@ from sqlalchemy import func
 from models import (db, get_or_404, AuditLog, User, Order, Report,
                     ProdFile, ProdSheet, ProdRow, ProdSheetAccess, ProdStageColumn, ProdEntry)
 from . import produkcja_bp, helper
-from . import excel_io
+from . import excel_io, sheetcfg
 
 UTC = timezone.utc
 PER_PAGE = 100
@@ -460,7 +460,8 @@ def import_file():
                 sh_old = db.session.get(ProdSheet, st.sheet_id)
                 cols = sh_old.columns
                 if st.col_index < len(cols):
-                    stage_cfg[(sh_old.name, cols[st.col_index])] = (st.label, st.department_id, st.is_active)
+                    orig = sheetcfg.orig_name(sheetcfg.load(sh_old.name), cols, st.col_index)
+                    stage_cfg[(sh_old.name, orig)] = (st.label, st.department_id, st.is_active)
             ProdEntry.query.update({'row_id': None})
             ProdStageColumn.query.delete()
             ProdSheetAccess.query.delete()
@@ -472,10 +473,12 @@ def import_file():
         db.session.flush()
         total = 0
         for sd in sheets:
+            names, mapping = sheetcfg.apply_to_import(sd['name'], sd['columns'], sd['mapping'])
+            sd['mapping'] = mapping
             sh = ProdSheet(name=sd['name'], position=sd['position'], hidden=sd['hidden'],
                            header_row=sd['header_row'],
-                           columns_json=json.dumps(sd['columns'], ensure_ascii=False),
-                           mapping_json=json.dumps(sd['mapping']),
+                           columns_json=json.dumps(names, ensure_ascii=False),
+                           mapping_json=json.dumps(mapping),
                            formula_cols_json=json.dumps(sd['formula_cols']),
                            file_id=rec.id)
             db.session.add(sh)
@@ -502,7 +505,7 @@ def import_file():
                 idxs = excel_io.detect_stage_columns(sd['columns'], sd['header_row'] is None)
             for i in idxs:
                 label, dept, active = stage_cfg.get((sd['name'], sd['columns'][i]),
-                                                    (sd['columns'][i], None, True))
+                                                    (names[i], None, True))
                 db.session.add(ProdStageColumn(sheet_id=sh.id, col_index=i, label=label[:64],
                                                department_id=dept, is_active=active))
             for uid in access_by_name.get(sd['name'], []):

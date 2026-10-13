@@ -210,23 +210,73 @@ def employee_badges_all():
     return send_file(_badges_pdf(emps), mimetype='application/pdf', download_name='plakietki.pdf')
 
 
-# ── Kolumny etapów arkusza ────────────────────────────────────────────────────
+# ── Kolumny arkusza: nazwy, role i etapy ──────────────────────────────────────
+
+def _column_examples(sheet, limit=4, scan_rows=400):
+    """Kilka różnych, niepustych wartości z każdej kolumny (żeby było wiadomo, co w niej jest)."""
+    import json
+    from models import ProdRow
+    from .routes import _display
+    ncols = len(sheet.columns)
+    found = [[] for _ in range(ncols)]
+    rows = ProdRow.query.filter_by(sheet_id=sheet.id).order_by(ProdRow.position).limit(scan_rows).all()
+    # próbka z początku i końca arkusza, bo układ starszych i nowszych wierszy bywa różny
+    tail = ProdRow.query.filter_by(sheet_id=sheet.id).order_by(ProdRow.position.desc()).limit(scan_rows).all()
+    for r in rows + tail:
+        for j, v in enumerate(json.loads(r.data or '[]')[:ncols]):
+            txt = _display(v)
+            if txt and txt not in found[j] and len(found[j]) < limit:
+                found[j].append(txt[:24])
+    return found
+
 
 @produkcja_bp.route('/sheet/<int:sheet_id>/etapy', methods=['GET', 'POST'])
 @login_required
 @planning_required
 def sheet_stages(sheet_id):
+    import json
+    from models import ProdRow
+    from . import excel_io, sheetcfg
     sheet = _sheet_or_403(sheet_id)
     columns = sheet.columns
     existing = {s.col_index: s for s in ProdStageColumn.query.filter_by(sheet_id=sheet.id).all()}
+    cfg = sheetcfg.load(sheet.name)
     if request.method == 'POST':
-        chosen = {int(x) for x in request.form.getlist('stage') if x.isdigit() and int(x) < len(columns)}
+        n = len(columns)
         valid_depts = {d.id for d in _departments()}
+        # nazwy kolumn
+        new_names = list(columns)
+        for idx in range(n):
+            nm = (request.form.get(f'name_{idx}') or '').strip()[:64]
+            if nm:
+                new_names[idx] = nm
+        for idx in range(n):
+            orig = sheetcfg.orig_name(cfg, columns, idx)
+            if new_names[idx] != orig:
+                cfg['names'][str(idx)] = {'orig': orig, 'name': new_names[idx]}
+            else:
+                cfg['names'].pop(str(idx), None)
+        # role kolumn (pole logiczne -> kolumna), każda rola tylko raz
+        mapping = {}
+        for idx in range(n):
+            role = request.form.get(f'role_{idx}')
+            if role in excel_io.ROLE_LABELS:
+                mapping[role] = idx
+        cfg['mapping'] = {role: {'idx': idx, 'orig': sheetcfg.orig_name(cfg, columns, idx)}
+                          for role, idx in mapping.items()}
+        mapping_changed = mapping != sheet.mapping
+        sheet.columns_json = json.dumps(new_names, ensure_ascii=False)
+        sheet.mapping_json = json.dumps(mapping)
+        sheetcfg.save(sheet.name, cfg)
+        # etapy
+        chosen = {int(x) for x in request.form.getlist('stage') if x.isdigit() and int(x) < n}
         for idx in list(existing):
             if idx not in chosen:
                 db.session.delete(existing.pop(idx))
         for idx in sorted(chosen):
-            label = (request.form.get(f'label_{idx}') or columns[idx]).strip()[:64] or columns[idx]
+            label = (request.form.get(f'label_{idx}') or '').strip()[:64]
+            if not label or label == columns[idx]:   # nazwa etapu podąża za nazwą kolumny
+                label = new_names[idx]
             dept = request.form.get(f'dept_{idx}', type=int)
             dept = dept if dept in valid_depts else None
             st = existing.get(idx)
@@ -235,12 +285,21 @@ def sheet_stages(sheet_id):
             else:
                 db.session.add(ProdStageColumn(sheet_id=sheet.id, col_index=idx, label=label,
                                                department_id=dept, is_active=True))
+        if mapping_changed:   # ZO zależy od roli kolumn, więc odświeżamy je w całym arkuszu
+            from .routes import _store_row_fields, _data
+            for row in ProdRow.query.filter_by(sheet_id=sheet.id).all():
+                _store_row_fields(row, _data(row, n), mapping)
         db.session.commit()
-        _audit('prod_stages_update', 'ProdSheet', sheet.id, f'sheet={sheet.name} stages={len(chosen)}')
-        flash('Zapisano kolumny etapów.', 'success')
+        _audit('prod_columns_update', 'ProdSheet', sheet.id,
+               f'sheet={sheet.name} stages={len(chosen)} roles={len(mapping)}')
+        flash('Zapisano ustawienia kolumn.', 'success')
         return redirect(url_for('produkcja.sheet_stages', sheet_id=sheet.id))
+    from . import excel_io as eio
+    role_of = {idx: role for role, idx in sheet.mapping.items()}
     return render_template('produkcja/stages.html', sheet=sheet, columns=columns,
-                           existing=existing, departments=_departments())
+                           existing=existing, departments=_departments(),
+                           examples=_column_examples(sheet), roles=eio.ROLE_LABELS,
+                           role_of=role_of, headerless=sheet.header_row is None)
 
 
 # ── Historia wpisów ───────────────────────────────────────────────────────────

@@ -261,3 +261,58 @@ def test_forms_use_the_csrf_field_name_the_app_expects(app, client, planner):
         names = re.findall(r'<input[^>]*type="hidden"[^>]*name="(\w*csrf_token)"', html)
         assert names, f'{url}: brak pola CSRF'
         assert set(names) == {'_csrf_token'}, f'{url}: zła nazwa pola CSRF {set(names)}'
+
+
+def _make_headerless_xlsx():
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'PROFIT'
+    # brak wiersza nagłówków, układ jak w pliku produkcyjnym
+    ws.append(['23-06', '26-06', None, None, PRODUCT, 2, None, 'ELEKTRO TEST', 'ZO-T5', None, 'RAL 7035', 'x'])
+    ws.append(['24-06', '29-06', None, None, 'PSH 862', 1, None, 'KLIENT', 'ZO-T6', None, 'RAL 9003', 'x'])
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
+def test_headerless_sheet_gets_default_names_and_user_can_rename(app, client):
+    _admin(client)
+    _import(client, _make_headerless_xlsx())
+    sid = _sheet_id(app, 'PROFIT')
+    with app.app_context():
+        sh = db.session.get(ProdSheet, sid)
+        assert sh.columns[:9] == ['ZAM', 'ROZP.', 'CZAS REALIZACJI', 'TERMIN REALIZACJI',
+                                  'NAZWA TOW.', 'ILOŚĆ', 'Z', 'ODBIORCA', 'NUMER ZO']
+        assert sh.columns[10] == 'K'                      # dalej litery kolumn
+    html = client.get(f'/produkcja/sheet/{sid}/etapy').get_data(as_text=True)
+    assert 'nie ma wiersza nagłówków' in html and 'RAL 7035' in html     # przykłady wartości
+
+    # nazwanie kolumn K (kolor) i L (etap), wskazanie roli koloru i etapu
+    form = {'_csrf_token': _csrf(client)}
+    with app.app_context():
+        for i, c in enumerate(db.session.get(ProdSheet, sid).columns):
+            form[f'name_{i}'] = c
+            if i == 8:
+                form['role_8'] = 'zo'
+            if i == 4:
+                form['role_4'] = 'product'
+    form['name_10'] = 'KOLOR'
+    form['role_10'] = 'color'
+    form['name_11'] = 'GIĘCIE'
+    form['stage'] = ['11']
+    client.post(f'/produkcja/sheet/{sid}/etapy', data=form)
+    with app.app_context():
+        sh = db.session.get(ProdSheet, sid)
+        assert sh.columns[10] == 'KOLOR' and sh.mapping == {'zo': 8, 'product': 4, 'color': 10}
+        assert [(s.label, s.col_index) for s in ProdStageColumn.query.filter_by(sheet_id=sid)] == [('GIĘCIE', 11)]
+        assert ProdRow.query.filter_by(sheet_id=sid, zo='ZO-T5').count() == 1
+
+    # ponowne wczytanie zachowuje nazwy, role i etap
+    _import(client, _make_headerless_xlsx())
+    with app.app_context():
+        sid2 = _sheet_id(app, 'PROFIT')
+        sh = db.session.get(ProdSheet, sid2)
+        assert sh.columns[10] == 'KOLOR' and sh.columns[11] == 'GIĘCIE'
+        assert sh.mapping == {'zo': 8, 'product': 4, 'color': 10}
+        assert [(s.label, s.col_index) for s in ProdStageColumn.query.filter_by(sheet_id=sid2)] == [('GIĘCIE', 11)]
