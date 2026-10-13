@@ -45,6 +45,8 @@ class User(UserMixin, db.Model):
     @property
     def is_planning(self): return self.role in ('admin', 'planowanie')
     @property
+    def is_production_station(self): return self.role in ('admin', 'planowanie', 'produkcja')
+    @property
     def is_spawacz(self): return self.role == 'spawacz'
     @property
     def is_spawalnia_user(self): return self.role in ('admin', 'kontroler', 'spawacz')
@@ -55,7 +57,7 @@ class User(UserMixin, db.Model):
         return {'admin': 'Administrator', 'order': 'Zamawiający',
                 'kontroler': 'Kontroler', 'monter': 'Monter',
                 'spawacz': 'Spawacz', 'konstruktor': 'Konstruktor',
-                'planowanie': 'Planowanie'}.get(self.role, self.role)
+                'planowanie': 'Planowanie', 'produkcja': 'Stanowisko produkcji'}.get(self.role, self.role)
 
 
 class ChecklistTemplate(db.Model):
@@ -1148,3 +1150,84 @@ class ProdSheetAccess(db.Model):
     user_id  = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     sheet_id = db.Column(db.Integer, db.ForeignKey('prod_sheets.id'), nullable=False)
     __table_args__ = (db.UniqueConstraint('user_id', 'sheet_id', name='uq_prod_access'),)
+
+
+# ── Lista produkcyjna: pracownicy, etapy, wpisy ze skanowania ─────────────────
+
+class ProdEmployee(db.Model):
+    """Pracownik produkcji identyfikowany plakietką QR (token). Imię, inicjały i
+    przydziały można zmieniać bez przedruku kodu, bo kod zawiera tylko token."""
+    __tablename__ = 'prod_employees'
+    id         = db.Column(db.Integer, primary_key=True)
+    name       = db.Column(db.String(128), nullable=False)
+    initials   = db.Column(db.String(16), nullable=False)
+    token      = db.Column(db.String(48), unique=True, nullable=False)
+    is_active  = db.Column(db.Boolean, default=True)
+    notes      = db.Column(db.String(256), nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    departments = db.relationship('ProdEmployeeDept', backref='employee', lazy='dynamic',
+                                  cascade='all, delete-orphan')
+
+    @property
+    def department_ids(self):
+        return {d.department_id for d in self.departments.all()}
+
+
+class ProdEmployeeDept(db.Model):
+    """Przydział pracownika do działu (słownik działów z modułu Marszruta)."""
+    __tablename__ = 'prod_employee_departments'
+    id            = db.Column(db.Integer, primary_key=True)
+    employee_id   = db.Column(db.Integer, db.ForeignKey('prod_employees.id'), nullable=False)
+    department_id = db.Column(db.Integer, db.ForeignKey('production_departments.id'), nullable=False)
+    department    = db.relationship('ProductionDepartment')
+    __table_args__ = (db.UniqueConstraint('employee_id', 'department_id', name='uq_prod_emp_dept'),)
+
+
+class ProdStageColumn(db.Model):
+    """Kolumna arkusza będąca etapem produkcji (GIĘCIE, SPAW. itd.), do której
+    pracownik wpisuje się skanem. Opcjonalnie przypisana do działu."""
+    __tablename__ = 'prod_stage_columns'
+    id            = db.Column(db.Integer, primary_key=True)
+    sheet_id      = db.Column(db.Integer, db.ForeignKey('prod_sheets.id'), nullable=False, index=True)
+    col_index     = db.Column(db.Integer, nullable=False)
+    label         = db.Column(db.String(64), nullable=False)
+    department_id = db.Column(db.Integer, db.ForeignKey('production_departments.id'), nullable=True)
+    is_active     = db.Column(db.Boolean, default=True)
+    department    = db.relationship('ProductionDepartment')
+    __table_args__ = (db.UniqueConstraint('sheet_id', 'col_index', name='uq_prod_stage_col'),)
+
+
+class ProdEntry(db.Model):
+    """Historia wpisów pracowników w kolumny etapów (kto, gdzie, kiedy)."""
+    __tablename__ = 'prod_entries'
+    id           = db.Column(db.Integer, primary_key=True)
+    employee_id  = db.Column(db.Integer, db.ForeignKey('prod_employees.id'), nullable=True)
+    row_id       = db.Column(db.Integer, db.ForeignKey('prod_rows.id'), nullable=True)
+    user_id      = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # konto stanowiska
+    sheet_name   = db.Column(db.String(64), nullable=True)
+    zo           = db.Column(db.String(64), nullable=True)
+    product      = db.Column(db.String(256), nullable=True)
+    col_label    = db.Column(db.String(64), nullable=True)
+    value_before = db.Column(db.String(128), nullable=True)
+    value_after  = db.Column(db.String(128), nullable=True)
+    created_at   = db.Column(db.DateTime, default=lambda: datetime.now(UTC), index=True)
+    employee     = db.relationship('ProdEmployee')
+
+
+class ProdSetting(db.Model):
+    __tablename__ = 'prod_settings'
+    key   = db.Column(db.String(64), primary_key=True)
+    value = db.Column(db.String(256), nullable=True)
+
+    @staticmethod
+    def get(key, default=None):
+        row = db.session.get(ProdSetting, key)
+        return row.value if row and row.value is not None else default
+
+    @staticmethod
+    def set(key, value):
+        row = db.session.get(ProdSetting, key)
+        if row:
+            row.value = value
+        else:
+            db.session.add(ProdSetting(key=key, value=value))

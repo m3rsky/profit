@@ -11,7 +11,7 @@ from flask_login import login_required, current_user
 from sqlalchemy import func
 
 from models import (db, get_or_404, AuditLog, User, Order, Report,
-                    ProdFile, ProdSheet, ProdRow, ProdSheetAccess)
+                    ProdFile, ProdSheet, ProdRow, ProdSheetAccess, ProdStageColumn, ProdEntry)
 from . import produkcja_bp, helper
 from . import excel_io
 
@@ -289,6 +289,7 @@ def _delete_rows(sheet, rows):
     for r in rows:
         if r.src_row is not None:
             deleted.append(r.src_row)
+        ProdEntry.query.filter_by(row_id=r.id).update({'row_id': None})
         db.session.delete(r)
     sheet.deleted_rows_json = json.dumps(sorted(set(deleted)))
 
@@ -442,7 +443,7 @@ def import_file():
             return redirect(url_for('produkcja.import_file'))
 
         # backup poprzedniego stanu (z wprowadzonymi zmianami) przed zastąpieniem
-        access_by_name, links = {}, {}
+        access_by_name, links, stage_cfg = {}, {}, {}
         if ProdSheet.query.first():
             try:
                 _export(kind='backup', note='Automatycznie przed ponownym wczytaniem')
@@ -455,6 +456,13 @@ def import_file():
                 access_by_name.setdefault(db.session.get(ProdSheet, acc.sheet_id).name, []).append(acc.user_id)
             for r in ProdRow.query.filter(ProdRow.order_id.isnot(None), ProdRow.zo.isnot(None)).all():
                 links[(r.sheet.name, r.zo, r.search)] = r.order_id
+            for st in ProdStageColumn.query.all():
+                sh_old = db.session.get(ProdSheet, st.sheet_id)
+                cols = sh_old.columns
+                if st.col_index < len(cols):
+                    stage_cfg[(sh_old.name, cols[st.col_index])] = (st.label, st.department_id, st.is_active)
+            ProdEntry.query.update({'row_id': None})
+            ProdStageColumn.query.delete()
             ProdSheetAccess.query.delete()
             ProdRow.query.delete()
             ProdSheet.query.delete()
@@ -488,6 +496,15 @@ def import_file():
                 })
             db.session.bulk_insert_mappings(ProdRow, batch)
             total += len(batch)
+            if any(k[0] == sd['name'] for k in stage_cfg):   # ponowny import: etapy skonfigurowane wcześniej (po nazwie kolumny)
+                idxs = [i for i, c in enumerate(sd['columns']) if (sd['name'], c) in stage_cfg]
+            else:
+                idxs = excel_io.detect_stage_columns(sd['columns'], sd['header_row'] is None)
+            for i in idxs:
+                label, dept, active = stage_cfg.get((sd['name'], sd['columns'][i]),
+                                                    (sd['columns'][i], None, True))
+                db.session.add(ProdStageColumn(sheet_id=sh.id, col_index=i, label=label[:64],
+                                               department_id=dept, is_active=active))
             for uid in access_by_name.get(sd['name'], []):
                 db.session.add(ProdSheetAccess(user_id=uid, sheet_id=sh.id))
         rec.size = os.path.getsize(path)

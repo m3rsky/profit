@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Historia wpisów – Lista produkcyjna{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-clock-history"></i> Historia wpisów</h1>
+    <span class="text-muted" style="font-size:0.82rem;">Ostatnie 300 wpisów pracowników w kolumny etapów.</span>
+  </div>
+  <div class="page-header-actions">
+    <a href="{{ url_for('produkcja.index') }}" class="btn btn-ghost"><i class="bi bi-arrow-left"></i> Wróć</a>
+  </div>
+</div>
+
+<form method="get" class="filter-bar" style="margin-top:.75rem;">
+  <input type="search" name="q" class="form-control filter-input" value="{{ q }}" placeholder="Szukaj: ZO, towar, pracownik, arkusz…" style="max-width:320px;">
+  <button type="submit" class="btn btn-outline"><i class="bi bi-search"></i> Szukaj</button>
+</form>
+
+<div class="card card--spaced-top">
+  {% if entries %}
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead><tr><th>Data</th><th>Pracownik</th><th>Arkusz</th><th>ZO</th><th>Towar</th><th>Etap</th><th>Było</th><th>Jest</th></tr></thead>
+      <tbody>
+        {% for e in entries %}
+        <tr>
+          <td data-label="Data">{{ e.created_at | localdt('%d.%m.%Y %H:%M') }}</td>
+          <td data-label="Pracownik">{{ e.employee.name if e.employee else '-' }}</td>
+          <td data-label="Arkusz">{{ e.sheet_name or '' }}</td>
+          <td data-label="ZO">{{ e.zo or '' }}</td>
+          <td data-label="Towar">{{ e.product or '' }}</td>
+          <td data-label="Etap">{{ e.col_label or '' }}</td>
+          <td data-label="Było">{{ e.value_before or '-' }}</td>
+          <td data-label="Jest"><strong>{{ e.value_after or '' }}</strong></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state"><p>Brak wpisów.</p></div>
+  {% endif %}
+</div>
+{% endblock %}

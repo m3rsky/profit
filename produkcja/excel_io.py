@@ -167,6 +167,24 @@ def read_workbook(path):
     return sheets
 
 
+# Nagłówki kolumn, w które pracownik wpisuje swoje inicjały (domyślny wybór etapów;
+# kolumny z datami, np. D.zaw, pomijamy). Administrator może to zmienić w aplikacji.
+STAGE_KEYWORDS = ('GIĘCIE', 'GIECIE', 'SPAW', 'DRZW', 'MASK', 'CZYSZ', 'MYJ', 'MAL',
+                  'SKŁAD', 'ZŁOŻ', 'KJ', 'WYPAL', 'LASER', 'SZYK', 'GRZ', 'KWADR', 'WSADY')
+
+
+def detect_stage_columns(columns, headerless):
+    """Indeksy kolumn wyglądających na etapy produkcji (po nagłówkach)."""
+    if headerless:
+        return []
+    out = []
+    for i, c in enumerate(columns):
+        h = _norm_header(c)
+        if h and any(h.startswith(k) for k in STAGE_KEYWORDS):
+            out.append(i)
+    return out
+
+
 def row_fields(data, mapping):
     """Pola logiczne wiersza (zo, produkt, klient...) z listy komórek."""
     out = {}

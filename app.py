@@ -358,6 +358,8 @@ def dashboard():
         return redirect(url_for('qar.list_reports'))
     if current_user.role == 'planowanie':
         return redirect(url_for('produkcja.index'))
+    if current_user.role == 'produkcja':
+        return redirect(url_for('produkcja.scan_page'))
 
     # Pracownicy niebędący adminem dostają uproszczony dashboard z kafelkami
     if current_user.role in ('order', 'spawacz', 'monter'):

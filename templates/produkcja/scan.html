@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}Stanowisko – skanowanie QR{% endblock %}
+
+{% block head %}
+<style>
+#qr-reader-wrap{position:relative;width:100%;max-width:420px;margin:0 auto}
+#qr-reader{width:100%;border-radius:8px;overflow:hidden;background:#000}
+#qr-reader video{width:100%!important;height:auto!important}
+#qr-reader img{display:none!important}
+.st-emp{max-width:640px;margin:0 auto .75rem;padding:.75rem 1rem;border-radius:8px;display:flex;gap:.75rem;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.st-emp.none{background:var(--warning-bg,#fffbeb);color:var(--warning-text,#92400e)}
+.st-emp.ok{background:var(--success-bg,#f0fdf4);color:var(--success-text,#166534)}
+.st-msg{max-width:640px;margin:.75rem auto 0;padding:.6rem 1rem;border-radius:8px}
+.st-msg.error{background:var(--danger-bg,#fef2f2);color:var(--danger,#dc2626)}
+.st-msg.info{background:var(--info-bg,#eff6ff);color:var(--info,#2563eb)}
+.st-order{max-width:640px;margin:1rem auto 0}
+.st-order h3{margin:0 0 .25rem;font-size:1.05rem}
+.st-meta{color:var(--text-muted,#64748b);font-size:.85rem;margin-bottom:.6rem}
+.st-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:.5rem}
+.st-btn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:.6rem .7rem;border:1px solid var(--border,#cbd5e1);border-radius:8px;background:var(--card-bg,#fff);cursor:pointer;text-align:left;font:inherit;color:inherit;min-height:56px}
+.st-btn .lbl{font-weight:600;font-size:.9rem}
+.st-btn .val{font-size:.8rem;color:var(--text-muted,#64748b);min-height:1em}
+.st-btn.mine{background:var(--success-bg,#f0fdf4);border-color:var(--success,#16a34a)}
+.st-btn.done .val{color:var(--text,#0f172a);font-weight:600}
+.st-btn:disabled{opacity:.45;cursor:not-allowed}
+.st-manual{max-width:420px;margin:.75rem auto 0;display:flex;gap:.5rem}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title"><i class="bi bi-qr-code-scan"></i> Stanowisko produkcji</h1>
+</div>
+
+<div id="st-emp" class="st-emp none">
+  <div id="st-emp-text"><i class="bi bi-person-badge"></i> Zeskanuj swoją plakietkę pracownika</div>
+  <button type="button" class="btn btn-outline btn-sm" id="st-logout" hidden>Zmień pracownika</button>
+</div>
+
+<div id="qr-reader-wrap"><div id="qr-reader"></div></div>
+
+<form class="st-manual" id="st-manual">
+  <input class="form-control" id="st-zo" placeholder="albo wpisz numer ZO" autocomplete="off">
+  <button type="submit" class="btn btn-outline">Szukaj</button>
+</form>
+
+<div id="st-msg" class="st-msg" hidden></div>
+<div id="st-orders"></div>
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+(function () {
+  var PREFIX = {{ badge_prefix|tojson }};
+  var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+  var employee = {{ employee|tojson }};
+  var urls = {
+    emp: "{{ url_for('produkcja.scan_employee') }}",
+    out: "{{ url_for('produkcja.scan_logout') }}",
+    order: "{{ url_for('produkcja.scan_order') }}",
+    entry: "{{ url_for('produkcja.scan_entry') }}"
+  };
+  var elEmp = document.getElementById('st-emp'), elEmpText = document.getElementById('st-emp-text');
+  var elLogout = document.getElementById('st-logout'), elMsg = document.getElementById('st-msg');
+  var elOrders = document.getElementById('st-orders');
+  var lastText = '', lastAt = 0;
+
+  function post(url, body) {
+    return fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrf},
+                       body: JSON.stringify(body)})
+      .then(function (r) { return r.json().then(function (d) { return {ok: r.ok, status: r.status, d: d}; }); });
+  }
+  function msg(text, kind) {
+    elMsg.textContent = text; elMsg.className = 'st-msg ' + (kind || 'info'); elMsg.hidden = !text;
+  }
+  function renderEmployee() {
+    if (employee) {
+      elEmp.className = 'st-emp ok';
+      elEmpText.textContent = 'Pracownik: ' + employee.name + ' (' + employee.initials + ')';
+      elLogout.hidden = false;
+    } else {
+      elEmp.className = 'st-emp none';
+      elEmpText.textContent = 'Zeskanuj swoją plakietkę pracownika';
+      elLogout.hidden = true;
+      elOrders.textContent = '';
+    }
+  }
+  renderEmployee();
+
+  elLogout.addEventListener('click', function () {
+    post(urls.out, {}).then(function () { employee = null; renderEmployee(); msg('', ''); });
+  });
+
+  function lookupOrder(payload) {
+    if (!employee) { msg('Najpierw zeskanuj swoją plakietkę.', 'error'); return; }
+    msg('Szukam zlecenia…', 'info');
+    post(urls.order, payload).then(function (res) {
+      if (res.status === 401) { employee = null; renderEmployee(); }
+      if (!res.ok) { elOrders.textContent = ''; msg(res.d.error || 'Błąd.', 'error'); return; }
+      msg('', '');
+      renderOrders(res.d.orders);
+    }).catch(function () { msg('Błąd sieci. Spróbuj ponownie.', 'error'); });
+  }
+
+  function renderOrders(orders) {
+    elOrders.textContent = '';
+    orders.forEach(function (o) {
+      var card = document.createElement('div'); card.className = 'card st-order';
+      var body = document.createElement('div'); body.className = 'card-body';
+      var h = document.createElement('h3'); h.textContent = o.product || '(bez nazwy)';
+      var meta = document.createElement('div'); meta.className = 'st-meta';
+      meta.textContent = [o.client, o.qty ? o.qty + ' szt.' : '', 'ZO ' + o.zo, o.sheet + ' (wiersz ' + o.position + ')']
+        .filter(Boolean).join(' · ');
+      var grid = document.createElement('div'); grid.className = 'st-grid';
+      o.stages.forEach(function (s) { grid.appendChild(stageButton(o, s)); });
+      body.appendChild(h); body.appendChild(meta); body.appendChild(grid);
+      card.appendChild(body); elOrders.appendChild(card);
+    });
+  }
+
+  function paint(btn, val, mine) {
+    btn.querySelector('.val').textContent = val || '';
+    btn.classList.toggle('done', !!val);
+    btn.classList.toggle('mine', !!mine);
+  }
+
+  function stageButton(o, s) {
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'st-btn'; b.disabled = !s.allowed;
+    var l = document.createElement('span'); l.className = 'lbl'; l.textContent = s.label;
+    var v = document.createElement('span'); v.className = 'val';
+    b.appendChild(l); b.appendChild(v);
+    paint(b, s.value, s.mine);
+    b.addEventListener('click', function () { writeEntry(o, s, b, false); });
+    return b;
+  }
+
+  function writeEntry(o, s, btn, confirmed) {
+    post(urls.entry, {row_id: o.row_id, stage_id: s.id, confirm: confirmed}).then(function (res) {
+      if (res.status === 401) { employee = null; renderEmployee(); msg(res.d.error, 'error'); return; }
+      var d = res.d;
+      if (d.status === 'confirm') {
+        if (window.confirm(d.message)) { writeEntry(o, s, btn, true); }
+        return;
+      }
+      if (d.status === 'ok' || d.status === 'already') {
+        paint(btn, d.value, true); msg(d.message, 'info');
+      } else {
+        msg(d.error || d.message || 'Nie udało się zapisać wpisu.', 'error');
+      }
+    }).catch(function () { msg('Błąd sieci, wpis nie został zapisany.', 'error'); });
+  }
+
+  function onScan(text) {
+    var now = Date.now();
+    if (text === lastText && now - lastAt < 3000) return;
+    lastText = text; lastAt = now;
+    text = (typeof repairPolishText === 'function') ? repairPolishText(text.trim()) : text.trim();
+    if (text.indexOf(PREFIX) === 0) {
+      post(urls.emp, {code: text}).then(function (res) {
+        if (!res.ok) { msg(res.d.error || 'Nieznany kod.', 'error'); return; }
+        employee = res.d.employee; renderEmployee(); elOrders.textContent = '';
+        msg('Witaj, ' + employee.name + '. Zeskanuj kod zlecenia.', 'info');
+      });
+      return;
+    }
+    var obj = null;
+    try { obj = JSON.parse(text); } catch (e) {}
+    if (obj && obj.o) { lookupOrder({o: String(obj.o).trim(), p: obj.p ? String(obj.p).trim() : ''}); }
+    else { msg('Nierozpoznany kod QR. Zeskanuj plakietkę lub kod zlecenia.', 'error'); }
+  }
+
+  document.getElementById('st-manual').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var zo = document.getElementById('st-zo').value.trim();
+    if (zo) lookupOrder({o: zo, p: ''});
+  });
+
+  var reader = new Html5Qrcode('qr-reader');
+  Html5Qrcode.getCameras().then(function (cams) {
+    if (!cams || !cams.length) { msg('Brak dostępnej kamery. Użyj pola numeru ZO.', 'error'); return; }
+    return reader.start(cams[cams.length - 1].id, {fps: 10, qrbox: {width: 260, height: 260}}, onScan, function () {});
+  }).catch(function () { msg('Brak dostępu do kamery. Sprawdź uprawnienia przeglądarki.', 'error'); });
+  window.addEventListener('beforeunload', function () { try { reader.stop(); } catch (e) {} });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edycja pracownika' if emp else 'Nowy pracownik' }} – Lista produkcyjna{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title"><i class="bi bi-person-badge"></i> {{ 'Edycja pracownika' if emp else 'Nowy pracownik' }}</h1>
+  <div class="page-header-actions">
+    <a href="{{ url_for('produkcja.employees') }}" class="btn btn-ghost"><i class="bi bi-arrow-left"></i> Wróć</a>
+  </div>
+</div>
+
+<div class="card card--spaced-top">
+  <div class="card-body">
+    <form method="post" style="max-width:520px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group">
+        <label class="form-label" for="name">Imię i nazwisko *</label>
+        <input class="form-control" id="name" name="name" required value="{{ form.get('name', emp.name if emp else '') }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="initials">Inicjały (trafiają do komórki w Excelu) *</label>
+        <input class="form-control" id="initials" name="initials" maxlength="16" required value="{{ form.get('initials', emp.initials if emp else '') }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Przydziały do działów</label>
+        {% if departments %}
+          {% for d in departments %}
+          <label style="display:flex;gap:.5rem;align-items:center;">
+            <input type="checkbox" name="departments" value="{{ d.id }}" {% if d.id in selected %}checked{% endif %}> {{ d.name }}
+          </label>
+          {% endfor %}
+        {% else %}
+          <p class="text-muted" style="font-size:.85rem;">Brak działów. Dodaj je w module Marszruta produkcji (Działy i pracownicy).</p>
+        {% endif %}
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="notes">Notatka</label>
+        <input class="form-control" id="notes" name="notes" value="{{ form.get('notes', emp.notes if emp and emp.notes else '') }}">
+      </div>
+      {% if emp %}
+      <div class="form-group">
+        <label style="display:flex;gap:.5rem;align-items:center;">
+          <input type="checkbox" name="is_active" value="1" {% if emp.is_active %}checked{% endif %}> Aktywny (może się wpisywać)
+        </label>
+      </div>
+      {% else %}
+      <input type="hidden" name="is_active" value="1">
+      {% endif %}
+      <div class="form-actions"><button type="submit" class="btn btn-primary">Zapisz</button></div>
+    </form>
+  </div>
+</div>
+{% endblock %}

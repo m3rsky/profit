@@ -8,7 +8,8 @@ from openpyxl import Workbook, load_workbook
 
 from app import app as flask_app, db
 from models import (User, Order, Report, ReportItem, Alert, ProdFile, ProdSheet, ProdRow,
-                    ProdSheetAccess)
+                    ProdSheetAccess, ProdEmployee, ProdEmployeeDept, ProdStageColumn,
+                    ProdEntry, ProdSetting)
 from test_app import login, logout, _csrf
 
 PRODUCT = 'Kontrola ZO API'   # pasuje do szablonu z conftest (dopasowanie po tokenach)
@@ -45,11 +46,16 @@ def prod_folder(app, tmp_path):
                 db.session.delete(rep)
             Alert.query.filter_by(order_id=order.id).delete()
             db.session.delete(order)
+        ProdEntry.query.delete()
+        ProdEmployeeDept.query.delete()
+        ProdEmployee.query.delete()
+        ProdStageColumn.query.delete()
+        ProdSetting.query.delete()
         ProdRow.query.delete()
         ProdSheetAccess.query.delete()
         ProdSheet.query.delete()
         ProdFile.query.delete()
-        User.query.filter_by(username='planista').delete()
+        User.query.filter(User.username.in_(['planista', 'stanowisko'])).delete(synchronize_session=False)
         db.session.commit()
 
 

@@ -16,3 +16,4 @@ def helper(name):
 
 
 from . import routes  # noqa: F401, E402
+from . import entries, staff, scan  # noqa: F401, E402

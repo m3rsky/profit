@@ -116,6 +116,11 @@
         <span class="nav-icon"><i class="bi bi-table"></i></span>
         <span>Lista produkcyjna</span>
       </a>
+      <a href="{{ url_for('produkcja.scan_page') }}"
+         class="{% if request.endpoint in ('produkcja.scan_page',) %}active{% endif %}">
+        <span class="nav-icon"><i class="bi bi-qr-code-scan"></i></span>
+        <span>Stanowisko (skan QR)</span>
+      </a>
       <a href="{{ url_for('dokumentacja.list_entries') }}"
          class="{% if request.endpoint and request.endpoint.startswith('dokumentacja.') %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-folder2-open"></i></span>
@@ -318,6 +323,26 @@
            title="Lista produkcyjna">
           <i class="bi bi-table"></i>
           <span class="wk-nav-label">Lista produkcyjna</span>
+        </a>
+        <a href="{{ url_for('produkcja.employees') }}"
+           class="wk-nav-link {% if request.endpoint in ('produkcja.employees','produkcja.employee_new','produkcja.employee_edit') %}active{% endif %}"
+           title="Pracownicy">
+          <i class="bi bi-person-badge"></i>
+          <span class="wk-nav-label">Pracownicy</span>
+        </a>
+        <a href="{{ url_for('produkcja.history') }}"
+           class="wk-nav-link {% if request.endpoint == 'produkcja.history' %}active{% endif %}"
+           title="Historia wpisów">
+          <i class="bi bi-clock-history"></i>
+          <span class="wk-nav-label">Historia</span>
+        </a>
+
+      {% elif current_user.role == 'produkcja' %}
+        <a href="{{ url_for('produkcja.scan_page') }}"
+           class="wk-nav-link {% if request.endpoint == 'produkcja.scan_page' %}active{% endif %}"
+           title="Skanuj QR">
+          <i class="bi bi-qr-code-scan"></i>
+          <span class="wk-nav-label">Skanuj QR</span>
         </a>
 
       {% elif current_user.role == 'konstruktor' %}

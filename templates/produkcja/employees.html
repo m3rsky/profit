@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Pracownicy – Lista produkcyjna{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-person-badge"></i> Pracownicy produkcji</h1>
+    <span class="text-muted" style="font-size:0.82rem;">Baza pracowników z plakietkami QR. Pracownik skanuje plakietkę na stanowisku, a potem kod zlecenia.</span>
+  </div>
+  <div class="page-header-actions">
+    <a href="{{ url_for('produkcja.employee_new') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nowy pracownik</a>
+    <a href="{{ url_for('produkcja.employee_badges_all') }}" class="btn btn-outline"><i class="bi bi-printer"></i> Plakietki wszystkich (PDF)</a>
+    <a href="{{ url_for('produkcja.index') }}" class="btn btn-ghost"><i class="bi bi-arrow-left"></i> Wróć</a>
+  </div>
+</div>
+
+{% if current_user.is_admin %}
+<div class="card card--spaced-top">
+  <div class="card-body">
+    <form method="post" action="{{ url_for('produkcja.employees_settings') }}" class="form-inline" style="gap:.75rem;flex-wrap:wrap;align-items:center;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label style="display:flex;gap:.5rem;align-items:center;">
+        <input type="checkbox" name="enforce_assignments" value="1" {% if enforce %}checked{% endif %}>
+        Ogranicz wpisy do przydziałów (pracownik wpisuje się tylko w etapy swoich działów)
+      </label>
+      <button type="submit" class="btn btn-outline btn-sm">Zapisz</button>
+      <span class="text-muted" style="font-size:.8rem;">Domyślnie wyłączone: każdy może wpisać się w każdy etap.</span>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="card card--spaced-top">
+  {% if employees %}
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead><tr><th>Imię i nazwisko</th><th>Inicjały</th><th>Przydziały (działy)</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        {% for e in employees %}
+        <tr>
+          <td data-label="Imię i nazwisko"><strong>{{ e.name }}</strong></td>
+          <td data-label="Inicjały">{{ e.initials }}</td>
+          <td data-label="Przydziały">{{ dept_names[e.id] or '-' }}</td>
+          <td data-label="Status">{% if e.is_active %}<span class="badge badge-success">aktywny</span>{% else %}<span class="badge badge-neutral">nieaktywny</span>{% endif %}</td>
+          <td class="td-actions">
+            <a class="btn btn-outline btn-sm" href="{{ url_for('produkcja.employee_edit', emp_id=e.id) }}">Edytuj</a>
+            <a class="btn btn-outline btn-sm" href="{{ url_for('produkcja.employee_badge', emp_id=e.id) }}"><i class="bi bi-qr-code"></i> Plakietka</a>
+            <form method="post" action="{{ url_for('produkcja.employee_new_token', emp_id=e.id) }}" style="display:inline;"
+                  onsubmit="return confirm('Wygenerować nowy kod? Dotychczasowa plakietka przestanie działać.');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-outline btn-sm" title="Unieważnij stary kod">Nowy kod</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state"><p>Brak pracowników. Dodaj pierwszego, aby wygenerować plakietkę QR.</p></div>
+  {% endif %}
+</div>
+{% endblock %}
