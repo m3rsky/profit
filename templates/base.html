@@ -74,7 +74,7 @@
       <a href="{{ url_for('reports_list') }}"
          class="{% if request.endpoint in ('reports_list','report_detail') %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-clipboard-check"></i></span>
-        <span>Raporty QA</span>
+        <span>Kontrola Końcowa</span>
       </a>
       <a href="{{ url_for('admin_templates') }}"
          class="{% if request.endpoint and not request.endpoint.startswith('zadania_qa.') and not request.endpoint.startswith('marszruta.') and ('template' in request.endpoint or 'category' in request.endpoint or 'task' in request.endpoint) %}active{% endif %}">
@@ -100,6 +100,11 @@
          class="{% if request.endpoint and request.endpoint.startswith('qar.') %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-clipboard2-pulse"></i></span>
         <span>Raporty QAR</span>
+      </a>
+      <a href="{{ url_for('kontrola.list_records') }}"
+         class="{% if request.endpoint and request.endpoint.startswith('kontrola.') %}active{% endif %}">
+        <span class="nav-icon"><i class="bi bi-patch-check"></i></span>
+        <span>Kontrola zamówień</span>
       </a>
       <a href="{{ url_for('zadania_qa.list_tasks') }}"
          class="{% if request.endpoint and request.endpoint.startswith('zadania_qa.') %}active{% endif %}">
@@ -226,9 +231,9 @@
         </a>
         <a href="{{ url_for('reports_list') }}"
            class="wk-nav-link {% if request.endpoint in ('reports_list','report_detail') %}active{% endif %}"
-           title="Raporty QA">
+           title="Kontrola Końcowa">
           <i class="bi bi-clipboard-check-fill"></i>
-          <span class="wk-nav-label">Raporty</span>
+          <span class="wk-nav-label">Kontrola Końcowa</span>
         </a>
         {% if pending_qa_count > 0 %}
         <button type="button" class="wk-nav-link wk-qa-btn" id="wk-qa-btn"
@@ -249,6 +254,12 @@
            title="Raporty QAR">
           <i class="bi bi-clipboard2-pulse"></i>
           <span class="wk-nav-label">QAR</span>
+        </a>
+        <a href="{{ url_for('kontrola.list_records') }}"
+           class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('kontrola.') %}active{% endif %}"
+           title="Kontrola zamówień">
+          <i class="bi bi-patch-check"></i>
+          <span class="wk-nav-label">Kontrola zamówień</span>
         </a>
         <a href="{{ url_for('zadania_qa.list_tasks') }}"
            class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('zadania_qa.') %}active{% endif %}"
@@ -343,6 +354,14 @@
            title="Skanuj QR">
           <i class="bi bi-qr-code-scan"></i>
           <span class="wk-nav-label">Skanuj QR</span>
+        </a>
+
+      {% elif current_user.role == 'operator' %}
+        <a href="{{ url_for('kontrola.list_records') }}"
+           class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('kontrola.') %}active{% endif %}"
+           title="Kontrola zamówień">
+          <i class="bi bi-patch-check"></i>
+          <span class="wk-nav-label">Zamówienia po kontroli</span>
         </a>
 
       {% elif current_user.role == 'konstruktor' %}

@@ -65,6 +65,9 @@ app.register_blueprint(dokumentacja_bp)
 from produkcja import produkcja_bp  # noqa: E402
 app.register_blueprint(produkcja_bp)
 
+from kontrola import kontrola_bp  # noqa: E402
+app.register_blueprint(kontrola_bp)
+
 # ── Logging ────────────────────────────────────────────────────────────────────
 _log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
 os.makedirs(_log_dir, exist_ok=True)
@@ -360,6 +363,8 @@ def dashboard():
         return redirect(url_for('produkcja.index'))
     if current_user.role == 'produkcja':
         return redirect(url_for('produkcja.scan_page'))
+    if current_user.role == 'operator':
+        return redirect(url_for('kontrola.list_records'))
 
     # Pracownicy niebędący adminem dostają uproszczony dashboard z kafelkami
     if current_user.role in ('order', 'spawacz', 'monter'):
@@ -3088,7 +3093,7 @@ def orders_regenerate(order_id):
     _create_order_reports(order, tpl, monter_tpl)
     db.session.commit()
     _audit('order_regenerate', 'order', order.id, f'template={tpl.name}')
-    flash(f'Raporty QA zregenerowane na podstawie szablonu „{tpl.name}".', 'success')
+    flash(f'Listy Kontroli Końcowej zregenerowane na podstawie szablonu „{tpl.name}".', 'success')
     return redirect(url_for('orders_detail', order_id=order_id))
 
 

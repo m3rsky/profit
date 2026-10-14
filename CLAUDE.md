@@ -62,7 +62,7 @@ Przykład formatu:
 ## Informacje o projekcie
 
 - **Stack:** Python 3.14 (lokalnie, `venv`), Flask 3.0.3, Flask-SQLAlchemy 3.1.1, Flask-Login, Flask-WTF, SQLite. Pełna lista w `requirements.txt`.
-- **Testy:** `.\venv\Scripts\python.exe -m pytest tests/ -v` - 185 testów w `tests/` (m.in. `test_app.py`, `test_api_v1.py`, `test_briefing.py`, `test_dokumentacja.py`, `test_installer_stats.py`, `test_marszruta.py`, `test_produkcja.py`, `test_produkcja_stanowisko.py`, `test_qar_employee.py`, `test_qar_from_checklist.py`, `test_zadania_qa.py`), wszystkie muszą przejść. Współdzielone fixture'y są w `tests/conftest.py`.
+- **Testy:** `.\venv\Scripts\python.exe -m pytest tests/ -v` - 210 testów w `tests/` (m.in. `test_app.py`, `test_kontrola.py`, `test_api_v1.py`, `test_briefing.py`, `test_dokumentacja.py`, `test_installer_stats.py`, `test_marszruta.py`, `test_produkcja.py`, `test_produkcja_stanowisko.py`, `test_qar_employee.py`, `test_qar_from_checklist.py`, `test_zadania_qa.py`), wszystkie muszą przejść. Współdzielone fixture'y są w `tests/conftest.py`.
 - **Uruchomienie lokalne:** `.\venv\Scripts\python.exe app.py` → http://127.0.0.1:5000
 - **Pre-commit hook:** automatycznie uruchamia testy przed każdym commitem
 - **Migracje schematu:** wszystkie realizowane przez `_migrate_schema()` w `app.py` - bez Alembic. Nowe kolumny dodawane jako `ALTER TABLE ... ADD COLUMN ...`.
@@ -113,6 +113,19 @@ Zmiana 2026-09-29. URL `/spawalnia/*`, tabela `spawalnia_records` i API `/api/v1
 - Osoby pochodzą z działów Marszruty (`/marszruta/admin/departments`), `/spawalnia/admin/operators` przekierowuje tam. Stare tabele operatorów (`spawalnia_operators`, `giecie_operators`, `ciecie_operators`) i stare pola pomiarowe zostają w bazie jako dane archiwalne, nowy UI ich nie edytuje.
 - Start ze skanu QR: `/spawalnia/scan` i `POST /spawalnia/from-qr` (te same pola `p`, `c`, `o`, `q`; `o` wymagane, istniejące ZO otwiera się zamiast dublować).
 - Testy: `tests/test_interstage.py`.
+
+---
+
+## Moduł "Kontrola zamówień" (`/kontrola`)
+
+Dodany 2026-10-14. Kontrola zamówienia po stałych, edytowalnych punktach (zamiast szablonów jak w "Raportach QA"). Kontroler skanuje ten sam kod QR co kontrola końcowa (pola `p`,`c`,`o`,`q`, wymagane `o`), ocenia punkty OK/NG i kończy kontrolę. Zakończone zamówienia widzi rola **Operator** (linia produkcyjna).
+
+- **Kod:** pakiet `kontrola/` (blueprint `kontrola_bp`), szablony w `templates/kontrola/`. Modele (models.py): `ControlPoint`, `ControlRecord`, `ControlResult`. Tabele tworzy `db.create_all()`, bez `ALTER`.
+- **Punkty:** jedna wspólna lista, edytuje ją tylko admin w `/kontrola/points` (dodaj, edytuj, kolejność, aktywny, usuń). Wynik ma kopię tytułu punktu, więc edycja listy nie zmienia historii. Bez punktów nie da się rozpocząć kontroli (lista startuje pusta, admin musi ją uzupełnić).
+- **Cykl:** kontrola wstępna (`round=1`) -> koniec kontroli (wymaga oceny wszystkich punktów) -> operator klika "Wykonane" -> powstaje kontrola sprawdzająca (`round=2`, `previous_id`) przypisana do tego samego kontrolera. Stany (`ControlRecord.state`): `in_control`, `to_do`, `recheck`, `closed`. Powtórny skan tego samego ZO otwiera najnowszy etap zamiast tworzyć nowy.
+- **NG:** każdy punkt NG tworzy raport QAR (raz, `qar_report_id`), bez blokowania zamówienia. Zakończenie kontroli wstępnej wysyła alert do operatorów, "Wykonane" wysyła alert do adminów i kontrolerów.
+- **Role:** nowa rola `operator` (widok listy i "Wykonane", po zalogowaniu przekierowanie do `/kontrola/`). Skan i wypełnianie: admin + kontroler. Admin może wznowić zakończoną kontrolę (`/kontrola/<id>/reopen`), o ile operator nie oznaczył jeszcze wykonania.
+- Testy: `tests/test_kontrola.py`.
 
 ---
 

@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Kontrola zamówienia {{ rec.zo_number }}{% endblock %}
+
+{% block head %}
+<style>
+.kz-wrap { max-width: 760px; margin: 0 auto; display:flex; flex-direction:column; gap:.8rem; }
+.kz-meta { display:flex; flex-wrap:wrap; gap:.4rem 1.2rem; color:var(--text-muted,#64748b); font-size:.9rem; }
+.kz-point { padding:.9rem 1rem; }
+.kz-point + .kz-point { border-top:1px solid var(--border,#e2e8f0); }
+.kz-point-head { display:flex; gap:.6rem; align-items:baseline; flex-wrap:wrap; }
+.kz-lp { color:var(--text-muted,#64748b); font-weight:600; min-width:1.5rem; }
+.kz-title { font-weight:600; flex:1; min-width:10rem; }
+.kz-desc { color:var(--text-muted,#64748b); font-size:.85rem; margin:.15rem 0 .5rem 2.1rem; }
+.kz-okng { display:flex; gap:.4rem; margin:.5rem 0 0 2.1rem; }
+.kz-cb { flex:1; display:flex; align-items:center; justify-content:center; min-height:48px; border-radius:9px;
+  border:2px solid var(--border,#cbd5e1); cursor:pointer; font-weight:700; user-select:none; }
+.kz-cb input { display:none; }
+.kz-cb--ok:has(input:checked) { border-color:var(--ok-border,#16a34a); background:var(--ok-bg,#dcfce7); color:var(--ok-text,#166534); }
+.kz-cb--ng:has(input:checked) { border-color:var(--danger-text,#b91c1c); background:var(--danger-bg,#fee2e2); color:var(--danger-text,#b91c1c); }
+.kz-notes { width:calc(100% - 2.1rem); margin:.5rem 0 0 2.1rem; font-size:.9rem; }
+.kz-ro-notes { margin:.4rem 0 0 2.1rem; font-size:.88rem; }
+.kz-save { display:flex; gap:.6rem; flex-wrap:wrap; }
+.kz-save .btn { flex:1; min-height:48px; }
+.kz-chain { display:flex; gap:.5rem; flex-wrap:wrap; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="kz-wrap">
+  <div class="page-header" style="margin-bottom:0;">
+    <div>
+      <h1 class="page-title">
+        <i class="bi bi-patch-check"></i> ZO {{ rec.zo_number }}
+        <span class="badge badge-neutral" style="vertical-align:middle;">
+          {{ 'Kontrola sprawdzająca' if rec.round == 2 else 'Kontrola wstępna' }}</span>
+      </h1>
+    </div>
+    <div class="page-header-actions">
+      <a href="{{ url_for('kontrola.list_records') }}" class="btn btn-outline">
+        <i class="bi bi-arrow-left"></i> Lista
+      </a>
+    </div>
+  </div>
+
+  <div class="kz-meta">
+    {% if rec.product_name %}<span><i class="bi bi-box-seam"></i> {{ rec.product_name }}</span>{% endif %}
+    {% if rec.client %}<span><i class="bi bi-person"></i> {{ rec.client }}</span>{% endif %}
+    {% if rec.quantity %}<span>{{ rec.quantity }} szt.</span>{% endif %}
+    <span>Kontroler: {{ rec.controller.username if rec.controller else '-' }}</span>
+    {% if rec.completed_at %}<span>Zakończono: {{ rec.completed_at|localdt('%d.%m.%Y %H:%M') }}</span>{% endif %}
+  </div>
+
+  {% if rec.status == 'completed' %}
+  <div>
+    {% if rec.result == 'OK' %}<span class="badge badge-success">Wynik: zgodny</span>
+    {% else %}<span class="badge badge-danger">Wynik: niezgodny ({{ rec.ng_count }})</span>{% endif %}
+    {% if rec.done_at %}
+      <span class="badge badge-info">Wykonane: {{ rec.done_by.username if rec.done_by else '-' }}, {{ rec.done_at|localdt('%d.%m %H:%M') }}</span>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="kz-chain">
+    {% if rec.previous %}
+    <a class="btn btn-outline btn-sm" href="{{ url_for('kontrola.view_record', record_id=rec.previous.id) }}">
+      <i class="bi bi-arrow-left-short"></i> Kontrola wstępna</a>
+    {% endif %}
+    {% if rec.followup %}
+    <a class="btn btn-outline btn-sm" href="{{ url_for('kontrola.view_record', record_id=rec.followup.id) }}">
+      Kontrola sprawdzająca <i class="bi bi-arrow-right-short"></i></a>
+    {% endif %}
+  </div>
+
+  <form method="post" autocomplete="off">
+    {{ csrf_input() }}
+    <div class="card">
+      <div class="card-body" style="padding:0;">
+        {% for res in rec.results %}
+        <div class="kz-point">
+          <div class="kz-point-head">
+            <span class="kz-lp">{{ loop.index }}.</span>
+            <span class="kz-title">{{ res.title }}</span>
+            {% if res.qar_report %}
+            <a class="badge badge-danger" href="{{ url_for('qar.detail_report', report_id=res.qar_report.id) }}"
+               title="Raport niezgodności">{{ res.qar_report.number }}</a>
+            {% endif %}
+            {% if not can_edit %}
+              {% if res.result == 'OK' %}<span class="badge badge-success">OK</span>
+              {% elif res.result == 'NG' %}<span class="badge badge-danger">NG</span>
+              {% else %}<span class="badge badge-neutral">-</span>{% endif %}
+            {% endif %}
+          </div>
+          {% if res.description %}<div class="kz-desc">{{ res.description }}</div>{% endif %}
+
+          {% if can_edit %}
+          <div class="kz-okng">
+            <label class="kz-cb kz-cb--ok">
+              <input type="radio" name="result_{{ res.id }}" value="OK" {% if res.result == 'OK' %}checked{% endif %}>
+              OK
+            </label>
+            <label class="kz-cb kz-cb--ng">
+              <input type="radio" name="result_{{ res.id }}" value="NG" {% if res.result == 'NG' %}checked{% endif %}>
+              NG
+            </label>
+          </div>
+          <textarea name="notes_{{ res.id }}" class="form-control kz-notes" rows="2"
+                    placeholder="Uwagi (przy NG trafią do raportu QAR)">{{ res.notes or '' }}</textarea>
+          {% elif res.notes %}
+          <div class="kz-ro-notes"><i class="bi bi-chat-left-text"></i> {{ res.notes }}</div>
+          {% endif %}
+        </div>
+        {% else %}
+        <div class="kz-point text-muted">Brak punktów kontrolnych.</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% if can_edit %}
+    <div class="kz-save" style="margin-top:.8rem;">
+      <button type="submit" name="action" value="save" class="btn btn-outline">
+        <i class="bi bi-save"></i> Zapisz
+      </button>
+      <button type="submit" name="action" value="complete" class="btn btn-primary">
+        <i class="bi bi-check2-all"></i> Zakończ kontrolę
+        <span class="text-muted" style="font-size:.8rem;">({{ rec.rated_count }}/{{ rec.results|length }})</span>
+      </button>
+    </div>
+    {% endif %}
+  </form>
+
+  {% if rec.state == 'to_do' and (current_user.is_operator or current_user.is_admin) %}
+  <form method="post" action="{{ url_for('kontrola.mark_done', record_id=rec.id) }}">
+    {{ csrf_input() }}
+    <button type="submit" class="btn btn-primary" style="width:100%;min-height:52px;"
+            data-confirm="Oznaczyć ZO {{ rec.zo_number }} jako wykonane? Powstanie kontrola sprawdzająca.">
+      <i class="bi bi-check2-circle"></i> Wykonane
+    </button>
+  </form>
+  {% endif %}
+
+  {% if rec.state == 'recheck' and current_user.is_kontroler %}
+  <a class="btn btn-primary" style="min-height:52px;" href="{{ url_for('kontrola.view_record', record_id=rec.followup.id) }}">
+    <i class="bi bi-clipboard-check"></i> Przejdź do kontroli sprawdzającej
+  </a>
+  {% endif %}
+
+  {% if current_user.is_admin and rec.status == 'completed' and not (rec.round == 1 and rec.done_at) %}
+  <form method="post" action="{{ url_for('kontrola.reopen', record_id=rec.id) }}">
+    {{ csrf_input() }}
+    <button type="submit" class="btn btn-ghost btn-sm" data-confirm="Wznowić tę kontrolę do edycji?">
+      <i class="bi bi-arrow-counterclockwise"></i> Wznów kontrolę (admin)
+    </button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

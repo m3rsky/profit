@@ -32,6 +32,8 @@
               <span class="badge badge-neutral">Stanowisko produkcji</span>
             {% elif u.role == 'planowanie' %}
               <span class="badge badge-warning">Planowanie</span>
+            {% elif u.role == 'operator' %}
+              <span class="badge badge-success">Operator</span>
             {% elif u.role == 'konstruktor' %}
               <span class="badge badge-info">Konstruktor</span>
             {% else %}

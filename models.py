@@ -53,11 +53,16 @@ class User(UserMixin, db.Model):
     @property
     def is_konstruktor(self): return self.role == 'konstruktor'
     @property
+    def is_operator(self): return self.role == 'operator'
+    @property
+    def can_view_control(self): return self.role in ('admin', 'kontroler', 'operator')
+    @property
     def role_label(self):
         return {'admin': 'Administrator', 'order': 'Zamawiający',
                 'kontroler': 'Kontroler', 'monter': 'Monter',
                 'spawacz': 'Spawacz', 'konstruktor': 'Konstruktor',
-                'planowanie': 'Planowanie', 'produkcja': 'Stanowisko produkcji'}.get(self.role, self.role)
+                'planowanie': 'Planowanie', 'produkcja': 'Stanowisko produkcji',
+                'operator': 'Operator'}.get(self.role, self.role)
 
 
 class ChecklistTemplate(db.Model):
@@ -1233,3 +1238,103 @@ class ProdSetting(db.Model):
             row.value = value
         else:
             db.session.add(ProdSetting(key=key, value=value))
+
+
+# ── Kontrola zamówień (stałe punkty kontrolne) ─────────────────────────────────
+
+class ControlPoint(db.Model):
+    """Stały, edytowalny przez admina punkt kontrolny. Jedna wspólna lista dla wszystkich zamówień."""
+    __tablename__ = 'control_points'
+    id          = db.Column(db.Integer, primary_key=True)
+    order       = db.Column(db.Integer, default=0)
+    title       = db.Column(db.String(256), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    is_active   = db.Column(db.Boolean, default=True)
+    created_at  = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+
+    def __repr__(self):
+        return f'<ControlPoint {self.title}>'
+
+
+class ControlRecord(db.Model):
+    """Kontrola jednego zamówienia (ZO) po stałych punktach.
+    round=1: kontrola wstępna. Po kliknięciu 'Wykonane' przez operatora powstaje
+    round=2 (kontrola sprawdzająca) powiązana przez previous_id."""
+    __tablename__ = 'control_records'
+    id           = db.Column(db.Integer, primary_key=True)
+    zo_number    = db.Column(db.String(64), nullable=False, index=True)
+    product_name = db.Column(db.String(256), nullable=True)
+    client       = db.Column(db.String(256), nullable=True)
+    quantity     = db.Column(db.Integer, nullable=True)
+    round        = db.Column(db.Integer, default=1, nullable=False)
+    previous_id  = db.Column(db.Integer, db.ForeignKey('control_records.id'), nullable=True)
+    status       = db.Column(db.String(16), default='in_progress')  # in_progress | completed
+    user_id      = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    created_at   = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    completed_at = db.Column(db.DateTime, nullable=True)
+    done_by_id   = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    done_at      = db.Column(db.DateTime, nullable=True)
+
+    controller = db.relationship('User', foreign_keys=[user_id])
+    done_by    = db.relationship('User', foreign_keys=[done_by_id])
+    previous   = db.relationship('ControlRecord', remote_side=[id],
+                                 backref=db.backref('followup', uselist=False))
+    results    = db.relationship('ControlResult', back_populates='record',
+                                 cascade='all, delete-orphan',
+                                 order_by='ControlResult.position, ControlResult.id')
+
+    @property
+    def result(self):
+        """Wynik zakończonej kontroli: 'NG' gdy choć jeden punkt NG, inaczej 'OK'."""
+        if self.status != 'completed':
+            return None
+        return 'NG' if any(r.result == 'NG' for r in self.results) else 'OK'
+
+    @property
+    def ng_count(self):
+        return sum(1 for r in self.results if r.result == 'NG')
+
+    @property
+    def rated_count(self):
+        return sum(1 for r in self.results if r.result)
+
+    @property
+    def state(self):
+        """Stan cyklu (dla kontroli wstępnej): in_control | to_do | recheck | closed."""
+        if self.status != 'completed':
+            return 'in_control'
+        if not self.done_at:
+            return 'to_do'
+        if self.followup is not None and self.followup.status == 'completed':
+            return 'closed'
+        return 'recheck'
+
+    def __repr__(self):
+        return f'<ControlRecord {self.zo_number} r{self.round}>'
+
+
+CONTROL_STATE_LABELS = {
+    'in_control': 'W trakcie kontroli',
+    'to_do':      'Do wykonania',
+    'recheck':    'Wykonane, czeka na kontrolę sprawdzającą',
+    'closed':     'Zamknięte',
+}
+
+
+class ControlResult(db.Model):
+    """Ocena jednego punktu w kontroli. Tytuł jest kopią z chwili utworzenia kontroli,
+    więc późniejsza edycja listy punktów nie zmienia historii."""
+    __tablename__ = 'control_results'
+    id            = db.Column(db.Integer, primary_key=True)
+    record_id     = db.Column(db.Integer, db.ForeignKey('control_records.id'), nullable=False)
+    point_id      = db.Column(db.Integer, db.ForeignKey('control_points.id'), nullable=True)
+    position      = db.Column(db.Integer, default=0)
+    title         = db.Column(db.String(256), nullable=False)
+    description   = db.Column(db.Text, nullable=True)
+    result        = db.Column(db.String(2), nullable=True)   # OK | NG | None
+    notes         = db.Column(db.Text, nullable=True)
+    qar_report_id = db.Column(db.Integer, db.ForeignKey('qar_reports.id'), nullable=True)
+    checked_at    = db.Column(db.DateTime, nullable=True)
+
+    record     = db.relationship('ControlRecord', back_populates='results')
+    qar_report = db.relationship('QARReport', foreign_keys=[qar_report_id])

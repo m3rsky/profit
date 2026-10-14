@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Kontrola zamówień{% endblock %}
+
+{% block head %}
+<style>
+.kz-chips { display:flex; flex-wrap:wrap; gap:.4rem; margin:.25rem 0 1rem; }
+.kz-chip { display:inline-flex; align-items:center; gap:.4rem; padding:.4rem .8rem; border-radius:999px;
+  border:1px solid var(--border,#e2e8f0); color:inherit; text-decoration:none; font-size:.88rem; }
+.kz-chip.active { background:var(--blue-bg,#eff6ff); border-color:var(--progress-blue,#2563eb); color:var(--progress-blue,#2563eb); font-weight:600; }
+.kz-chip-n { font-weight:700; }
+.kz-filter { display:flex; gap:.4rem; }
+.kz-sub { color:var(--text-muted,#64748b); font-size:.82rem; }
+.kz-actions { display:flex; gap:.4rem; flex-wrap:wrap; justify-content:flex-end; }
+.kz-actions form { margin:0; }
+.kz-empty { text-align:center; padding:2.5rem 1rem; color:var(--text-muted,#64748b); }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set is_op = current_user.is_operator %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-patch-check"></i> Kontrola zamówień</h1>
+    <span class="text-muted" style="font-size:0.82rem;">
+      {% if is_op %}Zamówienia po kontroli jakości, gotowe do dalszej obróbki{% else %}Kontrola zamówień po stałych punktach kontrolnych{% endif %}
+    </span>
+  </div>
+  <div class="page-header-actions">
+    <form method="get" class="kz-filter">
+      <input type="hidden" name="s" value="{{ flt }}">
+      <input type="text" name="zo" value="{{ zo_filter }}" placeholder="Filtruj po nr ZO…" class="form-control">
+      <button type="submit" class="btn btn-secondary" title="Szukaj"><i class="bi bi-search"></i></button>
+    </form>
+    {% if current_user.is_admin %}
+    <a href="{{ url_for('kontrola.points') }}" class="btn btn-outline" title="Punkty kontrolne">
+      <i class="bi bi-list-check"></i> Punkty
+    </a>
+    {% endif %}
+    {% if current_user.is_kontroler %}
+    <a href="{{ url_for('kontrola.scan_page') }}" class="btn btn-primary">
+      <i class="bi bi-qr-code-scan"></i> Skanuj QR
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="kz-chips">
+  {% if not is_op %}
+  <a class="kz-chip {% if flt == 'all' %}active{% endif %}" href="{{ url_for('kontrola.list_records', s='all', zo=zo_filter) }}">
+    Wszystkie <span class="kz-chip-n">{{ total }}</span></a>
+  {% endif %}
+  {% for key, label in labels.items() %}
+    {% if not (is_op and key == 'in_control') %}
+    <a class="kz-chip {% if flt == key %}active{% endif %}" href="{{ url_for('kontrola.list_records', s=key, zo=zo_filter) }}">
+      {{ label }} <span class="kz-chip-n">{{ counts[key] }}</span></a>
+    {% endif %}
+  {% endfor %}
+</div>
+
+{% if records %}
+<div class="card">
+  <div class="card-body" style="padding:0;">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>ZO</th><th>Produkt / klient</th><th>Szt.</th><th>Kontrola</th>
+          <th>Stan</th><th>Kontroler</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in records %}
+        {% set fu = r.followup %}
+        <tr>
+          <td data-label="ZO"><strong>{{ r.zo_number }}</strong></td>
+          <td data-label="Produkt">
+            {{ r.product_name or '-' }}
+            {% if r.client %}<div class="kz-sub">{{ r.client }}</div>{% endif %}
+          </td>
+          <td data-label="Szt.">{{ r.quantity or '-' }}</td>
+          <td data-label="Kontrola">
+            {% if r.result == 'OK' %}<span class="badge badge-success">Zgodny</span>
+            {% elif r.result == 'NG' %}<span class="badge badge-danger">Niezgodny ({{ r.ng_count }})</span>
+            {% else %}<span class="badge badge-neutral">{{ r.rated_count }}/{{ r.results|length }}</span>{% endif %}
+          </td>
+          <td data-label="Stan">
+            {% if r.state == 'to_do' %}<span class="badge badge-warning">Do wykonania</span>
+            {% elif r.state == 'recheck' %}<span class="badge badge-info">Czeka na kontrolę sprawdzającą</span>
+            {% elif r.state == 'closed' %}
+              <span class="badge {{ 'badge-success' if fu.result == 'OK' else 'badge-danger' }}">
+                Zamknięte: {{ 'zgodny' if fu.result == 'OK' else 'niezgodny' }}</span>
+            {% else %}<span class="badge badge-neutral">W trakcie kontroli</span>{% endif %}
+            {% if r.done_at %}
+            <div class="kz-sub">Wykonał(a): {{ r.done_by.username if r.done_by else '-' }}, {{ r.done_at|localdt('%d.%m %H:%M') }}</div>
+            {% endif %}
+          </td>
+          <td data-label="Kontroler">
+            {{ r.controller.username if r.controller else '-' }}
+            <div class="kz-sub">{{ (r.completed_at or r.created_at)|localdt('%d.%m.%Y %H:%M') }}</div>
+          </td>
+          <td data-label="" class="td-actions">
+            <div class="kz-actions">
+              {% if r.state == 'to_do' and (is_op or current_user.is_admin) %}
+              <form method="post" action="{{ url_for('kontrola.mark_done', record_id=r.id) }}">
+                {{ csrf_input() }}
+                <button type="submit" class="btn btn-primary btn-sm"
+                        data-confirm="Oznaczyć ZO {{ r.zo_number }} jako wykonane? Powstanie kontrola sprawdzająca.">
+                  <i class="bi bi-check2-circle"></i> Wykonane
+                </button>
+              </form>
+              {% endif %}
+              {% if r.state == 'recheck' and current_user.is_kontroler %}
+              <a class="btn btn-primary btn-sm" href="{{ url_for('kontrola.view_record', record_id=fu.id) }}">
+                <i class="bi bi-clipboard-check"></i> Kontroluj
+              </a>
+              {% endif %}
+              {% if r.state == 'in_control' and current_user.is_kontroler %}
+              <a class="btn btn-primary btn-sm" href="{{ url_for('kontrola.view_record', record_id=r.id) }}">
+                <i class="bi bi-pencil"></i> Kontynuuj
+              </a>
+              {% else %}
+              <a class="btn btn-outline btn-sm" href="{{ url_for('kontrola.view_record', record_id=r.id) }}">Szczegóły</a>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="card"><div class="card-body kz-empty">
+  <i class="bi bi-inbox" style="font-size:2rem;"></i>
+  <p>Brak zamówień w tym widoku.</p>
+</div></div>
+{% endif %}
+{% endblock %}

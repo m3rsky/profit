@@ -1,8 +1,8 @@
 {% extends "base.html" %}
-{% block title %}Raporty{% endblock %}
+{% block title %}Kontrola Końcowa{% endblock %}
 {% block content %}
 <div class="page-header">
-  <h1 class="page-title">Raporty</h1>
+  <h1 class="page-title">Kontrola Końcowa</h1>
   <div class="page-header-actions">
     <a href="{{ url_for('reports_export_csv', **filters) }}" class="btn btn-ghost btn-sm"><i class="bi bi-file-earmark-spreadsheet"></i> CSV</a>
     <a href="{{ url_for('new_checklist') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nowa kontrola</a>
