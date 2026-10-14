@@ -28,7 +28,7 @@ instalować poza samym Pythonem 3.
 
 Uruchomienie
 ------------
-    python bulk_checklist_entry.py
+    python tools/bulk_checklist_entry.py
 
 Konfiguracja (adres serwera + klucz API) zapisywana jest lokalnie w
     ~/.profit_bulk_checklist_config.json
