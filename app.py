@@ -3436,6 +3436,11 @@ def _migrate_schema():
     engine = db.engine
     insp = inspect(engine)
     with engine.connect() as conn:
+        if 'prod_entries' in insp.get_table_names():
+            cols = [c['name'] for c in insp.get_columns('prod_entries')]
+            if 'employee_name' not in cols:
+                conn.execute(text('ALTER TABLE prod_entries ADD COLUMN employee_name VARCHAR(128)'))
+                conn.commit()
         if 'prod_employees' in insp.get_table_names():
             cols = [c['name'] for c in insp.get_columns('prod_employees')]
             if 'badge_code' not in cols:

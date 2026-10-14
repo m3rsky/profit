@@ -30,6 +30,7 @@ table.prod-table tr.saved td.pc.flash { background: var(--success-bg, #f0fdf4); 
     <a href="{{ url_for('produkcja.index') }}" class="btn btn-ghost"><i class="bi bi-arrow-left"></i> Arkusze</a>
     <a href="{{ url_for('produkcja.sheet_stages', sheet_id=sheet.id) }}" class="btn btn-ghost"><i class="bi bi-list-check"></i> Kolumny i etapy</a>
     <a href="{{ url_for('produkcja.row_new', sheet_id=sheet.id) }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nowe zlecenie</a>
+    <a href="{{ url_for('produkcja.sheet_csv', sheet_id=sheet.id) }}" class="btn btn-outline"><i class="bi bi-filetype-csv"></i> Pobierz CSV</a>
     <form method="post" action="{{ url_for('produkcja.export_file') }}" style="display:inline;">
       <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="sheet_id" value="{{ sheet.id }}">

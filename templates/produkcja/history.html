@@ -26,7 +26,7 @@
         {% for e in entries %}
         <tr>
           <td data-label="Data">{{ e.created_at | localdt('%d.%m.%Y %H:%M') }}</td>
-          <td data-label="Pracownik">{{ e.employee.name if e.employee else '-' }}</td>
+          <td data-label="Pracownik">{{ e.employee.name if e.employee else (e.employee_name ~ ' (usunięty)' if e.employee_name else '-') }}</td>
           <td data-label="Arkusz">{{ e.sheet_name or '' }}</td>
           <td data-label="ZO">{{ e.zo or '' }}</td>
           <td data-label="Towar">{{ e.product or '' }}</td>

@@ -117,7 +117,7 @@ def _store_row_fields(row, data, mapping):
 
 
 def _pairing(rows):
-    """Powiązane listy kontrolne (Raporty QA) dla wierszy strony: po zamówieniu
+    """Powiązane listy kontrolne (Kontrola Końcowa) dla wierszy strony: po zamówieniu
     (order_id) oraz po kluczu QR (produkt|klient|ZO) listy utworzonej ze skanu."""
     qr_key = helper('qr_key')
     keys, order_ids = {}, set()
@@ -174,8 +174,9 @@ def index():
     linked = dict(db.session.query(ProdRow.sheet_id, func.count(ProdRow.id))
                   .filter(ProdRow.order_id.isnot(None)).group_by(ProdRow.sheet_id).all())
     has_data = ProdSheet.query.first() is not None
+    has_xlsx = _current_source() is not None
     return render_template('produkcja/index.html', sheets=sheets, counts=counts,
-                           linked=linked, has_data=has_data)
+                           linked=linked, has_data=has_data, has_xlsx=has_xlsx)
 
 
 @produkcja_bp.route('/sheet/<int:sheet_id>')
@@ -314,7 +315,7 @@ def rows_delete(sheet_id):
 # ── Listy kontrolne z zamówień ────────────────────────────────────────────────
 
 def _create_checklists_for_row(row):
-    """Tworzy zamówienie i listy kontrolne (Raporty QA) z wiersza listy produkcyjnej.
+    """Tworzy zamówienie i listy kontrolne (Kontrola Końcowa) z wiersza listy produkcyjnej.
     Zwraca (ok, komunikat)."""
     sheet = row.sheet
     f = excel_io.row_fields(_data(row, len(sheet.columns)), sheet.mapping)
@@ -392,31 +393,135 @@ def create_checklists(sheet_id):
 
 # ── Wczytanie pliku, kopie ────────────────────────────────────────────────────
 
-def _save_file(kind, original_name, note=None):
-    stored = f'{kind}_{datetime.now().strftime("%Y%m%d_%H%M%S")}_{uuid.uuid4().hex[:6]}.xlsx'
+def _save_file(kind, original_name, note=None, ext='xlsx'):
+    stored = f'{kind}_{datetime.now().strftime("%Y%m%d_%H%M%S")}_{uuid.uuid4().hex[:6]}.{ext}'
     rec = ProdFile(kind=kind, original_name=original_name, stored_name=stored, note=note,
                    created_by_id=current_user.id)
     return rec, os.path.join(_folder(), stored)
 
 
 def _current_source():
-    """Plik źródłowy ostatniego wczytania (na nim opiera się eksport)."""
-    sheet = ProdSheet.query.filter(ProdSheet.file_id.isnot(None)).first()
-    return db.session.get(ProdFile, sheet.file_id) if sheet else None
+    """Wczytany plik .xlsx, na którym opiera się eksport (arkusze z CSV go nie używają)."""
+    return (ProdFile.query.join(ProdSheet, ProdSheet.file_id == ProdFile.id)
+            .filter(ProdFile.stored_name.like('%.xlsx')).first())
 
 
 def _export(only_sheet_ids=None, kind='export', note=None):
     src = _current_source()
     if not src or not os.path.exists(os.path.join(_folder(), src.stored_name)):
-        raise RuntimeError('Brak wczytanego pliku źródłowego.')
+        raise RuntimeError('Brak wczytanego pliku .xlsx. Dane z CSV pobierzesz jako CSV z widoku arkusza.')
+    sheets = [s for s in ProdSheet.query.all() if s.file_id == src.id]
+    if only_sheet_ids is not None and not any(s.id in only_sheet_ids for s in sheets):
+        raise RuntimeError('Ten arkusz pochodzi z pliku CSV. Użyj przycisku „Pobierz CSV”.')
     name = os.path.splitext(src.original_name)[0] + ('_kopia' if kind == 'export' else '_backup') + '.xlsx'
     rec, dest = _save_file(kind, name, note)
-    excel_io.export_workbook(os.path.join(_folder(), src.stored_name), dest,
-                             ProdSheet.query.all(), only_sheet_ids)
+    excel_io.export_workbook(os.path.join(_folder(), src.stored_name), dest, sheets, only_sheet_ids)
     rec.size = os.path.getsize(dest)
     db.session.add(rec)
     db.session.commit()
     return rec, dest
+
+
+def _csv_bytes(sheet):
+    rows = ProdRow.query.filter_by(sheet_id=sheet.id).order_by(ProdRow.position).all()
+    return excel_io.sheet_to_csv(sheet, rows)
+
+
+def _backup_sheets(old_sheets, note):
+    """Kopia zapasowa arkuszy, które zaraz zostaną zastąpione: .xlsx dla arkuszy z pliku
+    Excel i osobne CSV dla arkuszy wczytanych z CSV."""
+    src = _current_source()
+    if src and any(s.file_id == src.id for s in old_sheets):
+        _export(kind='backup', note=note)
+    for sh in old_sheets:
+        if src is None or sh.file_id != src.id:
+            rec, dest = _save_file('backup', f'{sh.name}_backup.csv', note, ext='csv')
+            with open(dest, 'wb') as fh:
+                fh.write(_csv_bytes(sh))
+            rec.size = os.path.getsize(dest)
+            db.session.add(rec)
+    db.session.commit()
+
+
+def _install_sheets(sheets, rec, replace_all):
+    """Zapisuje wczytane arkusze. `replace_all` (plik .xlsx) zastępuje wszystkie arkusze,
+    inaczej (CSV) tylko te o tych samych nazwach. Zachowuje dostęp do arkuszy, powiązania
+    z zamówieniami oraz ustawienia kolumn i etapów. Zwraca liczbę wczytanych wierszy."""
+    names = {sd['name'] for sd in sheets}
+    old_sheets = (ProdSheet.query.all() if replace_all
+                  else ProdSheet.query.filter(ProdSheet.name.in_(names)).all())
+    old_ids = [s.id for s in old_sheets]
+    old_by_name = {s.name: s for s in old_sheets}
+    name_by_id = {s.id: s.name for s in old_sheets}
+    access_by_name, links, stage_cfg = {}, {}, {}
+    if old_ids:
+        for acc in ProdSheetAccess.query.filter(ProdSheetAccess.sheet_id.in_(old_ids)).all():
+            access_by_name.setdefault(name_by_id[acc.sheet_id], []).append(acc.user_id)
+        for r in ProdRow.query.filter(ProdRow.sheet_id.in_(old_ids), ProdRow.order_id.isnot(None),
+                                      ProdRow.zo.isnot(None)).all():
+            links[(r.sheet.name, r.zo, r.search)] = r.order_id
+        for st in ProdStageColumn.query.filter(ProdStageColumn.sheet_id.in_(old_ids)).all():
+            sh_old = db.session.get(ProdSheet, st.sheet_id)
+            cols = sh_old.columns
+            if st.col_index < len(cols):
+                orig = sheetcfg.orig_name(sheetcfg.load(sh_old.name), cols, st.col_index)
+                stage_cfg[(sh_old.name, orig)] = (st.label, st.department_id, st.is_active)
+        row_ids = db.session.query(ProdRow.id).filter(ProdRow.sheet_id.in_(old_ids))
+        ProdEntry.query.filter(ProdEntry.row_id.in_(row_ids)).update({'row_id': None},
+                                                                     synchronize_session=False)
+        ProdStageColumn.query.filter(ProdStageColumn.sheet_id.in_(old_ids)).delete()
+        ProdSheetAccess.query.filter(ProdSheetAccess.sheet_id.in_(old_ids)).delete()
+        ProdRow.query.filter(ProdRow.sheet_id.in_(old_ids)).delete()
+        ProdSheet.query.filter(ProdSheet.id.in_(old_ids)).delete()
+        db.session.flush()
+    next_pos = (db.session.query(func.max(ProdSheet.position)).scalar() or 0) + 1
+
+    total = 0
+    for sd in sheets:
+        names_cols, mapping = sheetcfg.apply_to_import(sd['name'], sd['columns'], sd['mapping'])
+        sd['mapping'] = mapping
+        old = old_by_name.get(sd['name'])
+        if old is not None:
+            position, hidden = old.position, old.hidden
+        else:
+            position, hidden = next_pos, sd['hidden']
+            next_pos += 1
+        sh = ProdSheet(name=sd['name'], position=position, hidden=hidden,
+                       header_row=sd['header_row'],
+                       columns_json=json.dumps(names_cols, ensure_ascii=False),
+                       mapping_json=json.dumps(mapping),
+                       formula_cols_json=json.dumps(sd['formula_cols']),
+                       file_id=rec.id)
+        db.session.add(sh)
+        db.session.flush()
+        batch = []
+        for r in sd['rows']:
+            fields = excel_io.row_fields(r['data'], sd['mapping'])
+            zo = fields.get('zo')
+            zo = str(zo).strip()[:64] if zo not in (None, '') else None
+            search = excel_io.build_search(r['data'])
+            batch.append({
+                'sheet_id': sh.id, 'position': r['src_row'], 'src_row': r['src_row'],
+                'data': json.dumps(r['data'], ensure_ascii=False),
+                'formulas': json.dumps(r['formulas']) if r['formulas'] else None,
+                'zo': zo, 'search': search,
+                'order_id': links.get((sd['name'], zo, search)) if zo else None,
+                'updated_at': datetime.now(UTC),
+            })
+        db.session.bulk_insert_mappings(ProdRow, batch)
+        total += len(batch)
+        if any(k[0] == sd['name'] for k in stage_cfg):   # ponowny import: etapy skonfigurowane wcześniej
+            idxs = [i for i, c in enumerate(sd['columns']) if (sd['name'], c) in stage_cfg]
+        else:
+            idxs = excel_io.detect_stage_columns(sd['columns'], sd['header_row'] is None)
+        for i in idxs:
+            label, dept, active = stage_cfg.get((sd['name'], sd['columns'][i]),
+                                                (names_cols[i], None, True))
+            db.session.add(ProdStageColumn(sheet_id=sh.id, col_index=i, label=label[:64],
+                                           department_id=dept, is_active=active))
+        for uid in access_by_name.get(sd['name'], []):
+            db.session.add(ProdSheetAccess(user_id=uid, sheet_id=sh.id))
+    return total
 
 
 @produkcja_bp.route('/import', methods=['GET', 'POST'])
@@ -442,81 +547,88 @@ def import_file():
             flash('Plik nie zawiera danych.', 'error')
             return redirect(url_for('produkcja.import_file'))
 
-        # backup poprzedniego stanu (z wprowadzonymi zmianami) przed zastąpieniem
-        access_by_name, links, stage_cfg = {}, {}, {}
-        if ProdSheet.query.first():
+        old = ProdSheet.query.all()
+        if old:
             try:
-                _export(kind='backup', note='Automatycznie przed ponownym wczytaniem')
+                _backup_sheets(old, 'Automatycznie przed ponownym wczytaniem')
             except Exception as exc:
                 os.remove(path)
                 current_app.logger.error('Produkcja backup: %s', exc)
                 flash('Nie udało się utworzyć kopii zapasowej, wczytanie przerwane.', 'error')
                 return redirect(url_for('produkcja.import_file'))
-            for acc in ProdSheetAccess.query.all():
-                access_by_name.setdefault(db.session.get(ProdSheet, acc.sheet_id).name, []).append(acc.user_id)
-            for r in ProdRow.query.filter(ProdRow.order_id.isnot(None), ProdRow.zo.isnot(None)).all():
-                links[(r.sheet.name, r.zo, r.search)] = r.order_id
-            for st in ProdStageColumn.query.all():
-                sh_old = db.session.get(ProdSheet, st.sheet_id)
-                cols = sh_old.columns
-                if st.col_index < len(cols):
-                    orig = sheetcfg.orig_name(sheetcfg.load(sh_old.name), cols, st.col_index)
-                    stage_cfg[(sh_old.name, orig)] = (st.label, st.department_id, st.is_active)
-            ProdEntry.query.update({'row_id': None})
-            ProdStageColumn.query.delete()
-            ProdSheetAccess.query.delete()
-            ProdRow.query.delete()
-            ProdSheet.query.delete()
-            db.session.flush()
-
         db.session.add(rec)
         db.session.flush()
-        total = 0
-        for sd in sheets:
-            names, mapping = sheetcfg.apply_to_import(sd['name'], sd['columns'], sd['mapping'])
-            sd['mapping'] = mapping
-            sh = ProdSheet(name=sd['name'], position=sd['position'], hidden=sd['hidden'],
-                           header_row=sd['header_row'],
-                           columns_json=json.dumps(names, ensure_ascii=False),
-                           mapping_json=json.dumps(mapping),
-                           formula_cols_json=json.dumps(sd['formula_cols']),
-                           file_id=rec.id)
-            db.session.add(sh)
-            db.session.flush()
-            batch = []
-            for r in sd['rows']:
-                fields = excel_io.row_fields(r['data'], sd['mapping'])
-                zo = fields.get('zo')
-                zo = str(zo).strip()[:64] if zo not in (None, '') else None
-                search = excel_io.build_search(r['data'])
-                batch.append({
-                    'sheet_id': sh.id, 'position': r['src_row'], 'src_row': r['src_row'],
-                    'data': json.dumps(r['data'], ensure_ascii=False),
-                    'formulas': json.dumps(r['formulas']) if r['formulas'] else None,
-                    'zo': zo, 'search': search,
-                    'order_id': links.get((sd['name'], zo, search)) if zo else None,
-                    'updated_at': datetime.now(UTC),
-                })
-            db.session.bulk_insert_mappings(ProdRow, batch)
-            total += len(batch)
-            if any(k[0] == sd['name'] for k in stage_cfg):   # ponowny import: etapy skonfigurowane wcześniej (po nazwie kolumny)
-                idxs = [i for i, c in enumerate(sd['columns']) if (sd['name'], c) in stage_cfg]
-            else:
-                idxs = excel_io.detect_stage_columns(sd['columns'], sd['header_row'] is None)
-            for i in idxs:
-                label, dept, active = stage_cfg.get((sd['name'], sd['columns'][i]),
-                                                    (names[i], None, True))
-                db.session.add(ProdStageColumn(sheet_id=sh.id, col_index=i, label=label[:64],
-                                               department_id=dept, is_active=active))
-            for uid in access_by_name.get(sd['name'], []):
-                db.session.add(ProdSheetAccess(user_id=uid, sheet_id=sh.id))
+        total = _install_sheets(sheets, rec, replace_all=True)
         rec.size = os.path.getsize(path)
         rec.note = f'{len(sheets)} arkuszy, {total} wierszy'
         db.session.commit()
         _audit('prod_import', 'ProdFile', rec.id, rec.note)
         flash(f'Wczytano {len(sheets)} arkuszy ({total} wierszy).', 'success')
         return redirect(url_for('produkcja.index'))
-    return render_template('produkcja/import.html', has_data=ProdSheet.query.first() is not None)
+    return render_template('produkcja/import.html', has_data=ProdSheet.query.first() is not None,
+                           sheet_names=[s.name for s in ProdSheet.query.order_by(ProdSheet.position)])
+
+
+@produkcja_bp.route('/import-csv', methods=['POST'])
+@login_required
+@admin_only
+def import_csv():
+    """Jeden plik CSV = jeden arkusz. Zastępuje tylko arkusze o podanych nazwach."""
+    files = [f for f in request.files.getlist('csv') if f and f.filename]
+    names = [n.strip()[:64] for n in request.form.getlist('sheet_name')]
+    if not files or len(names) != len(files) or not all(names):
+        flash('Wybierz pliki CSV i podaj nazwę arkusza dla każdego z nich.', 'error')
+        return redirect(url_for('produkcja.import_file'))
+    if len({n.lower() for n in names}) != len(names):
+        flash('Każdy plik CSV musi trafić do innego arkusza.', 'error')
+        return redirect(url_for('produkcja.import_file'))
+    parsed = []
+    for up, name in zip(files, names):
+        try:
+            sd = excel_io.read_csv(up.read(), name)
+        except Exception as exc:
+            flash(f'{up.filename}: nie udało się odczytać pliku CSV ({exc}).', 'error')
+            return redirect(url_for('produkcja.import_file'))
+        existing = ProdSheet.query.filter(func.lower(ProdSheet.name) == name.lower()).first()
+        if existing:
+            sd['name'] = existing.name   # nazwy arkuszy bez rozróżniania wielkości liter
+        parsed.append((up, sd))
+        up.seek(0)
+
+    old = ProdSheet.query.filter(ProdSheet.name.in_([sd['name'] for _up, sd in parsed])).all()
+    if old:
+        try:
+            _backup_sheets(old, 'Automatycznie przed wczytaniem CSV')
+        except Exception as exc:
+            current_app.logger.error('Produkcja backup CSV: %s', exc)
+            flash('Nie udało się utworzyć kopii zapasowej, wczytanie przerwane.', 'error')
+            return redirect(url_for('produkcja.import_file'))
+    summary = []
+    for up, sd in parsed:
+        rec, path = _save_file('import', os.path.basename(up.filename), ext='csv')
+        up.save(path)
+        db.session.add(rec)
+        db.session.flush()
+        total = _install_sheets([sd], rec, replace_all=False)
+        rec.size = os.path.getsize(path)
+        rec.note = f'CSV: arkusz {sd["name"]}, {total} wierszy'
+        db.session.commit()
+        _audit('prod_import_csv', 'ProdFile', rec.id, rec.note)
+        summary.append(f'{sd["name"]} ({total})')
+    flash('Wczytano z CSV: ' + ', '.join(summary) + '.', 'success')
+    return redirect(url_for('produkcja.index'))
+
+
+@produkcja_bp.route('/sheet/<int:sheet_id>/csv')
+@login_required
+@planning_required
+def sheet_csv(sheet_id):
+    sheet = _sheet_or_403(sheet_id)
+    _audit('prod_export_csv', 'ProdSheet', sheet.id, sheet.name)
+    from io import BytesIO
+    safe = re.sub(r'[^A-Za-z0-9_.-]+', '_', sheet.name)
+    return send_file(BytesIO(_csv_bytes(sheet)), mimetype='text/csv; charset=utf-8',
+                     as_attachment=True, download_name=f'{safe}.csv')
 
 
 @produkcja_bp.route('/export', methods=['POST'])

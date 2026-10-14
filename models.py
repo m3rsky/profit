@@ -1209,6 +1209,8 @@ class ProdEntry(db.Model):
     __tablename__ = 'prod_entries'
     id           = db.Column(db.Integer, primary_key=True)
     employee_id  = db.Column(db.Integer, db.ForeignKey('prod_employees.id'), nullable=True)
+    # imię pracownika zapisane przy usunięciu go z bazy, żeby historia nie traciła autora wpisu
+    employee_name = db.Column(db.String(128), nullable=True)
     row_id       = db.Column(db.Integer, db.ForeignKey('prod_rows.id'), nullable=True)
     user_id      = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # konto stanowiska
     sheet_name   = db.Column(db.String(64), nullable=True)

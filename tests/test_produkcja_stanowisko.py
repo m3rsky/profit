@@ -286,3 +286,33 @@ def test_migration_adds_badge_code_to_existing_table(app):
     finally:
         app_module.db = real
     assert 'badge_code' in [c['name'] for c in inspect(engine).get_columns('prod_employees')]
+
+
+def test_delete_employee_keeps_history_and_disables_badge(app, client, station):
+    _admin(client)
+    _import(client)
+    client.post('/produkcja/pracownicy/nowy', data={
+        'name': 'Jan Rogoziński', 'badge_code': 'JR 128', 'initials': 'JRo', '_csrf_token': _csrf(client)})
+    eid, _ = _emp(app, 'JRo')
+    logout(client)
+    login(client, station, 'Stan1234!')
+    _scan_emp(client, 'JR128')
+    rid = _row_id(app, 'PSH', 'ZO-T1')
+    assert _entry(client, rid, _stage_id(app, 'PSH', 'KJ')).get_json()['value'] == 'JRo'
+    logout(client)
+
+    _admin(client)
+    resp = client.post(f'/produkcja/pracownicy/{eid}/usun', data={'_csrf_token': _csrf(client)},
+                       follow_redirects=True)
+    assert 'Usunięto pracownika: Jan Rogoziński' in resp.get_data(as_text=True)
+    with app.app_context():
+        assert ProdEmployee.query.count() == 0
+        entry = ProdEntry.query.first()
+        assert entry.employee_id is None and entry.employee_name == 'Jan Rogoziński'
+        assert json.loads(db.session.get(ProdRow, rid).data)[10] == 'JRo'   # komórka bez zmian
+    assert 'Jan Rogoziński (usunięty)' in client.get('/produkcja/historia').get_data(as_text=True)
+    logout(client)
+
+    login(client, station, 'Stan1234!')   # plakietka usuniętego pracownika już nie działa
+    r = client.post('/produkcja/skan/pracownik', json={'code': 'JR128'}, headers={'X-CSRF-Token': _csrf(client)})
+    assert r.status_code == 404

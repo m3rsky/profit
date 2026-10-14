@@ -166,6 +166,23 @@ def employees_bulk():
     return render_template('produkcja/employees_bulk.html', report=report)
 
 
+@produkcja_bp.route('/pracownicy/<int:emp_id>/usun', methods=['POST'])
+@login_required
+@planning_required
+def employee_delete(emp_id):
+    """Usuwa pracownika z bazy. Wpisy w historii zostają, z zapisanym imieniem autora;
+    inicjały już wpisane w komórki arkuszy nie są zmieniane."""
+    emp = get_or_404(ProdEmployee, emp_id)
+    name, initials = emp.name, emp.initials
+    ProdEntry.query.filter_by(employee_id=emp.id).update(
+        {'employee_name': name, 'employee_id': None}, synchronize_session=False)
+    db.session.delete(emp)   # przydziały do działów usuwa kaskada
+    db.session.commit()
+    _audit('prod_employee_delete', 'ProdEmployee', emp_id, f'{name} ({initials})')
+    flash(f'Usunięto pracownika: {name}. Jego plakietka przestała działać.', 'success')
+    return redirect(url_for('produkcja.employees'))
+
+
 @produkcja_bp.route('/pracownicy/<int:emp_id>/token', methods=['POST'])
 @login_required
 @planning_required

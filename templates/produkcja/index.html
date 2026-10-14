@@ -14,7 +14,7 @@
     <a href="{{ url_for('produkcja.import_file') }}" class="btn btn-primary"><i class="bi bi-upload"></i> Wczytaj plik</a>
     <a href="{{ url_for('produkcja.access') }}" class="btn btn-ghost"><i class="bi bi-people"></i> Dostęp do arkuszy</a>
     <a href="{{ url_for('produkcja.files') }}" class="btn btn-ghost"><i class="bi bi-files"></i> Pliki i kopie</a>
-    {% if has_data %}
+    {% if has_xlsx %}
     <form method="post" action="{{ url_for('produkcja.export_file') }}" style="display:inline;">
       <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="btn btn-outline"><i class="bi bi-download"></i> Pobierz kopię .xlsx</button>

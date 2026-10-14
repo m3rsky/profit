@@ -126,6 +126,48 @@ def _trim(lst):
     return lst
 
 
+def build_sheet(name, position, hidden, raw_v, raw_f=None):
+    """Arkusz z surowych wierszy: nagłówki, mapowanie pól, wiersze danych i kolumny z formułami.
+    `raw_f` (formuły) jest opcjonalne, dla CSV go nie ma."""
+    raw_f = raw_f or []
+    hdr = _find_header_row(raw_v)
+    ncols = max((len(r) for r in raw_v), default=0)
+    if hdr is not None:
+        columns = []
+        for j in range(ncols):
+            h = raw_v[hdr][j] if j < len(raw_v[hdr]) else None
+            columns.append(str(h).strip() if h not in (None, '') else get_column_letter(j + 1))
+        start = hdr + 1
+    else:
+        columns = [get_column_letter(j + 1) for j in range(ncols)]
+        # arkusz bez nagłówków (np. PROFIT): pierwsze kolumny mają ten sam układ co w
+        # pozostałych arkuszach, resztę użytkownik nazwie w aplikacji
+        for j, nm in enumerate(HEADERLESS_NAMES[:ncols]):
+            columns[j] = nm
+        start = 0
+    mapping = detect_mapping(columns, headerless=hdr is None)
+    rows, fcount = [], {}
+    for i in range(start, len(raw_v)):
+        vals = [normalize_cell(c) for c in raw_v[i]]
+        forms = {}
+        if i < len(raw_f):
+            for j, c in enumerate(raw_f[i]):
+                if isinstance(c, str) and c.startswith('=') and len(c) > 1:
+                    forms[j] = c
+                    fcount[j] = fcount.get(j, 0) + 1
+        if not any(v is not None for v in vals) and not forms:
+            continue
+        rows.append({'src_row': i + 1, 'data': _trim(vals), 'formulas': forms or None})
+    n = len(rows) or 1
+    formula_cols = sorted(j for j, c in fcount.items() if c / n >= 0.3)
+    return {
+        'name': name, 'position': position, 'hidden': hidden,
+        'header_row': hdr + 1 if hdr is not None else None,
+        'columns': columns, 'mapping': mapping,
+        'formula_cols': formula_cols, 'rows': rows,
+    }
+
+
 def read_workbook(path):
     """Zwraca listę arkuszy: dict(name, hidden, header_row, columns, mapping,
     formula_cols, rows=[dict(src_row, data, formulas)])."""
@@ -138,46 +180,68 @@ def read_workbook(path):
         raw_f = [list(r) for r in ws_f.iter_rows(values_only=True)]
         if not any(c is not None for r in raw_v for c in r):
             continue
-        hdr = _find_header_row(raw_v)
-        ncols = max((len(r) for r in raw_v), default=0)
-        if hdr is not None:
-            columns = []
-            for j in range(ncols):
-                h = raw_v[hdr][j] if j < len(raw_v[hdr]) else None
-                columns.append(str(h).strip() if h not in (None, '') else get_column_letter(j + 1))
-            start = hdr + 1
-        else:
-            columns = [get_column_letter(j + 1) for j in range(ncols)]
-            # arkusz bez nagłówków (np. PROFIT): pierwsze kolumny mają ten sam układ co w
-            # pozostałych arkuszach, resztę użytkownik nazwie w aplikacji
-            for j, name in enumerate(HEADERLESS_NAMES[:ncols]):
-                columns[j] = name
-            start = 0
-        mapping = detect_mapping(columns, headerless=hdr is None)
-        rows, fcount = [], {}
-        for i in range(start, len(raw_v)):
-            vals = [normalize_cell(c) for c in raw_v[i]]
-            forms = {}
-            if i < len(raw_f):
-                for j, c in enumerate(raw_f[i]):
-                    if isinstance(c, str) and c.startswith('=') and len(c) > 1:
-                        forms[j] = c
-                        fcount[j] = fcount.get(j, 0) + 1
-            if not any(v is not None for v in vals) and not forms:
-                continue
-            rows.append({'src_row': i + 1, 'data': _trim(vals), 'formulas': forms or None})
-        n = len(rows) or 1
-        formula_cols = sorted(j for j, c in fcount.items() if c / n >= 0.3)
-        sheets.append({
-            'name': ws_v.title, 'position': pos,
-            'hidden': ws_v.sheet_state != 'visible',
-            'header_row': hdr + 1 if hdr is not None else None,
-            'columns': columns, 'mapping': mapping,
-            'formula_cols': formula_cols, 'rows': rows,
-        })
+        sheets.append(build_sheet(ws_v.title, pos, ws_v.sheet_state != 'visible', raw_v, raw_f))
     wb_v.close()
     wb_f.close()
     return sheets
+
+
+# ── CSV (eksport pojedynczego arkusza z Excela, UTF-8) ────────────────────────
+
+def _csv_cell(text):
+    """Komórka CSV -> wartość: puste = None, daty ISO/dd.mm.rrrr, liczby; numery z zerem
+    na początku (np. 007) zostają tekstem."""
+    s = (text or '').strip()
+    if not s:
+        return None
+    m = re.match(r'^(\d{4}-\d{2}-\d{2}) 00:00(:00)?$', s)
+    if m:
+        return m.group(1)
+    if re.match(r'^0\d+$', s):
+        return s
+    return parse_input(s)
+
+
+def read_csv(data, name):
+    """Wczytuje CSV (UTF-8, ewentualnie Windows-1250) jako jeden arkusz `name`."""
+    import csv
+    import io
+    try:
+        text = data.decode('utf-8-sig')
+    except UnicodeDecodeError:
+        text = data.decode('cp1250')
+    lines = [ln for ln in text.splitlines()[:30] if ln.strip()]
+    if not lines:
+        raise ValueError('Pusty plik CSV.')
+    delim = max(';,\t', key=lambda d: sum(ln.count(d) for ln in lines))
+    reader = csv.reader(io.StringIO(text), delimiter=delim)
+    raw_v = [[_csv_cell(c) for c in row] for row in reader]
+    if not any(c is not None for r in raw_v for c in r):
+        raise ValueError('Plik CSV nie zawiera danych.')
+    return build_sheet(name, 0, False, raw_v)
+
+
+def _csv_out(v):
+    if v is None:
+        return ''
+    if isinstance(v, float):
+        return f'{v:g}'.replace('.', ',')
+    return str(v)
+
+
+def sheet_to_csv(sheet, rows):
+    """CSV (UTF-8 z BOM, separator ;) z nagłówkami arkusza i jego wierszami w kolejności."""
+    import csv
+    import io
+    buf = io.StringIO()
+    w = csv.writer(buf, delimiter=';', lineterminator='\r\n')
+    cols = sheet.columns
+    w.writerow(cols)
+    for r in rows:
+        data = json.loads(r.data or '[]')
+        data = data + [None] * (len(cols) - len(data))
+        w.writerow([_csv_out(v) for v in data[:len(cols)]])
+    return ('\ufeff' + buf.getvalue()).encode('utf-8')
 
 
 # Nagłówki kolumn, w które pracownik wpisuje swoje inicjały (domyślny wybór etapów;

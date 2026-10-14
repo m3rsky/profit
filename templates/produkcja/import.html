@@ -31,6 +31,50 @@
     </form>
   </div>
 </div>
+<div class="card card--spaced-top">
+  <div class="card-body">
+    <h2 style="font-size:1.05rem;margin:0 0 .5rem;">Wczytaj z plików CSV</h2>
+    <p class="section-hint">
+      Każdy plik CSV (UTF-8) to <strong>jeden arkusz</strong>. Wczytanie zastępuje tylko arkusze o podanych nazwach,
+      pozostałe zostają bez zmian. Przed zastąpieniem aplikacja zapisuje kopię zapasową arkusza.
+      Nowa nazwa tworzy nowy arkusz. Dostęp, powiązania z listami kontrolnymi oraz nazwy i etapy kolumn zostają zachowane.
+    </p>
+    <form method="post" action="{{ url_for('produkcja.import_csv') }}" enctype="multipart/form-data" style="max-width:640px;" id="csv-form">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group">
+        <label class="form-label" for="csv">Pliki CSV</label>
+        <input class="form-control" type="file" id="csv" name="csv" accept=".csv,text/csv" multiple required>
+      </div>
+      <div id="csv-names"></div>
+      <datalist id="sheet-names">{% for n in sheet_names %}<option value="{{ n }}">{% endfor %}</datalist>
+      <div class="form-actions"><button type="submit" class="btn btn-primary" id="csv-btn">Wczytaj CSV</button></div>
+    </form>
+  </div>
+</div>
+<script>
+(function () {
+  var known = {{ sheet_names|tojson }};
+  var input = document.getElementById('csv'), box = document.getElementById('csv-names');
+  function guess(filename) {
+    var stem = filename.replace(/\.[^.]+$/, ''), up = stem.toUpperCase(), best = '';
+    known.forEach(function (n) { if (up.indexOf(n.toUpperCase()) !== -1 && n.length > best.length) best = n; });
+    return best || stem;
+  }
+  input.addEventListener('change', function () {
+    box.textContent = '';
+    Array.prototype.forEach.call(input.files, function (f) {
+      var g = document.createElement('div'); g.className = 'form-group';
+      var l = document.createElement('label'); l.className = 'form-label'; l.textContent = 'Arkusz dla pliku: ' + f.name;
+      var i = document.createElement('input'); i.className = 'form-control'; i.name = 'sheet_name';
+      i.setAttribute('list', 'sheet-names'); i.required = true; i.maxLength = 64; i.value = guess(f.name);
+      g.appendChild(l); g.appendChild(i); box.appendChild(g);
+    });
+  });
+  document.getElementById('csv-form').addEventListener('submit', function () {
+    var b = document.getElementById('csv-btn'); b.disabled = true; b.textContent = 'Wczytuję…';
+  });
+})();
+</script>
 <script>
 document.getElementById('import-form').addEventListener('submit', function () {
   var b = document.getElementById('import-btn');

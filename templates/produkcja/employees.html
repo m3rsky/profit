@@ -52,6 +52,11 @@
               <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="btn btn-outline btn-sm" title="Unieważnij stary kod">Nowy kod</button>
             </form>
+            <form method="post" action="{{ url_for('produkcja.employee_delete', emp_id=e.id) }}" style="display:inline;"
+                  onsubmit="return confirm('Usunąć pracownika {{ e.name|e }}? Plakietka przestanie działać, wpisy w historii zostaną.');">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-outline btn-sm" style="color:var(--danger,#dc2626);" title="Usuń pracownika"><i class="bi bi-trash"></i> Usuń</button>
+            </form>
           </td>
         </tr>
         {% endfor %}
