@@ -62,11 +62,15 @@ def test_stage_columns_detected_on_import(app, client):
     assert labels == {'SPAW.', 'KJ'}
 
 
-def test_employee_crud_and_unique_initials(app, client, planner):
+def test_employee_crud_and_duplicate_initials_only_warn(app, client, planner):
     _admin(client)
     _add_employee(client, 'Jan Kowalski', 'JK')
-    resp = _add_employee(client, 'Janina Kowalska', 'jk')   # te same inicjały (bez rozróżniania wielkości)
-    assert 'są już użyte' in resp.get_data(as_text=True)
+    resp = _add_employee(client, 'Janina Kowalska', 'jk')   # te same inicjały: tylko ostrzeżenie
+    assert 'ma też Jan Kowalski' in resp.get_data(as_text=True)
+    with app.app_context():
+        assert ProdEmployee.query.filter(ProdEmployee.initials.in_(['JK', 'jk'])).count() == 2
+        ProdEmployee.query.filter_by(initials='jk').delete()
+        db.session.commit()
     eid, token = _emp(app, 'JK')
     assert len(token) == 32
     token_before = token
@@ -219,3 +223,66 @@ def test_scan_page_supports_hardware_scanner_input(app, client, station):
     assert 'id="st-scan"' in html and 'autofocus' in html
     assert 'id="st-cam-toggle"' in html
     assert 'id="qr-reader-wrap" hidden' in html        # kamera domyślnie ukryta
+
+
+def test_existing_barcode_badges_identify_employee(app, client, station):
+    """Plakietki, które już istnieją (kod kreskowy "JR 128"), rozpoznawane po kodzie, bez tokenu."""
+    _admin(client)
+    client.post('/produkcja/pracownicy/nowy', data={
+        'name': 'Jan Rogoziński', 'badge_code': 'jr 128', 'initials': 'JRo', '_csrf_token': _csrf(client)})
+    with app.app_context():
+        emp = ProdEmployee.query.filter_by(name='Jan Rogoziński').first()
+        assert emp.badge_code == 'JR128' and emp.initials == 'JRo'    # inicjały wpisane w systemie
+    # inicjały są wymagane (nie podstawiamy numeru z kodu)
+    resp = client.post('/produkcja/pracownicy/nowy', data={
+        'name': 'Bez Inicjałów', 'badge_code': 'JR129', 'initials': '', '_csrf_token': _csrf(client)},
+        follow_redirects=True)
+    assert 'inicjały są wymagane' in resp.get_data(as_text=True)
+    # ten sam kod u drugiej osoby jest odrzucany
+    resp = client.post('/produkcja/pracownicy/nowy', data={
+        'name': 'Ktoś Inny', 'badge_code': 'JR128', 'initials': 'KI', '_csrf_token': _csrf(client)},
+        follow_redirects=True)
+    assert 'ma już Jan Rogoziński' in resp.get_data(as_text=True)
+    logout(client)
+    login(client, station, 'Stan1234!')
+    for scanned in ('JR128', 'jr128', ' JR 128 '):
+        r = client.post('/produkcja/skan/pracownik', json={'code': scanned},
+                        headers={'X-CSRF-Token': _csrf(client)})
+        assert r.status_code == 200 and r.get_json()['employee']['initials'] == 'JRo'
+    r = client.post('/produkcja/skan/pracownik', json={'code': 'JR99'}, headers={'X-CSRF-Token': _csrf(client)})
+    assert r.status_code == 404
+
+
+def test_bulk_add_employees_with_existing_badges(app, client):
+    _admin(client)
+    token = _csrf(client)
+    lines = 'JR 128;Jan Rogoziński;JRo\nJR 129;Janusz Rybak;JaR\nJR 130\tMarek Kowal\tMK\nJR 131;Bez Inicjałów\n'
+    resp = client.post('/produkcja/pracownicy/import', data={'lines': lines, '_csrf_token': token})
+    body = resp.get_data(as_text=True)
+    assert 'Dodano: 3' in body and 'Linia 4' in body
+    with app.app_context():
+        got = {e.badge_code: e.initials for e in ProdEmployee.query.all()}
+        assert got == {'JR128': 'JRo', 'JR129': 'JaR', 'JR130': 'MK'}
+    resp = client.post('/produkcja/pracownicy/import',
+                       data={'lines': 'jr128;Duplikat;DU', '_csrf_token': _csrf(client)})
+    assert 'Dodano: 0' in resp.get_data(as_text=True) and 'kod już istnieje' in resp.get_data(as_text=True)
+
+
+def test_migration_adds_badge_code_to_existing_table(app):
+    """Na produkcji tabela prod_employees już istnieje bez kolumny badge_code."""
+    from sqlalchemy import create_engine, inspect, text
+    import app as app_module
+    engine = create_engine('sqlite:///:memory:')
+    with engine.begin() as conn:
+        conn.execute(text('CREATE TABLE prod_employees (id INTEGER PRIMARY KEY, name VARCHAR(128), '
+                          'initials VARCHAR(16), token VARCHAR(48))'))
+    class FakeDb:   # _migrate_schema używa tylko db.engine
+        pass
+    FakeDb.engine = engine
+    real = app_module.db
+    app_module.db = FakeDb
+    try:
+        app_module._migrate_schema()
+    finally:
+        app_module.db = real
+    assert 'badge_code' in [c['name'] for c in inspect(engine).get_columns('prod_employees')]

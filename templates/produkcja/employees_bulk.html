@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Dodaj wielu pracowników – Lista produkcyjna{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-list-ul"></i> Dodaj wielu pracowników</h1>
+    <span class="text-muted" style="font-size:0.82rem;">Dla plakietek, które już macie. Jedna linia to jeden pracownik.</span>
+  </div>
+  <div class="page-header-actions">
+    <a href="{{ url_for('produkcja.employees') }}" class="btn btn-ghost"><i class="bi bi-arrow-left"></i> Wróć</a>
+  </div>
+</div>
+
+{% if report %}
+<div class="card card--spaced-top"><div class="card-body">
+  <p><strong>Dodano: {{ report.added }}</strong></p>
+  {% if report.skipped %}<p>Pominięto (kod już istnieje):</p><ul>{% for x in report.skipped %}<li>{{ x }}</li>{% endfor %}</ul>{% endif %}
+  {% if report.errors %}<p>Błędy:</p><ul>{% for x in report.errors %}<li>{{ x }}</li>{% endfor %}</ul>{% endif %}
+</div></div>
+{% endif %}
+
+<div class="card card--spaced-top">
+  <div class="card-body">
+    <form method="post" style="max-width:640px;">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group">
+        <label class="form-label" for="lines">Kod plakietki ; imię i nazwisko ; inicjały</label>
+        <textarea class="form-control" id="lines" name="lines" rows="12" spellcheck="false"
+                  placeholder="JR 128;Jan Rogoziński;JRo&#10;JR 129;Janusz Rybak;JaR&#10;JR 130;Marek Kowal;MK"></textarea>
+        <small class="text-muted">Można wkleić z Excela (kolumny rozdzielone tabulatorem). Wszystkie trzy pola są wymagane. Inicjały trafiają do komórki w Excelu, kod rozpoznaje pracownika przy skanie.</small>
+      </div>
+      <div class="form-actions"><button type="submit" class="btn btn-primary">Dodaj</button></div>
+    </form>
+  </div>
+</div>
+{% endblock %}

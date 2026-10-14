@@ -1162,6 +1162,8 @@ class ProdEmployee(db.Model):
     name       = db.Column(db.String(128), nullable=False)
     initials   = db.Column(db.String(16), nullable=False)
     token      = db.Column(db.String(48), unique=True, nullable=False)
+    # Kod z istniejącej plakietki (np. kod kreskowy "JR12"), zapisany bez spacji, wielkimi literami
+    badge_code = db.Column(db.String(64), nullable=True, index=True)
     is_active  = db.Column(db.Boolean, default=True)
     notes      = db.Column(db.String(256), nullable=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))

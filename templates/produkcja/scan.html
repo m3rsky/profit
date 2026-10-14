@@ -169,7 +169,20 @@
     var obj = null;
     try { obj = JSON.parse(text); } catch (e) {}
     if (obj && obj.o) { lookupOrder({o: String(obj.o).trim(), p: obj.p ? String(obj.p).trim() : ''}); }
-    else { msg('Nierozpoznany kod QR. Zeskanuj plakietkę lub kod zlecenia.', 'error'); }
+    else { handlePlain(text); }
+  }
+
+  // Zwykły tekst (np. kod kreskowy plakietki "JR12" albo wpisany numer ZO):
+  // najpierw sprawdzamy, czy to kod pracownika, jeśli nie, szukamy zlecenia o takim numerze.
+  function handlePlain(text) {
+    post(urls.emp, {code: text}).then(function (res) {
+      if (res.ok) {
+        employee = res.d.employee; renderEmployee(); elOrders.textContent = '';
+        msg('Witaj, ' + employee.name + '. Zeskanuj kod zlecenia.', 'info');
+      } else {
+        lookupOrder({o: text, p: ''});
+      }
+    }).catch(function () { msg('Błąd sieci. Spróbuj ponownie.', 'error'); });
   }
 
   var scanInput = document.getElementById('st-scan');
@@ -182,7 +195,7 @@
     if (!v) return;
     lastText = ''; lastAt = 0;   // ponowne zeskanowanie tego samego kodu ma zadziałać
     if (v.indexOf(PREFIX) === 0 || v.charAt(0) === '{') { onScan(v); }
-    else { lookupOrder({o: v, p: ''}); }   // zwykły tekst traktujemy jak numer ZO
+    else { handlePlain(v); }
   }
   document.getElementById('st-manual').addEventListener('submit', function (e) {
     e.preventDefault(); submitScan(); scanInput.focus();

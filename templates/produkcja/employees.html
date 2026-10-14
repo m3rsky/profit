@@ -9,6 +9,7 @@
   </div>
   <div class="page-header-actions">
     <a href="{{ url_for('produkcja.employee_new') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nowy pracownik</a>
+    <a href="{{ url_for('produkcja.employees_bulk') }}" class="btn btn-outline"><i class="bi bi-list-ul"></i> Dodaj wielu naraz</a>
     <a href="{{ url_for('produkcja.employee_badges_all') }}" class="btn btn-outline"><i class="bi bi-printer"></i> Plakietki wszystkich (PDF)</a>
     <a href="{{ url_for('produkcja.index') }}" class="btn btn-ghost"><i class="bi bi-arrow-left"></i> Wróć</a>
   </div>
@@ -34,11 +35,12 @@
   {% if employees %}
   <div class="table-wrap">
     <table class="data-table">
-      <thead><tr><th>Imię i nazwisko</th><th>Inicjały</th><th>Przydziały (działy)</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>Imię i nazwisko</th><th>Kod plakietki</th><th>Inicjały</th><th>Przydziały (działy)</th><th>Status</th><th></th></tr></thead>
       <tbody>
         {% for e in employees %}
         <tr>
           <td data-label="Imię i nazwisko"><strong>{{ e.name }}</strong></td>
+          <td data-label="Kod plakietki">{{ e.badge_code or '-' }}</td>
           <td data-label="Inicjały">{{ e.initials }}</td>
           <td data-label="Przydziały">{{ dept_names[e.id] or '-' }}</td>
           <td data-label="Status">{% if e.is_active %}<span class="badge badge-success">aktywny</span>{% else %}<span class="badge badge-neutral">nieaktywny</span>{% endif %}</td>

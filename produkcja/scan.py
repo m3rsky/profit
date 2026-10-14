@@ -12,7 +12,7 @@ from models import db, ProdEmployee, ProdRow, ProdSheet, ProdStageColumn
 from . import produkcja_bp, excel_io
 from .entries import apply_entry, employee_allowed
 from .routes import _data, _display
-from .staff import BADGE_PREFIX
+from .staff import BADGE_PREFIX, norm_code
 
 UTC = timezone.utc
 SESSION_KEY = 'prod_emp'
@@ -71,7 +71,11 @@ def scan_page():
 def scan_employee():
     code = ((request.get_json(silent=True) or {}).get('code') or '').strip()
     token = code[len(BADGE_PREFIX):] if code.startswith(BADGE_PREFIX) else code
-    emp = ProdEmployee.query.filter_by(token=token).first() if token else None
+    emp = None
+    if token:
+        emp = ProdEmployee.query.filter_by(token=token).first()
+        if not emp and norm_code(token):   # kod z istniejącej plakietki (np. kod kreskowy JR12)
+            emp = ProdEmployee.query.filter_by(badge_code=norm_code(token)).first()
     if not emp or not emp.is_active:
         return jsonify({'error': 'Nieznany lub nieaktywny kod pracownika.'}), 404
     session[SESSION_KEY] = {'id': emp.id, 'at': datetime.now(UTC).isoformat()}

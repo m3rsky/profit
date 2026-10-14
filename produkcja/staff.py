@@ -25,16 +25,37 @@ def _new_token():
     return secrets.token_hex(16)
 
 
-def _valid_form(name, initials, exclude_id=None):
+def norm_code(code):
+    """Kod plakietki do porównań: bez spacji, wielkimi literami ("JR 12" = "jr12")."""
+    return ''.join(str(code or '').split()).upper()[:64]
+
+
+def _code_taken(code, exclude_id=None):
+    q = ProdEmployee.query.filter(ProdEmployee.badge_code == code)
+    if exclude_id:
+        q = q.filter(ProdEmployee.id != exclude_id)
+    return q.first()
+
+
+def _valid_form(name, initials, badge_code='', exclude_id=None):
     if not name or not initials:
         return 'Imię i nazwisko oraz inicjały są wymagane.'
+    if badge_code:
+        other = _code_taken(badge_code, exclude_id)
+        if other:
+            return f'Kod plakietki „{badge_code}” ma już {other.name}.'
+    return None
+
+
+def _initials_warning(initials, exclude_id=None):
     clash = ProdEmployee.query.filter(func.lower(ProdEmployee.initials) == initials.lower(),
                                       ProdEmployee.is_active.is_(True))
     if exclude_id:
         clash = clash.filter(ProdEmployee.id != exclude_id)
-    if clash.first():
-        return f'Inicjały „{initials}” są już użyte przez innego aktywnego pracownika.'
-    return None
+    other = clash.first()
+    if other:
+        flash(f'Uwaga: inicjały „{initials}” ma też {other.name}. W komórce Excela obaj będą wyglądać tak samo.',
+              'warning')
 
 
 def _save_departments(emp, ids):
@@ -65,19 +86,22 @@ def employees():
 def employee_new():
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
+        badge_code = norm_code(request.form.get('badge_code'))
         initials = request.form.get('initials', '').strip()
-        err = _valid_form(name, initials)
+        err = _valid_form(name, initials, badge_code)
         if err:
             flash(err, 'error')
         else:
             emp = ProdEmployee(name=name, initials=initials, token=_new_token(),
+                               badge_code=badge_code or None,
                                notes=request.form.get('notes', '').strip() or None)
             db.session.add(emp)
             db.session.flush()
             _save_departments(emp, [int(x) for x in request.form.getlist('departments') if x.isdigit()])
             db.session.commit()
-            _audit('prod_employee_add', 'ProdEmployee', emp.id, f'{name} ({initials})')
-            flash('Dodano pracownika. Plakietkę QR pobierzesz z listy.', 'success')
+            _audit('prod_employee_add', 'ProdEmployee', emp.id, f'{name} ({initials}) kod={badge_code}')
+            flash('Dodano pracownika.', 'success')
+            _initials_warning(initials, exclude_id=emp.id)
             return redirect(url_for('produkcja.employees'))
     return render_template('produkcja/employee_form.html', emp=None, departments=_departments(),
                            selected=set(), form=request.form)
@@ -90,22 +114,56 @@ def employee_edit(emp_id):
     emp = get_or_404(ProdEmployee, emp_id)
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
+        badge_code = norm_code(request.form.get('badge_code'))
         initials = request.form.get('initials', '').strip()
         active = request.form.get('is_active') == '1'
-        err = _valid_form(name, initials, exclude_id=emp.id) if active else (
-            None if name and initials else 'Imię i nazwisko oraz inicjały są wymagane.')
+        err = _valid_form(name, initials, badge_code, exclude_id=emp.id)
         if err:
             flash(err, 'error')
         else:
             emp.name, emp.initials, emp.is_active = name, initials, active
+            emp.badge_code = badge_code or None
             emp.notes = request.form.get('notes', '').strip() or None
             _save_departments(emp, [int(x) for x in request.form.getlist('departments') if x.isdigit()])
             db.session.commit()
             _audit('prod_employee_edit', 'ProdEmployee', emp.id, f'{name} ({initials}) active={active}')
             flash('Zapisano zmiany.', 'success')
+            if active:
+                _initials_warning(initials, exclude_id=emp.id)
             return redirect(url_for('produkcja.employees'))
     return render_template('produkcja/employee_form.html', emp=emp, departments=_departments(),
                            selected=emp.department_ids, form=request.form)
+
+
+@produkcja_bp.route('/pracownicy/import', methods=['GET', 'POST'])
+@login_required
+@planning_required
+def employees_bulk():
+    """Zbiorcze dodanie pracowników z istniejącymi plakietkami: linia = kod;imię i nazwisko[;inicjały]."""
+    report = None
+    if request.method == 'POST':
+        added, skipped, errors = 0, [], []
+        seen = set()
+        for n, line in enumerate((request.form.get('lines') or '').splitlines(), 1):
+            if not line.strip():
+                continue
+            parts = [p.strip() for p in re.split(r'[;\t]', line)]
+            code = norm_code(parts[0])
+            name = parts[1] if len(parts) > 1 else ''
+            initials = parts[2] if len(parts) > 2 else ''
+            if not code or not name or not initials:
+                errors.append(f'Linia {n}: potrzebny kod, imię i nazwisko oraz inicjały ({line.strip()[:40]})')
+            elif code in seen or _code_taken(code):
+                skipped.append(f'{code} ({name}): kod już istnieje')
+            else:
+                seen.add(code)
+                db.session.add(ProdEmployee(name=name, initials=initials[:16], badge_code=code,
+                                            token=_new_token()))
+                added += 1
+        db.session.commit()
+        _audit('prod_employee_bulk', 'ProdEmployee', None, f'added={added} skipped={len(skipped)}')
+        report = {'added': added, 'skipped': skipped, 'errors': errors}
+    return render_template('produkcja/employees_bulk.html', report=report)
 
 
 @produkcja_bp.route('/pracownicy/<int:emp_id>/token', methods=['POST'])

@@ -1,5 +1,11 @@
 {% extends "base.html" %}
-{% block title %}{{ 'Edycja pracownika' if emp else 'Nowy pracownik' }} – Lista produkcyjna{% endblock %}
+{% block title %}{{ 'Edycja pracownika' if emp else 'Nowy pracownik' }} – Lista produkcyjna<script>
+// Skaner kończy kod Enterem: w polu kodu nie wysyłamy formularza, tylko przechodzimy dalej
+document.getElementById('badge_code').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); document.getElementById('initials').focus(); }
+});
+</script>
+{% endblock %}
 
 {% block content %}
 <div class="page-header">
@@ -16,6 +22,13 @@
       <div class="form-group">
         <label class="form-label" for="name">Imię i nazwisko *</label>
         <input class="form-control" id="name" name="name" required value="{{ form.get('name', emp.name if emp else '') }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="badge_code">Kod z plakietki (kod kreskowy)</label>
+        <input class="form-control" id="badge_code" name="badge_code" maxlength="64" autocomplete="off"
+               value="{{ form.get('badge_code', emp.badge_code if emp and emp.badge_code else '') }}"
+               placeholder="kliknij tutaj i zeskanuj plakietkę skanerem">
+        <small class="text-muted">Spacje i wielkość liter nie mają znaczenia. Enter w tym polu nie wysyła formularza.</small>
       </div>
       <div class="form-group">
         <label class="form-label" for="initials">Inicjały (trafiają do komórki w Excelu) *</label>
@@ -50,4 +63,10 @@
     </form>
   </div>
 </div>
+<script>
+// Skaner kończy kod Enterem: w polu kodu nie wysyłamy formularza, tylko przechodzimy dalej
+document.getElementById('badge_code').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); document.getElementById('initials').focus(); }
+});
+</script>
 {% endblock %}

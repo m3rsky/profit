@@ -3431,6 +3431,12 @@ def _migrate_schema():
     engine = db.engine
     insp = inspect(engine)
     with engine.connect() as conn:
+        if 'prod_employees' in insp.get_table_names():
+            cols = [c['name'] for c in insp.get_columns('prod_employees')]
+            if 'badge_code' not in cols:
+                conn.execute(text('ALTER TABLE prod_employees ADD COLUMN badge_code VARCHAR(64)'))
+                conn.execute(text('CREATE INDEX IF NOT EXISTS ix_prod_employees_badge_code ON prod_employees (badge_code)'))
+                conn.commit()
         if 'categories' in insp.get_table_names():
             cols = [c['name'] for c in insp.get_columns('categories')]
             if 'template_id' not in cols:
