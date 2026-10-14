@@ -250,3 +250,47 @@ class TestPointsAdmin:
         with app.app_context():
             titles = [r.title for r in db.session.get(ControlRecord, rid).results]
             assert 'Wymiary' in titles
+
+
+class TestDelete:
+    def _cycle(self, client, app, operator_user):
+        login(client, 'oper', 'Oper1234!')
+        _scan(client)
+        rid = _rec_id(app)
+        _fill_and_complete(client, app, rid, ['OK', 'NG'])
+        client.get('/logout')
+        login(client, operator_user, 'Operator123!')
+        client.post(f'/kontrola/{rid}/done', headers={'X-CSRF-Token': _csrf(client)})
+        client.get('/logout')
+        return rid
+
+    def test_admin_deletes_whole_cycle_keeps_qar(self, client, app, operator_user):
+        rid = self._cycle(client, app, operator_user)
+        login(client, 'admin', 'Admin1234!')
+        resp = client.post(f'/kontrola/{rid}/delete', headers={'X-CSRF-Token': _csrf(client)})
+        assert resp.status_code == 302
+        with app.app_context():
+            assert ControlRecord.query.filter_by(zo_number='ZO/100/2026').count() == 0
+            assert ControlResult.query.count() == 0
+            assert QARReport.query.filter_by(zo_number='ZO/100/2026').count() == 1
+
+    def test_bulk_delete(self, client, app, operator_user):
+        self._cycle(client, app, operator_user)
+        ids = []
+        with app.app_context():
+            ids = [r.id for r in ControlRecord.query.all()]
+        login(client, 'admin', 'Admin1234!')
+        client.post('/kontrola/bulk-delete', data={'record_ids': ids},
+                    headers={'X-CSRF-Token': _csrf(client)})
+        with app.app_context():
+            assert ControlRecord.query.count() == 0
+
+    def test_others_cannot_delete(self, client, app, operator_user):
+        rid = self._cycle(client, app, operator_user)
+        for user, pw in (('oper', 'Oper1234!'), (operator_user, 'Operator123!')):
+            login(client, user, pw)
+            h = {'X-CSRF-Token': _csrf(client)}
+            assert client.post(f'/kontrola/{rid}/delete', headers=h).status_code == 403
+            assert client.post('/kontrola/bulk-delete', data={'record_ids': [rid]},
+                               headers=h).status_code == 403
+            client.get('/logout')

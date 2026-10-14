@@ -152,5 +152,15 @@
     </button>
   </form>
   {% endif %}
+
+  {% if current_user.is_admin %}
+  <form method="post" action="{{ url_for('kontrola.delete_record', record_id=rec.id) }}">
+    {{ csrf_input() }}
+    <button type="submit" class="btn btn-danger btn-sm"
+            data-confirm="Usunąć kontrolę ZO {{ rec.zo_number }} razem z kontrolą sprawdzającą? Raporty QAR zostają.">
+      <i class="bi bi-trash"></i> Usuń kontrolę
+    </button>
+  </form>
+  {% endif %}
 </div>
 {% endblock %}

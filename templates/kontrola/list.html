@@ -26,6 +26,9 @@
 .kz-prod { font-weight:600; word-break:break-word; }
 .kz-badges { display:flex; flex-wrap:wrap; gap:.35rem; }
 .kz-meta { display:flex; flex-wrap:wrap; gap:.15rem .9rem; color:var(--text-muted,#64748b); font-size:.82rem; }
+.kz-sel { display:flex; align-items:center; gap:.4rem; font-size:.82rem; color:var(--text-muted,#64748b); cursor:pointer; }
+.kz-sel input { width:20px; height:20px; }
+.kz-bulk { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; margin-bottom:.75rem; }
 .kz-actions { display:flex; gap:.5rem; margin-top:.15rem; }
 .kz-actions form { flex:1; margin:0; }
 .kz-actions .btn { width:100%; min-height:46px; justify-content:center; }
@@ -81,12 +84,24 @@
 </div>
 
 {% if records %}
+{% if current_user.is_admin %}
+<form method="post" action="{{ url_for('kontrola.bulk_delete') }}" id="kz-bulk-form" class="kz-bulk">
+  {{ csrf_input() }}
+  <button type="button" class="btn btn-outline btn-sm" id="kz-select-all">Zaznacz wszystkie</button>
+  <button type="submit" class="btn btn-danger btn-sm" data-confirm="Usunąć zaznaczone kontrole razem z kontrolami sprawdzającymi? Raporty QAR zostają.">
+    <i class="bi bi-trash"></i> Usuń zaznaczone
+  </button>
+</form>
+{% endif %}
 <div class="kz-list">
   {% for r in records %}
   {% set fu = r.followup %}
   <div class="kz-item kz-item--{{ r.state }}">
     <div class="kz-item-top">
-      <div>
+      {% if current_user.is_admin %}
+      <label class="kz-sel"><input type="checkbox" name="record_ids" value="{{ r.id }}" form="kz-bulk-form"></label>
+      {% endif %}
+      <div style="flex:1;min-width:0;">
         <div class="kz-zo">ZO {{ r.zo_number }}</div>
         <div class="kz-prod">{{ r.product_name or '-' }}</div>
         {% if r.client %}<div class="kz-sub">{{ r.client }}</div>{% endif %}
@@ -146,4 +161,19 @@
   <p>Brak zamówień w tym widoku.</p>
 </div></div>
 {% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var btn = document.getElementById('kz-select-all');
+  if (!btn) return;
+  btn.addEventListener('click', function () {
+    var boxes = document.querySelectorAll('input[name="record_ids"]');
+    var all = Array.prototype.every.call(boxes, function (b) { return b.checked; });
+    boxes.forEach(function (b) { b.checked = !all; });
+  });
+})();
+</script>
 {% endblock %}

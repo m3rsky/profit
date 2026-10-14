@@ -318,6 +318,46 @@ def reopen(record_id):
     return redirect(url_for('kontrola.view_record', record_id=rec.id))
 
 
+def _delete_cycles(records):
+    """Usuwa całe cykle kontroli (wstępną razem ze sprawdzającą). Raporty QAR
+    utworzone z NG zostają, bo to osobne dokumenty niezgodności. Zwraca liczbę cykli."""
+    roots = {r.previous or r for r in records}
+    for root in roots:
+        if root.followup is not None:
+            db.session.delete(root.followup)
+            db.session.flush()
+        db.session.delete(root)
+    db.session.commit()
+    return len(roots)
+
+
+@kontrola_bp.route('/<int:record_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_record(record_id):
+    rec = get_or_404(ControlRecord, record_id)
+    zo = rec.zo_number
+    _delete_cycles([rec])
+    _audit('kontrola_delete', None, f'ZO={zo}')
+    flash(f'Usunięto kontrolę zamówienia ZO {zo}.', 'success')
+    return redirect(url_for('kontrola.list_records'))
+
+
+@kontrola_bp.route('/bulk-delete', methods=['POST'])
+@login_required
+@admin_required
+def bulk_delete():
+    ids = request.form.getlist('record_ids', type=int)
+    records = ControlRecord.query.filter(ControlRecord.id.in_(ids)).all() if ids else []
+    if not records:
+        flash('Nie zaznaczono żadnych kontroli.', 'warning')
+        return redirect(url_for('kontrola.list_records'))
+    count = _delete_cycles(records)
+    _audit('kontrola_bulk_delete', None, f'count={count}')
+    flash(f'Usunięto kontrole zamówień: {count}.', 'success')
+    return redirect(url_for('kontrola.list_records'))
+
+
 # ── Admin: punkty kontrolne ───────────────────────────────────────────────────
 
 @kontrola_bp.route('/points')
