@@ -115,6 +115,28 @@ class TestScanAndFill:
         resp = client.get(f'/kontrola/{rid}')
         assert resp.status_code == 200 and b'Wykonane' in resp.data
 
+    def test_same_zo_other_product_creates_separate_control(self, client, app):
+        login(client, 'oper', 'Oper1234!')
+        first = _scan(client).get_json()
+        second = _scan(client, {**QR, 'p': 'Szafa INOX 400', 'q': 2}).get_json()
+        assert second['ok'] and second['redirect'] != first['redirect']
+        assert 'już istnieje' not in second['msg']
+        with app.app_context():
+            recs = ControlRecord.query.filter_by(zo_number='ZO/100/2026', round=1).all()
+            assert sorted(r.product_name for r in recs) == ['Szafa INOX 400', 'Szafa PSH']
+        # ponowny skan kazdego z produktow otwiera wlasciwa kontrole
+        again = _scan(client, {**QR, 'p': '  szafa   psh '}).get_json()
+        assert again['redirect'] == first['redirect'] and 'już istnieje' in again['msg']
+        again2 = _scan(client, {**QR, 'p': 'Szafa INOX 400'}).get_json()
+        assert again2['redirect'] == second['redirect']
+
+    def test_list_search_by_product_and_client(self, client, app):
+        login(client, 'oper', 'Oper1234!')
+        _scan(client)
+        assert b'ZO/100/2026' in client.get('/kontrola/?zo=psh').data
+        assert b'ZO/100/2026' in client.get('/kontrola/?zo=klient+x').data
+        assert b'ZO/100/2026' not in client.get('/kontrola/?zo=nieistnieje').data
+
     def test_scan_without_zo_rejected(self, client):
         login(client, 'oper', 'Oper1234!')
         assert _scan(client, {'p': 'X', 'q': 1}).status_code == 400

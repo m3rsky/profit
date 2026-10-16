@@ -4,7 +4,7 @@ from functools import wraps
 from flask import (render_template, redirect, url_for, request,
                    flash, abort, current_app, jsonify)
 from flask_login import login_required, current_user
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from models import (db, get_or_404, AuditLog, Alert, User, QARReport,
                     ControlPoint, ControlRecord, ControlResult,
@@ -93,10 +93,22 @@ def _notify(roles, message, alert_type='info'):
         db.session.add(Alert(recipient_id=u.id, message=message[:512], alert_type=alert_type))
 
 
-def _latest_for_zo(zo):
-    """Najnowszy etap cyklu dla ZO: kontrola sprawdzająca, jeśli istnieje, inaczej wstępna."""
-    first = (ControlRecord.query.filter_by(zo_number=zo, round=1)
-             .order_by(ControlRecord.id.desc()).first())
+def _norm(text):
+    return ' '.join((text or '').upper().split())
+
+
+def _label(rec):
+    """Opis zamówienia do komunikatów: pod jednym ZO może być kilka produktów."""
+    return f'ZO {rec.zo_number}' + (f' ({rec.product_name})' if rec.product_name else '')
+
+
+def _latest_for_order(zo, product_name):
+    """Najnowszy etap cyklu dla pary ZO + produkt: kontrola sprawdzająca, jeśli istnieje,
+    inaczej wstępna. Ten sam ZO z innym produktem to osobna kontrola."""
+    wanted = _norm(product_name)
+    candidates = (ControlRecord.query.filter_by(zo_number=zo, round=1)
+                  .order_by(ControlRecord.id.desc()).all())
+    first = next((r for r in candidates if _norm(r.product_name) == wanted), None)
     if not first:
         return None
     return first.followup or first
@@ -153,7 +165,10 @@ def list_records():
 
     q = ControlRecord.query.filter_by(round=1).order_by(ControlRecord.created_at.desc())
     if zo_filter:
-        q = q.filter(ControlRecord.zo_number.ilike(f'%{zo_filter}%'))
+        like = f'%{zo_filter}%'
+        q = q.filter(or_(ControlRecord.zo_number.ilike(like),
+                         ControlRecord.product_name.ilike(like),
+                         ControlRecord.client.ilike(like)))
     records = q.all()
     if is_op:
         # Operator widzi dopiero zakończone kontrole.
@@ -197,13 +212,13 @@ def from_qr():
     if not zo:
         return jsonify({'error': 'Brak numeru zlecenia („o") w kodzie QR'}), 400
 
-    existing = _latest_for_zo(zo)
+    existing = _latest_for_order(zo, product_name)
     if existing:
-        _audit('kontrola_scan_existing', existing.id, f'ZO={zo}')
+        _audit('kontrola_scan_existing', existing.id, f'ZO={zo} product={product_name}')
         return jsonify({
             'ok': True,
             'redirect': url_for('kontrola.view_record', record_id=existing.id),
-            'msg': f'Kontrola dla ZO {zo} już istnieje, otwieram.',
+            'msg': f'Kontrola dla {_label(existing)} już istnieje, otwieram.',
         })
 
     points = _active_points()
@@ -253,7 +268,7 @@ def view_record(record_id):
             rec.completed_at = datetime.now(UTC)
             if rec.round == 1:
                 _notify(['operator'],
-                        f'ZO {rec.zo_number}: kontrola zakończona ({rec.result}), '
+                        f'{_label(rec)}: kontrola zakończona ({rec.result}), '
                         f'zamówienie czeka na wykonanie.',
                         'urgent' if rec.result == 'NG' else 'info')
         db.session.commit()
@@ -292,11 +307,11 @@ def mark_done(record_id):
     # kopiujemy punkty z kontroli wstępnej.
     _add_results(follow, _active_points() or rec.results)
     _notify(['admin', 'kontroler'],
-            f'ZO {rec.zo_number}: oznaczone jako wykonane przez {current_user.username}, '
+            f'{_label(rec)}: oznaczone jako wykonane przez {current_user.username}, '
             f'czeka na kontrolę sprawdzającą.')
     db.session.commit()
     _audit('kontrola_done', rec.id, f'ZO={rec.zo_number}')
-    flash(f'ZO {rec.zo_number} oznaczone jako wykonane. Utworzono kontrolę sprawdzającą.', 'success')
+    flash(f'{_label(rec)} oznaczone jako wykonane. Utworzono kontrolę sprawdzającą.', 'success')
     return redirect(url_for('kontrola.list_records'))
 
 

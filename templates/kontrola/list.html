@@ -14,6 +14,22 @@
 .kz-sub { color:var(--text-muted,#64748b); font-size:.82rem; }
 .kz-empty { text-align:center; padding:2.5rem 1rem; color:var(--text-muted,#64748b); }
 
+.kz-table-wrap { display:none; }
+.kz-table { width:100%; border-collapse:collapse; font-size:.92rem; }
+.kz-table th { text-align:left; padding:.6rem .75rem; font-size:.75rem; text-transform:uppercase; letter-spacing:.03em;
+  color:var(--text-muted,#64748b); border-bottom:2px solid var(--border,#e2e8f0); white-space:nowrap; }
+.kz-table td { padding:.55rem .75rem; border-bottom:1px solid var(--border,#e2e8f0); vertical-align:middle; }
+.kz-table tbody tr:hover { background:var(--blue-bg,rgba(37,99,235,.05)); }
+.kz-table .kz-zo { font-size:.95rem; white-space:nowrap; }
+.kz-table .kz-state { border-left:4px solid transparent; }
+.kz-table .kz-state--to_do { border-left-color:#d97706; }
+.kz-table .kz-state--recheck { border-left-color:var(--progress-blue,#2563eb); }
+.kz-table .kz-state--closed { border-left-color:#16a34a; }
+.kz-table .kz-state--in_control { border-left-color:#94a3b8; }
+.kz-table .kz-num { text-align:right; white-space:nowrap; }
+.kz-table .kz-sel input { width:18px; height:18px; }
+.kz-table .kz-rowact { display:flex; gap:.4rem; justify-content:flex-end; }
+.kz-table .kz-rowact form { margin:0; }
 .kz-list { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:.75rem; }
 .kz-item { display:flex; flex-direction:column; gap:.55rem; padding:.9rem 1rem; border:1px solid var(--border,#e2e8f0);
   border-left-width:5px; border-radius:var(--radius-md,10px); background:var(--card-bg,var(--surface,#fff)); }
@@ -33,6 +49,10 @@
 .kz-actions form { flex:1; margin:0; }
 .kz-actions .btn { width:100%; min-height:46px; justify-content:center; }
 .kz-actions > a.btn { flex:1; }
+@media (min-width: 900px) {
+  .kz-table-wrap { display:block; }
+  .kz-list { display:none; }
+}
 @media (max-width: 640px) {
   .kz-list { grid-template-columns:1fr; }
   .kz-filter { width:100%; }
@@ -54,7 +74,7 @@
   <div class="page-header-actions">
     <form method="get" class="kz-filter">
       <input type="hidden" name="s" value="{{ flt }}">
-      <input type="text" name="zo" value="{{ zo_filter }}" placeholder="Filtruj po nr ZO…" class="form-control">
+      <input type="text" name="zo" value="{{ zo_filter }}" placeholder="Szukaj: ZO, produkt, klient…" class="form-control">
       <button type="submit" class="btn btn-secondary" title="Szukaj"><i class="bi bi-search"></i></button>
     </form>
     {% if current_user.is_admin %}
@@ -93,6 +113,75 @@
   </button>
 </form>
 {% endif %}
+<div class="card kz-table-wrap">
+  <div class="card-body" style="padding:0; overflow-x:auto;">
+    <table class="kz-table">
+      <thead>
+        <tr>
+          {% if current_user.is_admin %}<th></th>{% endif %}
+          <th>ZO</th><th>Produkt</th><th>Klient</th><th class="kz-num">Szt.</th>
+          <th>Kontrola</th><th>Stan</th><th>Kontroler</th><th>Data</th><th>Wykonane</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in records %}
+        {% set fu = r.followup %}
+        <tr>
+          {% if current_user.is_admin %}
+          <td><label class="kz-sel"><input type="checkbox" name="record_ids" value="{{ r.id }}" form="kz-bulk-form"></label></td>
+          {% endif %}
+          <td class="kz-zo"><strong>{{ r.zo_number }}</strong></td>
+          <td>{{ r.product_name or '-' }}</td>
+          <td>{{ r.client or '-' }}</td>
+          <td class="kz-num">{{ r.quantity or '-' }}</td>
+          <td>
+            {% if r.result == 'OK' %}<span class="badge badge-success">Zgodny</span>
+            {% elif r.result == 'NG' %}<span class="badge badge-danger">Niezgodny ({{ r.ng_count }})</span>
+            {% else %}<span class="badge badge-neutral">{{ r.rated_count }}/{{ r.results|length }}</span>{% endif %}
+          </td>
+          <td class="kz-state kz-state--{{ r.state }}">
+            {% if r.state == 'to_do' %}<span class="badge badge-warning">Do wykonania</span>
+            {% elif r.state == 'recheck' %}<span class="badge badge-info">Czeka na kontrolę sprawdzającą</span>
+            {% elif r.state == 'closed' %}
+              <span class="badge {{ 'badge-success' if fu.result == 'OK' else 'badge-danger' }}">
+                Zamknięte: {{ 'zgodny' if fu.result == 'OK' else 'niezgodny' }}</span>
+            {% else %}<span class="badge badge-neutral">W trakcie kontroli</span>{% endif %}
+          </td>
+          <td>{{ r.controller.username if r.controller else '-' }}</td>
+          <td style="white-space:nowrap;">{{ (r.completed_at or r.created_at)|localdt('%d.%m.%Y %H:%M') }}</td>
+          <td style="white-space:nowrap;">
+            {% if r.done_at %}{{ r.done_by.username if r.done_by else '-' }}<div class="kz-sub">{{ r.done_at|localdt('%d.%m %H:%M') }}</div>{% else %}-{% endif %}
+          </td>
+          <td>
+            <div class="kz-rowact">
+              {% if r.state == 'to_do' and (is_op or current_user.is_admin) %}
+              <form method="post" action="{{ url_for('kontrola.mark_done', record_id=r.id) }}">
+                {{ csrf_input() }}
+                <button type="submit" class="btn btn-primary btn-sm"
+                        data-confirm="Oznaczyć ZO {{ r.zo_number }}{% if r.product_name %} ({{ r.product_name }}){% endif %} jako wykonane? Powstanie kontrola sprawdzająca.">
+                  <i class="bi bi-check2-circle"></i> Wykonane
+                </button>
+              </form>
+              {% endif %}
+              {% if r.state == 'recheck' and current_user.is_kontroler %}
+              <a class="btn btn-primary btn-sm" href="{{ url_for('kontrola.view_record', record_id=fu.id) }}">
+                <i class="bi bi-clipboard-check"></i> Kontroluj</a>
+              {% endif %}
+              {% if r.state == 'in_control' and current_user.is_kontroler %}
+              <a class="btn btn-primary btn-sm" href="{{ url_for('kontrola.view_record', record_id=r.id) }}">
+                <i class="bi bi-pencil"></i> Kontynuuj</a>
+              {% else %}
+              <a class="btn btn-outline btn-sm" href="{{ url_for('kontrola.view_record', record_id=r.id) }}">Szczegóły</a>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
 <div class="kz-list">
   {% for r in records %}
   {% set fu = r.followup %}
@@ -170,7 +259,9 @@
   var btn = document.getElementById('kz-select-all');
   if (!btn) return;
   btn.addEventListener('click', function () {
-    var boxes = document.querySelectorAll('input[name="record_ids"]');
+    // Tabela i karty mają osobne pola wyboru, bierzemy tylko widoczne.
+    var boxes = Array.prototype.filter.call(document.querySelectorAll('input[name="record_ids"]'),
+      function (b) { return b.offsetParent !== null; });
     var all = Array.prototype.every.call(boxes, function (b) { return b.checked; });
     boxes.forEach(function (b) { b.checked = !all; });
   });
