@@ -1,5 +1,5 @@
 {# Wybór osoby odpowiedzialnej za wykonanie zadania — dropdown pogrupowany po działach
-   (jak w marszrucie) + podpowiedź pracowników z karty marszrutowej po numerze ZO.
+   (z ustawień produkcji).
    Oczekuje: departments, selected_employee_id (int|None), selected_employee (obiekt|None) #}
 <div class="form-group">
   <label class="form-label">Osoba odpowiedzialna za zadanie</label>
@@ -21,41 +21,4 @@
       {% endif %}
     {% endfor %}
   </select>
-  <div id="employee-suggestions" style="display:none;margin-top:6px;font-size:0.8rem;color:#555;">
-    <i class="bi bi-lightbulb" style="color:#b8860b;"></i> Pracowali przy tym ZO (marszruta):
-    <span id="employee-suggestions-list"></span>
-  </div>
 </div>
-<script>
-(function () {
-  const zoInput = document.querySelector('input[name="zo_number"]');
-  const select  = document.getElementById('employee-select');
-  const box     = document.getElementById('employee-suggestions');
-  const list    = document.getElementById('employee-suggestions-list');
-  if (!zoInput || !select) return;
-  function fetchSuggestions() {
-    const zo = zoInput.value.trim();
-    if (!zo) { box.style.display = 'none'; return; }
-    fetch('{{ url_for("qar.suggest_employees") }}?zo=' + encodeURIComponent(zo))
-      .then(r => r.json())
-      .then(data => {
-        list.innerHTML = '';
-        if (!data.employees.length) { box.style.display = 'none'; return; }
-        data.employees.forEach(emp => {
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.className = 'btn btn-outline btn-xs';
-          btn.style.margin = '2px';
-          btn.textContent = emp.name + ' (' + emp.department + ')';
-          btn.title = 'Kliknij, aby przypisać';
-          btn.addEventListener('click', () => { select.value = String(emp.id); });
-          list.appendChild(btn);
-        });
-        box.style.display = 'block';
-      })
-      .catch(() => { box.style.display = 'none'; });
-  }
-  zoInput.addEventListener('change', fetchSuggestions);
-  fetchSuggestions();
-})();
-</script>

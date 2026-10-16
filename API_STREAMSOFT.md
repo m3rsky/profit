@@ -243,49 +243,7 @@ Te trzy endpointy są **tylko do odczytu** — pozwalają Streamsoft synchronizo
 
 ---
 
-## 6. Spawalnia (produkcja wg numeru ZO)
-
-### `GET /api/v1/spawalnia/<zo_number>`
-
-```bash
-curl -s https://TWOJ-SERWER/api/v1/spawalnia/ZO-2026-441 -H "X-API-Key: $API_KEY"
-```
-```json
-{
-  "zo_number": "ZO-2026-441",
-  "records": [
-    {
-      "id": 901, "batch_index": 1, "batch_total": 5,
-      "is_empty": false, "has_ng": false,
-      "otworowanie": "OK", "przekatna": "OK", "przekatna_odchylka": 0.4,
-      "pomiar1": 501.2, "pomiar2": 300.1, "pomiar3": null,
-      "jakosc_wyciecia": "OK",
-      "operator": "JK", "giecie_operator": "AN", "ciecie_operator": null,
-      "created_at": "2026-07-01T08:00:00", "updated_at": "2026-07-01T08:20:00"
-    }
-  ]
-}
-```
-
-Numer ZO nieistniejący w systemie zwraca `200` z pustą listą `records` (nie `404`) — to celowe, bo ZO może jeszcze nie mieć założonych list kontrolnych po stronie hali produkcyjnej.
-
-### `POST /api/v1/spawalnia/<zo_number>`
-
-Zakłada `quantity` (domyślnie 1, maks. 99) pustych list kontrolnych dla numeru ZO — odpowiednik przycisku „Nowy wpis” w module spawalni, wywoływany automatycznie np. gdy Streamsoft zwalnia zlecenie produkcyjne.
-
-```bash
-curl -X POST https://TWOJ-SERWER/api/v1/spawalnia/ZO-2026-442 \
-  -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" -d '{"quantity": 5}'
-```
-```json
-{ "ok": true, "zo_number": "ZO-2026-442", "created_ids": [910, 911, 912, 913, 914] }
-```
-
-Wypełnianie pomiarów/operatorów pozostaje zadaniem obsługi hali w aplikacji webowej — API tylko zakłada wpisy i pozwala odczytać ich stan.
-
----
-
-## 7. QAR (niezgodności jakościowe)
+## 6. QAR (niezgodności jakościowe)
 
 ### `GET /api/v1/qar` i `GET /api/v1/qar/<id>`
 
@@ -306,13 +264,13 @@ Numer NCR generowany jest tą samą logiką co w aplikacji (`QAR-RRRR-NNNN`, lic
 
 ---
 
-## 8. Import CSV — kanał równoległy dla zamówień masowych
+## 7. Import CSV — kanał równoległy dla zamówień masowych
 
 `POST /api/v1/orders` obsługuje jedno zamówienie na żądanie. Do masowego, jednorazowego importu wielu zamówień (np. eksport wsadowy ze Streamsoft na koniec dnia) nadal wygodniejszy jest `/orders/import-csv` opisany w `DOKUMENTACJA_SYSTEMU.md`, sekcja 5.1 — format CSV z kolumną `Numer zew.` również trafia teraz do dedykowanego pola `Order.external_number`. Oba kanały mogą współistnieć: REST do zdarzeń pojedynczych/czasu rzeczywistego, CSV do wsadów.
 
 ---
 
-## 9. Możliwości dalszego rozwoju
+## 8. Możliwości dalszego rozwoju
 
 1. **Webhook zwrotny do Streamsoft** — dziś ERP musi odpytywać `GET /api/v1/orders` / `GET /api/v1/checklists`, żeby dowiedzieć się o zmianie statusu. Alternatywa: PSH QC wywołuje HTTP POST na adres skonfigurowany w Streamsoft po zdarzeniach takich jak zamknięcie ostatniej listy kontrolnej zamówienia czy wykrycie NG.
 2. **Klucze per-integracja** — obecnie jeden wspólny `API_KEY` dla wszystkich wywołań (świadomy wybór na start — jedna integracja, jeden klucz). Przy kolejnych systemach zewnętrznych warto przejść na tabelę kluczy z możliwością odwołania dostępu pojedynczej integracji.
@@ -322,14 +280,14 @@ Numer NCR generowany jest tą samą logiką co w aplikacji (`QAR-RRRR-NNNN`, lic
 
 ---
 
-## 10. Skrócona checklista wdrożeniowa integracji ze Streamsoft
+## 9. Skrócona checklista wdrożeniowa integracji ze Streamsoft
 
 - [x] Dekorator `api_key_required` na wszystkich `/api/v1/*`
 - [x] Wyjątek CSRF dla `/api/v1/*`
 - [x] Kolumna `Order.external_number` + migracja
 - [x] `POST /api/v1/orders` z dopasowaniem szablonu
 - [x] Rozszerzenie checklisty o `start`/`complete`, `score`, `compliant`, czas trwania
-- [x] Endpointy odczytu dla kosztorysów, spawalni (ZO), QAR
+- [x] Endpointy odczytu dla kosztorysów, QAR
 - [ ] Ustawić realny `API_KEY` w `.env` na serwerze produkcyjnym (`host82388.iqhs.pl`) — zmienna nie jest w repo, trzeba założyć ręcznie przy pierwszym wdrożeniu
 - [ ] Przekazać zespołowi Streamsoft: adres serwera, wartość `API_KEY`, ten dokument
 - [ ] Zdecydować: webhook zwrotny czy polling po stronie Streamsoft (sekcja 9, pkt 1)

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Ścieżki produkcyjne – Marszruta{% endblock %}
+{% block title %}Ścieżki produkcyjne – Ustawienia produkcji{% endblock %}
 
 {% block head %}
 <style>
@@ -34,11 +34,11 @@ table.tpl-templates-table .badge-ok {
 <div class="page-header">
   <h1 class="page-title"><i class="bi bi-diagram-3"></i> Ścieżki produkcyjne</h1>
   <div class="page-header-actions">
-    <a href="{{ url_for('marszruta.new_routing_template') }}" class="btn btn-primary">
+    <a href="{{ url_for('ustawienia.new_routing_template') }}" class="btn btn-primary">
       <i class="bi bi-plus-lg"></i> Nowa ścieżka
     </a>
-    <a href="{{ url_for('marszruta.list_cards') }}" class="btn btn-outline">
-      <i class="bi bi-arrow-left"></i> Wróć do listy
+    <a href="{{ url_for('ustawienia.admin_departments') }}" class="btn btn-outline">
+      <i class="bi bi-people"></i> Działy i pracownicy
     </a>
   </div>
 </div>
@@ -58,10 +58,10 @@ table.tpl-templates-table .badge-ok {
             {% else %}<span class="badge badge-neutral">Nieaktywna</span>{% endif %}
           </td>
           <td class="td-actions">
-            <a href="{{ url_for('marszruta.edit_routing_template', tpl_id=tmpl.id) }}" class="btn btn-sm btn-outline" title="Edytuj">
+            <a href="{{ url_for('ustawienia.edit_routing_template', tpl_id=tmpl.id) }}" class="btn btn-sm btn-outline" title="Edytuj">
               <i class="bi bi-pencil"></i> <span class="btn-label">Edytuj</span>
             </a>
-            <form method="post" action="{{ url_for('marszruta.delete_routing_template', tpl_id=tmpl.id) }}"
+            <form method="post" action="{{ url_for('ustawienia.delete_routing_template', tpl_id=tmpl.id) }}"
                   class="form-inline" onsubmit="return confirm('Usunąć ścieżkę „{{ tmpl.name }}”?')">
               {{ csrf_input() }}
               <button type="submit" class="btn btn-sm btn-danger" title="Usuń">
@@ -79,7 +79,7 @@ table.tpl-templates-table .badge-ok {
 <div class="empty-state" style="text-align:center;padding:48px 0;color:#888;">
   <i class="bi bi-diagram-3" style="font-size:3rem;display:block;margin-bottom:12px;"></i>
   <p>Brak zdefiniowanych ścieżek produkcyjnych.</p>
-  <a href="{{ url_for('marszruta.new_routing_template') }}" class="btn btn-primary" style="margin-top:8px;">
+  <a href="{{ url_for('ustawienia.new_routing_template') }}" class="btn btn-primary" style="margin-top:8px;">
     <i class="bi bi-plus-lg"></i> Utwórz pierwszą ścieżkę
   </a>
 </div>

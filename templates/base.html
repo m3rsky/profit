@@ -77,7 +77,7 @@
         <span>Kontrola Końcowa</span>
       </a>
       <a href="{{ url_for('admin_templates') }}"
-         class="{% if request.endpoint and not request.endpoint.startswith('zadania_qa.') and not request.endpoint.startswith('marszruta.') and ('template' in request.endpoint or 'category' in request.endpoint or 'task' in request.endpoint) %}active{% endif %}">
+         class="{% if request.endpoint and not request.endpoint.startswith('zadania_qa.') and not request.endpoint.startswith('ustawienia.') and ('template' in request.endpoint or 'category' in request.endpoint or 'task' in request.endpoint) %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-layout-text-sidebar-reverse"></i></span>
         <span>Szablony</span>
       </a>
@@ -90,11 +90,6 @@
          class="{% if request.endpoint and request.endpoint.startswith('kosztorys.') and request.endpoint not in ('kosztorys.admin_prices','kosztorys.admin_rates','kosztorys.admin_cabinets','kosztorys.admin_catalog') %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-calculator"></i></span>
         <span>Kosztorysy</span>
-      </a>
-      <a href="{{ url_for('spawalnia.list_records') }}"
-         class="{% if request.endpoint and request.endpoint.startswith('spawalnia.') %}active{% endif %}">
-        <span class="nav-icon"><i class="bi bi-fire"></i></span>
-        <span>Kontrola etapów</span>
       </a>
       <a href="{{ url_for('qar.list_reports') }}"
          class="{% if request.endpoint and request.endpoint.startswith('qar.') %}active{% endif %}">
@@ -111,10 +106,10 @@
         <span class="nav-icon"><i class="bi bi-card-checklist"></i></span>
         <span>Zadania QA</span>
       </a>
-      <a href="{{ url_for('marszruta.list_cards') }}"
-         class="{% if request.endpoint and request.endpoint.startswith('marszruta.') %}active{% endif %}">
-        <span class="nav-icon"><i class="bi bi-signpost-split"></i></span>
-        <span>Marszruta produkcji</span>
+      <a href="{{ url_for('ustawienia.index') }}"
+         class="{% if request.endpoint and request.endpoint.startswith('ustawienia.') %}active{% endif %}">
+        <span class="nav-icon"><i class="bi bi-diagram-3"></i></span>
+        <span>Ustawienia produkcji</span>
       </a>
       <a href="{{ url_for('produkcja.index') }}"
          class="{% if request.endpoint and request.endpoint.startswith('produkcja.') %}active{% endif %}">
@@ -243,12 +238,6 @@
           <span class="wk-qa-badge">{{ pending_qa_count }}</span>
         </button>
         {% endif %}
-        <a href="{{ url_for('spawalnia.list_records') }}"
-           class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('spawalnia.') %}active{% endif %}"
-           title="Kontrola etapów">
-          <i class="bi bi-fire"></i>
-          <span class="wk-nav-label">Kontrola etapów</span>
-        </a>
         <a href="{{ url_for('qar.list_reports') }}"
            class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('qar.') %}active{% endif %}"
            title="Raporty QAR">
@@ -267,14 +256,14 @@
           <i class="bi bi-card-checklist"></i>
           <span class="wk-nav-label">Zadania QA</span>
         </a>
-        <a href="{{ url_for('marszruta.list_cards') }}"
-           class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('marszruta.') %}active{% endif %}"
-           title="Marszruta produkcji">
-          <i class="bi bi-signpost-split"></i>
-          <span class="wk-nav-label">Marszruta</span>
+        <a href="{{ url_for('ustawienia.index') }}"
+           class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('ustawienia.') %}active{% endif %}"
+           title="Ustawienia produkcji">
+          <i class="bi bi-diagram-3"></i>
+          <span class="wk-nav-label">Ustawienia</span>
         </a>
         <a href="{{ url_for('admin_templates') }}"
-           class="wk-nav-link {% if request.endpoint and not request.endpoint.startswith('zadania_qa.') and not request.endpoint.startswith('marszruta.') and ('template' in request.endpoint or 'category' in request.endpoint or 'task' in request.endpoint) %}active{% endif %}"
+           class="wk-nav-link {% if request.endpoint and not request.endpoint.startswith('zadania_qa.') and not request.endpoint.startswith('ustawienia.') and ('template' in request.endpoint or 'category' in request.endpoint or 'task' in request.endpoint) %}active{% endif %}"
            title="Szablony">
           <i class="bi bi-layout-text-sidebar-reverse"></i>
           <span class="wk-nav-label">Szablony</span>
@@ -304,20 +293,6 @@
            title="Kosztorysy">
           <i class="bi bi-calculator-fill"></i>
           <span class="wk-nav-label">Kosztorysy</span>
-        </a>
-
-      {% elif current_user.role == 'spawacz' %}
-        <a href="{{ url_for('spawalnia.new_record') }}"
-           class="wk-nav-link {% if request.endpoint == 'spawalnia.new_record' %}active{% endif %}"
-           title="Nowy rekord">
-          <i class="bi bi-plus-circle-fill"></i>
-          <span class="wk-nav-label">Nowy rekord</span>
-        </a>
-        <a href="{{ url_for('spawalnia.list_records') }}"
-           class="wk-nav-link {% if request.endpoint == 'spawalnia.list_records' %}active{% endif %}"
-           title="Lista rekordów">
-          <i class="bi bi-list-ul"></i>
-          <span class="wk-nav-label">Lista</span>
         </a>
 
       {% elif current_user.role == 'monter' %}

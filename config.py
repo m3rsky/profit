@@ -11,7 +11,6 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads')
     QAR_UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'qar_uploads')
-    MARSZRUTA_UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'marszruta_uploads')
     DOKUMENTACJA_UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'dokumentacja_uploads')
     # Pliki listy produkcyjnej (import/kopie) poza static, żeby nie były serwowane publicznie
     PRODUKCJA_FOLDER = os.path.join(BASE_DIR, 'instance', 'produkcja')

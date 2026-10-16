@@ -27,12 +27,9 @@ from models import (db, get_or_404, User, ChecklistTemplate, Category, Task, Rep
                     Photo, AuditLog, Order, Alert,
                     CabinetType, MaterialPrice, LaborRate, Quote, QuoteConfig,
                     CatalogProduct,
-                    SpawalniaOperator, SpawalniaRecord, InterstageCheck,
-                    INTERSTAGE_STAGES, ensure_interstage_checks,
                     ChecklistSession, Installer, ReportItemInstaller,
                     QARReport, QARPhoto, QATask, QARCategory,
-                    ProductionDepartment, DepartmentEmployee, RoutingTemplate,
-                    RoutingTemplateStage, RoutingCard, RoutingCardStage, RoutingCardPhoto,
+                    ProductionDepartment, DepartmentEmployee,
                     DailyBriefing, DocEntry, DocFile, DocNote)
 import anthropic
 import briefing_service
@@ -46,9 +43,6 @@ db.init_app(app)
 from kosztorys import kosztorys_bp  # noqa: E402
 app.register_blueprint(kosztorys_bp)
 
-from spawalnia import spawalnia_bp  # noqa: E402
-app.register_blueprint(spawalnia_bp)
-
 from qar import qar_bp  # noqa: E402
 app.register_blueprint(qar_bp)
 from qar.routes import _next_qar_number  # noqa: E402 — reużyte przez /api/v1/qar
@@ -56,8 +50,8 @@ from qar.routes import _next_qar_number  # noqa: E402 — reużyte przez /api/v1
 from zadania_qa import zadania_qa_bp  # noqa: E402
 app.register_blueprint(zadania_qa_bp)
 
-from marszruta import marszruta_bp  # noqa: E402
-app.register_blueprint(marszruta_bp)
+from ustawienia import ustawienia_bp  # noqa: E402
+app.register_blueprint(ustawienia_bp)
 
 from dokumentacja import dokumentacja_bp  # noqa: E402
 app.register_blueprint(dokumentacja_bp)
@@ -367,7 +361,7 @@ def dashboard():
         return redirect(url_for('kontrola.list_records'))
 
     # Pracownicy niebędący adminem dostają uproszczony dashboard z kafelkami
-    if current_user.role in ('order', 'spawacz', 'monter'):
+    if current_user.role in ('order', 'monter'):
         # Minimalne dane potrzebne do kafelkowego dashboardu
         return render_template('dashboard.html',
                                recent_reports=[], all_reports_count=0,
@@ -1540,39 +1534,6 @@ def admin_stats():
     total_in_progress = Report.query.filter_by(status='in_progress').count()
     total_users       = User.query.count()
 
-    # ── Marszruta produkcji: wyniki wg działu (30 dni) ──────────────────────
-    _stage_day_expr = func.substr(RoutingCardStage.checked_at, 1, 10)
-    marszruta_dept_stats = (db.session.query(
-        ProductionDepartment.name.label('dept_name'),
-        func.count(RoutingCardStage.id).label('total'),
-        func.sum(case((RoutingCardStage.result == 'ok', 1), else_=0)).label('ok'),
-        func.sum(case((RoutingCardStage.result == 'ng', 1), else_=0)).label('ng'),
-    ).join(RoutingCardStage, RoutingCardStage.department_id == ProductionDepartment.id)
-     .filter(RoutingCardStage.checked_at.isnot(None),
-             _stage_day_expr >= cutoff_str)
-     .group_by(ProductionDepartment.id)
-     .order_by(ProductionDepartment.order).all())
-
-    # ── Marszruta produkcji: aktywność pracowników (wszystkie oceny) ────────
-    marszruta_employee_stats = (db.session.query(
-        DepartmentEmployee.name.label('emp_name'),
-        ProductionDepartment.name.label('dept_name'),
-        func.count(RoutingCardStage.id).label('total'),
-        func.sum(case((RoutingCardStage.result == 'ng', 1), else_=0)).label('ng'),
-    ).join(RoutingCardStage, RoutingCardStage.employee_id == DepartmentEmployee.id)
-     .join(ProductionDepartment, DepartmentEmployee.department_id == ProductionDepartment.id)
-     .group_by(DepartmentEmployee.id)
-     .order_by(func.count(RoutingCardStage.id).desc())
-     .limit(15).all())
-
-    total_routing_cards = RoutingCard.query.count()
-    _incomplete_card_ids = (db.session.query(RoutingCardStage.card_id)
-                            .filter(RoutingCardStage.result.is_(None)).distinct())
-    completed_routing_cards = (RoutingCard.query
-                               .filter(RoutingCard.stages.any())
-                               .filter(~RoutingCard.id.in_(_incomplete_card_ids))
-                               .count())
-
     recent_briefings = (DailyBriefing.query
                         .order_by(DailyBriefing.generated_at.desc())
                         .limit(10).all())
@@ -1630,10 +1591,6 @@ def admin_stats():
                            total_completed=total_completed,
                            total_in_progress=total_in_progress,
                            total_users=total_users,
-                           marszruta_dept_stats=marszruta_dept_stats,
-                           marszruta_employee_stats=marszruta_employee_stats,
-                           total_routing_cards=total_routing_cards,
-                           completed_routing_cards=completed_routing_cards,
                            recent_briefings=recent_briefings,
                            installer_stats=installer_stats,
                            inst_date_from=inst_date_from, inst_date_to=inst_date_to))
@@ -3377,7 +3334,6 @@ def init_db():
     os.makedirs('instance', exist_ok=True)
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     os.makedirs(app.config['QAR_UPLOAD_FOLDER'], exist_ok=True)
-    os.makedirs(app.config['MARSZRUTA_UPLOAD_FOLDER'], exist_ok=True)
     os.makedirs(app.config['DOKUMENTACJA_UPLOAD_FOLDER'], exist_ok=True)
     os.makedirs(app.config['PRODUKCJA_FOLDER'], exist_ok=True)
     with app.app_context():
@@ -3392,7 +3348,7 @@ def init_db():
             _seed_demo_data()
         _seed_kosztorys()
         _seed_zadania_qa()
-        _seed_marszruta()
+        _seed_departments()
         _seed_qar_categories()
         db.session.commit()
 
@@ -3546,20 +3502,17 @@ def _migrate_schema():
         if 'users' in insp.get_table_names():
             conn.execute(text("UPDATE users SET role='kontroler' WHERE role='user'"))
             conn.commit()
-        if 'spawalnia_records' in insp.get_table_names():
-            cols = [c['name'] for c in insp.get_columns('spawalnia_records')]
-            for col, ddl in [
-                ('batch_id',           'ALTER TABLE spawalnia_records ADD COLUMN batch_id VARCHAR(32)'),
-                ('batch_index',        'ALTER TABLE spawalnia_records ADD COLUMN batch_index INTEGER'),
-                ('batch_total',        'ALTER TABLE spawalnia_records ADD COLUMN batch_total INTEGER'),
-                ('przekatna_odchylka', 'ALTER TABLE spawalnia_records ADD COLUMN przekatna_odchylka FLOAT'),
-                ('giecie_operator_id', 'ALTER TABLE spawalnia_records ADD COLUMN giecie_operator_id INTEGER REFERENCES giecie_operators(id)'),
-                ('ciecie_operator_id', 'ALTER TABLE spawalnia_records ADD COLUMN ciecie_operator_id INTEGER REFERENCES ciecie_operators(id)'),
-                ('product_name',       'ALTER TABLE spawalnia_records ADD COLUMN product_name VARCHAR(256)'),
-                ('client',             'ALTER TABLE spawalnia_records ADD COLUMN client VARCHAR(256)'),
-            ]:
-                if col not in cols:
-                    conn.execute(text(ddl)); conn.commit()
+        # Moduły "Kontrola etapów" i "Marszruta produkcji" (karty) zostały usunięte
+        # (2026-10-16), zastąpiła je Kontrola zamówień. Kasujemy ich tabele, dzieci przed rodzicami.
+        for tbl in ('interstage_checks', 'spawalnia_records', 'spawalnia_operators',
+                    'giecie_operators', 'ciecie_operators',
+                    'routing_card_photos', 'routing_card_stages', 'routing_cards'):
+            if tbl in insp.get_table_names():
+                conn.execute(text(f'DROP TABLE {tbl}')); conn.commit()
+        # Rola Spawacz (tylko Kontrola etapów) przechodzi na Operatora.
+        if 'users' in insp.get_table_names():
+            conn.execute(text("UPDATE users SET role='operator' WHERE role='spawacz'"))
+            conn.commit()
         if 'qar_reports' in insp.get_table_names():
             cols = [c['name'] for c in insp.get_columns('qar_reports')]
             for col, ddl in [
@@ -3569,10 +3522,6 @@ def _migrate_schema():
             ]:
                 if col not in cols:
                     conn.execute(text(ddl)); conn.commit()
-        # Ocena etapu marszruty zredukowana do PLUS/MINUS — DW (dopuszczone warunkowo) usunięte.
-        if 'routing_card_stages' in insp.get_table_names():
-            conn.execute(text("UPDATE routing_card_stages SET result='ng' WHERE result='dw'"))
-            conn.commit()
         if 'report_item_installers' in insp.get_table_names():
             cols = [c['name'] for c in insp.get_columns('report_item_installers')]
             if 'is_at_fault' not in cols:
@@ -4077,79 +4026,6 @@ def api_v1_quote_detail(quote_id):
     })
 
 
-def _api_spawalnia_record_dict(r):
-    return {
-        'id': r.id, 'batch_index': r.batch_index, 'batch_total': r.batch_total,
-        'is_empty': r.is_empty, 'has_ng': r.has_ng,
-        'otworowanie': r.otworowanie, 'przekatna': r.przekatna,
-        'przekatna_odchylka': r.przekatna_odchylka,
-        'pomiar1': r.pomiar1, 'pomiar2': r.pomiar2, 'pomiar3': r.pomiar3,
-        'jakosc_wyciecia': r.jakosc_wyciecia,
-        'operator': r.operator.initials if r.operator else None,
-        'giecie_operator': r.giecie_operator.initials if r.giecie_operator else None,
-        'ciecie_operator': r.ciecie_operator.initials if r.ciecie_operator else None,
-        'product_name': r.product_name, 'client': r.client,
-        'stages': [
-            {'stage': st['key'], 'label': st['label'],
-             'result': c.result if c else None,
-             'employee': c.employee.name if c and c.employee else None,
-             'notes': c.notes if c else None,
-             'checked_at': c.checked_at.isoformat() if c and c.checked_at else None,
-             'qar_number': c.qar_report.number if c and c.qar_report else None}
-            for st in INTERSTAGE_STAGES for c in [r.check_map.get(st['key'])]
-        ],
-        'created_at': r.created_at.isoformat(),
-        'updated_at': r.updated_at.isoformat(),
-    }
-
-
-@app.route('/api/v1/spawalnia/<path:zo_number>', methods=['GET'])
-@api_key_required
-def api_v1_spawalnia_get(zo_number):
-    zo_number = zo_number.strip()
-    records = SpawalniaRecord.query.filter_by(zo_number=zo_number).all()
-    records.sort(key=lambda r: (r.batch_index if r.batch_index is not None else 9999, r.created_at))
-    return jsonify({
-        'zo_number': zo_number,
-        'records': [_api_spawalnia_record_dict(r) for r in records],
-    })
-
-
-@app.route('/api/v1/spawalnia/<path:zo_number>', methods=['POST'])
-@api_key_required
-def api_v1_spawalnia_create(zo_number):
-    zo_number = zo_number.strip()
-    if not zo_number:
-        return jsonify({'error': 'Numer ZO jest wymagany'}), 400
-    data = request.get_json(silent=True) or {}
-    try:
-        quantity = max(1, min(99, int(data.get('quantity', 1))))
-    except (TypeError, ValueError):
-        quantity = 1
-    admin_user = User.query.filter_by(role='admin').first()
-    if not admin_user:
-        return jsonify({'error': 'Brak użytkownika systemowego (admin)'}), 500
-
-    bid = uuid.uuid4().hex if quantity > 1 else None
-    created_ids = []
-    for i in range(1, quantity + 1):
-        rec = SpawalniaRecord(
-            zo_number=zo_number, batch_id=bid,
-            batch_index=i if quantity > 1 else None,
-            batch_total=quantity if quantity > 1 else None,
-            product_name=(data.get('product_name') or '').strip() or None,
-            client=(data.get('client') or '').strip() or None,
-            created_by_id=admin_user.id,
-        )
-        db.session.add(rec)
-        db.session.flush()
-        ensure_interstage_checks(rec)
-        created_ids.append(rec.id)
-    db.session.commit()
-    _audit('api_spawalnia_create', 'SpawalniaRecord', created_ids[0], f'ZO={zo_number} qty={quantity}')
-    return jsonify({'ok': True, 'zo_number': zo_number, 'created_ids': created_ids}), 201
-
-
 @app.route('/api/v1/qar', methods=['GET'])
 @api_key_required
 def api_v1_qar_list():
@@ -4381,8 +4257,8 @@ def _seed_zadania_qa():
         db.session.add(QATask(title=title, description=description, order=i))
 
 
-def _seed_marszruta():
-    """Inicjuje domyślną listę działów produkcyjnych dla modułu Marszruta produkcji."""
+def _seed_departments():
+    """Inicjuje domyślną listę działów produkcyjnych (Ustawienia produkcji)."""
     if ProductionDepartment.query.first():
         return
     default_departments = [
@@ -4396,15 +4272,6 @@ def _seed_marszruta():
 def _seed_qar_categories():
     """Inicjuje domyślną listę kategorii raportów QAR."""
     if QARCategory.query.first():
-        # Kontrola międzyetapowa tworzy QAR w kategoriach Gięcie i Czyszczenie.
-        # Dodajemy je do istniejącej bazy tylko raz (przed pierwszym użyciem modułu),
-        # żeby nie przywracać kategorii świadomie usuniętych przez admina.
-        if not InterstageCheck.query.first():
-            last = db.session.query(db.func.max(QARCategory.order)).scalar() or 0
-            for name in ('Gięcie', 'Czyszczenie'):
-                if not QARCategory.query.filter_by(name=name).first():
-                    last += 1
-                    db.session.add(QARCategory(name=name, order=last))
         return
     default_categories = [
         'Spawanie', 'Montaż', 'Materiał', 'Malowanie', 'Konstrukcja',

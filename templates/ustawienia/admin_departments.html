@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Działy produkcyjne – Marszruta{% endblock %}
+{% block title %}Działy i pracownicy – Ustawienia produkcji{% endblock %}
 
 {% block head %}
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
@@ -7,13 +7,13 @@
 
 {% block content %}
 <div class="page-header">
-  <h1 class="page-title"><i class="bi bi-gear"></i> Działy produkcyjne</h1>
+  <h1 class="page-title"><i class="bi bi-people"></i> Działy i pracownicy</h1>
   <div class="page-header-actions">
     {% if departments %}
     <span class="drag-hint"><i class="bi bi-arrows-expand-vertical"></i> Przeciągnij wiersze by zmienić kolejność</span>
     {% endif %}
-    <a href="{{ url_for('marszruta.list_cards') }}" class="btn btn-outline">
-      <i class="bi bi-arrow-left"></i> Wróć do listy
+    <a href="{{ url_for('ustawienia.admin_routing_templates') }}" class="btn btn-outline">
+      <i class="bi bi-diagram-3"></i> Ścieżki produkcyjne
     </a>
   </div>
 </div>
@@ -63,7 +63,7 @@
               {% else %}<span class="badge badge-neutral">Nieaktywny</span>{% endif %}
             </td>
             <td class="td-actions">
-              <a href="{{ url_for('marszruta.admin_employees', dept_id=dept.id) }}" class="btn btn-sm btn-outline" title="Pracownicy">
+              <a href="{{ url_for('ustawienia.admin_employees', dept_id=dept.id) }}" class="btn btn-sm btn-outline" title="Pracownicy">
                 <i class="bi bi-people"></i> <span class="btn-label">Pracownicy</span> ({{ dept.employees.count() }})
               </a>
               <form method="post" class="form-inline">
@@ -144,7 +144,7 @@ table.dept-list-table .badge-ok {
           r.querySelector('.dept-order-cell').textContent = i + 1;
           return { id: Number(r.dataset.deptId) };
         });
-        await fetch('{{ url_for("marszruta.admin_departments_reorder") }}', {
+        await fetch('{{ url_for("ustawienia.admin_departments_reorder") }}', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

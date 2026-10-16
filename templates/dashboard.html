@@ -64,9 +64,9 @@
       <div class="wk-tile-count">{{ pending_qa_count }} do zrobienia</div>
     </button>
     {% endif %}
-    <a href="{{ url_for('spawalnia.list_records') }}" class="wk-tile wk-tile--amber">
-      <div class="wk-tile-icon"><i class="bi bi-fire"></i></div>
-      <div class="wk-tile-label">Kontrola<br>etapów</div>
+    <a href="{{ url_for('kontrola.list_records') }}" class="wk-tile wk-tile--amber">
+      <div class="wk-tile-icon"><i class="bi bi-patch-check"></i></div>
+      <div class="wk-tile-label">Kontrola<br>zamówień</div>
     </a>
     <a href="{{ url_for('admin_templates') }}" class="wk-tile wk-tile--purple">
       <div class="wk-tile-icon"><i class="bi bi-layout-text-sidebar-reverse"></i></div>
@@ -99,26 +99,6 @@
     <a href="{{ url_for('kosztorys.list_quotes') }}" class="wk-tile wk-tile--indigo">
       <div class="wk-tile-icon"><i class="bi bi-calculator-fill"></i></div>
       <div class="wk-tile-label">Kosztorysy</div>
-    </a>
-    <a href="{{ url_for('alerts_list') }}" class="wk-tile wk-tile--rose">
-      <div class="wk-tile-icon"><i class="bi bi-bell-fill"></i></div>
-      <div class="wk-tile-label">Alerty</div>
-      {% if unread_alerts > 0 %}
-      <div class="wk-tile-count">{{ unread_alerts }} nowych</div>
-      {% endif %}
-    </a>
-  </div>
-
-{% elif current_user.role == 'spawacz' %}
-
-  <div class="wk-tiles">
-    <a href="{{ url_for('spawalnia.new_record') }}" class="wk-tile wk-tile--amber">
-      <div class="wk-tile-icon"><i class="bi bi-plus-circle-fill"></i></div>
-      <div class="wk-tile-label">Nowy<br>rekord</div>
-    </a>
-    <a href="{{ url_for('spawalnia.list_records') }}" class="wk-tile wk-tile--blue">
-      <div class="wk-tile-icon"><i class="bi bi-list-ul"></i></div>
-      <div class="wk-tile-label">Lista<br>rekordów</div>
     </a>
     <a href="{{ url_for('alerts_list') }}" class="wk-tile wk-tile--rose">
       <div class="wk-tile-icon"><i class="bi bi-bell-fill"></i></div>

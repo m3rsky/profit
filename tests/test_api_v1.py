@@ -246,24 +246,6 @@ class TestKosztorysApi:
         assert detail['dimensions']['width'] == 600
 
 
-# ── Spawalnia ──────────────────────────────────────────────────────────────────
-
-class TestSpawalniaApi:
-    def test_create_and_read_zo(self, client):
-        create = auth(client, 'post', '/api/v1/spawalnia/ZO-API-100', json={'quantity': 3})
-        assert create.status_code == 201
-        assert len(create.get_json()['created_ids']) == 3
-
-        read = auth(client, 'get', '/api/v1/spawalnia/ZO-API-100')
-        assert read.status_code == 200
-        assert len(read.get_json()['records']) == 3
-
-    def test_read_unknown_zo_returns_empty_list(self, client):
-        resp = auth(client, 'get', '/api/v1/spawalnia/NIEISTNIEJACE-ZO')
-        assert resp.status_code == 200
-        assert resp.get_json()['records'] == []
-
-
 # ── QAR ────────────────────────────────────────────────────────────────────────
 
 class TestQarApi:

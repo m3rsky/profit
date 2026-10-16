@@ -448,9 +448,6 @@
             {% endif %}
           {% endfor %}
         </select>
-        <div class="qar-emp-suggest" id="qar-emp-suggest" hidden>
-          <i class="bi bi-lightbulb"></i> Pracowali przy tym ZO: <span id="qar-emp-suggest-list"></span>
-        </div>
       </div>
       <div class="form-group">
         <label class="form-label">Opis problemu <span class="req">*</span></label>
@@ -691,10 +688,7 @@ document.querySelectorAll('.batch-progress-fill[data-pct]').forEach(function (el
   const photosBox   = document.getElementById('qar-f-photos');
   const errBox  = document.getElementById('qar-modal-error');
   const submitBtn = document.getElementById('qar-modal-submit');
-  const empSuggest     = document.getElementById('qar-emp-suggest');
-  const empSuggestList = document.getElementById('qar-emp-suggest-list');
   const csrf = () => document.querySelector('meta[name="csrf-token"]')?.content || '';
-  const suggestUrl = "{{ url_for('qar.suggest_employees') }}";
   let activeRow = null;
 
   function openModal(row) {
@@ -734,7 +728,6 @@ document.querySelectorAll('.batch-progress-fill[data-pct]').forEach(function (el
       photosGroup.hidden = true;
     }
 
-    fetchEmpSuggestions();
     modal.hidden = false;
     document.body.style.overflow = 'hidden';
     setTimeout(function () { fTitle.focus(); }, 50);
@@ -745,33 +738,6 @@ document.querySelectorAll('.batch-progress-fill[data-pct]').forEach(function (el
     document.body.style.overflow = '';
     activeRow = null;
   }
-
-  function fetchEmpSuggestions() {
-    const zo = fZo.value.trim();
-    empSuggest.hidden = true; empSuggestList.innerHTML = '';
-    if (!zo) return;
-    fetch(suggestUrl + '?zo=' + encodeURIComponent(zo))
-      .then(r => r.json())
-      .then(function (data) {
-        if (!data.employees || !data.employees.length) return;
-        data.employees.forEach(function (emp) {
-          const b = document.createElement('button');
-          b.type = 'button';
-          b.className = 'btn btn-outline btn-xs';
-          b.style.margin = '2px';
-          b.textContent = emp.name + ' (' + emp.department + ')';
-          b.addEventListener('click', function () {
-            if ([...fEmp.options].some(o => o.value === String(emp.id))) {
-              fEmp.value = String(emp.id);
-            }
-          });
-          empSuggestList.appendChild(b);
-        });
-        empSuggest.hidden = false;
-      })
-      .catch(function () {});
-  }
-  fZo.addEventListener('change', fetchEmpSuggestions);
 
   // Delegacja: klik „Zgłoś QAR" na dowolnym punkcie
   document.addEventListener('click', function (e) {

@@ -43,7 +43,6 @@
           <option value="kontroler" {% if not user or user.role == 'kontroler' %}selected{% endif %}>Kontroler</option>
           <option value="monter"    {% if user and user.role == 'monter'    %}selected{% endif %}>Monter</option>
           <option value="order"     {% if user and user.role == 'order'     %}selected{% endif %}>Zamawiający</option>
-          <option value="spawacz"   {% if user and user.role == 'spawacz'   %}selected{% endif %}>Spawacz</option>
           <option value="produkcja" {% if user and user.role == 'produkcja' %}selected{% endif %}>Stanowisko produkcji (wspólne konto)</option>
           <option value="planowanie" {% if user and user.role == 'planowanie' %}selected{% endif %}>Planowanie</option>
           <option value="operator" {% if user and user.role == 'operator' %}selected{% endif %}>Operator (linia produkcyjna)</option>

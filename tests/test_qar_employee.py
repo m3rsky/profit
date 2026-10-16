@@ -2,8 +2,7 @@
 import pytest
 
 from app import app as flask_app, db
-from models import (User, QARReport, ProductionDepartment, DepartmentEmployee,
-                    RoutingCard, RoutingCardStage)
+from models import User, QARReport, ProductionDepartment, DepartmentEmployee
 from test_app import login, logout, _csrf
 
 
@@ -20,8 +19,6 @@ def qar_department(app):
     yield ids
     with app.app_context():
         QARReport.query.filter(QARReport.employee_id.isnot(None)).delete(synchronize_session=False)
-        RoutingCardStage.query.delete()
-        RoutingCard.query.delete()
         DepartmentEmployee.query.filter_by(id=ids[1]).delete()
         ProductionDepartment.query.filter_by(id=ids[0]).delete()
         db.session.commit()
@@ -104,35 +101,6 @@ class TestQarEmployeeAssignment:
         assert resp.status_code == 200
         assert 'Filtrowany raport'.encode('utf-8') in resp.data
         assert 'Inny raport bez osoby'.encode('utf-8') not in resp.data
-
-
-class TestSuggestEmployees:
-    def test_suggest_returns_employees_from_routing_card(self, client, qar_department):
-        dept_id, emp_id = qar_department
-        login(client, 'oper', 'Oper1234!')
-        with flask_app.app_context():
-            user = User.query.filter_by(username='oper').first()
-            card = RoutingCard(identifier='ZO-QAR-100', product_name='Produkt QAR',
-                               quantity=1, created_by_id=user.id)
-            db.session.add(card)
-            db.session.flush()
-            db.session.add(RoutingCardStage(card_id=card.id, department_id=dept_id,
-                                            order=0, employee_id=emp_id))
-            db.session.commit()
-
-        resp = client.get('/qar/suggest-employees?zo=ZO-QAR-100')
-        assert resp.status_code == 200
-        data = resp.get_json()
-        assert len(data['employees']) == 1
-        assert data['employees'][0]['id'] == emp_id
-        assert data['employees'][0]['name'] == 'Piotr Spawacz'
-        assert data['employees'][0]['department'] == 'Spawalnia QAR'
-
-    def test_suggest_unknown_zo_returns_empty(self, client):
-        login(client, 'oper', 'Oper1234!')
-        resp = client.get('/qar/suggest-employees?zo=ZO-NIE-ISTNIEJE')
-        assert resp.status_code == 200
-        assert resp.get_json()['employees'] == []
 
 
 class TestQarStats:

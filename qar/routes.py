@@ -12,7 +12,7 @@ from sqlalchemy import func
 
 from models import (db, get_or_404, AuditLog, QARReport, QARPhoto, QARCategory,
                     ProductionDepartment, DepartmentEmployee,
-                    RoutingCard, RoutingCardStage, ReportItem)
+                    ReportItem)
 from . import qar_bp
 
 UTC = timezone.utc
@@ -514,34 +514,6 @@ def update_caption(photo_id):
 def serve_photo(filename):
     upload_dir = current_app.config.get('QAR_UPLOAD_FOLDER', '')
     return send_from_directory(upload_dir, filename)
-
-
-# ── Podpowiedź pracowników z marszruty (AJAX) ────────────────────────────────
-
-@qar_bp.route('/suggest-employees')
-@login_required
-def suggest_employees():
-    """Pracownicy przypisani do etapów karty marszrutowej o podanym numerze ZO."""
-    zo = request.args.get('zo', '').strip()
-    if not zo:
-        return jsonify({'employees': []})
-    card = (RoutingCard.query
-            .filter(RoutingCard.identifier == zo)
-            .order_by(RoutingCard.created_at.desc())
-            .first())
-    if not card:
-        return jsonify({'employees': []})
-    seen, employees = set(), []
-    for stage in card.stages:
-        emp = stage.employee
-        if emp and emp.id not in seen:
-            seen.add(emp.id)
-            employees.append({
-                'id': emp.id,
-                'name': emp.name,
-                'department': stage.department.name if stage.department else '',
-            })
-    return jsonify({'employees': employees})
 
 
 # ── Statystyki błędów per pracownik ──────────────────────────────────────────

@@ -47,10 +47,6 @@ class User(UserMixin, db.Model):
     @property
     def is_production_station(self): return self.role in ('admin', 'planowanie', 'produkcja')
     @property
-    def is_spawacz(self): return self.role == 'spawacz'
-    @property
-    def is_spawalnia_user(self): return self.role in ('admin', 'kontroler', 'spawacz')
-    @property
     def is_konstruktor(self): return self.role == 'konstruktor'
     @property
     def is_operator(self): return self.role == 'operator'
@@ -60,7 +56,7 @@ class User(UserMixin, db.Model):
     def role_label(self):
         return {'admin': 'Administrator', 'order': 'Zamawiający',
                 'kontroler': 'Kontroler', 'monter': 'Monter',
-                'spawacz': 'Spawacz', 'konstruktor': 'Konstruktor',
+                'konstruktor': 'Konstruktor',
                 'planowanie': 'Planowanie', 'produkcja': 'Stanowisko produkcji',
                 'operator': 'Operator'}.get(self.role, self.role)
 
@@ -558,160 +554,6 @@ class Alert(db.Model):
     order        = db.relationship('Order', foreign_keys=[order_id])
 
 
-# ── Spawalnia ──────────────────────────────────────────────────────────────────
-
-class SpawalniaOperator(db.Model):
-    __tablename__ = 'spawalnia_operators'
-    id         = db.Column(db.Integer, primary_key=True)
-    initials   = db.Column(db.String(10), unique=True, nullable=False)
-    name       = db.Column(db.String(128), nullable=False)
-    is_active  = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
-    records    = db.relationship('SpawalniaRecord', back_populates='operator', lazy='dynamic')
-
-    def __repr__(self):
-        return f'<SpawalniaOperator {self.initials}>'
-
-
-class GiecieOperator(db.Model):
-    __tablename__ = 'giecie_operators'
-    id         = db.Column(db.Integer, primary_key=True)
-    initials   = db.Column(db.String(10), unique=True, nullable=False)
-    name       = db.Column(db.String(128), nullable=False)
-    is_active  = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
-    records    = db.relationship('SpawalniaRecord', back_populates='giecie_operator', lazy='dynamic')
-
-    def __repr__(self):
-        return f'<GiecieOperator {self.initials}>'
-
-
-class CiecieOperator(db.Model):
-    __tablename__ = 'ciecie_operators'
-    id         = db.Column(db.Integer, primary_key=True)
-    initials   = db.Column(db.String(10), unique=True, nullable=False)
-    name       = db.Column(db.String(128), nullable=False)
-    is_active  = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
-    records    = db.relationship('SpawalniaRecord', back_populates='ciecie_operator', lazy='dynamic')
-
-    def __repr__(self):
-        return f'<CiecieOperator {self.initials}>'
-
-
-class SpawalniaRecord(db.Model):
-    __tablename__ = 'spawalnia_records'
-    id                 = db.Column(db.Integer, primary_key=True)
-    zo_number          = db.Column(db.String(64), nullable=False)
-    otworowanie        = db.Column(db.String(2), nullable=True)   # OK | NG
-    przekatna          = db.Column(db.String(2), nullable=True)   # OK | NG
-    przekatna_odchylka = db.Column(db.Float, nullable=True)       # odchyłka w mm
-    pomiar1            = db.Column(db.Float, nullable=True)
-    pomiar2            = db.Column(db.Float, nullable=True)
-    pomiar3            = db.Column(db.Float, nullable=True)
-    jakosc_wyciecia    = db.Column(db.String(2), nullable=True)   # OK | NG
-    operator_id        = db.Column(db.Integer, db.ForeignKey('spawalnia_operators.id'), nullable=True)
-    giecie_operator_id = db.Column(db.Integer, db.ForeignKey('giecie_operators.id'), nullable=True)
-    ciecie_operator_id = db.Column(db.Integer, db.ForeignKey('ciecie_operators.id'), nullable=True)
-    batch_id           = db.Column(db.String(32), nullable=True)
-    batch_index        = db.Column(db.Integer, nullable=True)
-    batch_total        = db.Column(db.Integer, nullable=True)
-    product_name       = db.Column(db.String(256), nullable=True)   # ze skanu QR
-    client             = db.Column(db.String(256), nullable=True)   # ze skanu QR
-    created_by_id      = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    created_at         = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
-    updated_at         = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
-    checks             = db.relationship('InterstageCheck', back_populates='record',
-                                         cascade='all, delete-orphan', lazy='select')
-    operator           = db.relationship('SpawalniaOperator', back_populates='records')
-    giecie_operator    = db.relationship('GiecieOperator', back_populates='records')
-    ciecie_operator    = db.relationship('CiecieOperator', back_populates='records')
-    created_by         = db.relationship('User', foreign_keys=[created_by_id])
-
-    @property
-    def check_map(self):
-        """stage_key -> InterstageCheck (brakujące etapy nie występują w słowniku)."""
-        return {c.stage: c for c in self.checks}
-
-    @property
-    def has_ng(self):
-        legacy = 'NG' in [self.otworowanie, self.przekatna, self.jakosc_wyciecia]
-        return legacy or any(c.result == 'NG' for c in self.checks)
-
-    @property
-    def checked_count(self):
-        return sum(1 for c in self.checks if c.result)
-
-    @property
-    def has_legacy_data(self):
-        return any(v is not None for v in [
-            self.otworowanie, self.przekatna, self.jakosc_wyciecia,
-            self.pomiar1, self.pomiar2, self.pomiar3,
-        ])
-
-    @property
-    def is_empty(self):
-        return self.checked_count == 0 and not self.has_legacy_data
-
-    def __repr__(self):
-        return f'<SpawalniaRecord {self.zo_number}>'
-
-
-# Etapy kontroli międzyetapowej. `departments` to nazwy działów Marszruty, z których
-# pochodzą pracownicy wybierani przy etapie; `qar_category` to kategoria raportu QAR
-# tworzonego automatycznie po wybraniu NG.
-INTERSTAGE_STAGES = [
-    {'key': 'ciecie_laser', 'label': 'CIĘCIE/LASER', 'qar_category': 'Cięcie',
-     'departments': ('Cięcie', 'Laser')},
-    {'key': 'giecie',       'label': 'GIĘCIE',       'qar_category': 'Gięcie',
-     'departments': ('Gięcie',)},
-    {'key': 'spawanie',     'label': 'SPAWANIE',     'qar_category': 'Spawanie',
-     'departments': ('Spawanie', 'Zgrzewanie')},
-    {'key': 'czyszczenie',  'label': 'CZYSZCZENIE',  'qar_category': 'Czyszczenie',
-     'departments': ('Czyszczenie', 'Mycie')},
-    {'key': 'malowanie',    'label': 'MALOWANIE',    'qar_category': 'Malowanie',
-     'departments': ('Malowanie',)},
-    {'key': 'montaz',       'label': 'MONTAŻ',       'qar_category': 'Montaż',
-     'departments': ('Składanie', 'Montaż')},
-]
-INTERSTAGE_STAGE_BY_KEY = {st['key']: st for st in INTERSTAGE_STAGES}
-
-
-class InterstageCheck(db.Model):
-    """Ocena jednego etapu produkcji (OK/NG) w ramach wpisu kontroli międzyetapowej.
-    Kolejność etapów nie jest wymuszana: każdy można ocenić w dowolnym momencie."""
-    __tablename__ = 'interstage_checks'
-    __table_args__ = (db.UniqueConstraint('record_id', 'stage', name='uq_interstage_record_stage'),)
-    id            = db.Column(db.Integer, primary_key=True)
-    record_id     = db.Column(db.Integer, db.ForeignKey('spawalnia_records.id'), nullable=False)
-    stage         = db.Column(db.String(16), nullable=False)
-    result        = db.Column(db.String(2), nullable=True)      # OK | NG | None
-    employee_id   = db.Column(db.Integer, db.ForeignKey('department_employees.id'), nullable=True)
-    notes         = db.Column(db.Text, nullable=True)
-    checked_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    checked_at    = db.Column(db.DateTime, nullable=True)
-    qar_report_id = db.Column(db.Integer, db.ForeignKey('qar_reports.id'), nullable=True)
-    record        = db.relationship('SpawalniaRecord', back_populates='checks')
-    employee      = db.relationship('DepartmentEmployee', foreign_keys=[employee_id])
-    checked_by    = db.relationship('User', foreign_keys=[checked_by_id])
-    qar_report    = db.relationship('QARReport', foreign_keys=[qar_report_id])
-
-    @property
-    def label(self):
-        return INTERSTAGE_STAGE_BY_KEY.get(self.stage, {}).get('label', self.stage)
-
-    def __repr__(self):
-        return f'<InterstageCheck {self.record_id}/{self.stage}={self.result}>'
-
-
-def ensure_interstage_checks(rec):
-    """Dodaje do wpisu brakujące wiersze etapów (bez commitu)."""
-    have = {c.stage for c in rec.checks}
-    for st in INTERSTAGE_STAGES:
-        if st['key'] not in have:
-            db.session.add(InterstageCheck(record=rec, stage=st['key']))
-
-
 class QARReport(db.Model):
     __tablename__ = 'qar_reports'
     id             = db.Column(db.Integer, primary_key=True)
@@ -824,7 +666,6 @@ class DepartmentEmployee(db.Model):
     is_active     = db.Column(db.Boolean, default=True)
     created_at    = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
     department    = db.relationship('ProductionDepartment', back_populates='employees')
-    stages        = db.relationship('RoutingCardStage', back_populates='employee', lazy='dynamic')
 
     def __repr__(self):
         return f'<DepartmentEmployee {self.name}>'
@@ -860,87 +701,6 @@ class RoutingTemplateStage(db.Model):
 
     def __repr__(self):
         return f'<RoutingTemplateStage template={self.template_id} dept={self.department_id}>'
-
-
-class RoutingCard(db.Model):
-    """Karta marszrutowa — jedna na zlecenie/ZO (całą partię), utworzona ze skanu QR.
-
-    `identifier` odpowiada polu "o" (numer zamówienia) z tego samego kodu QR,
-    który obsługuje dziś /checklist/from-qr — niepowiązana z modelem Order
-    (wzorem SpawalniaRecord.zo_number), żeby skan działał również dla zleceń
-    bez założonego Order w systemie."""
-    __tablename__ = 'routing_cards'
-    id            = db.Column(db.Integer, primary_key=True)
-    identifier    = db.Column(db.String(64), nullable=False)
-    product_name  = db.Column(db.String(256), nullable=False)
-    client        = db.Column(db.String(256), nullable=True)
-    quantity      = db.Column(db.Integer, default=1)
-    template_id   = db.Column(db.Integer, db.ForeignKey('routing_templates.id'), nullable=True)
-    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    created_at    = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
-    template      = db.relationship('RoutingTemplate')
-    created_by    = db.relationship('User', foreign_keys=[created_by_id])
-    stages        = db.relationship('RoutingCardStage', back_populates='card', lazy='dynamic',
-                                    cascade='all, delete-orphan', order_by='RoutingCardStage.order')
-
-    @property
-    def is_complete(self):
-        stages = self.stages.all()
-        return bool(stages) and all(s.result is not None for s in stages)
-
-    @property
-    def status_label(self):
-        if not self.stages.count():
-            return 'Brak etapów'
-        return 'Zakończona' if self.is_complete else 'W toku'
-
-    @property
-    def has_ng(self):
-        return self.stages.filter_by(result='ng').first() is not None
-
-    def __repr__(self):
-        return f'<RoutingCard {self.identifier}>'
-
-
-class RoutingCardStage(db.Model):
-    """Ocena jednego działu na konkretnej karcie marszrutowej."""
-    __tablename__ = 'routing_card_stages'
-    id            = db.Column(db.Integer, primary_key=True)
-    card_id       = db.Column(db.Integer, db.ForeignKey('routing_cards.id'), nullable=False)
-    department_id = db.Column(db.Integer, db.ForeignKey('production_departments.id'), nullable=False)
-    order         = db.Column(db.Integer, default=0)
-    employee_id   = db.Column(db.Integer, db.ForeignKey('department_employees.id'), nullable=True)
-    result        = db.Column(db.String(4), nullable=True)   # ok | ng | None
-    notes         = db.Column(db.Text, nullable=True)
-    checked_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    checked_at    = db.Column(db.DateTime, nullable=True)
-    card          = db.relationship('RoutingCard', back_populates='stages')
-    department    = db.relationship('ProductionDepartment')
-    employee      = db.relationship('DepartmentEmployee', back_populates='stages')
-    checked_by    = db.relationship('User', foreign_keys=[checked_by_id])
-    photos        = db.relationship('RoutingCardPhoto', backref='stage', lazy='dynamic',
-                                    cascade='all, delete-orphan')
-
-    RESULT_LABELS = {'ok': 'Zgodne', 'ng': 'Niezgodne'}
-
-    @property
-    def result_label(self):
-        return self.RESULT_LABELS.get(self.result, '—')
-
-    def __repr__(self):
-        return f'<RoutingCardStage card={self.card_id} dept={self.department_id}>'
-
-
-class RoutingCardPhoto(db.Model):
-    __tablename__ = 'routing_card_photos'
-    id            = db.Column(db.Integer, primary_key=True)
-    stage_id      = db.Column(db.Integer, db.ForeignKey('routing_card_stages.id'), nullable=False)
-    filename      = db.Column(db.String(256), nullable=False)
-    original_name = db.Column(db.String(256), nullable=True)
-    created_at    = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
-
-    def __repr__(self):
-        return f'<RoutingCardPhoto {self.filename}>'
 
 
 # ── Moduł DOKUMENTACJA ───────────────────────────────────────────────────────

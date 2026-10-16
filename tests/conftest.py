@@ -12,7 +12,7 @@ from sqlalchemy.pool import StaticPool
 from app import app as flask_app, db as _db
 from models import (User, ChecklistTemplate, Category, Task,
                     Order, CabinetType, MaterialPrice, LaborRate, Quote, QuoteConfig,
-                    SpawalniaOperator, QARReport, Installer)
+                    QARReport, Installer)
 
 API_KEY = 'test-api-key-12345'
 
@@ -86,8 +86,6 @@ def _seed():
     _db.session.add(quote)
     _db.session.flush()
     _db.session.add(QuoteConfig(quote_id=quote.id, width=600, height=800, depth=300))
-
-    _db.session.add(SpawalniaOperator(initials='JK', name='Jan Kowalski'))
 
     _db.session.add(QARReport(number='QAR-2026-0001', title='Test NCR',
                               description='Opis testowy', user_id=admin.id))
