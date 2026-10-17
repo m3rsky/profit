@@ -62,7 +62,7 @@ Przykład formatu:
 ## Informacje o projekcie
 
 - **Stack:** Python 3.14 (lokalnie, `venv`), Flask 3.0.3, Flask-SQLAlchemy 3.1.1, Flask-Login, Flask-WTF, SQLite. Pełna lista w `requirements.txt`.
-- **Testy:** `.\venv\Scripts\python.exe -m pytest tests/ -v` - 236 testów w `tests/` (m.in. `test_app.py`, `test_kontrola.py`, `test_api_v1.py`, `test_briefing.py`, `test_dokumentacja.py`, `test_installer_stats.py`, `test_marszruta.py`, `test_produkcja.py`, `test_produkcja_stanowisko.py`, `test_qar_employee.py`, `test_qar_from_checklist.py`, `test_zadania_qa.py`), wszystkie muszą przejść. Współdzielone fixture'y są w `tests/conftest.py`.
+- **Testy:** `.\venv\Scripts\python.exe -m pytest tests/ -v` - 258 testów w `tests/` (m.in. `test_app.py`, `test_kontrola.py`, `test_api_v1.py`, `test_briefing.py`, `test_dokumentacja.py`, `test_installer_stats.py`, `test_marszruta.py`, `test_produkcja.py`, `test_produkcja_stanowisko.py`, `test_qar_employee.py`, `test_qar_from_checklist.py`, `test_zadania_qa.py`), wszystkie muszą przejść. Współdzielone fixture'y są w `tests/conftest.py`.
 - **Uruchomienie lokalne:** `.\venv\Scripts\python.exe app.py` → http://127.0.0.1:5000
 - **Pre-commit hook:** automatycznie uruchamia testy przed każdym commitem
 - **Migracje schematu:** wszystkie realizowane przez `_migrate_schema()` w `app.py` - bez Alembic. Nowe kolumny dodawane jako `ALTER TABLE ... ADD COLUMN ...`.
@@ -122,6 +122,16 @@ Dodane 2026-10-18 w `ustawienia/` (strona "Etapy i bufory", zakładki Ustawień 
 - **Kod bufora:** QR i Code128 na etykiecie zawierają sam kod (np. `0001`, `A001`, bez przedrostka), normalizacja bez spacji i wielkimi literami (`ustawienia/lookup.py`, `find_buffer`). Istnieje 60 gotowych etykiet 50x100 mm (`0001`-`0010`, `A001`-`E010`) w `D:\Dane\Desktop\KODY QR POLA`, wczytuje się je zakresem kodów. Generator nowych etykiet (`/bufory/etykiety.pdf`) robi ten sam układ 50x100 mm.
 - **Plakietki pracowników działów:** QR `PSH-DEP:<token>` (inny przedrostek niż `PSH-EMP:` z Listy produkcyjnej), PDF pojedynczy, per dział i zbiorczy, "Nowy kod" unieważnia plakietkę. `ustawienia/people.py` zawiera też przenoszenie pracownika do innego działu.
 - Testy: `tests/test_ustawienia_etapy.py`.
+
+### Szablony produktów i moduł "Kontrola produkcji" (etap 2 planu, `/kontrolaprodukcji`, skrót `/kp`)
+
+Dodane 2026-10-18. Zlecenia produkcyjne ze skanu kodu QR (`p`, `c`, `o`, `q`) rozłożone na elementy z szablonu produktu. Docelowo zastąpi moduł "Kontrola zamówień" (`/kontrola`), który zostaje do etapu 8 planu.
+
+- **Szablony produktów** (Ustawienia produkcji, zakładka "Szablony produktów", `ustawienia/products.py`): `ProductTemplate` (nazwa rodziny, np. `PSH`, `PSH INOX`), `ProductComponent` (element, bez ilości), trasa elementu jako wybór etapów poziomu `element` (`ProductComponentStage`), kolejność wynika z kolejności etapów. Dopasowanie po tokenach nazwy produktu jak szablony kontroli (`kp/service.py: find_template`), szablon bez elementów lub nieaktywny jest pomijany. Edycja: admin i kontroler. Kopiowanie szablonu tworzy nieaktywną kopię.
+- **Zlecenie** (`WorkOrder`, `WorkOrderComponent`, `WorkOrderComponentStage`): para ZO + produkt (bez wielkości liter i nadmiarowych spacji), elementy i trasy są kopią szablonu z chwili utworzenia. Ilość elementu na sztukę produktu (np. dwie pary drzwi) zależy od zlecenia i jest podawana przy skanie, a nie w szablonie: skan (`POST /kontrolaprodukcji/z-qr`) zwraca listę elementów (`needs_quantities`), zlecenie powstaje w drugim kroku (`POST /kontrolaprodukcji/utworz`), 0 pomija element, pole nie ma wartości domyślnej. Wymagana ilość elementu to `q` razy ilość na sztukę. Ponowny skan otwiera istniejące zlecenie (także anulowane, bez tworzenia nowego). Produkt bez szablonu: skan nie tworzy zlecenia, odpowiedź zawiera `no_template` i link do utworzenia szablonu.
+- **Uprawnienia:** skan i tworzenie zlecenia tylko admin i kontroler. Odczyt listy i szczegółów dla każdego zalogowanego. Korekta elementów zlecenia (ilości, trasy, dopisanie, usunięcie): kontroler i admin. Zmiana ilości całego zlecenia `q` oraz anulowanie lub przywrócenie: tylko admin.
+- Zmiana ilości zlecenia `q` przelicza wymagane ilości elementów. Usunięcie etapu używanego w trasie jest blokowane.
+- Testy: `tests/test_kp.py`.
 
 ---
 

@@ -116,6 +116,11 @@
         <span class="nav-icon"><i class="bi bi-table"></i></span>
         <span>Lista produkcyjna</span>
       </a>
+      <a href="{{ url_for('kp.list_orders') }}"
+         class="{% if request.endpoint and request.endpoint.startswith('kp.') %}active{% endif %}">
+        <span class="nav-icon"><i class="bi bi-diagram-2"></i></span>
+        <span>Kontrola produkcji</span>
+      </a>
       <a href="{{ url_for('produkcja.scan_page') }}"
          class="{% if request.endpoint in ('produkcja.scan_page',) %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-qr-code-scan"></i></span>
@@ -348,6 +353,12 @@
         </a>
       {% endif %}
 
+      <a href="{{ url_for('kp.list_orders') }}"
+         class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('kp.') %}active{% endif %}"
+         title="Kontrola produkcji">
+        <i class="bi bi-diagram-2"></i>
+        <span class="wk-nav-label">Kontrola produkcji</span>
+      </a>
       <a href="{{ url_for('dokumentacja.list_entries') }}"
          class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('dokumentacja.') %}active{% endif %}"
          title="Dokumentacja">

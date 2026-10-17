@@ -36,10 +36,10 @@ Dokument roboczy, uzupełniany w miarę dodawania zadań. Stan na 2026-10-18 (po
 | Składanie | Zablokowane do uzyskania elementów, ale można składać częściowo: liczba sztuk wynika z elementów na buforze (patrz 4b). |
 | Ponowny skan | Skan zlecenia (ZO + produkt), które już istnieje, nie tworzy nowego, tylko pokazuje je wraz z buforem lub buforami, na których leży (patrz 4e). |
 | Powstanie zlecenia | Zlecenie powstaje przy pierwszym zeskanowaniu kodu QR zlecenia (ten sam kod `p`, `c`, `o`, `q`, który dziś tworzy listy w Kontroli Końcowej). Przy tym skanie rozkłada się na elementy z szablonu produktu. Bez ręcznego tworzenia. Produkt bez szablonu elementów: skan nie tworzy zlecenia, najpierw trzeba utworzyć szablon dla produktu (patrz 4d). |
-| Ilości elementów | Różne dla każdego elementu: szablon zawiera ilość elementu na sztukę produktu, a ilość wymagana dla zlecenia to q razy ta liczba. Można ją skorygować przy zleceniu. |
+| Ilości elementów | Szablon produktu zawiera tylko elementy i trasy. Ilość każdego elementu na sztukę produktu zależy od zlecenia (np. dwie pary drzwi), więc kontroler lub admin podaje ją przy skanie, przed utworzeniem zlecenia (0 oznacza, że element nie dotyczy tego zlecenia, pole nigdy nie ma wartości domyślnej). Wymagana ilość elementu to `q` razy ta liczba. |
 | Poziomy etapów | Etapy od wycinania do **kompletacji** dotyczą elementów. Od **składania** zlecenie jest liczone w sztukach gotowego produktu: składanie zużywa elementy i tworzy sztuki produktu, kontrola końcowa i pakowanie dotyczą produktu (patrz 4g). |
 | Koniec zlecenia | Po kontroli końcowej ilość trafia na bufor Pakowania. Pracownik ją przejmuje i oznacza jako **"Spakowane"**. Gdy spakowano całe `q`, zlecenie ma status Zakończone. |
-| Korekta zlecenia | Tylko admin: zmiana ilości (nie poniżej już wpisanych), korekta elementów i tras w zleceniu oraz anulowanie całego zlecenia (z zachowaniem historii). Kontroler tego nie robi. |
+| Korekta zlecenia | Tylko admin zmienia ilość całego zlecenia (`q`, z przeliczeniem wymaganych ilości) oraz anuluje i przywraca zlecenie (z zachowaniem historii). Kontroler i admin korygują elementy zlecenia: ich ilości, trasy, dopisanie i usunięcie. |
 | Lista produkcyjna (Excel) | Nowy moduł działa osobno, bez zapisu do kolumn etapów w Liście produkcyjnej. |
 | Kontrola końcowa | "Ostatni bufor" to bufor etapu Kontrola końcowa. Pierwszy wpis zlecenia na ten bufor tworzy listę kontrolną Kontroli Końcowej (patrz 4c). |
 
@@ -69,9 +69,9 @@ Każdy etap ma własny bufor (może być więcej niż jeden, np. po jednym przy 
 - `ProductionStage`: nazwa, kolejność, aktywny, poziom (element lub produkt), flaga "kontrola obowiązkowa", powiązanie z jednym działem (`ProductionDepartment`), z którego pochodzą pracownicy etapu.
 - `Machine`: etap, nazwa (np. Laser 1, Wykrawarka 2), aktywna. Etap z maszynami wymaga wyboru maszyny przy przejęciu.
 - `Buffer`: etap (może być nieprzypisany: etykiety istnieją wcześniej niż przypisanie), nazwa, numer, kod (dokładnie to, co jest w QR i kodzie kreskowym etykiety, unikalny, bez spacji i wielkimi literami), aktywny. Wszystkie pola edytowalne tylko w ustawieniach.
-- `ProductTemplate` i `ProductComponent`: produkt (wzorzec nazwy), element, ilość na sztukę produktu (różna dla elementów), trasa (lista etapów).
+- `ProductTemplate` i `ProductComponent`: produkt (wzorzec nazwy), element i trasa (wybór etapów). Bez ilości, bo ta zależy od zlecenia.
 - `WorkOrder`: ZO, produkt, klient, ilość `q`, skąd (skan QR), status. Zastępuje `ControlRecord` jako "zlecenie".
-- `WorkOrderComponent`: element zlecenia, wymagana ilość (q razy ilość na sztukę), trasa (kopia z szablonu, edytowalna).
+- `WorkOrderComponent`: element zlecenia, ilość na sztukę produktu (podana przy skanie), wymagana ilość (q razy ta liczba), trasa (kopia z szablonu, edytowalna).
 - `StockPosition`: element zlecenia (lub gotowy produkt od składania), bufor lub stan "w realizacji", ilość, status (`ok`, `wstrzymane`, `do_poprawki`).
 - `Movement`: z, do, element, ilość, maszyna (gdy etap ją ma), pracownik (`DepartmentEmployee`), czas, typ (wpis, przejęcie, przeniesienie, cofnięcie). Pełna historia i podstawa rozliczenia.
 - `StageControl`: zlecenie, bufor (kontrola odbywa się na buforze etapu), rodzaj (plan zlecenia lub doraźna), ilość objęta kontrolą, punkty, wynik, powiązanie z QAR. Kontrola bez wyniku OK blokuje przejęcie.
@@ -130,7 +130,7 @@ Każda decyzja zostaje w historii (kto, kiedy, powód). Dostęp do archiwum: sta
 ## 4h. Zakończenie, korekta i anulowanie zlecenia
 
 - Pakowanie: pracownik przejmuje ilość z bufora Pakowania i oznacza ją jako "Spakowane". Spakowane całe `q` kończy zlecenie (status Zakończone).
-- Tylko admin zmienia ilości (nie poniżej już wpisanych), koryguje elementy i trasy w zleceniu oraz anuluje całe zlecenie. Anulowanie zachowuje historię ruchów.
+- Tylko admin zmienia ilość całego zlecenia `q` (nie poniżej już wpisanych) i anuluje całe zlecenie. Kontroler i admin korygują elementy zlecenia (ilości, trasy, dopisanie, usunięcie). Anulowanie zachowuje historię ruchów.
 - Skan kodu QR anulowanego zlecenia pokazuje je jako anulowane i nie tworzy nowego.
 
 ## 5. Plan działań (kolejność)
@@ -187,10 +187,10 @@ Akceptacja: wczytane 60 kodów z istniejących etykiet, bufor przypisany do etap
 Cel: skan kodu QR zlecenia tworzy zlecenie rozłożone na elementy z szablonu produktu.
 
 Zadania:
-- Modele `ProductTemplate`, `ProductComponent` (nazwa elementu, ilość na sztukę produktu, trasa jako uporządkowana lista etapów), `WorkOrder`, `WorkOrderComponent` (wymagana ilość = q razy ilość na sztukę, trasa jako edytowalna kopia).
+- Modele `ProductTemplate`, `ProductComponent` (nazwa elementu i trasa jako wybór etapów, bez ilości), `WorkOrder`, `WorkOrderComponent` (ilość na sztukę podawana przy skanie, wymagana ilość = q razy ta liczba, trasa jako edytowalna kopia).
 - Ekrany szablonów produktów w Ustawieniach produkcji: lista, tworzenie, edycja (elementy, ilości, trasy). Dopasowanie szablonu po nazwie produktu tym samym algorytmem tokenów, który już istnieje dla szablonów kontroli i ścieżek.
-- Skan QR zlecenia (`p`, `c`, `o`, `q`, parser z naprawą polskich znaków jak dziś): para ZO + produkt, istniejące zlecenie otwiera się (sekcja 4e), brak szablonu daje komunikat z przyciskiem "Utwórz szablon" tylko dla kontrolera i admina (sekcja 4d).
-- Widok zlecenia: elementy, wymagane ilości, trasy. Korekta elementów, tras i ilości oraz anulowanie zlecenia tylko przez admina (patrz 4h). Szablony produktów nadal edytują admin i kontroler.
+- Skan QR zlecenia (`p`, `c`, `o`, `q`, parser z naprawą polskich znaków jak dziś): para ZO + produkt, istniejące zlecenie otwiera się (sekcja 4e), brak szablonu daje komunikat z przyciskiem "Utwórz szablon" tylko dla kontrolera i admina (sekcja 4d). Dla nowego zlecenia skan pokazuje elementy szablonu z polami ilości na sztukę produktu (0 = nie dotyczy, bez wartości domyślnej), a zlecenie powstaje po zatwierdzeniu.
+- Widok zlecenia: elementy, wymagane ilości, trasy. Zmiana ilości `q` i anulowanie tylko przez admina, korekta elementów, ich ilości i tras przez kontrolera i admina (patrz 4h).
 - Obecne ścieżki produkcyjne (`RoutingTemplate`) jako punkt wyjścia do tras elementów (opcjonalny jednorazowy import).
 
 Testy: tworzenie zlecenia ze skanu, powtórny skan, brak szablonu (dwie role), przeliczenie ilości, korekta elementów, dopasowanie po nazwie.

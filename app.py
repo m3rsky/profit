@@ -62,6 +62,16 @@ app.register_blueprint(produkcja_bp)
 from kontrola import kontrola_bp  # noqa: E402
 app.register_blueprint(kontrola_bp)
 
+from kp import kp_bp  # noqa: E402
+app.register_blueprint(kp_bp)
+
+
+@app.route('/kp')
+@app.route('/kp/')
+def kp_alias():
+    """Skrót do modułu Kontrola produkcji."""
+    return redirect(url_for('kp.list_orders'))
+
 # ── Logging ────────────────────────────────────────────────────────────────────
 _log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
 os.makedirs(_log_dir, exist_ok=True)
@@ -3515,6 +3525,16 @@ def _migrate_schema():
         if 'users' in insp.get_table_names():
             conn.execute(text("UPDATE users SET role='operator' WHERE role='spawacz'"))
             conn.commit()
+        if 'product_components' in insp.get_table_names():
+            # Ilość na sztukę przeniesiona z szablonu na zlecenie (tabela istniała tylko w wersjach deweloperskich).
+            cols = [c['name'] for c in insp.get_columns('product_components')]
+            if 'per_unit' in cols:
+                try:
+                    conn.execute(text('ALTER TABLE product_components DROP COLUMN per_unit'))
+                    conn.commit()
+                except Exception as exc:
+                    conn.rollback()
+                    app.logger.warning('Nie usunięto kolumny per_unit z product_components: %s', exc)
         if 'department_employees' in insp.get_table_names():
             cols = [c['name'] for c in insp.get_columns('department_employees')]
             if 'token' not in cols:

@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}Zlecenie {{ order.zo_number }} – Kontrola produkcji{% endblock %}
+
+{% block head %}
+<style>
+.kd-wrap { max-width:980px; margin:0 auto; display:flex; flex-direction:column; gap:1rem; }
+.kd-meta { display:flex; flex-wrap:wrap; gap:.3rem 1.4rem; color:var(--text-muted,#64748b); font-size:.92rem; }
+.kd-meta strong { color:inherit; }
+.kd-comp { padding:.85rem 1rem; border-top:1px solid var(--border,#e2e8f0); }
+.kd-comp:first-child { border-top:none; }
+.kd-head { display:flex; gap:.6rem; align-items:baseline; flex-wrap:wrap; }
+.kd-name { font-weight:600; font-size:1.02rem; flex:1; min-width:10rem; }
+.kd-qty { font-weight:700; }
+.kd-route { display:flex; flex-wrap:wrap; gap:.3rem; margin-top:.4rem; align-items:center; }
+.kd-stage { font-size:.8rem; padding:.15rem .55rem; border-radius:999px; background:var(--blue-bg,#eff6ff); border:1px solid var(--border,#e2e8f0); }
+.kd-arrow { color:var(--text-muted,#64748b); font-size:.8rem; }
+.kd-form { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; margin:0; }
+.kd-form .form-control { width:auto; }
+.kd-stages { display:flex; flex-wrap:wrap; gap:.3rem .8rem; flex-basis:100%; }
+.kd-stages label { display:inline-flex; gap:.3rem; align-items:center; font-size:.86rem; white-space:nowrap; }
+.kd-admin { display:flex; gap:.6rem; flex-wrap:wrap; align-items:center; }
+.kd-admin form { margin:0; }
+.kd-edit summary { cursor:pointer; color:var(--progress-blue,#2563eb); font-size:.88rem; margin-top:.4rem; }
+</style>
+{% endblock %}
+
+{% macro stage_checks(stages, selected) %}
+<div class="kd-stages">
+  {% for st in stages %}
+  <label><input type="checkbox" name="stage_ids" value="{{ st.id }}" {% if st.id in selected %}checked{% endif %}> {{ st.name }}</label>
+  {% endfor %}
+</div>
+{% endmacro %}
+
+{% block content %}
+<div class="kd-wrap">
+  <div class="page-header" style="margin-bottom:0;">
+    <h1 class="page-title">
+      <i class="bi bi-diagram-2"></i> ZO {{ order.zo_number }}
+      {% if order.status == 'cancelled' %}<span class="badge badge-neutral" style="vertical-align:middle;">Anulowane</span>
+      {% else %}<span class="badge badge-info" style="vertical-align:middle;">W toku</span>{% endif %}
+    </h1>
+    <div class="page-header-actions">
+      <a href="{{ url_for('kp.list_orders') }}" class="btn btn-outline"><i class="bi bi-arrow-left"></i> Lista zleceń</a>
+    </div>
+  </div>
+
+  <div class="kd-meta">
+    <span><i class="bi bi-box-seam"></i> <strong>{{ order.product_name }}</strong></span>
+    {% if order.client %}<span><i class="bi bi-person"></i> {{ order.client }}</span>{% endif %}
+    <span>Ilość: <strong>{{ order.quantity }} szt.</strong></span>
+    <span>Szablon: {{ order.template.name if order.template else '(usunięty)' }}</span>
+    <span>Utworzył(a): {{ order.created_by.username if order.created_by else '-' }}, {{ order.created_at|localdt('%d.%m.%Y %H:%M') }}</span>
+    {% if order.cancelled_at %}<span>Anulowano: {{ order.cancelled_at|localdt('%d.%m.%Y %H:%M') }}</span>{% endif %}
+  </div>
+
+  {% if current_user.is_admin %}
+  <div class="card"><div class="card-body kd-admin">
+    {% if order.status == 'active' %}
+    <form method="post" action="{{ url_for('kp.set_order_quantity', order_id=order.id) }}" class="kd-form">
+      {{ csrf_input() }}
+      <label>Ilość zlecenia
+        <input type="number" name="quantity" class="form-control" value="{{ order.quantity }}" min="1" max="9999" style="width:6.5rem;"></label>
+      <button type="submit" class="btn btn-secondary btn-sm"
+              onclick="return confirm('Zmienić ilość? Wymagane ilości wszystkich elementów zostaną przeliczone.')">Zmień ilość</button>
+    </form>
+    <form method="post" action="{{ url_for('kp.cancel_order', order_id=order.id) }}"
+          onsubmit="return confirm('Anulować całe zlecenie {{ order.zo_number }}? Historia zostaje.')">
+      {{ csrf_input() }}
+      <button type="submit" class="btn btn-danger btn-sm"><i class="bi bi-x-octagon"></i> Anuluj zlecenie</button>
+    </form>
+    {% else %}
+    <form method="post" action="{{ url_for('kp.restore_order', order_id=order.id) }}">
+      {{ csrf_input() }}
+      <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-arrow-counterclockwise"></i> Przywróć zlecenie</button>
+    </form>
+    {% endif %}
+  </div></div>
+  {% endif %}
+
+  <div class="card">
+    <div class="card-header">Elementy produktu ({{ order.components|length }})</div>
+    {% for c in order.components %}
+    <div class="kd-comp">
+      <div class="kd-head">
+        <span class="kd-name">{{ c.name }}</span>
+        <span class="text-muted" style="font-size:.88rem;">{{ c.per_unit }} na sztukę</span>
+        <span class="kd-qty">Wymagane: {{ c.required_qty }} szt.</span>
+      </div>
+      <div class="kd-route">
+        {% for st in c.stages %}
+        <span class="kd-stage">{{ st.name }}</span>{% if not loop.last %}<span class="kd-arrow"><i class="bi bi-arrow-right"></i></span>{% endif %}
+        {% else %}<span class="text-muted" style="font-size:.85rem;">brak etapów w trasie</span>{% endfor %}
+      </div>
+
+      {% if current_user.is_kontroler and order.status == 'active' %}
+      <details class="kd-edit">
+        <summary>Edytuj element</summary>
+        <form method="post" action="{{ url_for('kp.component_save', comp_id=c.id) }}" class="kd-form" style="margin-top:.5rem;">
+          {{ csrf_input() }}
+          <input type="text" name="name" class="form-control" value="{{ c.name }}" maxlength="128" required style="min-width:12rem;">
+          <label>na sztukę <input type="number" name="per_unit" class="form-control" value="{{ c.per_unit }}" min="1" required style="width:5.5rem;"></label>
+          <label>wymagane <input type="number" name="required_qty" class="form-control" value="{{ c.required_qty }}" min="1" required style="width:6rem;"></label>
+          <button type="submit" class="btn btn-secondary btn-sm"><i class="bi bi-save"></i> Zapisz</button>
+          {{ stage_checks(all_stages, c.stage_ids) }}
+        </form>
+        <form method="post" action="{{ url_for('kp.component_delete', comp_id=c.id) }}" style="margin-top:.4rem;"
+              onsubmit="return confirm('Usunąć element {{ c.name }} ze zlecenia?')">
+          {{ csrf_input() }}
+          <button type="submit" class="btn btn-danger btn-sm"><i class="bi bi-trash"></i> Usuń element</button>
+        </form>
+      </details>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if current_user.is_kontroler and order.status == 'active' %}
+  <div class="card">
+    <div class="card-header">Dodaj element do zlecenia</div>
+    <div class="card-body">
+      <form method="post" action="{{ url_for('kp.component_add', order_id=order.id) }}" class="kd-form">
+        {{ csrf_input() }}
+        <input type="text" name="name" class="form-control" maxlength="128" required placeholder="Nazwa elementu" style="min-width:12rem;">
+        <label>na sztukę <input type="number" name="per_unit" class="form-control" value="1" min="1" required style="width:5.5rem;"></label>
+        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Dodaj</button>
+        {{ stage_checks(all_stages, []) }}
+      </form>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

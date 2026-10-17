@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Szablon {{ tpl.name }} – Ustawienia produkcji{% endblock %}
+
+{% block head %}
+<style>
+.pe-meta { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; }
+.pe-meta .form-control { max-width:22rem; }
+.pe-comp { padding:.9rem 1rem; border-top:1px solid var(--border,#e2e8f0); }
+.pe-comp:first-child { border-top:none; }
+.pe-row { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; }
+.pe-row form { margin:0; }
+.pe-form { display:flex; gap:.6rem; align-items:flex-start; flex-wrap:wrap; flex:1; min-width:0; }
+.pe-form .pe-name { flex:1; min-width:12rem; }
+.pe-qty { width:6rem !important; }
+.pe-stages { display:flex; flex-wrap:wrap; gap:.3rem .8rem; flex-basis:100%; margin-top:.2rem; }
+.pe-stages label { display:inline-flex; gap:.3rem; align-items:center; font-size:.86rem; white-space:nowrap; }
+.pe-move { display:flex; flex-direction:column; gap:2px; }
+.pe-sub { font-size:.78rem; text-transform:uppercase; letter-spacing:.03em; color:var(--text-muted,#64748b); }
+</style>
+{% endblock %}
+
+{% macro stage_checks(stages, selected) %}
+<div class="pe-stages">
+  {% for st in stages %}
+  <label><input type="checkbox" name="stage_ids" value="{{ st.id }}" {% if st.id in selected %}checked{% endif %}> {{ st.name }}</label>
+  {% endfor %}
+</div>
+{% endmacro %}
+
+{% block content %}
+{% include 'ustawienia/_tabs.html' %}
+
+<div class="page-header">
+  <h1 class="page-title"><i class="bi bi-box-seam"></i> Szablon: {{ tpl.name }}</h1>
+  <div class="page-header-actions">
+    <a href="{{ url_for('ustawienia.products') }}" class="btn btn-outline"><i class="bi bi-arrow-left"></i> Wróć do listy</a>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:1rem;">
+  <div class="card-body">
+    <form method="post" action="{{ url_for('ustawienia.product_save', tpl_id=tpl.id) }}" class="pe-meta">
+      {{ csrf_input() }}
+      <input type="text" name="name" class="form-control" value="{{ tpl.name }}" maxlength="128" required>
+      <label class="pe-sub" style="display:inline-flex;gap:.3rem;align-items:center;text-transform:none;font-size:.9rem;">
+        <input type="checkbox" name="is_active" value="1" {% if tpl.is_active %}checked{% endif %}> aktywny
+      </label>
+      <button type="submit" class="btn btn-secondary btn-sm"><i class="bi bi-save"></i> Zapisz</button>
+    </form>
+    {% if not tpl.components %}
+    <p class="text-muted" style="margin:.8rem 0 0;">Szablon bez elementów nie jest używany przy skanie. Dodaj poniżej co najmniej jeden element.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:1rem;">
+  <div class="card-header">Elementy produktu ({{ tpl.components|length }})</div>
+  {% for c in tpl.components %}
+  <div class="pe-comp">
+    <div class="pe-row">
+      <div class="pe-move">
+        <form method="post" action="{{ url_for('ustawienia.product_component_move', comp_id=c.id, direction='up') }}">
+          {{ csrf_input() }}<button type="submit" class="btn btn-outline btn-xs" title="W górę" {% if loop.first %}disabled{% endif %}><i class="bi bi-chevron-up"></i></button></form>
+        <form method="post" action="{{ url_for('ustawienia.product_component_move', comp_id=c.id, direction='down') }}">
+          {{ csrf_input() }}<button type="submit" class="btn btn-outline btn-xs" title="W dół" {% if loop.last %}disabled{% endif %}><i class="bi bi-chevron-down"></i></button></form>
+      </div>
+      <form method="post" action="{{ url_for('ustawienia.product_component_save', comp_id=c.id) }}" class="pe-form">
+        {{ csrf_input() }}
+        <input type="text" name="name" class="form-control pe-name" value="{{ c.name }}" maxlength="128" required placeholder="Nazwa elementu">
+        <button type="submit" class="btn btn-secondary btn-sm"><i class="bi bi-save"></i> Zapisz</button>
+        {{ stage_checks(stages, c.stage_ids) }}
+      </form>
+      <form method="post" action="{{ url_for('ustawienia.product_component_delete', comp_id=c.id) }}"
+            onsubmit="return confirm('Usunąć element {{ c.name }}?')">
+        {{ csrf_input() }}
+        <button type="submit" class="btn btn-danger btn-sm" title="Usuń element"><i class="bi bi-trash"></i></button>
+      </form>
+    </div>
+  </div>
+  {% else %}
+  <div class="pe-comp text-muted">Brak elementów.</div>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <div class="card-header">Dodaj element</div>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('ustawienia.product_component_add', tpl_id=tpl.id) }}" class="pe-form">
+      {{ csrf_input() }}
+      <input type="text" name="name" class="form-control pe-name" maxlength="128" required placeholder="Nazwa elementu, np. Drzwi">
+      <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Dodaj</button>
+      {{ stage_checks(stages, []) }}
+    </form>
+    <p class="text-muted" style="font-size:.82rem;margin:.6rem 0 0;">
+      Zaznacz etapy, przez które przechodzi element. Kolejność wynika z kolejności etapów w ustawieniach.
+      Ilość elementu na sztukę produktu (np. dwie pary drzwi) wpisuje się dopiero przy tworzeniu zlecenia.
+      Etapy poziomu „produkt” (składanie, kontrola końcowa, pakowanie) nie dotyczą elementów.
+    </p>
+  </div>
+</div>
+{% endblock %}

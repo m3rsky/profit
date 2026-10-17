@@ -768,6 +768,123 @@ class Buffer(db.Model):
         return f'<Buffer {self.code}>'
 
 
+class ProductTemplate(db.Model):
+    """Szablon produktu (rodzina, np. PSH albo PSH INOX): elementy produktu z ilością na sztukę
+    i trasą przez etapy. Dopasowywany do nazwy produktu z kodu QR zlecenia tym samym algorytmem
+    tokenów co szablony kontroli."""
+    __tablename__ = 'product_templates'
+    id         = db.Column(db.Integer, primary_key=True)
+    name       = db.Column(db.String(128), nullable=False)
+    is_active  = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    components = db.relationship('ProductComponent', backref='template', lazy='select',
+                                 cascade='all, delete-orphan',
+                                 order_by='ProductComponent.position, ProductComponent.id')
+
+    def __repr__(self):
+        return f'<ProductTemplate {self.name}>'
+
+
+class ProductComponent(db.Model):
+    """Element produktu w szablonie (nazwa i trasa). Ilość elementu na sztukę produktu zależy od
+    zlecenia (np. dwie pary drzwi), więc jest podawana dopiero przy tworzeniu zlecenia."""
+    __tablename__ = 'product_components'
+    id        = db.Column(db.Integer, primary_key=True)
+    template_id = db.Column(db.Integer, db.ForeignKey('product_templates.id'), nullable=False)
+    name      = db.Column(db.String(128), nullable=False)
+    position  = db.Column(db.Integer, default=0)
+    stage_links = db.relationship('ProductComponentStage', backref='component',
+                                  cascade='all, delete-orphan', lazy='select')
+
+    @property
+    def stages(self):
+        """Etapy trasy w kolejności etapów produkcji."""
+        return sorted((l.stage for l in self.stage_links if l.stage),
+                      key=lambda st: (st.order or 0, st.id))
+
+    @property
+    def stage_ids(self):
+        return {l.stage_id for l in self.stage_links}
+
+    def __repr__(self):
+        return f'<ProductComponent {self.name}>'
+
+
+class ProductComponentStage(db.Model):
+    """Etap należący do trasy elementu szablonu."""
+    __tablename__ = 'product_component_stages'
+    __table_args__ = (db.UniqueConstraint('component_id', 'stage_id', name='uq_prodcomp_stage'),)
+    id           = db.Column(db.Integer, primary_key=True)
+    component_id = db.Column(db.Integer, db.ForeignKey('product_components.id'), nullable=False)
+    stage_id     = db.Column(db.Integer, db.ForeignKey('production_stages.id'), nullable=False)
+    stage        = db.relationship('ProductionStage')
+
+
+class WorkOrder(db.Model):
+    """Zlecenie produkcyjne utworzone ze skanu kodu QR (para ZO + produkt). Elementy i trasy
+    są kopią szablonu z chwili utworzenia, więc późniejsza zmiana szablonu ich nie zmienia."""
+    __tablename__ = 'work_orders'
+    id            = db.Column(db.Integer, primary_key=True)
+    zo_number     = db.Column(db.String(64), nullable=False, index=True)
+    product_name  = db.Column(db.String(256), nullable=False)
+    client        = db.Column(db.String(256), nullable=True)
+    quantity      = db.Column(db.Integer, nullable=False, default=1)
+    template_id   = db.Column(db.Integer, db.ForeignKey('product_templates.id'), nullable=True)
+    status        = db.Column(db.String(16), default='active')   # active | cancelled
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    created_at    = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    cancelled_at  = db.Column(db.DateTime, nullable=True)
+    template      = db.relationship('ProductTemplate')
+    created_by    = db.relationship('User', foreign_keys=[created_by_id])
+    components    = db.relationship('WorkOrderComponent', backref='order', lazy='select',
+                                    cascade='all, delete-orphan',
+                                    order_by='WorkOrderComponent.position, WorkOrderComponent.id')
+
+    STATUS_LABELS = {'active': 'W toku', 'cancelled': 'Anulowane'}
+
+    @property
+    def status_label(self):
+        return self.STATUS_LABELS.get(self.status, self.status)
+
+    def __repr__(self):
+        return f'<WorkOrder {self.zo_number} {self.product_name}>'
+
+
+class WorkOrderComponent(db.Model):
+    """Element zlecenia z wymaganą ilością (q razy ilość na sztukę, do korekty przez admina)."""
+    __tablename__ = 'work_order_components'
+    id           = db.Column(db.Integer, primary_key=True)
+    order_id     = db.Column(db.Integer, db.ForeignKey('work_orders.id'), nullable=False)
+    name         = db.Column(db.String(128), nullable=False)
+    per_unit     = db.Column(db.Integer, default=1, nullable=False)
+    required_qty = db.Column(db.Integer, default=1, nullable=False)
+    position     = db.Column(db.Integer, default=0)
+    stage_links  = db.relationship('WorkOrderComponentStage', backref='component',
+                                   cascade='all, delete-orphan', lazy='select')
+
+    @property
+    def stages(self):
+        return sorted((l.stage for l in self.stage_links if l.stage),
+                      key=lambda st: (st.order or 0, st.id))
+
+    @property
+    def stage_ids(self):
+        return {l.stage_id for l in self.stage_links}
+
+    def __repr__(self):
+        return f'<WorkOrderComponent {self.name}>'
+
+
+class WorkOrderComponentStage(db.Model):
+    """Etap w trasie elementu zlecenia."""
+    __tablename__ = 'work_order_component_stages'
+    __table_args__ = (db.UniqueConstraint('component_id', 'stage_id', name='uq_wocomp_stage'),)
+    id           = db.Column(db.Integer, primary_key=True)
+    component_id = db.Column(db.Integer, db.ForeignKey('work_order_components.id'), nullable=False)
+    stage_id     = db.Column(db.Integer, db.ForeignKey('production_stages.id'), nullable=False)
+    stage        = db.relationship('ProductionStage')
+
+
 # ── Moduł DOKUMENTACJA ───────────────────────────────────────────────────────
 
 class DocEntry(db.Model):

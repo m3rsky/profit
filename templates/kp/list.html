@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Kontrola produkcji{% endblock %}
+
+{% block head %}
+<style>
+.kp-chips { display:flex; gap:.4rem; margin:.25rem 0 1rem; overflow-x:auto; padding-bottom:.35rem; }
+.kp-chip { display:inline-flex; align-items:center; gap:.4rem; padding:.45rem .85rem; border-radius:999px; white-space:nowrap; flex:0 0 auto;
+  border:1px solid var(--border,#e2e8f0); color:inherit; text-decoration:none; font-size:.88rem; }
+.kp-chip.active { background:var(--blue-bg,#eff6ff); border-color:var(--progress-blue,#2563eb); color:var(--progress-blue,#2563eb); font-weight:600; }
+.kp-chip-n { font-weight:700; }
+.kp-filter { display:flex; gap:.4rem; }
+.kp-filter .form-control { flex:1; min-width:0; }
+.kp-sub { color:var(--text-muted,#64748b); font-size:.82rem; }
+.kp-table-wrap { display:none; }
+.kp-table { width:100%; border-collapse:collapse; font-size:.92rem; }
+.kp-table th { text-align:left; padding:.6rem .75rem; font-size:.75rem; text-transform:uppercase; letter-spacing:.03em;
+  color:var(--text-muted,#64748b); border-bottom:2px solid var(--border,#e2e8f0); white-space:nowrap; }
+.kp-table td { padding:.55rem .75rem; border-bottom:1px solid var(--border,#e2e8f0); vertical-align:middle; }
+.kp-table tbody tr:hover { background:var(--blue-bg,rgba(37,99,235,.05)); }
+.kp-num { text-align:right; white-space:nowrap; }
+.kp-list { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:.75rem; }
+.kp-item { display:flex; flex-direction:column; gap:.5rem; padding:.9rem 1rem; border:1px solid var(--border,#e2e8f0);
+  border-left:5px solid var(--progress-blue,#2563eb); border-radius:var(--radius-md,10px); background:var(--card-bg,var(--surface,#fff)); }
+.kp-item--cancelled { border-left-color:#94a3b8; opacity:.75; }
+.kp-zo { font-size:1.1rem; font-weight:700; word-break:break-word; }
+.kp-meta { display:flex; flex-wrap:wrap; gap:.15rem .9rem; color:var(--text-muted,#64748b); font-size:.82rem; }
+.kp-item .btn { min-height:46px; justify-content:center; width:100%; }
+.kp-empty { text-align:center; padding:2.5rem 1rem; color:var(--text-muted,#64748b); }
+@media (min-width: 900px) { .kp-table-wrap { display:block; } .kp-list { display:none; } }
+@media (max-width: 640px) {
+  .kp-list { grid-template-columns:1fr; }
+  .kp-filter { width:100%; }
+  .page-header-actions { display:flex; flex-direction:column; gap:.5rem; width:100%; }
+  .page-header-actions .btn { width:100%; justify-content:center; min-height:46px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-diagram-2"></i> Kontrola produkcji</h1>
+    <span class="text-muted" style="font-size:0.82rem;">Zlecenia produkcyjne, elementy produktu i ich trasy przez etapy</span>
+  </div>
+  <div class="page-header-actions">
+    <form method="get" class="kp-filter">
+      <input type="hidden" name="s" value="{{ status }}">
+      <input type="text" name="q" value="{{ q }}" placeholder="Szukaj: ZO, produkt, klient…" class="form-control">
+      <button type="submit" class="btn btn-secondary" title="Szukaj"><i class="bi bi-search"></i></button>
+    </form>
+    {% if current_user.is_kontroler %}
+    <a href="{{ url_for('kp.scan_page') }}" class="btn btn-primary"><i class="bi bi-qr-code-scan"></i> Skanuj QR zlecenia</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="kp-chips">
+  <a class="kp-chip {% if status == 'active' %}active{% endif %}" href="{{ url_for('kp.list_orders', s='active', q=q) }}">W toku <span class="kp-chip-n">{{ counts.active }}</span></a>
+  <a class="kp-chip {% if status == 'cancelled' %}active{% endif %}" href="{{ url_for('kp.list_orders', s='cancelled', q=q) }}">Anulowane <span class="kp-chip-n">{{ counts.cancelled }}</span></a>
+  <a class="kp-chip {% if status == 'all' %}active{% endif %}" href="{{ url_for('kp.list_orders', s='all', q=q) }}">Wszystkie <span class="kp-chip-n">{{ total }}</span></a>
+</div>
+
+{% if orders %}
+<div class="card kp-table-wrap">
+  <div class="card-body" style="padding:0; overflow-x:auto;">
+    <table class="kp-table">
+      <thead><tr><th>ZO</th><th>Produkt</th><th>Klient</th><th class="kp-num">Ilość</th><th>Elementy</th><th>Status</th><th>Utworzono</th><th></th></tr></thead>
+      <tbody>
+        {% for o in orders %}
+        <tr>
+          <td><strong>{{ o.zo_number }}</strong></td>
+          <td>{{ o.product_name }}</td>
+          <td>{{ o.client or '-' }}</td>
+          <td class="kp-num">{{ o.quantity }} szt.</td>
+          <td>{{ o.components|length }}
+            <span class="kp-sub">({{ o.components|map(attribute='name')|join(', ') }})</span></td>
+          <td>{% if o.status == 'cancelled' %}<span class="badge badge-neutral">Anulowane</span>{% else %}<span class="badge badge-info">W toku</span>{% endif %}</td>
+          <td style="white-space:nowrap;">{{ o.created_at|localdt('%d.%m.%Y %H:%M') }}</td>
+          <td><a class="btn btn-outline btn-sm" href="{{ url_for('kp.order_detail', order_id=o.id) }}">Szczegóły</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="kp-list">
+  {% for o in orders %}
+  <div class="kp-item {% if o.status == 'cancelled' %}kp-item--cancelled{% endif %}">
+    <div>
+      <div class="kp-zo">ZO {{ o.zo_number }}</div>
+      <div><strong>{{ o.product_name }}</strong></div>
+      {% if o.client %}<div class="kp-sub">{{ o.client }}</div>{% endif %}
+    </div>
+    <div class="kp-meta">
+      <span>{{ o.quantity }} szt.</span>
+      <span>Elementów: {{ o.components|length }}</span>
+      <span>{{ o.created_at|localdt('%d.%m.%Y %H:%M') }}</span>
+      {% if o.status == 'cancelled' %}<span class="badge badge-neutral">Anulowane</span>{% endif %}
+    </div>
+    <a class="btn btn-outline" href="{{ url_for('kp.order_detail', order_id=o.id) }}">Szczegóły</a>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card"><div class="card-body kp-empty">
+  <i class="bi bi-inbox" style="font-size:2rem;"></i>
+  <p>Brak zleceń w tym widoku.{% if current_user.is_kontroler %} Zeskanuj kod QR zlecenia, aby utworzyć pierwsze.{% endif %}</p>
+</div></div>
+{% endif %}
+{% endblock %}

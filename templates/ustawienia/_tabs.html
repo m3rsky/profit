@@ -7,6 +7,9 @@
   <a href="{{ url_for('ustawienia.admin_routing_templates') }}"
      class="{% if ep in ('ustawienia.admin_routing_templates', 'ustawienia.new_routing_template', 'ustawienia.edit_routing_template') %}active{% endif %}">
     <i class="bi bi-diagram-3"></i> Ścieżki produkcyjne</a>
+  <a href="{{ url_for('ustawienia.products') }}"
+     class="{% if ep in ('ustawienia.products', 'ustawienia.product_new', 'ustawienia.product_edit') %}active{% endif %}">
+    <i class="bi bi-box-seam"></i> Szablony produktów</a>
   <a href="{{ url_for('ustawienia.stages') }}"
      class="{% if ep == 'ustawienia.stages' %}active{% endif %}">
     <i class="bi bi-boxes"></i> Etapy i bufory</a>

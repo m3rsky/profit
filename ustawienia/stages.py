@@ -6,7 +6,8 @@ from flask import (render_template, redirect, url_for, request, flash, abort,
 from flask_login import login_required
 from sqlalchemy import func
 
-from models import db, get_or_404, ProductionDepartment, ProductionStage, Machine, Buffer
+from models import (db, get_or_404, ProductionDepartment, ProductionStage, Machine, Buffer,
+                    ProductComponentStage, WorkOrderComponentStage)
 from . import ustawienia_bp
 from .routes import settings_required, _audit
 from .lookup import norm_code, find_buffer
@@ -117,6 +118,11 @@ def stage_delete(stage_id):
     if stage.machines.count() or stage.buffers.count():
         flash(f'Nie można usunąć etapu „{stage.name}”: ma maszyny lub bufory. '
               f'Usuń je albo dezaktywuj etap.', 'warning')
+        return _back()
+    if (ProductComponentStage.query.filter_by(stage_id=stage.id).first()
+            or WorkOrderComponentStage.query.filter_by(stage_id=stage.id).first()):
+        flash(f'Nie można usunąć etapu „{stage.name}”: jest użyty w trasie elementu '
+              f'(szablon produktu lub zlecenie). Dezaktywuj etap.', 'warning')
         return _back()
     name = stage.name
     db.session.delete(stage)
