@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime, timedelta, timezone
 
 UTC = timezone.utc
@@ -665,6 +666,9 @@ class DepartmentEmployee(db.Model):
     name          = db.Column(db.String(128), nullable=False)
     is_active     = db.Column(db.Boolean, default=True)
     created_at    = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    # Token plakietki QR (PSH-DEP:<token>). Nowy token unieważnia wydrukowaną plakietkę.
+    token         = db.Column(db.String(48), unique=True, nullable=True,
+                              default=lambda: secrets.token_hex(16))
     department    = db.relationship('ProductionDepartment', back_populates='employees')
 
     def __repr__(self):
@@ -701,6 +705,67 @@ class RoutingTemplateStage(db.Model):
 
     def __repr__(self):
         return f'<RoutingTemplateStage template={self.template_id} dept={self.department_id}>'
+
+
+class ProductionStage(db.Model):
+    """Etap produkcji (Wycinanie, Gięcie, ..., Pakowanie). Nazwy, kolejność i ustawienia
+    edytowalne. Pracownicy etapu pochodzą z jednego działu."""
+    __tablename__ = 'production_stages'
+    id               = db.Column(db.Integer, primary_key=True)
+    name             = db.Column(db.String(64), nullable=False)
+    order            = db.Column(db.Integer, default=0)
+    is_active        = db.Column(db.Boolean, default=True)
+    level            = db.Column(db.String(8), default='element')   # element | produkt
+    control_required = db.Column(db.Boolean, default=False)
+    department_id    = db.Column(db.Integer, db.ForeignKey('production_departments.id'), nullable=True)
+    created_at       = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    department       = db.relationship('ProductionDepartment')
+    machines         = db.relationship('Machine', backref='stage', lazy='dynamic',
+                                       order_by='Machine.name')
+    buffers          = db.relationship('Buffer', backref='stage', lazy='dynamic',
+                                       order_by='Buffer.code')
+
+    LEVEL_LABELS = {'element': 'Element', 'produkt': 'Produkt'}
+
+    @property
+    def level_label(self):
+        return self.LEVEL_LABELS.get(self.level, self.level)
+
+    def __repr__(self):
+        return f'<ProductionStage {self.name}>'
+
+
+class Machine(db.Model):
+    """Maszyna przypisana do etapu (np. Laser 1). Etap z maszynami wymaga wyboru maszyny przy przejęciu."""
+    __tablename__ = 'machines'
+    id         = db.Column(db.Integer, primary_key=True)
+    stage_id   = db.Column(db.Integer, db.ForeignKey('production_stages.id'), nullable=False)
+    name       = db.Column(db.String(64), nullable=False)
+    is_active  = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+
+    def __repr__(self):
+        return f'<Machine {self.name}>'
+
+
+class Buffer(db.Model):
+    """Bufor (miejsce odkładania elementów) z etykietą QR i kodem kreskowym. `code` to dokładnie
+    tekst zakodowany na etykiecie (np. 0001, A001). Etap może być nieprzypisany."""
+    __tablename__ = 'buffers'
+    id         = db.Column(db.Integer, primary_key=True)
+    stage_id   = db.Column(db.Integer, db.ForeignKey('production_stages.id'), nullable=True)
+    code       = db.Column(db.String(64), unique=True, nullable=False)
+    name       = db.Column(db.String(128), nullable=True)
+    number     = db.Column(db.String(32), nullable=True)
+    is_active  = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+
+    @property
+    def display_name(self):
+        return self.name or self.code
+
+    def __repr__(self):
+        return f'<Buffer {self.code}>'
 
 
 # ── Moduł DOKUMENTACJA ───────────────────────────────────────────────────────

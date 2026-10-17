@@ -31,14 +31,12 @@ table.tpl-templates-table .badge-ok {
 {% endblock %}
 
 {% block content %}
+{% include 'ustawienia/_tabs.html' %}
 <div class="page-header">
   <h1 class="page-title"><i class="bi bi-diagram-3"></i> Ścieżki produkcyjne</h1>
   <div class="page-header-actions">
     <a href="{{ url_for('ustawienia.new_routing_template') }}" class="btn btn-primary">
       <i class="bi bi-plus-lg"></i> Nowa ścieżka
-    </a>
-    <a href="{{ url_for('ustawienia.admin_departments') }}" class="btn btn-outline">
-      <i class="bi bi-people"></i> Działy i pracownicy
     </a>
   </div>
 </div>

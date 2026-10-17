@@ -29,7 +29,7 @@ from models import (db, get_or_404, User, ChecklistTemplate, Category, Task, Rep
                     CatalogProduct,
                     ChecklistSession, Installer, ReportItemInstaller,
                     QARReport, QARPhoto, QATask, QARCategory,
-                    ProductionDepartment, DepartmentEmployee,
+                    ProductionDepartment, DepartmentEmployee, ProductionStage, Machine,
                     DailyBriefing, DocEntry, DocFile, DocNote)
 import anthropic
 import briefing_service
@@ -3349,6 +3349,8 @@ def init_db():
         _seed_kosztorys()
         _seed_zadania_qa()
         _seed_departments()
+        _seed_stages()
+        _backfill_department_tokens()
         _seed_qar_categories()
         db.session.commit()
 
@@ -3512,6 +3514,14 @@ def _migrate_schema():
         # Rola Spawacz (tylko Kontrola etapów) przechodzi na Operatora.
         if 'users' in insp.get_table_names():
             conn.execute(text("UPDATE users SET role='operator' WHERE role='spawacz'"))
+            conn.commit()
+        if 'department_employees' in insp.get_table_names():
+            cols = [c['name'] for c in insp.get_columns('department_employees')]
+            if 'token' not in cols:
+                conn.execute(text('ALTER TABLE department_employees ADD COLUMN token VARCHAR(48)'))
+                conn.commit()
+            conn.execute(text('CREATE UNIQUE INDEX IF NOT EXISTS ix_department_employees_token '
+                              'ON department_employees (token)'))
             conn.commit()
         if 'qar_reports' in insp.get_table_names():
             cols = [c['name'] for c in insp.get_columns('qar_reports')]
@@ -4267,6 +4277,55 @@ def _seed_departments():
     ]
     for i, name in enumerate(default_departments):
         db.session.add(ProductionDepartment(name=name, order=i))
+
+
+# Etapy produkcji: (nazwa, dział wg nazwy, poziom, czy tworzyć dział, gdy go nie ma).
+# Zgrzewanie i spawanie to osobne etapy. Od składania zlecenie jest liczone w sztukach produktu.
+_STAGE_DEFAULTS = [
+    ('Wycinanie (laser, wykrawarki)', 'Wycinanie',     'element', True),
+    ('Gięcie',                       'Gięcie',        'element', False),
+    ('Przygotowanie (pemowanie)',    'Przygotowanie', 'element', True),
+    ('Zgrzewanie',                   'Zgrzewanie',    'element', False),
+    ('Spawanie',                     'Spawanie',      'element', False),
+    ('Szlifowanie i czyszczenie',    'Czyszczenie',   'element', False),
+    ('Mycie',                        'Mycie',         'element', False),
+    ('Malowanie',                    'Malarnia',      'element', False),
+    ('Kompletacja',                  'Kompletacja',   'element', True),
+    ('Składanie',                    'Składanie',     'produkt', False),
+    ('Kontrola końcowa',             'Kontrola Jakości', 'produkt', False),
+    ('Pakowanie',                    'Pakowanie',     'produkt', True),
+]
+_DEFAULT_MACHINES = ['Laser 1', 'Laser 2', 'Wykrawarka 1', 'Wykrawarka 2']
+
+
+def _seed_stages():
+    """Jednorazowo zakłada 12 etapów produkcji, maszyny wycinania i brakujące działy. Gdy etapy
+    już istnieją, nic nie robi (nie nadpisuje zmian wprowadzonych w ustawieniach)."""
+    if ProductionStage.query.first():
+        return
+    depts = {d.name.lower(): d for d in ProductionDepartment.query.all()}
+    next_order = (db.session.query(func.max(ProductionDepartment.order)).scalar() or 0) + 1
+    for i, (name, dept_name, level, create) in enumerate(_STAGE_DEFAULTS, 1):
+        dept = depts.get(dept_name.lower())
+        if dept is None and create:
+            dept = ProductionDepartment(name=dept_name, order=next_order)
+            next_order += 1
+            db.session.add(dept)
+            db.session.flush()
+            depts[dept_name.lower()] = dept
+        stage = ProductionStage(name=name, order=i, level=level,
+                                department_id=dept.id if dept else None)
+        db.session.add(stage)
+        db.session.flush()
+        if i == 1:
+            for m in _DEFAULT_MACHINES:
+                db.session.add(Machine(stage_id=stage.id, name=m))
+
+
+def _backfill_department_tokens():
+    """Nadaje token plakietki pracownikom działów dodanym przed wprowadzeniem plakietek."""
+    for emp in DepartmentEmployee.query.filter(DepartmentEmployee.token.is_(None)).all():
+        emp.token = secrets.token_hex(16)
 
 
 def _seed_qar_categories():

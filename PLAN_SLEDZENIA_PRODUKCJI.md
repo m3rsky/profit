@@ -1,0 +1,289 @@
+# Plan: śledzenie produkcji na buforach (następca Kontroli zamówień)
+
+Dokument roboczy, uzupełniany w miarę dodawania zadań. Stan na 2026-10-18 (po pełnej analizie planu): wszystkie decyzje podjęte, nic nie jest jeszcze zakodowane. Punkt wyjścia: wdrożony commit `dd667df`.
+
+## 1. Cel
+
+Śledzić każde zlecenie (ZO + produkt, ilość) od wpisania na bufor pierwszego etapu aż do pakowania. Zlecenie rozkłada się na elementy produktu. Każdy element idzie własną trasą przez etapy i w danej chwili leży w innym miejscu. Do etapów można wystawiać kontrole.
+
+## 2. Podjęte decyzje
+
+| Temat | Decyzja |
+|---|---|
+| Bufor | Wejściowy, stoi przed etapem. Element czeka tam na etap. |
+| Przepływ | Bufor etapu N, potem przejęcie etapu N przez pracownika (w realizacji), potem wpis na bufor etapu N+1. |
+| Elementy produktu | Szablon elementów i trasy per produkt (dopasowanie po nazwie z kodu QR) plus korekta przy zleceniu. |
+| Ilości | Same ilości, bez numerów sztuk. Wszystko może iść częściami (np. 3 z 6 szt.). |
+| Stary moduł | Nowy moduł wchodzi w miejsce Kontroli zamówień. Lista produkcyjna (Excel) i Kontrola Końcowa zostają. |
+| Kto wpisuje | Wspólne konto stanowiska (rola `produkcja`) i konta operatorów. Zawsze przy wpisie skanuje się plakietkę QR pracownika działu (`DepartmentEmployee`), także na koncie operatora. Sesja pracownika na urządzeniu jak w Liście produkcyjnej. |
+| Kontrola kroku | Administrator lub kontroler wystawia kontrolę w planie kontroli zlecenia (zaznacza etapy). Kontrola odbywa się na buforze danego etapu: kontrola "po etapie N" to kontrola przy wejściu na bufor etapu N+1, ilość czeka tam wstrzymana do wyniku. Operator nie decyduje. |
+| Kontrole doraźne | Kontroler może wystawić kontrolę w trakcie produkcji, doraźnie na dowolnym buforze (poza planem kontroli zlecenia). |
+| Blokada przez kontrolę | Kontrolowane są ilości. Etap może mieć ustawienie **"kontrola obowiązkowa"**. Na takim etapie do przejęcia przechodzą tylko ilości z wynikiem OK. Na pozostałych etapach ilość jest wolna, chyba że kontroler wystawił dla niej kontrolę (w planie lub doraźnie) i nie ma jeszcze wyniku OK. |
+| Wymuszenie przejęcia | Kontroler lub admin może wymusić przejęcie po potwierdzeniu. Operator nie może. Operator, który próbuje przejąć zablokowaną ilość, dostaje alert o braku możliwości przejęcia. Przy zablokowanej ilości operator ma przycisk **"Zleć decyzję"**, który zgłasza prośbę do kontrolera i admina (wniosek nie powstaje automatycznie, tylko po kliknięciu). Kontroler lub admin podejmują decyzję: wymusić przejęcie (po potwierdzeniu) albo odrzucić. Operator dostaje informację o decyzji. |
+| Punkty kontrolne | Obecna wspólna lista punktów jest przypisana do etapu Kontrola końcowa. Pozostałe etapy dostają własne listy (do utworzenia). |
+| Widoczność stanu | Stan produkcji (zlecenia, bufory, etapy) widzą wszyscy zalogowani, tylko do odczytu. |
+| Bufory | Nazwa, numer i kod bufora są edytowalne, ale **tylko w ustawieniach modułu** (Ustawienia produkcji), nigdzie indziej. |
+| Kod bufora i etykiety | QR i kod kreskowy na etykiecie zawierają sam kod bufora (np. `0001`, `A001`), bez przedrostka. Zmiana kodu unieważnia wydrukowaną etykietę (system ostrzega). Istnieje już 60 gotowych etykiet 50x100 mm (QR, Code128 i numer): kody `0001` do `0010` oraz `A001` do `E010` (katalog `D:\Dane\Desktop\KODY QR POLA`). System ma je od razu rozpoznawać. |
+| Etap a dział | Jeden dział na etap. Wycinanie dostaje nowy dział "Wycinanie" (pracownicy z Cięcia, Lasera i Wykrawarki są przenoszeni ręcznie, do tego potrzebna jest akcja "przenieś do działu"). Przygotowanie, Kompletacja i Pakowanie dostają nowe, puste działy. |
+| Ekrany etapów | Jedna strona "Etapy i bufory" w Ustawieniach produkcji: etapy w kolejności, przy każdym dział, maszyny i bufory. |
+| Edycja konfiguracji | Szablony produktów, etapy, maszyny, bufory i punkty kontrolne edytują admin i kontroler. Stan produkcji widzą wszyscy, w tym Zamawiający i Konstruktor, tylko do odczytu. |
+| Wycofanie wpisu | Admin i kontroler wycofują dowolny wpis. Operator wycofuje **tylko własny** wpis, bez limitu czasu. Przeniesienie między buforami zdejmuje ilość z poprzedniego bufora (nie zostaje w nim). |
+| Kontrola doraźna | Kontroler lub admin wybiera element i ilość objętą kontrolą. |
+| Tożsamość pracownika | Pracownik z działów (`DepartmentEmployee`, Ustawienia produkcji), a nie `ProdEmployee` z Listy produkcyjnej. Dla stanowiska potrzebna będzie plakietka QR dla pracowników działów (patrz etap 1 i 3). Przejęcie etapu jest ograniczone do pracowników działu przypisanego do etapu. |
+| Wynik NG | Raport QAR plus wstrzymanie ocenionej ilości na buforze, reszta zlecenia idzie dalej. Decyzję podejmuje kontroler lub admin (patrz 4f): zwolnić, zwrócić do wskazanego etapu do poprawki z ponowną kontrolą, albo zezłomować (wpis do archiwum, nowy element wpisywany od początku). |
+| Maszyna | Każdy etap z maszynami (lasery, wykrawarki, ewentualnie inne) wymaga wpisania, na której maszynie wykonano etap. Zapisywane przy przejęciu etapu i w historii. |
+| Zgrzewanie i spawanie | Dwa osobne etapy. Element może przejść jeden z nich albo oba (trasa elementu). |
+| Składanie | Zablokowane do uzyskania elementów, ale można składać częściowo: liczba sztuk wynika z elementów na buforze (patrz 4b). |
+| Ponowny skan | Skan zlecenia (ZO + produkt), które już istnieje, nie tworzy nowego, tylko pokazuje je wraz z buforem lub buforami, na których leży (patrz 4e). |
+| Powstanie zlecenia | Zlecenie powstaje przy pierwszym zeskanowaniu kodu QR zlecenia (ten sam kod `p`, `c`, `o`, `q`, który dziś tworzy listy w Kontroli Końcowej). Przy tym skanie rozkłada się na elementy z szablonu produktu. Bez ręcznego tworzenia. Produkt bez szablonu elementów: skan nie tworzy zlecenia, najpierw trzeba utworzyć szablon dla produktu (patrz 4d). |
+| Ilości elementów | Różne dla każdego elementu: szablon zawiera ilość elementu na sztukę produktu, a ilość wymagana dla zlecenia to q razy ta liczba. Można ją skorygować przy zleceniu. |
+| Poziomy etapów | Etapy od wycinania do **kompletacji** dotyczą elementów. Od **składania** zlecenie jest liczone w sztukach gotowego produktu: składanie zużywa elementy i tworzy sztuki produktu, kontrola końcowa i pakowanie dotyczą produktu (patrz 4g). |
+| Koniec zlecenia | Po kontroli końcowej ilość trafia na bufor Pakowania. Pracownik ją przejmuje i oznacza jako **"Spakowane"**. Gdy spakowano całe `q`, zlecenie ma status Zakończone. |
+| Korekta zlecenia | Tylko admin: zmiana ilości (nie poniżej już wpisanych), korekta elementów i tras w zleceniu oraz anulowanie całego zlecenia (z zachowaniem historii). Kontroler tego nie robi. |
+| Lista produkcyjna (Excel) | Nowy moduł działa osobno, bez zapisu do kolumn etapów w Liście produkcyjnej. |
+| Kontrola końcowa | "Ostatni bufor" to bufor etapu Kontrola końcowa. Pierwszy wpis zlecenia na ten bufor tworzy listę kontrolną Kontroli Końcowej (patrz 4c). |
+
+## 3. Etapy (nazwy i kolejność edytowalne)
+
+1. Wycinanie laserowe (2 lasery) i wykrawarki (2 wykrawarki)
+2. Gięcie (nie każdy element)
+3. Przygotowanie, pemowanie (nie każdy)
+4. Zgrzewanie (nie każdy)
+5. Spawanie (nie każdy)
+6. Szlifowanie, czyszczenie (nie każdy)
+7. Mycie (nie każdy)
+8. Malowanie (nie każdy)
+9. Kompletacja
+10. Składanie
+11. Kontrola końcowa
+12. Pakowanie
+
+Numeracja jest przykładowa i edytowalna. Zgrzewanie i spawanie są teraz osobnymi etapami.
+
+Etapy 1 do 9 (do kompletacji włącznie) dotyczą elementów, etapy 10 do 12 (składanie, kontrola końcowa, pakowanie) dotyczą gotowego produktu.
+
+Każdy etap ma własny bufor (może być więcej niż jeden, np. po jednym przy każdej maszynie).
+
+## 4. Szkic modelu danych
+
+- `ProductionStage`: nazwa, kolejność, aktywny, poziom (element lub produkt), flaga "kontrola obowiązkowa", powiązanie z jednym działem (`ProductionDepartment`), z którego pochodzą pracownicy etapu.
+- `Machine`: etap, nazwa (np. Laser 1, Wykrawarka 2), aktywna. Etap z maszynami wymaga wyboru maszyny przy przejęciu.
+- `Buffer`: etap (może być nieprzypisany: etykiety istnieją wcześniej niż przypisanie), nazwa, numer, kod (dokładnie to, co jest w QR i kodzie kreskowym etykiety, unikalny, bez spacji i wielkimi literami), aktywny. Wszystkie pola edytowalne tylko w ustawieniach.
+- `ProductTemplate` i `ProductComponent`: produkt (wzorzec nazwy), element, ilość na sztukę produktu (różna dla elementów), trasa (lista etapów).
+- `WorkOrder`: ZO, produkt, klient, ilość `q`, skąd (skan QR), status. Zastępuje `ControlRecord` jako "zlecenie".
+- `WorkOrderComponent`: element zlecenia, wymagana ilość (q razy ilość na sztukę), trasa (kopia z szablonu, edytowalna).
+- `StockPosition`: element zlecenia (lub gotowy produkt od składania), bufor lub stan "w realizacji", ilość, status (`ok`, `wstrzymane`, `do_poprawki`).
+- `Movement`: z, do, element, ilość, maszyna (gdy etap ją ma), pracownik (`DepartmentEmployee`), czas, typ (wpis, przejęcie, przeniesienie, cofnięcie). Pełna historia i podstawa rozliczenia.
+- `StageControl`: zlecenie, bufor (kontrola odbywa się na buforze etapu), rodzaj (plan zlecenia lub doraźna), ilość objęta kontrolą, punkty, wynik, powiązanie z QAR. Kontrola bez wyniku OK blokuje przejęcie.
+- `ScrapRecord` (archiwum zezłomowanych i powtórnie wykonanych elementów): zlecenie, element, ilość, etap, powód (z kontroli), kto i kiedy zezłomował, powiązanie z ponownym wykonaniem.
+- Punkty kontrolne `ControlPoint` przypisane do etapu (dziś jedna wspólna lista, która trafia do etapu Kontrola końcowa).
+
+Niezmiennik rozliczenia: dla elementu zlecenia suma ilości na buforach, w realizacji i na zakończonym etapie końcowym nie przekracza wymaganej ilości. Przeniesienie jest jedną transakcją (zdjęcie z A i dodanie do B).
+
+## 4a. Ustalenia doprecyzowujące
+
+- Kontrola jest wystawiana na zamówienie: admin lub kontroler zaznacza w planie kontroli zlecenia, na których etapach ma być kontrola. Odbywa się ona na buforze etapu, a kontrola "po etapie N" to kontrola na buforze N+1. Etap z ustawieniem "kontrola obowiązkowa" blokuje przejęcie bez wyniku OK niezależnie od planu.
+- Wynik NG wstrzymuje tylko ocenioną ilość. Decyzję o niej podejmuje kontroler lub admin (patrz 4f).
+
+## 4b. Kompletacja i składanie
+
+- Składanie nie może rozpocząć się, dopóki na buforze składania nie ma wymaganych elementów.
+- Liczba sztuk produktu, które można złożyć, to minimum po elementach z (ilość na buforze podzielona przez ilość elementu na sztukę), z zaokrągleniem w dół. Przykład: szafa wymaga 2 drzwi i 1 korpusu, są 5 drzwi i 3 korpusy, więc można złożyć 2 szafy.
+- System blokuje przejęcie składania na ilość większą niż wynika z powyższego wzoru. Składanie częściowe jest dozwolone (np. 2 z 6 szafy), ustalone 2026-10-17.
+
+## 4c. Kontrola końcowa
+
+- Ostatni bufor to bufor etapu Kontrola końcowa. Lista powstaje przy **pierwszym** wpisie na ten bufor, a kolejne wpisy tego samego zlecenia dopisują się do już utworzonej listy (nie tworzą nowych).
+- Mechanizm: istniejące tworzenie list Kontroli Końcowej (szablon dopasowany po nazwie produktu, klucz QR `produkt|klient|ZO`, seria wg ilości `q`).
+- Lista dotyczy **ilości wpisanej na bufor**, a nie całego `q`. Pierwszy wpis tworzy serię tylu list, ile sztuk wpisano. Kolejne wpisy dopisują do tej samej serii kolejne listy, **maksymalnie do ilości `q`** ze zlecenia. Numeracja serii to `i/q` (np. po pierwszym wpisie 3 sztuk: 1/6, 2/6, 3/6, po drugim wpisie 2 sztuk: 4/6, 5/6).
+- Na buforze Kontroli końcowej jednostką jest **sztuka gotowego produktu** (po składaniu), nie element. Wpis powyżej `q` łącznie jest blokowany.
+- Wymaga rozszerzenia istniejącego mechanizmu: dziś `from-qr` zawsze tworzy pełną serię `q` list naraz, więc potrzebna jest funkcja dopisywania do istniejącej serii (wspólny `batch_id`, rosnący `batch_index`, stałe `batch_total = q`).
+
+## 4d. Szablon produktu przy skanie
+
+- Skan kodu QR zlecenia, którego produkt nie ma szablonu elementów, nie tworzy zlecenia. Wyświetla komunikat z wymogiem utworzenia szablonu dla produktu.
+- Przycisk "Utwórz szablon" jest dostępny **tylko dla kontrolera i administratora** (od razu z komunikatu o braku szablonu). Stanowisko ze wspólnym kontem dostaje tylko komunikat, że szablon musi założyć kontroler.
+- Po utworzeniu szablonu ponowny skan tworzy zlecenie.
+
+## 4e. Ponowny skan zlecenia
+
+- Skan kodu QR zlecenia (para ZO + produkt, jak dziś w Kontroli zamówień, bez względu na wielkość liter i nadmiarowe spacje), które już jest w systemie, otwiera istniejące zlecenie.
+- Widok pokazuje, na którym buforze lub buforach leży każdy element i w jakiej ilości, ile jest w realizacji i ile ukończonych etapów.
+- Dopiero z tego widoku można wpisać ilość na bufor, przejąć etap lub przenieść ilość.
+- Nowe zlecenie powstaje wyłącznie wtedy, gdy pary ZO + produkt nie ma w systemie (i produkt ma szablon).
+
+## 4f. Decyzje o ilości z wynikiem NG
+
+Wstrzymana ilość czeka na decyzję kontrolera lub admina. Do wyboru:
+- **Zwolnij:** ilość wraca do obiegu jako OK (decyzja kontrolera, np. uwaga niekrytyczna).
+- **Zwróć do poprawki:** kontroler wskazuje etap, na który ilość wraca do wykonania. Po poprawce ilość przechodzi ponownie kontrolę (ponowna kontrola po poprawce).
+- **Zezłomuj:** element nie nadaje się do poprawki. Ilość trafia do archiwum elementów zezłomowanych i powtórnie wykonanych (`ScrapRecord`), wymagana ilość elementu wraca do uzupełnienia, a nowy element jest wpisywany od początku na bufor i przechodzi etapy jak każdy inny.
+
+Każda decyzja zostaje w historii (kto, kiedy, powód). Dostęp do archiwum: stan widzą wszyscy (jak reszta stanu produkcji).
+
+## 4g. Elementy i produkt, składanie jako przejście poziomu
+
+- Trasa elementu obejmuje etapy do kompletacji. Ilości elementów liczone są w sztukach elementów.
+- Składanie zużywa elementy z bufora składania (według wzoru z 4b) i tworzy sztuki gotowego produktu (`StockPosition` produktu). Od tego miejsca stan zlecenia liczony jest w sztukach produktu do `q`.
+- Kontrola końcowa i pakowanie operują na sztukach produktu (kontrola końcowa tworzy listy według 4c).
+
+## 4h. Zakończenie, korekta i anulowanie zlecenia
+
+- Pakowanie: pracownik przejmuje ilość z bufora Pakowania i oznacza ją jako "Spakowane". Spakowane całe `q` kończy zlecenie (status Zakończone).
+- Tylko admin zmienia ilości (nie poniżej już wpisanych), koryguje elementy i trasy w zleceniu oraz anuluje całe zlecenie. Anulowanie zachowuje historię ruchów.
+- Skan kodu QR anulowanego zlecenia pokazuje je jako anulowane i nie tworzy nowego.
+
+## 5. Plan działań (kolejność)
+
+1. **Fundament.** Edytowalne etapy i bufory w Ustawieniach produkcji, etykiety QR buforów (PDF), nowe tabele, migracja.
+2. **Elementy produktu.** Szablony elementów i tras per produkt, rozbicie zlecenia na elementy ze skanu QR (`p`, `c`, `o`, `q`), korekta elementów przy zleceniu.
+3. **Wpis na bufor.** Skan plakietki pracownika, skan bufora i zlecenia, wybór elementu i ilości.
+4. **Przejęcie i przeniesienie.** Przejęcie etapu z wyborem maszyny, wpis na bufor następnego etapu z trasy (pomijanie etapów spoza trasy), częściowe ilości, blokada składania do skompletowania elementów, cofanie błędnych wpisów, rozliczenie.
+5. **Kontrole etapów.** Punkty per etap, plan kontroli zlecenia, kolejka kontrolera, OK/NG, QAR, wstrzymanie, decyzje o ilościach z NG (zwolnienie, poprawka, złomowanie z archiwum). Automatyczne tworzenie listy Kontroli Końcowej po wpisie na ostatni bufor.
+6. **Śledzenie i widoki.** Macierz zlecenie, element i etap z ilościami. Widok bufora ("co leży"), historia ruchów, filtry, widok dla operatora.
+7. **Wycofanie Kontroli zamówień.** Migracja lub archiwizacja danych `ControlRecord`, usunięcie starego modułu, aktualizacja menu, ról i dokumentacji.
+
+Każdy krok: rozpoznanie, testy, akceptacja, commit, push, deploy.
+
+## 6. Pytania otwarte
+
+Wszystkie wcześniejsze pytania (do nr 20) są rozstrzygnięte i wpisane w sekcje 2 i 4. Ostatnia tura (2026-10-18) rozstrzygnęła: blokada tylko na etapach z kontrolą obowiązkową, kontrola "po etapie" na buforze następnego etapu, poziomy elementów i produktu, koniec zlecenia przez "Spakowane", trzy decyzje dla NG z archiwum złomu, zawsze plakietka pracownika, korekta i anulowanie tylko przez admina, Lista produkcyjna osobno.
+
+Rozstrzygnięte w ostatniej turze: korekty elementów, tras, ilości i anulowanie zlecenia tylko admin, stare dane Kontroli zamówień usuwamy z kopią bazy.
+
+Brak pytań otwartych. Nowe zadania i zmiany dopisujemy poniżej w miarę zgłaszania.
+
+## 7. Ryzyka
+
+- Największa zmiana struktury od początku projektu: nowy model zleceń zastępuje `ControlRecord`.
+- Praca na stanowisku wymaga szybkiego skanowania (kamera telefonu lub skaner ręczny), więc interfejs na telefon jest wymagany od pierwszej wersji.
+- Rozliczanie ilości przy częściowych przeniesieniach wymaga transakcji i testów obejmujących przypadki graniczne.
+
+## 8. Rozpis etapów realizacji
+
+Rozmiar: M (około dnia), L (kilka dni). Każdy etap kończy się wdrożeniem na serwer i jest używalny sam w sobie. Nowy moduł rozwijamy pod nowym adresem (np. `/produkcja-sledzenie`), a obecna Kontrola zamówień działa do etapu 8.
+
+### Etap 1. Fundament: etapy, maszyny, bufory (rozmiar M)
+
+Cel: administrator definiuje etapy produkcji, maszyny i bufory, a istniejące etykiety buforów są rozpoznawane.
+
+Zadania:
+- Modele `ProductionStage` (nazwa, kolejność, aktywny, poziom, kontrola obowiązkowa, dział), `Machine`, `Buffer`. Tabele przez `db.create_all()`, dodanie kolumny z tokenem do `department_employees` przez `ALTER` w `_migrate_schema()`.
+- Dane startowe (jednorazowo, bez nadpisywania): 12 etapów z sekcji 3, maszyny Laser 1, Laser 2, Wykrawarka 1, Wykrawarka 2 przy etapie Wycinanie, nowe działy Wycinanie, Przygotowanie, Kompletacja i Pakowanie, powiązanie etapów z działami po nazwie (Gięcie, Zgrzewanie, Spawanie, Czyszczenie, Mycie, Malarnia, Składanie, Kontrola Jakości).
+- Strona "Etapy i bufory" w Ustawieniach produkcji: edycja etapów (nazwa, kolejność, aktywny, dział, poziom, kontrola obowiązkowa), maszyn i buforów per etap.
+- Bufory: dodawanie pojedyncze i zbiorcze (zakres kodów, np. `A001` do `A010`, aby od razu wczytać 60 istniejących etykiet), przypisanie do etapu, edycja nazwy, numeru i kodu, unikalność kodu, ostrzeżenie przy zmianie kodu bufora z historią lub etykietą.
+- Wyszukiwanie bufora po kodzie (ten sam kod zeskanowany kamerą lub skanerem ręcznym, normalizacja bez spacji i wielkimi literami), przygotowane pod etap 3.
+- Akcja "przenieś do działu" dla pracowników działów (Dział i pracownicy), aby przenieść pracowników do działu Wycinanie.
+- Plakietki QR dla pracowników działów: token w `DepartmentEmployee` (generowany dla wszystkich istniejących osób przy migracji), wydruk pojedynczy i zbiorczy PDF (także per dział), unieważnienie przez "Nowy kod". Przedrostek kodu plakietki: `PSH-DEP:` (inny niż `PSH-EMP:` z Listy produkcyjnej, żeby kody się nie myliły).
+- Opcjonalny generator etykiet buforów PDF w formacie istniejących (50x100 mm: QR, Code128, numer) dla nowych buforów.
+- Menu: zakładki w Ustawieniach produkcji (Działy i pracownicy, Ścieżki produkcyjne, Etapy i bufory).
+
+Testy: dane startowe i ich idempotencja, CRUD etapów, maszyn i buforów, zbiorcze dodawanie zakresu kodów, unikalność i normalizacja kodu, wyszukiwanie bufora po kodzie, token plakietki i unieważnienie, przeniesienie pracownika, uprawnienia (admin i kontroler tak, pozostali nie), PDF zwraca plik.
+
+Akceptacja: wczytane 60 kodów z istniejących etykiet, bufor przypisany do etapu, plakietka pracownika działu wydrukowana i rozpoznawana po tokenie.
+
+### Etap 2. Elementy produktu i zlecenie (rozmiar L)
+
+Cel: skan kodu QR zlecenia tworzy zlecenie rozłożone na elementy z szablonu produktu.
+
+Zadania:
+- Modele `ProductTemplate`, `ProductComponent` (nazwa elementu, ilość na sztukę produktu, trasa jako uporządkowana lista etapów), `WorkOrder`, `WorkOrderComponent` (wymagana ilość = q razy ilość na sztukę, trasa jako edytowalna kopia).
+- Ekrany szablonów produktów w Ustawieniach produkcji: lista, tworzenie, edycja (elementy, ilości, trasy). Dopasowanie szablonu po nazwie produktu tym samym algorytmem tokenów, który już istnieje dla szablonów kontroli i ścieżek.
+- Skan QR zlecenia (`p`, `c`, `o`, `q`, parser z naprawą polskich znaków jak dziś): para ZO + produkt, istniejące zlecenie otwiera się (sekcja 4e), brak szablonu daje komunikat z przyciskiem "Utwórz szablon" tylko dla kontrolera i admina (sekcja 4d).
+- Widok zlecenia: elementy, wymagane ilości, trasy. Korekta elementów, tras i ilości oraz anulowanie zlecenia tylko przez admina (patrz 4h). Szablony produktów nadal edytują admin i kontroler.
+- Obecne ścieżki produkcyjne (`RoutingTemplate`) jako punkt wyjścia do tras elementów (opcjonalny jednorazowy import).
+
+Testy: tworzenie zlecenia ze skanu, powtórny skan, brak szablonu (dwie role), przeliczenie ilości, korekta elementów, dopasowanie po nazwie.
+
+Akceptacja: skan prawdziwego kodu QR zlecenia tworzy zlecenie z elementami i poprawnymi ilościami.
+
+### Etap 3. Wpis na bufor i stan buforów (rozmiar L)
+
+Cel: pracownik wpisuje ilość elementu zlecenia na bufor, system trzyma stan i historię.
+
+Zadania:
+- Modele `StockPosition` i `Movement`. Niezmiennik rozliczenia: suma ilości dla elementu nie przekracza wymaganej.
+- Stanowisko: skan plakietki pracownika działu (`DepartmentEmployee`, sesja na urządzeniu jak w `produkcja/scan.py`), skan bufora, skan zlecenia, wybór elementu i ilości. Wspólne konto stanowiska (rola `produkcja`) i konto operatora.
+- Walidacje: bufor musi należeć do etapu z trasy elementu (przy pierwszym wpisie do pierwszego etapu trasy), ilość od 1 do pozostałej niewpisanej.
+- Widok bufora ("co leży": zlecenie, element, ilość), widok zlecenia z położeniem elementów (sekcja 4e), widok tylko do odczytu dla wszystkich ról (pytanie 16).
+- Menu i dashboard dla ról stanowiska i operatora.
+
+Tożsamość pracownika w ruchach: `DepartmentEmployee` (ustalone).
+
+Testy: wpis poprawny, ilość ponad limit, zły etap, rozliczenie sum, odczyt przez role, historia ruchu.
+
+Akceptacja: na stanowisku da się wpisać zlecenie na bufor lasera i zobaczyć je w widoku bufora i zlecenia.
+
+### Etap 4. Przejęcie etapu i przenoszenie (rozmiar L)
+
+Cel: pełny cykl bufor, przejęcie, bufor następnego etapu, z maszyną i wycofaniem.
+
+Zadania:
+- Przejęcie etapu: zdjęcie ilości z bufora do stanu "w realizacji" (pracownik, czas), wybór maszyny wymagany dla etapów z maszynami.
+- Wpis po etapie na bufor następnego etapu trasy elementu (pomijanie etapów spoza trasy). Przeniesienie jest jedną transakcją.
+- Częściowe ilości na każdym kroku.
+- Kompletacja i składanie (sekcje 4b i 4g): limit sztuk do złożenia z elementów na buforze, składanie częściowe, blokada ponad limit, zużycie elementów i utworzenie sztuk gotowego produktu na buforze kolejnego etapu.
+- Wycofanie wpisu: admin i kontroler dowolny, operator tylko własny, bez limitu czasu. Nie wycofuje się wpisu, od którego odeszły dalsze ruchy.
+- Pakowanie: przejęcie ilości z bufora Pakowania i oznaczenie "Spakowane", status Zakończone po spakowaniu całego `q` (4h).
+- Alert dla operatora o braku możliwości przejęcia. Przycisk "Zleć decyzję" tworzy wniosek (`DecisionRequest`: zlecenie, element, bufor, ilość, kto zgłosił, status, kto i kiedy zdecydował, decyzja) z alertem dla kontrolera i admina.
+- Przejęcie etapu tylko dla pracowników działu przypisanego do etapu.
+
+Testy: pełna ścieżka elementu przez kilka etapów, pominięcie etapów spoza trasy, limit składania (przykład z 4b), wycofanie i jego ograniczenia, transakcyjność przeniesienia.
+
+Akceptacja: jeden element przechodzi od lasera do kompletacji, szafa składa się częściowo, wycofanie działa.
+
+### Etap 5. Kontrole etapów (rozmiar L)
+
+Cel: kontrole planowane i doraźne, blokada przejęcia, NG z QAR i wstrzymaniem.
+
+Zadania:
+- Modele `StageControl`, `DecisionRequest`, `ScrapRecord` i punkty kontrolne przypisane do etapu (obecna lista trafia do Kontroli końcowej, plus ekran edycji list per etap).
+- Plan kontroli zlecenia: admin i kontroler zaznaczają etapy objęte kontrolą. Kontrola odbywa się na buforze etapu (kontrola po etapie N to kontrola na buforze N+1). Flaga "kontrola obowiązkowa" na etapie działa niezależnie od planu.
+- Kontrola doraźna: kontroler na dowolnym buforze wskazuje element i ilość.
+- Kolejka kontrolera, ocena OK/NG per punkt, notatki.
+- Lista wniosków o decyzję (przyjęcie wymuszenia po potwierdzeniu lub odrzucenie), powiadomienie operatora o decyzji.
+- Kontrolowane są ilości. Tam, gdzie kontrola obowiązuje, do przejęcia przechodzą tylko ilości z wynikiem OK. Operator przy zablokowanej ilości dostaje alert o braku możliwości przejęcia. Kontroler lub admin może wymusić przejęcie po potwierdzeniu.
+- NG: raport QAR (istniejący mechanizm), wstrzymanie ocenionej ilości na buforze, decyzja kontrolera lub admina (4f): zwolnienie, zwrot do wskazanego etapu z ponowną kontrolą po poprawce, złomowanie.
+- Archiwum elementów zezłomowanych i powtórnie wykonanych: lista z filtrami, powiązanie z ponownym wykonaniem, nowy element wpisywany od początku.
+
+Testy: plan i kontrola doraźna, blokada i alert, NG tworzy QAR i wstrzymuje, zwolnienie partii, uprawnienia.
+
+Akceptacja: wystawiona kontrola blokuje przejęcie, wynik OK zwalnia, NG tworzy QAR i wstrzymuje.
+
+### Etap 6. Kontrola Końcowa automatycznie (rozmiar M)
+
+Cel: wpis na bufor etapu Kontrola końcowa tworzy listę Kontroli Końcowej (sekcja 4c).
+
+Zadania:
+- Funkcja dopisywania do serii list (wspólny `batch_id`, rosnący `batch_index`, stałe `batch_total` równe `q`), obok obecnego tworzenia pełnej serii.
+- Wyzwalacz: pierwszy wpis na bufor Kontroli końcowej tworzy serię na wpisaną ilość, kolejne wpisy dopisują do `q`, wpis ponad `q` blokowany.
+- Powiązanie listy ze zleceniem (klucz QR `produkt|klient|ZO`), wynik listy widoczny w widoku zlecenia.
+
+Testy: pierwszy wpis, dopisywanie do serii, limit `q`, spójność numeracji, produkt bez szablonu listy kontrolnej.
+
+Akceptacja: przykład z planu (q równe 6, wpis 3 szt., potem 2 szt.) daje listy 1/6 do 5/6.
+
+### Etap 7. Widoki śledzenia i raporty (rozmiar M)
+
+Cel: czytelny podgląd całej produkcji dla wszystkich ról.
+
+Zadania:
+- Macierz zlecenie, element i etap z ilościami (gotowe, w realizacji, na buforze, wstrzymane).
+- Filtry: zlecenie, klient, etap, bufor, status. Tabela na komputerze i karty na telefonie.
+- Historia ruchów zlecenia (kto, kiedy, maszyna, z którego bufora na który).
+- Dashboard: zlecenia w toku, wstrzymane, oczekujące kontrole.
+
+Testy: agregacje ilości, filtry, uprawnienia odczytu.
+
+### Etap 8. Wycofanie Kontroli zamówień i porządki (rozmiar M)
+
+Cel: nowy moduł oficjalnie zastępuje stary.
+
+Zadania:
+- Dane `ControlRecord` usuwamy razem z tabelami po wykonaniu kopii bazy na serwerze (jak przy Kontroli etapów). Raporty QAR utworzone z NG zostają.
+- Usunięcie modułu `/kontrola`, menu, rola Operator dostaje widok nowego modułu.
+- Aktualizacja CLAUDE.md, dokumentacji i planu.
+
+### Kolejność i zależności
+
+1, potem 2, potem 3, potem 4, potem 5 i 6 (6 zależy od 3 i 4, 5 od 4), potem 7, na końcu 8. Etapy 1 i 2 nie zmieniają dotychczasowej pracy w aplikacji, więc można je wdrażać bez ryzyka.

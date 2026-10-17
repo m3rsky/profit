@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block title %}Etapy i bufory – Ustawienia produkcji{% endblock %}
+
+{% block head %}
+<style>
+.st-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:1rem; margin-bottom:1rem; }
+.st-stage { margin-bottom:1rem; }
+.st-head { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; padding:.8rem 1rem; border-bottom:1px solid var(--border,#e2e8f0); }
+.st-num { font-weight:700; color:var(--text-muted,#64748b); min-width:1.6rem; }
+.st-form { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; flex:1; min-width:0; margin:0; }
+.st-form .form-control { width:auto; min-width:8rem; }
+.st-form .st-name { flex:1; min-width:11rem; }
+.st-chk { display:inline-flex; gap:.3rem; align-items:center; font-size:.85rem; white-space:nowrap; }
+.st-body { padding:.8rem 1rem; display:grid; grid-template-columns:minmax(240px, 1fr) minmax(320px, 2fr); gap:1.2rem; }
+@media (max-width: 900px) { .st-body { grid-template-columns:1fr; } }
+.st-sub { font-size:.78rem; text-transform:uppercase; letter-spacing:.03em; color:var(--text-muted,#64748b); margin:0 0 .4rem; }
+.st-row { display:flex; gap:.4rem; align-items:center; flex-wrap:wrap; padding:.3rem 0; border-bottom:1px dashed var(--border,#e2e8f0); }
+.st-row form { margin:0; display:flex; gap:.35rem; align-items:center; flex-wrap:wrap; }
+.st-row .form-control { width:auto; min-width:0; padding:.25rem .4rem; font-size:.88rem; }
+.st-code { width:7rem !important; font-weight:700; text-transform:uppercase; }
+.st-off { opacity:.55; }
+.st-muted { color:var(--text-muted,#64748b); font-size:.85rem; }
+.st-pill { font-size:.75rem; padding:.1rem .5rem; border-radius:999px; background:var(--blue-bg,#eff6ff); }
+.st-move { display:flex; flex-direction:column; gap:2px; }
+.st-move form { margin:0; }
+</style>
+{% endblock %}
+
+{% macro buffer_row(b, stages) %}
+<div class="st-row {% if not b.is_active %}st-off{% endif %}">
+  <form method="post" action="{{ url_for('ustawienia.buffer_save', buffer_id=b.id) }}">
+    {{ csrf_input() }}
+    <input type="text" name="code" class="form-control st-code" value="{{ b.code }}" maxlength="64" required title="Kod z etykiety (QR i kod kreskowy)">
+    <input type="text" name="name" class="form-control" value="{{ b.name or '' }}" maxlength="128" placeholder="Nazwa" style="width:9rem;">
+    <input type="text" name="number" class="form-control" value="{{ b.number or '' }}" maxlength="32" placeholder="Numer" style="width:5rem;">
+    <select name="stage_id" class="form-control" title="Etap">
+      <option value="">bez etapu</option>
+      {% for s in stages %}<option value="{{ s.id }}" {% if b.stage_id == s.id %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
+    </select>
+    <label class="st-chk"><input type="checkbox" name="is_active" value="1" {% if b.is_active %}checked{% endif %}> aktywny</label>
+    <button type="submit" class="btn btn-secondary btn-sm" title="Zapisz"><i class="bi bi-save"></i></button>
+  </form>
+  <a class="btn btn-outline btn-sm" href="{{ url_for('ustawienia.buffer_labels', ids=b.id) }}" title="Etykieta PDF 50x100"><i class="bi bi-printer"></i></a>
+  <form method="post" action="{{ url_for('ustawienia.buffer_delete', buffer_id=b.id) }}"
+        onsubmit="return confirm('Usunąć bufor {{ b.code }}?')">
+    {{ csrf_input() }}
+    <button type="submit" class="btn btn-danger btn-sm" title="Usuń"><i class="bi bi-trash"></i></button>
+  </form>
+</div>
+{% endmacro %}
+
+{% block content %}
+{% include 'ustawienia/_tabs.html' %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-boxes"></i> Etapy i bufory</h1>
+    <span class="text-muted" style="font-size:0.82rem;">
+      Etapy produkcji, maszyny i bufory. Kod bufora to tekst z etykiety (QR i kod kreskowy). Zmiana kodu unieważnia wydrukowaną etykietę.
+    </span>
+  </div>
+  <div class="page-header-actions">
+    {% if total_buffers %}
+    <a href="{{ url_for('ustawienia.buffer_labels') }}" class="btn btn-outline">
+      <i class="bi bi-printer"></i> Etykiety wszystkich buforów (PDF)</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="st-grid">
+  <div class="card">
+    <div class="card-header">Dodaj etap</div>
+    <div class="card-body">
+      <form method="post" action="{{ url_for('ustawienia.stage_add') }}" class="st-form">
+        {{ csrf_input() }}
+        <input type="text" name="name" class="form-control st-name" maxlength="64" placeholder="Nazwa etapu" required>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Dodaj</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">Dodaj bufor</div>
+    <div class="card-body">
+      <form method="post" action="{{ url_for('ustawienia.buffer_add') }}" class="st-form">
+        {{ csrf_input() }}
+        <input type="text" name="code" class="form-control" maxlength="64" placeholder="Kod, np. A001" required style="max-width:8rem;">
+        <input type="text" name="name" class="form-control" maxlength="128" placeholder="Nazwa (opcjonalnie)">
+        <input type="text" name="number" class="form-control" maxlength="32" placeholder="Numer" style="max-width:6rem;">
+        <select name="stage_id" class="form-control">
+          <option value="">bez etapu</option>
+          {% for s in stages %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+        </select>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Dodaj</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">Dodaj zakres buforów</div>
+    <div class="card-body">
+      <p class="st-muted" style="margin-top:0;">Do wczytania istniejących etykiet, np. od <strong>A001</strong> do <strong>A010</strong> albo od <strong>0001</strong> do <strong>0010</strong>. Kody już istniejące są pomijane.</p>
+      <form method="post" action="{{ url_for('ustawienia.buffer_range') }}" class="st-form">
+        {{ csrf_input() }}
+        <input type="text" name="from_code" class="form-control" maxlength="64" placeholder="od, np. A001" required style="max-width:7rem;">
+        <input type="text" name="to_code" class="form-control" maxlength="64" placeholder="do, np. A010" required style="max-width:7rem;">
+        <select name="stage_id" class="form-control">
+          <option value="">bez etapu</option>
+          {% for s in stages %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+        </select>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-collection"></i> Dodaj zakres</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% for stage in stages %}
+{% set machines = stage.machines.all() %}
+{% set buffers = stage.buffers.all() %}
+<div class="card st-stage {% if not stage.is_active %}st-off{% endif %}">
+  <div class="st-head">
+    <div class="st-move">
+      <form method="post" action="{{ url_for('ustawienia.stage_move', stage_id=stage.id, direction='up') }}">
+        {{ csrf_input() }}<button type="submit" class="btn btn-outline btn-xs" title="W górę" {% if loop.first %}disabled{% endif %}><i class="bi bi-chevron-up"></i></button></form>
+      <form method="post" action="{{ url_for('ustawienia.stage_move', stage_id=stage.id, direction='down') }}">
+        {{ csrf_input() }}<button type="submit" class="btn btn-outline btn-xs" title="W dół" {% if loop.last %}disabled{% endif %}><i class="bi bi-chevron-down"></i></button></form>
+    </div>
+    <span class="st-num">{{ loop.index }}.</span>
+    <form method="post" action="{{ url_for('ustawienia.stage_save', stage_id=stage.id) }}" class="st-form">
+      {{ csrf_input() }}
+      <input type="text" name="name" class="form-control st-name" value="{{ stage.name }}" maxlength="64" required>
+      <select name="department_id" class="form-control" title="Dział, z którego pochodzą pracownicy etapu">
+        <option value="">bez działu</option>
+        {% for d in departments %}<option value="{{ d.id }}" {% if stage.department_id == d.id %}selected{% endif %}>{{ d.name }}</option>{% endfor %}
+        {% if stage.department and not stage.department.is_active %}<option value="{{ stage.department_id }}" selected>{{ stage.department.name }} (nieaktywny)</option>{% endif %}
+      </select>
+      <select name="level" class="form-control" title="Poziom: element lub gotowy produkt">
+        <option value="element" {% if stage.level == 'element' %}selected{% endif %}>Element</option>
+        <option value="produkt" {% if stage.level == 'produkt' %}selected{% endif %}>Produkt</option>
+      </select>
+      <label class="st-chk" title="Przejęcie etapu tylko dla ilości z wynikiem OK"><input type="checkbox" name="control_required" value="1" {% if stage.control_required %}checked{% endif %}> kontrola obowiązkowa</label>
+      <label class="st-chk"><input type="checkbox" name="is_active" value="1" {% if stage.is_active %}checked{% endif %}> aktywny</label>
+      <button type="submit" class="btn btn-secondary btn-sm"><i class="bi bi-save"></i> Zapisz</button>
+    </form>
+    <form method="post" action="{{ url_for('ustawienia.stage_delete', stage_id=stage.id) }}" style="margin:0;"
+          onsubmit="return confirm('Usunąć etap {{ stage.name }}?')">
+      {{ csrf_input() }}
+      <button type="submit" class="btn btn-danger btn-sm" title="Usuń etap"><i class="bi bi-trash"></i></button>
+    </form>
+  </div>
+
+  <div class="st-body">
+    <div>
+      <p class="st-sub">Maszyny ({{ machines|length }})</p>
+      {% for m in machines %}
+      <div class="st-row {% if not m.is_active %}st-off{% endif %}">
+        <form method="post" action="{{ url_for('ustawienia.machine_save', machine_id=m.id) }}">
+          {{ csrf_input() }}
+          <input type="text" name="name" class="form-control" value="{{ m.name }}" maxlength="64" required style="width:10rem;">
+          <label class="st-chk"><input type="checkbox" name="is_active" value="1" {% if m.is_active %}checked{% endif %}> aktywna</label>
+          <button type="submit" class="btn btn-secondary btn-sm" title="Zapisz"><i class="bi bi-save"></i></button>
+        </form>
+        <form method="post" action="{{ url_for('ustawienia.machine_delete', machine_id=m.id) }}"
+              onsubmit="return confirm('Usunąć maszynę {{ m.name }}?')">
+          {{ csrf_input() }}
+          <button type="submit" class="btn btn-danger btn-sm" title="Usuń"><i class="bi bi-trash"></i></button>
+        </form>
+      </div>
+      {% else %}
+      <p class="st-muted">Brak maszyn. Etap bez maszyn nie wymaga ich wyboru.</p>
+      {% endfor %}
+      <form method="post" action="{{ url_for('ustawienia.machine_add') }}" class="st-form" style="margin-top:.5rem;">
+        {{ csrf_input() }}
+        <input type="hidden" name="stage_id" value="{{ stage.id }}">
+        <input type="text" name="name" class="form-control" maxlength="64" placeholder="Nowa maszyna" required style="min-width:7rem;">
+        <button type="submit" class="btn btn-outline btn-sm"><i class="bi bi-plus-lg"></i> Dodaj</button>
+      </form>
+    </div>
+
+    <div>
+      <p class="st-sub">Bufory ({{ buffers|length }})
+        {% if buffers %}<a class="st-pill" href="{{ url_for('ustawienia.buffer_labels', stage_id=stage.id) }}" style="margin-left:.4rem;text-decoration:none;"><i class="bi bi-printer"></i> etykiety etapu</a>{% endif %}
+      </p>
+      {% for b in buffers %}{{ buffer_row(b, stages) }}{% else %}
+      <p class="st-muted">Brak buforów. Dodaj bufor lub zakres kodów powyżej albo przypisz bufor bez etapu.</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="card"><div class="card-body card-body--empty">Brak etapów. Dodaj pierwszy powyżej.</div></div>
+{% endfor %}
+
+{% if unassigned %}
+<div class="card st-stage">
+  <div class="st-head"><strong>Bufory bez etapu ({{ unassigned|length }})</strong>
+    <a class="st-pill" href="{{ url_for('ustawienia.buffer_labels', ids=unassigned|map(attribute='id')|join(',')) }}" style="text-decoration:none;"><i class="bi bi-printer"></i> etykiety</a></div>
+  <div class="st-body" style="grid-template-columns:1fr;">
+    <div>{% for b in unassigned %}{{ buffer_row(b, stages) }}{% endfor %}</div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

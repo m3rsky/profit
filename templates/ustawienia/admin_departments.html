@@ -6,14 +6,15 @@
 {% endblock %}
 
 {% block content %}
+{% include 'ustawienia/_tabs.html' %}
 <div class="page-header">
   <h1 class="page-title"><i class="bi bi-people"></i> Działy i pracownicy</h1>
   <div class="page-header-actions">
     {% if departments %}
     <span class="drag-hint"><i class="bi bi-arrows-expand-vertical"></i> Przeciągnij wiersze by zmienić kolejność</span>
     {% endif %}
-    <a href="{{ url_for('ustawienia.admin_routing_templates') }}" class="btn btn-outline">
-      <i class="bi bi-diagram-3"></i> Ścieżki produkcyjne
+    <a href="{{ url_for('ustawienia.employee_badges') }}" class="btn btn-outline">
+      <i class="bi bi-person-badge"></i> Plakietki wszystkich (PDF)
     </a>
   </div>
 </div>
@@ -66,6 +67,11 @@
               <a href="{{ url_for('ustawienia.admin_employees', dept_id=dept.id) }}" class="btn btn-sm btn-outline" title="Pracownicy">
                 <i class="bi bi-people"></i> <span class="btn-label">Pracownicy</span> ({{ dept.employees.count() }})
               </a>
+              {% if dept.employees.count() %}
+              <a href="{{ url_for('ustawienia.employee_badges', dept_id=dept.id) }}" class="btn btn-sm btn-outline" title="Plakietki działu (PDF)">
+                <i class="bi bi-person-badge"></i>
+              </a>
+              {% endif %}
               <form method="post" class="form-inline">
                 {{ csrf_input() }}
                 <input type="hidden" name="action" value="toggle">

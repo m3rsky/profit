@@ -1,0 +1,19 @@
+{# Zakładki Ustawień produkcji #}
+{% set ep = request.endpoint or '' %}
+<nav class="us-tabs" aria-label="Ustawienia produkcji">
+  <a href="{{ url_for('ustawienia.admin_departments') }}"
+     class="{% if ep in ('ustawienia.admin_departments', 'ustawienia.admin_employees') %}active{% endif %}">
+    <i class="bi bi-people"></i> Działy i pracownicy</a>
+  <a href="{{ url_for('ustawienia.admin_routing_templates') }}"
+     class="{% if ep in ('ustawienia.admin_routing_templates', 'ustawienia.new_routing_template', 'ustawienia.edit_routing_template') %}active{% endif %}">
+    <i class="bi bi-diagram-3"></i> Ścieżki produkcyjne</a>
+  <a href="{{ url_for('ustawienia.stages') }}"
+     class="{% if ep == 'ustawienia.stages' %}active{% endif %}">
+    <i class="bi bi-boxes"></i> Etapy i bufory</a>
+</nav>
+<style>
+.us-tabs { display:flex; gap:.4rem; margin:0 0 1rem; overflow-x:auto; padding-bottom:.35rem; }
+.us-tabs a { display:inline-flex; align-items:center; gap:.4rem; padding:.5rem .9rem; border-radius:999px; white-space:nowrap;
+  border:1px solid var(--border,#e2e8f0); color:inherit; text-decoration:none; font-size:.9rem; flex:0 0 auto; }
+.us-tabs a.active { background:var(--blue-bg,#eff6ff); border-color:var(--progress-blue,#2563eb); color:var(--progress-blue,#2563eb); font-weight:600; }
+</style>

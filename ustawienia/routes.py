@@ -172,7 +172,10 @@ def admin_employees(dept_id):
         return redirect(url_for('ustawienia.admin_employees', dept_id=dept.id))
 
     employees = DepartmentEmployee.query.filter_by(department_id=dept.id).order_by(DepartmentEmployee.name).all()
-    return render_template('ustawienia/admin_employees.html', department=dept, employees=employees)
+    departments = ProductionDepartment.query.order_by(ProductionDepartment.order,
+                                                      ProductionDepartment.name).all()
+    return render_template('ustawienia/admin_employees.html', department=dept, employees=employees,
+                           departments=departments)
 
 
 # ── Admin: ścieżki produkcyjne ────────────────────────────────────────────────
