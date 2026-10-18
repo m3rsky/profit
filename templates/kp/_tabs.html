@@ -4,6 +4,9 @@
   <a href="{{ url_for('kp.list_orders') }}"
      class="{% if ep in ('kp.list_orders', 'kp.order_detail', 'kp.scan_page') %}active{% endif %}">
     <i class="bi bi-diagram-2"></i> Zlecenia</a>
+  <a href="{{ url_for('kp.controls_list') }}"
+     class="{% if ep in ('kp.controls_list', 'kp.control_detail') %}active{% endif %}">
+    <i class="bi bi-clipboard-check"></i> Kontrole{% if kp_pending_controls() %} <span class="badge badge-warning">{{ kp_pending_controls() }}</span>{% endif %}</a>
   <a href="{{ url_for('kp.buffers') }}"
      class="{% if ep in ('kp.buffers', 'kp.buffer_detail') %}active{% endif %}">
     <i class="bi bi-boxes"></i> Bufory</a>

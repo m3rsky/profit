@@ -3359,7 +3359,9 @@ def init_db():
         _seed_kosztorys()
         _seed_zadania_qa()
         _seed_departments()
+        _migrate_stock_positions()
         _seed_stages()
+        _seed_stage_control_points()
         _backfill_department_tokens()
         _seed_qar_categories()
         db.session.commit()
@@ -3532,11 +3534,21 @@ def _migrate_schema():
                 ('movements', 'stage_id', 'ALTER TABLE movements ADD COLUMN stage_id INTEGER REFERENCES production_stages(id)'),
                 ('movements', 'machine_id', 'ALTER TABLE movements ADD COLUMN machine_id INTEGER REFERENCES machines(id)'),
                 ('movements', 'group_id', 'ALTER TABLE movements ADD COLUMN group_id VARCHAR(32)'),
-                ('movements', 'wip_id', 'ALTER TABLE movements ADD COLUMN wip_id INTEGER')):
+                ('movements', 'wip_id', 'ALTER TABLE movements ADD COLUMN wip_id INTEGER'),
+                ('movements', 'control_id', 'ALTER TABLE movements ADD COLUMN control_id INTEGER'),
+                ('movements', 'wait_stage_id', 'ALTER TABLE movements ADD COLUMN wait_stage_id INTEGER REFERENCES production_stages(id)'),
+                ('stage_controls', 'wait_stage_id', 'ALTER TABLE stage_controls ADD COLUMN wait_stage_id INTEGER REFERENCES production_stages(id)')):
             if tbl in insp.get_table_names():
                 if col not in [c['name'] for c in insp.get_columns(tbl)]:
                     conn.execute(text(ddl))
                     conn.commit()
+        if 'stock_positions' in insp.get_table_names() and 'stage_id' not in [
+                c['name'] for c in insp.get_columns('stock_positions')]:
+            # Etap przechodzi z bufora na ilość: tabela pozycji ma nowy klucz unikalny, więc jest
+            # budowana od nowa, a wiersze wracają w _migrate_stock_positions() po create_all().
+            conn.execute(text('DROP TABLE IF EXISTS stock_positions_old'))
+            conn.execute(text('ALTER TABLE stock_positions RENAME TO stock_positions_old'))
+            conn.commit()
         if 'product_components' in insp.get_table_names():
             # Ilość na sztukę przeniesiona z szablonu na zlecenie (tabela istniała tylko w wersjach deweloperskich).
             cols = [c['name'] for c in insp.get_columns('product_components')]
@@ -4352,6 +4364,36 @@ def _seed_stages():
         if i == 1:
             for m in _DEFAULT_MACHINES:
                 db.session.add(Machine(stage_id=stage.id, name=m))
+
+
+def _migrate_stock_positions():
+    """Przenosi pozycje ze starej tabeli (bufor przypisany do etapu) do nowej: etap bufora staje się etapem,
+    na który ilość czeka, a przypisanie etapu do bufora jest czyszczone."""
+    from sqlalchemy import inspect, text
+    if 'stock_positions_old' not in inspect(db.engine).get_table_names():
+        return
+    with db.engine.begin() as conn:
+        conn.execute(text(
+            'INSERT INTO stock_positions (component_id, buffer_id, stage_id, quantity, status, updated_at) '
+            'SELECT o.component_id, o.buffer_id, b.stage_id, o.quantity, o.status, o.updated_at '
+            'FROM stock_positions_old o LEFT JOIN buffers b ON b.id = o.buffer_id'))
+        conn.execute(text('DROP TABLE stock_positions_old'))
+        conn.execute(text('UPDATE buffers SET stage_id = NULL'))
+
+
+def _seed_stage_control_points():
+    """Jednorazowo kopiuje punkty kontrolne ze starego modułu Kontrola zamówień do etapu Kontrola
+    końcowa (etap 5 planu). Gdy punkty etapów już istnieją albo brak etapu, nic nie robi."""
+    from models import ControlPoint, StageControlPoint
+    if StageControlPoint.query.first():
+        return
+    stage = ProductionStage.query.filter(func.lower(ProductionStage.name) == 'kontrola końcowa').first()
+    if stage is None:
+        return
+    for i, cp in enumerate(ControlPoint.query.filter_by(is_active=True)
+                           .order_by(ControlPoint.order, ControlPoint.id).all(), 1):
+        db.session.add(StageControlPoint(stage_id=stage.id, order=i, title=cp.title,
+                                         description=cp.description))
 
 
 def _backfill_department_tokens():

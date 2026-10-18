@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Punkty kontrolne – {{ stage.name }}{% endblock %}
+
+{% block head %}
+<style>
+.sp-pt { display:flex; gap:.6rem; align-items:flex-start; padding:.9rem 1rem; flex-wrap:wrap; }
+.sp-pt + .sp-pt { border-top:1px solid var(--border,#e2e8f0); }
+.sp-pt-move { display:flex; flex-direction:column; gap:2px; }
+.sp-pt-move form { margin:0; }
+.sp-pt-main { flex:1; min-width:240px; display:flex; flex-direction:column; gap:.4rem; }
+.sp-pt-foot { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; }
+.sp-pt-off { opacity:.6; }
+.sp-pt-del { margin:0; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% include 'ustawienia/_tabs.html' %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-list-check"></i> Punkty kontrolne: {{ stage.name }}</h1>
+    <span class="text-muted" style="font-size:0.82rem;">
+      Lista punktów, które kontroler ocenia (OK lub NG) przy kontroli ilości na buforze tego etapu. Wykonane kontrole zachowują własną kopię tytułów.
+    </span>
+  </div>
+  <div class="page-header-actions">
+    <a href="{{ url_for('ustawienia.stages') }}" class="btn btn-outline"><i class="bi bi-arrow-left"></i> Etapy i bufory</a>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:1rem;">
+  <div class="card-body">
+    <form method="post" action="{{ url_for('ustawienia.stage_point_add', stage_id=stage.id) }}" class="sp-pt-main" style="padding:0;">
+      {{ csrf_input() }}
+      <label class="form-label" for="new-title">Nowy punkt</label>
+      <input type="text" id="new-title" name="title" class="form-control" maxlength="256" placeholder="np. Zgodność wymiarów z rysunkiem" required>
+      <textarea name="description" class="form-control" rows="2" placeholder="Opis lub wskazówka dla kontrolera (opcjonalnie)"></textarea>
+      <div><button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Dodaj punkt</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body" style="padding:0;">
+    {% for p in points %}
+    <div class="sp-pt {% if not p.is_active %}sp-pt-off{% endif %}">
+      <div class="sp-pt-move">
+        <form method="post" action="{{ url_for('ustawienia.stage_point_move', point_id=p.id, direction='up') }}">
+          {{ csrf_input() }}<button type="submit" class="btn btn-outline btn-sm" title="W górę" {% if loop.first %}disabled{% endif %}><i class="bi bi-chevron-up"></i></button></form>
+        <form method="post" action="{{ url_for('ustawienia.stage_point_move', point_id=p.id, direction='down') }}">
+          {{ csrf_input() }}<button type="submit" class="btn btn-outline btn-sm" title="W dół" {% if loop.last %}disabled{% endif %}><i class="bi bi-chevron-down"></i></button></form>
+      </div>
+      <form method="post" action="{{ url_for('ustawienia.stage_point_save', point_id=p.id) }}" class="sp-pt-main">
+        {{ csrf_input() }}
+        <input type="text" name="title" class="form-control" maxlength="256" value="{{ p.title }}" required>
+        <textarea name="description" class="form-control" rows="2" placeholder="Opis (opcjonalnie)">{{ p.description or '' }}</textarea>
+        <div class="sp-pt-foot">
+          <label><input type="checkbox" name="is_active" value="1" {% if p.is_active %}checked{% endif %}> Aktywny</label>
+          <button type="submit" class="btn btn-secondary btn-sm"><i class="bi bi-save"></i> Zapisz</button>
+        </div>
+      </form>
+      <form method="post" action="{{ url_for('ustawienia.stage_point_delete', point_id=p.id) }}" class="sp-pt-del"
+            onsubmit="return confirm('Usunąć punkt {{ p.title }}? Wykonane kontrole zachowują jego kopię.')">
+        {{ csrf_input() }}
+        <button type="submit" class="btn btn-danger btn-sm" title="Usuń"><i class="bi bi-trash"></i></button>
+      </form>
+    </div>
+    {% else %}
+    <div class="sp-pt text-muted">Brak punktów. Etap bez punktów ma kontrolę samej ilości zgodnej i niezgodnej.</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

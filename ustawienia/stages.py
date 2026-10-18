@@ -46,10 +46,10 @@ def _stage_or_none(raw):
 def stages():
     departments = ProductionDepartment.query.filter_by(is_active=True).order_by(
         ProductionDepartment.order, ProductionDepartment.name).all()
-    unassigned = Buffer.query.filter(Buffer.stage_id.is_(None)).order_by(Buffer.code).all()
+    all_buffers = Buffer.query.order_by(Buffer.code).all()
     return render_template('ustawienia/stages.html', stages=_stage_ordered(),
-                           departments=departments, unassigned=unassigned,
-                           total_buffers=Buffer.query.count())
+                           departments=departments, buffers=all_buffers,
+                           total_buffers=len(all_buffers))
 
 
 # ── Etapy ─────────────────────────────────────────────────────────────────────
@@ -115,13 +115,14 @@ def stage_move(stage_id, direction):
 @settings_required
 def stage_delete(stage_id):
     stage = get_or_404(ProductionStage, stage_id)
-    if stage.machines.count() or stage.buffers.count():
-        flash(f'Nie można usunąć etapu „{stage.name}”: ma maszyny lub bufory. '
+    if stage.machines.count():
+        flash(f'Nie można usunąć etapu „{stage.name}”: ma maszyny. '
               f'Usuń je albo dezaktywuj etap.', 'warning')
         return _back()
-    from models import Movement, WorkInProgress
-    if (Movement.query.filter_by(stage_id=stage.id).first()
-            or WorkInProgress.query.filter_by(stage_id=stage.id).first()):
+    from models import Movement, StockPosition, WorkInProgress
+    if (Movement.query.filter((Movement.stage_id == stage.id) | (Movement.wait_stage_id == stage.id)).first()
+            or WorkInProgress.query.filter_by(stage_id=stage.id).first()
+            or StockPosition.query.filter_by(stage_id=stage.id).first()):
         flash(f'Nie można usunąć etapu „{stage.name}”: ma historię przejęć lub ilości w realizacji. '
               f'Dezaktywuj etap.', 'warning')
         return _back()
@@ -218,8 +219,7 @@ def buffer_add():
         flash(err, 'warning')
         return _back()
     b = Buffer(code=code, name=request.form.get('name', '').strip()[:128] or None,
-               number=request.form.get('number', '').strip()[:32] or None,
-               stage_id=_stage_or_none(request.form.get('stage_id')))
+               number=request.form.get('number', '').strip()[:32] or None)
     db.session.add(b)
     db.session.commit()
     _audit('ustawienia_buffer_add', 'Buffer', b.id, code)
@@ -246,7 +246,6 @@ def buffer_range():
     if end < start or end - start + 1 > MAX_RANGE:
         flash(f'Zakres musi być rosnący i liczyć najwyżej {MAX_RANGE} kodów.', 'warning')
         return _back()
-    stage_id = _stage_or_none(request.form.get('stage_id'))
     existing = {c for (c,) in db.session.query(Buffer.code).all()}
     created = skipped = 0
     for n in range(start, end + 1):
@@ -254,7 +253,7 @@ def buffer_range():
         if code in existing:
             skipped += 1
             continue
-        db.session.add(Buffer(code=code, stage_id=stage_id))
+        db.session.add(Buffer(code=code))
         created += 1
     db.session.commit()
     _audit('ustawienia_buffer_range', 'Buffer', None,
@@ -275,15 +274,10 @@ def buffer_save(buffer_id):
     if err:
         flash(err, 'warning')
         return _back()
-    new_stage_id = _stage_or_none(request.form.get('stage_id'))
-    if new_stage_id != b.stage_id and any(p.quantity > 0 for p in b.positions):
-        flash(f'Na buforze {b.code} leżą elementy, więc nie można zmienić jego etapu.', 'warning')
-        return _back()
     old_code = b.code
     b.code = code
     b.name = request.form.get('name', '').strip()[:128] or None
     b.number = request.form.get('number', '').strip()[:32] or None
-    b.stage_id = new_stage_id
     b.is_active = request.form.get('is_active') == '1'
     db.session.commit()
     _audit('ustawienia_buffer_edit', 'Buffer', b.id, f'{old_code} -> {code}' if old_code != code else code)
@@ -321,8 +315,7 @@ def buffer_lookup():
     if not b:
         return jsonify({'ok': False, 'error': 'Nie znaleziono bufora o tym kodzie'}), 404
     return jsonify({'ok': True, 'id': b.id, 'code': b.code, 'name': b.display_name,
-                    'number': b.number, 'active': b.is_active,
-                    'stage': {'id': b.stage.id, 'name': b.stage.name} if b.stage else None})
+                    'number': b.number, 'active': b.is_active})
 
 
 # ── Etykiety PDF (50x100 mm) ──────────────────────────────────────────────────
@@ -331,13 +324,11 @@ def buffer_lookup():
 @login_required
 @settings_required
 def buffer_labels():
-    """Etykiety: `?ids=1,2,3`, `?stage_id=N` albo wszystkie bufory."""
+    """Etykiety: `?ids=1,2,3` albo wszystkie bufory."""
     q = Buffer.query
     ids = [int(x) for x in request.args.get('ids', '').split(',') if x.strip().isdigit()]
     if ids:
         q = q.filter(Buffer.id.in_(ids))
-    elif request.args.get('stage_id', type=int):
-        q = q.filter(Buffer.stage_id == request.args.get('stage_id', type=int))
     buffers = q.order_by(Buffer.code).all()
     if not buffers:
         abort(404)

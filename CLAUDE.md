@@ -62,7 +62,7 @@ Przykład formatu:
 ## Informacje o projekcie
 
 - **Stack:** Python 3.14 (lokalnie, `venv`), Flask 3.0.3, Flask-SQLAlchemy 3.1.1, Flask-Login, Flask-WTF, SQLite. Pełna lista w `requirements.txt`.
-- **Testy:** `.\venv\Scripts\python.exe -m pytest tests/ -v` - 352 testy w `tests/` (m.in. `test_app.py`, `test_kontrola.py`, `test_api_v1.py`, `test_briefing.py`, `test_dokumentacja.py`, `test_installer_stats.py`, `test_marszruta.py`, `test_produkcja.py`, `test_produkcja_stanowisko.py`, `test_qar_employee.py`, `test_qar_from_checklist.py`, `test_zadania_qa.py`), wszystkie muszą przejść. Współdzielone fixture'y są w `tests/conftest.py`.
+- **Testy:** `.\venv\Scripts\python.exe -m pytest tests/ -v` - 388 testów w `tests/` (m.in. `test_app.py`, `test_kontrola.py`, `test_api_v1.py`, `test_briefing.py`, `test_dokumentacja.py`, `test_installer_stats.py`, `test_marszruta.py`, `test_produkcja.py`, `test_produkcja_stanowisko.py`, `test_qar_employee.py`, `test_qar_from_checklist.py`, `test_zadania_qa.py`), wszystkie muszą przejść. Współdzielone fixture'y są w `tests/conftest.py`.
 - **Uruchomienie lokalne:** `.\venv\Scripts\python.exe app.py` → http://127.0.0.1:5000
 - **Pre-commit hook:** automatycznie uruchamia testy przed każdym commitem
 - **Migracje schematu:** wszystkie realizowane przez `_migrate_schema()` w `app.py` - bez Alembic. Nowe kolumny dodawane jako `ALTER TABLE ... ADD COLUMN ...`.
@@ -133,15 +133,25 @@ Dodane 2026-10-18. Zlecenia produkcyjne ze skanu kodu QR (`p`, `c`, `o`, `q`) ro
 - Zmiana ilości zlecenia `q` przelicza wymagane ilości elementów. Usunięcie etapu używanego w trasie jest blokowane.
 - Testy: `tests/test_kp.py`.
 
+### Wózki bez etapu (zmiana planu 2026-10-20)
+
+Bufor (wózek) jest tylko miejscem i nie jest przypisany do etapu. Operator sam bierze wolny wózek, odkłada na niego pobrane elementy, a po wykonaniu etapu odstawia wynik na ten sam albo inny wózek. Na jednym wózku mogą leżeć różne zlecenia i etapy bez ograniczeń, system nie pokazuje, który wózek jest pusty.
+
+- **Etap należy do ilości:** `StockPosition.stage_id` to etap, na który ilość czeka, klucz unikalny to element, bufor, status i etap. `Movement.wait_stage_id` zapisuje to samo w historii. Pole `Buffer.stage_id` jest przestarzałe (zawsze `NULL`, zostaje w modelu jako dane historyczne), ustawień buforów ani widoków nie dotyczy.
+- **Migracja** (`app._migrate_schema`, `_migrate_stock_positions`): stara tabela pozycji jest przebudowywana, etap dotychczasowego bufora trafia do pozycji, a przypisanie etapu do bufora jest czyszczone. Sprawdzona na kopii bazy z danymi.
+- **Kontrola po wykonanym etapie:** punkty kontrolne i flaga `control_required` należą do etapu wykonanego, a skontrolowana ilość leży na wózku jako `do_kontroli` z zapisanym etapem oczekiwania.
+- **Stanowisko:** wpis i odstawienie mają wybór etapu oczekiwania (domyślnie następny z trasy), przejęcie wybiera etap spośród pozycji leżących na zeskanowanym wózku, składanie działa na elementach czekających na składanie na zeskanowanym wózku.
+- Testy: `tests/test_carts.py`. W pozostałych plikach testów pole `stage_id` bufora testowego jest wskazówką, na jaki etap ma czekać wpis (pomocnik `hint`).
+
 ### Stanowisko, bufory i stan buforów (etap 3 planu)
 
 Dodane 2026-10-18 w `kp/` (`stock.py` logika, `station.py` trasy). Elementy zleceń wpisuje się na bufory, system trzyma stan i historię ruchów.
 
 - **Modele:** `StockPosition` (ilość elementu na buforze, status `ok`/`wstrzymane`, unikalne po elemencie, buforze i statusie), `Movement` (`wpis`, `cofniecie`, z pracownikiem, kontem i `reverts_id`; wycofany wpis ma `reverted_at`). Ruchy są nieusuwalną historią.
 - **Stanowisko** `/kontrolaprodukcji/stanowisko` (admin, kontroler, operator, rola `produkcja`): jedno pole skanera (kamera lub skaner ręczny), kody w dowolnej kolejności, typ rozpoznawany po formacie: `PSH-DEP:<token>` plakietka pracownika działu, JSON z polami `p`,`o` kod QR zlecenia, reszta to kod bufora (`ustawienia/lookup.py`). Plakietka zapisuje pracownika w sesji na 12 godzin (`kp_employee`). Operator i stanowisko muszą mieć zeskanowaną plakietkę, kontroler i admin mogą wpisywać bez niej. Zlecenia nie zakłada się na stanowisku (tylko kontroler skanem w module).
-- **Zasady wpisu** (`stock.entry_error`): zlecenie aktywne, bufor aktywny i z etapem, etap bufora w trasie elementu (dowolny etap trasy), ilość całkowita od 1 do pozostałej niewpisanej (`wymagana - suma niewycofanych wpisów`). Rozliczenie liczy się z ruchów, nie z bieżącego stanu buforów.
+- **Zasady wpisu** (`stock.entry_error`): zlecenie aktywne, bufor aktywny, wskazany etap oczekiwania w trasie elementu (albo etap składania; domyślnie pierwszy etap trasy), ilość całkowita od 1 do pozostałej niewpisanej (`wymagana - suma niewycofanych wpisów`). Rozliczenie liczy się z ruchów, nie z bieżącego stanu buforów.
 - **Wycofanie** (`/ruch/<id>/cofnij`): admin i kontroler dowolny wpis, operator i stanowisko tylko własny (ten sam pracownik z plakietki), bez limitu czasu. Niemożliwe, gdy część ilości nie leży już na buforze (przygotowane pod przenoszenie z etapu 4). Kontrole spójności czytają stan z bazy (`populate_existing`).
-- **Ochrony:** ilość zlecenia i element nie spadną poniżej wpisanej ilości, z trasy elementu nie da się usunąć etapu z leżącą ilością, element z ruchami, bufor z historią lub zawartością i pracownik z ruchami nie dają się usunąć, bufor z zawartością nie zmienia etapu.
+- **Ochrony:** ilość zlecenia i element nie spadną poniżej wpisanej ilości, z trasy elementu nie da się usunąć etapu z leżącą ilością, element z ruchami, bufor z historią lub zawartością i pracownik z ruchami nie dają się usunąć, bufor (wózek) nie ma etapu.
 - **Widoki dla wszystkich zalogowanych:** `/kontrolaprodukcji/bufory` (lista, filtr etapu, szukanie po kodzie), szczegóły bufora (co leży, ostatnie ruchy), na stronie zlecenia położenie elementów i historia ruchów. Rola `produkcja` po logowaniu trafia na nowe stanowisko, Lista produkcyjna zostaje w jej menu.
 - Testy: `tests/test_stock.py`.
 
@@ -150,8 +160,8 @@ Dodane 2026-10-18 w `kp/` (`stock.py` logika, `station.py` trasy). Elementy zlec
 Dodane 2026-10-18 w `kp/flow.py` (logika), `kp/stock.py` (trasy, widoki danych) i `kp/station.py` (trasy stanowiska).
 
 - **Ilość jest zawsze w jednym miejscu:** na buforze (`StockPosition`) albo w realizacji (`WorkInProgress`, po przejęciu etapu). Ruchy (`Movement`): `wpis`, `przejecie`, `przeniesienie`, `zlozenie`, `zuzycie`, `spakowanie`, `cofniecie`, z etapem, maszyną, pracownikiem, `wip_id` i `group_id` (ruchy jednej operacji, np. złożenia).
-- **Przejęcie** (`flow.takeover`): ilość schodzi z bufora do „w realizacji”. Pracownik z działu etapu (etap bez działu nie ogranicza), maszyna wymagana, gdy etap ma aktywne maszyny, kontroler i admin bez plakietki i bez ograniczeń działu (maszyna nadal wymagana). Pozycje `wstrzymane` nie są dostępne (przygotowanie pod kontrole z etapu 5).
-- **Wpis po etapie** (`flow.transfer`): z „w realizacji” na bufor dowolnego późniejszego etapu trasy elementu, po trasie na etap składania (`stock.target_stages`). Kończyć może dowolny zidentyfikowany pracownik.
+- **Przejęcie** (`flow.takeover`): ilość czekająca na dany etap (`stage_id` w żądaniu) schodzi z bufora do „w realizacji”. Pracownik z działu etapu (etap bez działu nie ogranicza), maszyna wymagana, gdy etap ma aktywne maszyny, kontroler i admin bez plakietki i bez ograniczeń działu (maszyna nadal wymagana). Pozycje `wstrzymane` nie są dostępne (przygotowanie pod kontrole z etapu 5).
+- **Odstawienie po etapie** (`flow.transfer`): z „w realizacji” na dowolny aktywny bufor (wózek), ilość czeka na wskazany późniejszy etap trasy (`wait_stage_id`, domyślnie następny; po trasie etap składania, `stock.target_stages`). Kończyć może dowolny zidentyfikowany pracownik.
 - **Składanie** (`flow.assemble`): tylko na buforze pierwszego etapu poziomu `produkt`, z elementów leżących na **zeskanowanym buforze**. Limit sztuk to minimum po elementach (`ilość / na sztukę`, w dół), nie więcej niż zostało z `q`. Zużywa elementy (`zuzycie`) i tworzy gotowy produkt „w realizacji”. Gotowy produkt to specjalny element zlecenia (`WorkOrderComponent.is_product`, tworzony przy pierwszym złożeniu, ukryty w `order.components`, dostępny jako `order.product_component`), dalej idzie jak element przez etapy poziomu `produkt`. Element można wpisać z zewnątrz także na bufor etapu składania.
 - **Pakowanie** (`flow.pack`): ilość w realizacji na ostatnim etapie poziomu `produkt` oznacza się jako spakowaną. Spakowane całe `q` zmienia status zlecenia na `done` (Zakończone, `completed_at`).
 - **Wycofanie** (`flow.revert`): admin i kontroler dowolny ruch, operator i stanowisko tylko własny. Wycofać można tylko ruch, od którego nie odeszły dalsze (ilość leży tam, gdzie trafiła), `zuzycie` wycofuje się razem ze złożeniem.
@@ -160,6 +170,18 @@ Dodane 2026-10-18 w `kp/flow.py` (logika), `kp/stock.py` (trasy, widoki danych) 
 - Migracja: kolumny `work_order_components.is_product`, `work_orders.completed_at`, `movements.stage_id/machine_id/group_id/wip_id` dodaje `_migrate_schema()`.
 - **Usuwanie zleceń** (tylko admin): pojedynczo (`/kontrolaprodukcji/<id>/usun`, ze strony zlecenia) i zbiorczo (`/usun-zaznaczone`, pola wyboru na liście). W odróżnieniu od anulowania usuwa zlecenie trwale razem z elementami, trasami, ilościami na buforach, pozycjami w realizacji i historią ruchów (`service.delete_order`); bufory, pracownicy, etapy i szablony zostają. Okno potwierdzenia podaje liczbę ruchów i sztuk, w dzienniku zdarzeń zostaje wpis `kp_delete` / `kp_bulk_delete`.
 - Testy: `tests/test_flow.py`.
+
+### Kontrole etapów (etap 5a planu)
+
+Dodane 2026-10-19 w `kp/controls.py` (logika) i `kp/control_views.py` (kolejka, ocena, plan zlecenia). Punkty etapów i plan szablonu: `ustawienia/control_points.py`.
+
+- **Kiedy powstaje kontrola** (`controls.register_arrival`): ilość odstawiana na bufor **po wykonanym etapie** z `control_required` albo wskazanym w planie kontroli zlecenia (`WorkOrderControl`, kopiowany z `ProductTemplateControl` przy tworzeniu zlecenia, edytowalny na stronie zlecenia przez kontrolera i admina) dostaje status pozycji `do_kontroli`. Dotyczy tylko odstawienia po etapie (`flow.transfer`), wpis początkowy (`stock.enter`) nie ma wykonanego etapu i kontroli nie tworzy. Ruch zapisuje `control_id`, kontrola zapisuje etap wykonany (`stage_id`) i etap oczekiwania (`wait_stage_id`). Pozycje `do_kontroli` i `wstrzymane` nie są dostępne do przejęcia ani składania (komunikat wylicza, ile czeka na kontrolę lub decyzję).
+- **Scalanie partii:** jedna oczekująca kontrola (`StageControl`, status `oczekuje`) na element, bufor, etap wykonany i etap oczekiwania, kolejne partie dopisują się do niej. Alert (`Alert`) dla adminów i kontrolerów tylko przy utworzeniu kontroli.
+- **Ocena** (`controls.evaluate`, `POST /kontrole/<id>/ocen`, admin i kontroler): punkty etapu (`StageControlPoint`, OK/NG, uwagi) plus podział ilości zgodnej i niezgodnej, suma musi równać się widzianej ilości (`expected`). Zgodne dostają `ok`, niezgodne `wstrzymane`, za **każdy punkt NG** powstaje raport QAR (etap bez punktów: jeden ogólny QAR). Gdy w międzyczasie doszła nowa partia, oceniana ilość wydziela się do osobnego rekordu, reszta czeka dalej. Wynik kontroli jest nieodwracalny w tym etapie (korekta przez decyzje z etapu 5b).
+- **Wycofanie wpisu z kontrolą:** dozwolone, dopóki kontrola jest `oczekuje` (zmniejsza ilość kontroli, zerowa kontrola jest `anulowana`), po ocenie zablokowane.
+- **Punkty per etap:** `/ustawienia-produkcji/etapy/<id>/punkty`. `_seed_stage_control_points()` jednorazowo kopiuje punkty starego modułu Kontrola zamówień do etapu Kontrola końcowa. Wykonane kontrole mają własną kopię tytułów punktów.
+- **Widoki:** zakładka „Kontrole” z licznikiem czekających (odczyt dla wszystkich, ocena dla kontrolera i admina), statusy ilości na stanowisku, w buforach i na stronie zlecenia, sekcja „Plan kontroli” na zleceniu, domyślny plan w szablonie produktu.
+- Testy: `tests/test_controls.py`. Dalsze części etapu 5 (decyzje, kontrole doraźne, wnioski „Zleć decyzję”) są w planie.
 
 ---
 

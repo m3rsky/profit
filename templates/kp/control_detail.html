@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Kontrola #{{ ctrl.id }} – Kontrola produkcji{% endblock %}
+
+{% block head %}
+<style>
+.cd-wrap { max-width:820px; margin:0 auto; display:flex; flex-direction:column; gap:1rem; }
+.cd-meta { display:flex; flex-wrap:wrap; gap:.3rem 1.4rem; color:var(--text-muted,#64748b); font-size:.92rem; }
+.cd-meta strong { color:inherit; }
+.cd-point { padding:.85rem 1rem; border-top:1px solid var(--border,#e2e8f0); }
+.cd-point:first-child { border-top:none; }
+.cd-point-head { display:flex; gap:.6rem; align-items:baseline; flex-wrap:wrap; }
+.cd-title { font-weight:600; flex:1; min-width:10rem; }
+.cd-desc { color:var(--text-muted,#64748b); font-size:.85rem; margin:.15rem 0 .4rem; }
+.cd-okng { display:flex; gap:.4rem; margin-top:.4rem; }
+.cd-cb { flex:1; display:flex; align-items:center; justify-content:center; min-height:46px; border-radius:9px;
+  border:2px solid var(--border,#cbd5e1); cursor:pointer; font-weight:700; user-select:none; }
+.cd-cb input { display:none; }
+.cd-cb--ok:has(input:checked) { border-color:var(--ok-border,#16a34a); background:var(--ok-bg,#dcfce7); color:var(--ok-text,#166534); }
+.cd-cb--ng:has(input:checked) { border-color:var(--danger-text,#b91c1c); background:var(--danger-bg,#fee2e2); color:var(--danger-text,#b91c1c); }
+.cd-notes { width:100%; font-size:.9rem; margin-top:.4rem; }
+.cd-qty { display:flex; gap:1rem; flex-wrap:wrap; align-items:flex-end; }
+.cd-qty label { display:flex; flex-direction:column; gap:.25rem; font-size:.85rem; color:var(--text-muted,#64748b); }
+.cd-qty input { width:8rem; text-align:center; font-size:1.3rem; min-height:50px; }
+.cd-sum { font-size:.9rem; color:var(--text-muted,#64748b); }
+</style>
+{% endblock %}
+
+{% block content %}
+{% include 'kp/_tabs.html' %}
+<div class="cd-wrap">
+  <div class="page-header" style="margin-bottom:0;">
+    <h1 class="page-title"><i class="bi bi-clipboard-check"></i> Kontrola #{{ ctrl.id }}
+      {% if ctrl.status == 'oczekuje' %}<span class="badge badge-warning" style="vertical-align:middle;">czeka</span>
+      {% elif ctrl.status == 'anulowana' %}<span class="badge badge-neutral" style="vertical-align:middle;">anulowana</span>
+      {% else %}<span class="badge {{ 'badge-success' if (ctrl.ng_qty or 0) == 0 else 'badge-danger' }}" style="vertical-align:middle;">zakończona</span>{% endif %}</h1>
+    <div class="page-header-actions">
+      <a href="{{ url_for('kp.controls_list') }}" class="btn btn-outline"><i class="bi bi-arrow-left"></i> Kolejka kontroli</a>
+    </div>
+  </div>
+
+  <div class="cd-meta">
+    <span>ZO <a href="{{ url_for('kp.order_detail', order_id=ctrl.order_id) }}"><strong>{{ ctrl.order.zo_number }}</strong></a></span>
+    <span>{{ ctrl.order.product_name }}{% if ctrl.order.client %} · {{ ctrl.order.client }}{% endif %}</span>
+    <span>Element: <strong>{{ ctrl.component.name }}</strong></span>
+    <span>Po etapie: <strong>{{ ctrl.stage.name }}</strong></span>{% if ctrl.wait_stage %}
+    <span>Czeka dalej na: <strong>{{ ctrl.wait_stage.name }}</strong></span>{% endif %}
+    <span>Bufor: <a href="{{ url_for('kp.buffer_detail', buffer_id=ctrl.buffer_id) }}"><strong>{{ ctrl.buffer.code }}</strong></a></span>
+    <span>Ilość: <strong>{{ ctrl.quantity }} szt.</strong></span>
+    <span>Rodzaj: {{ ctrl.kind_label }}</span>
+    <span>Utworzono: {{ ctrl.created_at|localdt('%d.%m.%Y %H:%M') }}</span>
+    {% if ctrl.completed_at %}<span>Zakończono: {{ ctrl.completed_at|localdt('%d.%m.%Y %H:%M') }}{% if ctrl.controller %}, {{ ctrl.controller.username }}{% endif %}</span>{% endif %}
+  </div>
+
+  {% if can_rate %}
+  <form method="post" action="{{ url_for('kp.control_rate', control_id=ctrl.id) }}" autocomplete="off">
+    {{ csrf_input() }}
+    <input type="hidden" name="expected" value="{{ ctrl.quantity }}">
+
+    {% if points %}
+    <div class="card">
+      <div class="card-header">Punkty kontrolne etapu „{{ ctrl.stage.name }}”</div>
+      {% for p in points %}
+      <div class="cd-point">
+        <div class="cd-point-head"><span class="cd-title">{{ loop.index }}. {{ p.title }}</span></div>
+        {% if p.description %}<div class="cd-desc">{{ p.description }}</div>{% endif %}
+        <div class="cd-okng">
+          <label class="cd-cb cd-cb--ok"><input type="radio" name="result_{{ p.id }}" value="OK" class="cd-res"> OK</label>
+          <label class="cd-cb cd-cb--ng"><input type="radio" name="result_{{ p.id }}" value="NG" class="cd-res"> NG</label>
+        </div>
+        <textarea name="pnotes_{{ p.id }}" class="form-control cd-notes" rows="2" placeholder="Uwagi (przy NG trafią do raportu QAR)"></textarea>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="card"><div class="card-body text-muted">Ten etap nie ma punktów kontrolnych. Oceniasz tylko ilość zgodną i niezgodną.
+      Punkty dodasz w Ustawieniach produkcji, Etapy i bufory.</div></div>
+    {% endif %}
+
+    <div class="card" style="margin-top:1rem;">
+      <div class="card-header">Wynik: podział ilości</div>
+      <div class="card-body">
+        <div class="cd-qty">
+          <label>Zgodne (OK), szt.<input type="number" name="ok_qty" id="cd-ok" class="form-control" min="0" max="{{ ctrl.quantity }}" value="{{ ctrl.quantity }}" inputmode="numeric" required></label>
+          <label>Niezgodne (NG), szt.<input type="number" name="ng_qty" id="cd-ng" class="form-control" min="0" max="{{ ctrl.quantity }}" value="0" inputmode="numeric" required></label>
+          <span class="cd-sum" id="cd-sum">Razem: {{ ctrl.quantity }} z {{ ctrl.quantity }} szt.</span>
+        </div>
+        <div class="form-group" style="margin-top:.8rem;">
+          <label class="form-label" for="cd-notes">Uwagi do kontroli</label>
+          <textarea id="cd-notes" name="notes" class="form-control" rows="2"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary" style="min-height:50px;width:100%;"><i class="bi bi-check2-all"></i> Zatwierdź kontrolę</button>
+        <p class="text-muted" style="font-size:.82rem;margin:.6rem 0 0;">Zgodne ilości przejdą na „gotowe”, niezgodne zostaną wstrzymane. Za każdy punkt NG powstanie raport QAR.</p>
+      </div>
+    </div>
+  </form>
+  {% elif ctrl.status == 'zakonczona' %}
+  <div class="card">
+    <div class="card-header">Wynik: zgodne {{ ctrl.ok_qty }} szt., niezgodne {{ ctrl.ng_qty }} szt. z {{ ctrl.quantity }}</div>
+    {% if ctrl.results %}
+    <div class="card-body" style="padding:0; overflow-x:auto;">
+      <table class="data-table">
+        <thead><tr><th>Punkt</th><th>Wynik</th><th>Uwagi</th><th>QAR</th></tr></thead>
+        <tbody>
+          {% for r in ctrl.results %}
+          <tr><td>{{ r.title }}</td>
+              <td>{% if r.result == 'OK' %}<span class="badge badge-success">OK</span>{% else %}<span class="badge badge-danger">NG</span>{% endif %}</td>
+              <td>{{ r.notes or '-' }}</td>
+              <td>{% if r.qar_report %}<a href="{{ url_for('qar.detail_report', report_id=r.qar_report.id) }}">{{ r.qar_report.number }}</a>{% else %}-{% endif %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}<div class="card-body text-muted">Etap nie miał punktów kontrolnych.</div>{% endif %}
+    {% if ctrl.notes %}<div class="card-body"><strong>Uwagi:</strong> {{ ctrl.notes }}</div>{% endif %}
+  </div>
+  {% elif ctrl.status == 'oczekuje' %}
+  <div class="card"><div class="card-body text-muted">Kontrola czeka na ocenę kontrolera lub administratora.</div></div>
+  {% else %}
+  <div class="card"><div class="card-body text-muted">Kontrola została anulowana (wpis na bufor wycofano przed oceną).</div></div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if can_rate %}
+<script>
+(function () {
+  var total = {{ ctrl.quantity }};
+  var ok = document.getElementById('cd-ok'), ng = document.getElementById('cd-ng'), sum = document.getElementById('cd-sum');
+  function num(el) { var v = parseInt(el.value, 10); return isNaN(v) ? 0 : v; }
+  function show() { sum.textContent = 'Razem: ' + (num(ok) + num(ng)) + ' z ' + total + ' szt.'; }
+  ok.addEventListener('input', function () { ng.value = Math.max(0, total - num(ok)); show(); });
+  ng.addEventListener('input', function () { ok.value = Math.max(0, total - num(ng)); show(); });
+  // wybór NG w którymkolwiek punkcie podpowiada niezgodną ilość 1, gdy nic nie wpisano
+  document.querySelectorAll('.cd-res').forEach(function (r) {
+    r.addEventListener('change', function () {
+      if (r.value === 'NG' && num(ng) === 0 && total > 0) { ng.value = 1; ok.value = total - 1; show(); }
+    });
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

@@ -4,7 +4,7 @@ from flask_login import login_required
 from sqlalchemy import func
 
 from models import (db, get_or_404, ProductionStage, ProductTemplate, ProductComponent,
-                    ProductComponentStage, WorkOrder)
+                    ProductComponentStage, ProductTemplateControl, WorkOrder)
 from . import ustawienia_bp
 from .routes import settings_required, _audit
 
@@ -61,7 +61,10 @@ def product_new():
 @settings_required
 def product_edit(tpl_id):
     tpl = get_or_404(ProductTemplate, tpl_id)
-    return render_template('ustawienia/product_edit.html', tpl=tpl, stages=_element_stages())
+    all_stages = ProductionStage.query.filter_by(is_active=True).order_by(
+        ProductionStage.order, ProductionStage.id).all()
+    return render_template('ustawienia/product_edit.html', tpl=tpl, stages=_element_stages(),
+                           all_stages=all_stages, plan_ids={c.stage_id for c in tpl.control_plan})
 
 
 @ustawienia_bp.route('/produkty/<int:tpl_id>/zapisz', methods=['POST'])
@@ -102,6 +105,8 @@ def product_copy(tpl_id):
         db.session.flush()
         for sid in comp.stage_ids:
             db.session.add(ProductComponentStage(component_id=c.id, stage_id=sid))
+    for tc in src.control_plan:
+        db.session.add(ProductTemplateControl(template_id=tpl.id, stage_id=tc.stage_id))
     db.session.commit()
     _audit('ustawienia_product_copy', 'ProductTemplate', tpl.id, f'{src.name} -> {name}')
     flash(f'Skopiowano szablon jako „{name}” (nieaktywny, zmień nazwę i aktywuj).', 'success')

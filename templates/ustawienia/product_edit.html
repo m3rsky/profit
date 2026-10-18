@@ -82,6 +82,26 @@
   {% endfor %}
 </div>
 
+<div class="card" style="margin-bottom:1rem;">
+  <div class="card-header">Domyślny plan kontroli</div>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('ustawienia.product_plan_save', tpl_id=tpl.id) }}">
+      {{ csrf_input() }}
+      <p class="text-muted" style="font-size:.85rem;margin-top:0;">
+        Etapy, na których ilość wchodząca na bufor ma czekać na kontrolę. Plan kopiuje się do nowych zleceń z tego szablonu
+        i można go zmienić na zleceniu. Etapy z ustawieniem „kontrola obowiązkowa” mają kontrolę zawsze.
+      </p>
+      <div class="pe-stages" style="margin-bottom:.6rem;">
+        {% for st in all_stages %}
+        <label><input type="checkbox" name="stage_ids" value="{{ st.id }}" {% if st.id in plan_ids %}checked{% endif %}>
+          {{ st.name }}{% if st.control_required %} <span class="text-muted">(obowiązkowa)</span>{% endif %}</label>
+        {% endfor %}
+      </div>
+      <button type="submit" class="btn btn-secondary btn-sm"><i class="bi bi-save"></i> Zapisz plan kontroli</button>
+    </form>
+  </div>
+</div>
+
 <div class="card">
   <div class="card-header">Dodaj element</div>
   <div class="card-body">

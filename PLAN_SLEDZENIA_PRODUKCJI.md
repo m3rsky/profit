@@ -43,6 +43,16 @@ Dokument roboczy, uzupełniany w miarę dodawania zadań. Stan na 2026-10-18 (po
 | Lista produkcyjna (Excel) | Nowy moduł działa osobno, bez zapisu do kolumn etapów w Liście produkcyjnej. |
 | Kontrola końcowa | "Ostatni bufor" to bufor etapu Kontrola końcowa. Pierwszy wpis zlecenia na ten bufor tworzy listę kontrolną Kontroli Końcowej (patrz 4c). |
 
+## 2a. Zmiana planu: wózki bez etapu (2026-10-20)
+
+Decyzja z produkcji: bufory nie są ściśle przypisane do etapów. Operator każdego etapu sam pobiera wózek (bufor odstawczy pobranych elementów), a następnie odstawia wykonane elementy na ten sam albo inny wolny wózek (wózków jest mało). Ustalenia:
+
+- Kontrola następuje **po wykonanym etapie** (punkty i flaga obowiązkowa należą do etapu wykonanego).
+- Po odstawieniu na wózek ilość czeka na **następny etap trasy**, operator może wskazać dowolny późniejszy etap.
+- System nie pokazuje, który wózek jest wolny, wózek dobiera operator.
+- Na wózku mogą leżeć różne zlecenia i etapy bez ograniczeń.
+- Realizacja: `StockPosition.stage_id` i `Movement.wait_stage_id` niosą etap oczekiwania, bufor traci etap (patrz CLAUDE.md, sekcja „Wózki bez etapu”). Zapisy o buforach przypisanych do etapów w dalszej części planu i w opisach etapów 1 do 4 są nieaktualne.
+
 ## 3. Etapy (nazwy i kolejność edytowalne)
 
 1. Wycinanie laserowe (2 lasery) i wykrawarki (2 wykrawarki)
@@ -236,24 +246,71 @@ Testy: pełna ścieżka elementu przez kilka etapów, pominięcie etapów spoza 
 
 Akceptacja: jeden element przechodzi od lasera do kompletacji, szafa składa się częściowo, wycofanie działa.
 
-### Etap 5. Kontrole etapów (rozmiar L)
+### Etap 5. Kontrole etapów (rozmiar XL, trzy wdrożenia 5a, 5b, 5c)
 
-Cel: kontrole planowane i doraźne, blokada przejęcia, NG z QAR i wstrzymaniem.
+Stan: opisany 2026-10-19, decyzje poniżej, kod jeszcze nie napisany. Etap jest duży, więc dzielimy go na trzy samodzielnie wdrażane części.
 
-Zadania:
-- Modele `StageControl`, `DecisionRequest`, `ScrapRecord` i punkty kontrolne przypisane do etapu (obecna lista trafia do Kontroli końcowej, plus ekran edycji list per etap).
-- Plan kontroli zlecenia: admin i kontroler zaznaczają etapy objęte kontrolą. Kontrola odbywa się na buforze etapu (kontrola po etapie N to kontrola na buforze N+1). Flaga "kontrola obowiązkowa" na etapie działa niezależnie od planu.
-- Kontrola doraźna: kontroler na dowolnym buforze wskazuje element i ilość.
-- Kolejka kontrolera, ocena OK/NG per punkt, notatki.
-- Lista wniosków o decyzję (przyjęcie wymuszenia po potwierdzeniu lub odrzucenie), powiadomienie operatora o decyzji.
-- Alert dla operatora o braku możliwości przejęcia zablokowanej ilości i przycisk "Zleć decyzję" tworzący wniosek (`DecisionRequest`: zlecenie, element, bufor, ilość, kto zgłosił, status, kto i kiedy zdecydował, decyzja) z alertem dla kontrolera i admina (przeniesione z etapu 4).
-- Kontrolowane są ilości. Tam, gdzie kontrola obowiązuje, do przejęcia przechodzą tylko ilości z wynikiem OK. Operator przy zablokowanej ilości dostaje alert o braku możliwości przejęcia. Kontroler lub admin może wymusić przejęcie po potwierdzeniu.
-- NG: raport QAR (istniejący mechanizm), wstrzymanie ocenionej ilości na buforze, decyzja kontrolera lub admina (4f): zwolnienie, zwrot do wskazanego etapu z ponowną kontrolą po poprawce, złomowanie.
-- Archiwum elementów zezłomowanych i powtórnie wykonanych: lista z filtrami, powiązanie z ponownym wykonaniem, nowy element wpisywany od początku.
+#### Ustalenia (2026-10-19)
 
-Testy: plan i kontrola doraźna, blokada i alert, NG tworzy QAR i wstrzymuje, zwolnienie partii, uprawnienia.
+| Temat | Decyzja |
+|---|---|
+| Kiedy powstaje kontrola | Gdy ilość wchodzi na bufor etapu z kontrolą: etap z ustawieniem "kontrola obowiązkowa" albo etap wskazany w planie kontroli zlecenia. Dotyczy wpisu, wpisu po etapie i zwrotu z poprawki. Ilość dostaje status `do_kontroli` i nie można jej przejąć. |
+| Plan kontroli | Domyślny plan (etapy) w szablonie produktu, kopiowany do zlecenia przy tworzeniu. Kontroler i admin korygują go na stronie zlecenia. Flaga "kontrola obowiązkowa" na etapie działa niezależnie od planu. |
+| Partie | Scalone: jedna oczekująca kontrola na element i bufor. Nowa partia dopisuje się do oczekującej kontroli, dopóki kontroler jej nie otworzy. Otwarta kontrola ("w toku") jest zamknięta na nowe ilości, kolejna partia tworzy nową kontrolę. |
+| Ocena | Punkty kontrolne etapu (OK lub NG, uwagi) plus podział ilości: kontroler wpisuje, ile sztuk jest zgodnych, a ile niezgodnych (suma równa kontrolowanej ilości). |
+| Wynik | Ilość zgodna dostaje status `ok`. Ilość niezgodna dostaje status `wstrzymane` i **każdy punkt NG tworzy osobny raport QAR** (jak w Kontroli zamówień). |
+| Punkty per etap | Osobna lista punktów kontrolnych dla każdego etapu, edytowana w Ustawieniach produkcji (admin i kontroler). Obecna lista z Kontroli zamówień jest jednorazowo kopiowana do etapu Kontrola końcowa. Etap bez punktów: kontrola bez listy (sam podział ilości i uwagi). |
+| Decyzje o wstrzymanej ilości | Kontroler lub admin: zwolnij, zwróć do poprawki albo zezłomuj. |
+| Zwrot do poprawki | Kontroler wskazuje etap i **bufor** tego etapu. Ilość trafia tam ze statusem `do_poprawki` (można ją przejąć, dział etapu poprawia). |
+| Ponowna kontrola | Automatyczna: ilość po poprawce niesie znacznik ponownej kontroli, więc przy następnym wpisie na bufor system wymusza dla niej kontrolę niezależnie od planu. |
+| Złomowanie | Wpis do archiwum zezłomowanych i powtórnie wykonanych elementów (`ScrapRecord`), wymagana ilość elementu wraca do uzupełnienia (ilość zezłomowana odlicza się od wpisanej), nowy element wpisuje się od początku. |
+| Kontrola doraźna | Kontroler lub admin wybiera bufor, element i ilość leżące na buforze ze statusem `ok`. Ilość przechodzi do `do_kontroli`. |
+| Zleć decyzję | Operator lub stanowisko przy zablokowanej ilości dostaje komunikat z powodem i przycisk "Zleć decyzję". Wniosek (`DecisionRequest`) z alertem trafia do kontrolerów i adminów. |
+| Wymuszenie | Kontroler lub admin zatwierdza wniosek: ilość zostaje **zwolniona jak po wyniku OK** z adnotacją "zwolnione decyzją". Albo odrzuca wniosek. Operator widzi wynik przy swoich wnioskach. |
+| Wycofanie wpisu | Ilość czekająca na kontrolę: wycofanie wpisu anuluje oczekującą kontrolę (lub zmniejsza jej ilość). Po otwarciu lub wykonaniu kontroli wycofanie jest blokowane. |
 
-Akceptacja: wystawiona kontrola blokuje przejęcie, wynik OK zwalnia, NG tworzy QAR i wstrzymuje.
+#### Model danych (szkic)
+
+- `StockPosition.status`: `ok`, `do_kontroli`, `wstrzymane`, `do_poprawki`. `WorkInProgress` dostaje znacznik `recheck` (niesiony z `do_poprawki`).
+- `StageControlPoint` (etap, tytuł, opis, kolejność, aktywny): punkty per etap. Migracja kopiuje punkty ze starego modułu do etapu Kontrola końcowa.
+- `StageControl` (zlecenie, element, bufor, etap, rodzaj: obowiązkowa, plan, doraźna, ponowna, status: oczekuje, w_toku, zakończona, anulowana, ilość kontrolowana, ilość zgodna, ilość niezgodna, kontroler, czasy) i `StageControlResult` (kopia punktu, OK lub NG, uwagi, numer QAR).
+- `ProductTemplateControl` i `WorkOrderControl` (szablon lub zlecenie, etap): plan kontroli.
+- `DecisionRequest` (zlecenie, element, bufor, etap, ilość, zgłaszający, status, decydujący, czas, uwaga).
+- `ScrapRecord` (zlecenie, element, etap, ilość, powód z kontroli, kontrola, kto zezłomował, czas).
+- Nowe rodzaje ruchów: `kontrola`, `zwolnienie`, `zwrot`, `zlomowanie`, `wymuszenie`.
+
+#### 5a. Kontrole planowane i blokada (rozmiar L)
+
+Stan: zrealizowane lokalnie 2026-10-19. Odstępstwo od szkicu: status kontroli `w_toku` nie jest potrzebny, bo ocena sprawdza widzianą ilość (`expected`), a nowsza partia po wydzieleniu ocenionej części czeka dalej w oryginalnej kontroli. Statusy kontroli: `oczekuje`, `zakonczona`, `anulowana`.
+
+- Punkty kontrolne per etap (model, migracja kopii, ekran edycji w Ustawieniach produkcji).
+- Plan kontroli w szablonie produktu (zaznaczane etapy) i na zleceniu (kopiowany przy tworzeniu, edytowalny przez kontrolera i admina).
+- Wejście na bufor etapu z kontrolą tworzy lub zasila oczekującą kontrolę i nadaje status `do_kontroli` (wpis, wpis po etapie).
+- Kolejka kontrolera `/kontrolaprodukcji/kontrole`: oczekujące kontrole z filtrami, otwarcie, ocena punktów, podział ilości zgodnych i niezgodnych, zatwierdzenie.
+- Wynik: zgodne na `ok`, niezgodne na `wstrzymane`, raporty QAR za każdy punkt NG.
+- Przejęcie etapu tylko dla ilości `ok` (komunikat z powodem dla pozostałych), widoki buforów i zlecenia pokazują statusy ilości.
+- Alert dla kontrolerów i adminów o nowej oczekującej kontroli.
+- Testy: tworzenie i scalanie kontroli, ocena, QAR, blokada przejęcia, wycofanie wpisu z kontrolą.
+
+#### 5b. Decyzje, kontrole doraźne i archiwum złomu (rozmiar M)
+
+- Decyzje o ilości `wstrzymane`: zwolnij, zwróć do poprawki (wybór etapu i bufora, status `do_poprawki`, znacznik ponownej kontroli), zezłomuj (archiwum, odliczenie od wpisanej ilości).
+- Automatyczna ponowna kontrola po poprawce.
+- Kontrola doraźna na dowolnym buforze (element i ilość).
+- Archiwum zezłomowanych i powtórnie wykonanych elementów (lista z filtrami, widoczna dla wszystkich).
+- Testy: każda decyzja, ponowna kontrola, złomowanie i rozliczenie, kontrola doraźna.
+
+#### 5c. Wnioski o decyzję i alerty (rozmiar M)
+
+- Przycisk "Zleć decyzję" na stanowisku przy zablokowanej ilości, `DecisionRequest`, lista wniosków dla kontrolera i admina.
+- Zatwierdzenie (zwolnienie jak po OK z adnotacją) i odrzucenie, alerty dla kontrolerów i adminów, lista własnych wniosków na stanowisku.
+- Testy: zgłoszenie, zatwierdzenie, odrzucenie, uprawnienia, blokady po zmianie stanu.
+
+Akceptacja etapu: ilość wchodząca na obowiązkowy etap czeka na kontrolę i nie da się jej przejąć, kontroler dzieli ją na zgodną i niezgodną, niezgodna tworzy QAR i czeka na decyzję, a decyzje (zwolnij, zwróć, zezłomuj) działują zgodnie z opisem.
+
+#### Pytania otwarte do etapu 5
+
+- Brak (wszystkie ustalone 2026-10-19). Do dopisania przy realizacji: układ ekranu oceny kontroli i widok kolejki na telefonie.
 
 ### Etap 6. Kontrola Końcowa automatycznie (rozmiar M)
 

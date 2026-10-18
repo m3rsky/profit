@@ -76,7 +76,7 @@
   </div>
 
   <div class="card" id="st-wip-card" hidden>
-    <div class="card-header">W realizacji (po wykonaniu etapu zeskanuj bufor następnego etapu)</div>
+    <div class="card-header">W realizacji (po wykonaniu etapu zeskanuj dowolny bufor i wybierz, na jaki etap czeka)</div>
     <div id="st-wip"></div>
   </div>
 
@@ -138,14 +138,23 @@
   }
 
   function focus() { setTimeout(function () { $input.focus(); }, 30); }
-  function bufStage() { return state.buffer && state.buffer.stage ? state.buffer.stage : null; }
   function bufId() { return state.buffer ? state.buffer.id : null; }
 
-  function machineSelect(cls, id) {
-    var st = bufStage();
-    if (!st || !st.machines || !st.machines.length) return '';
+  function machineSelect(cls, id, machines) {
+    if (!machines || !machines.length) return '';
     return '<select class="form-control ' + cls + '" data-id="' + id + '"><option value="">maszyna…</option>' +
-      st.machines.map(function (m) { return '<option value="' + m.id + '">' + esc(m.name) + '</option>'; }).join('') + '</select>';
+      machines.map(function (m) { return '<option value="' + m.id + '">' + esc(m.name) + '</option>'; }).join('') + '</select>';
+  }
+
+  function stageSelect(cls, id, stages, selectedId) {
+    if (!stages || !stages.length) return '';
+    return '<select class="form-control ' + cls + '" data-id="' + id + '" title="Etap, na który ilość czeka">' +
+      stages.map(function (t) { return '<option value="' + t.id + '"' + (t.id === selectedId ? ' selected' : '') + '>czeka na: ' + esc(t.name) + '</option>'; }).join('') + '</select>';
+  }
+
+  function readSelect(cls, id) {
+    var sel = document.querySelector('.' + cls + '[data-id="' + id + '"]');
+    return sel && sel.value ? parseInt(sel.value, 10) : null;
   }
 
   function readMachine(cls, id) {
@@ -180,12 +189,10 @@
     var el = document.getElementById('st-buf');
     var b = state.buffer;
     if (!b) { el.innerHTML = '<div class="st-empty">Zeskanuj kod bufora.</div>'; return; }
-    var st = b.stage;
-    var html = '<div class="st-big">' + esc(b.code) + '</div><div class="st-sub">' + esc(b.name !== b.code ? b.name : '') +
-      (st ? ' · etap: <strong>' + esc(st.name) + '</strong>' + (st.is_assembly ? ' (składanie)' : '') + (st.is_final ? ' (pakowanie)' : '') : ' · <strong>bufor bez etapu</strong>') + '</div>';
+    var html = '<div class="st-big">' + esc(b.code) + '</div><div class="st-sub">' + esc(b.name !== b.code ? b.name : '') + '</div>';
     if (b.contents && b.contents.length) {
       html += '<ul class="st-contents">' + b.contents.map(function (r) {
-        return '<li>' + esc(r.zo) + ' · ' + esc(r.component) + ': <strong>' + r.quantity + ' szt.</strong></li>';
+        return '<li>' + esc(r.zo) + ' · ' + esc(r.component) + ': <strong>' + r.quantity + ' szt.</strong>' + (r.stage ? ' · czeka na: ' + esc(r.stage) : '') + (r.status !== 'ok' ? ' <em>(' + esc(r.status_label) + ')</em>' : '') + '</li>';
       }).join('') + '</ul>';
     } else { html += '<div class="st-sub" style="margin-top:.3rem;">Bufor pusty.</div>'; }
     el.innerHTML = html;
@@ -202,21 +209,17 @@
   // ── W realizacji ──
   function wipHtml(w) {
     var where = '';
-    var enabled = false;
     var buf = state.buffer;
-    var targetNames = w.targets.map(function (t) { return t.name; }).join(', ');
-    if (buf && buf.stage) {
-      enabled = w.targets.some(function (t) { return t.id === buf.stage.id; }) && buf.active;
-      if (!enabled) where = 'Bufor ' + buf.code + ' (' + buf.stage.name + ') nie pasuje. Dalej: ' + (targetNames || 'to ostatni etap') + '.';
-    } else {
-      where = w.targets.length ? 'Zeskanuj bufor etapu: ' + targetNames + '.' : '';
-    }
+    var enabled = !!(buf && buf.active) && w.targets.length > 0;
+    if (w.targets.length && !buf) where = 'Zeskanuj dowolny bufor (wózek), na który odstawiasz.';
+    else if (w.targets.length && buf && !buf.active) where = 'Bufor ' + buf.code + ' jest nieaktywny.';
     var html = '<div class="st-wip"><div class="st-comp-head"><span class="st-comp-name">' + esc(w.component) + '</span>' +
       '<span class="st-nums"><span>ZO ' + esc(w.zo) + '</span><span>Etap: <strong>' + esc(w.stage) + '</strong></span><span>Ilość: <strong>' + w.quantity + ' szt.</strong></span>' +
       (w.machine ? '<span>Maszyna: ' + esc(w.machine) + '</span>' : '') + (w.employee ? '<span>' + esc(w.employee) + '</span>' : '') + '</span></div>';
     html += '<div class="st-act"><input type="number" class="form-control st-wip-qty" data-id="' + w.id + '" min="1" max="' + w.quantity + '" value="' + w.quantity + '" inputmode="numeric">';
     if (w.targets.length) {
-      html += '<button type="button" class="btn btn-primary st-do-transfer" data-id="' + w.id + '"' + (enabled ? '' : ' disabled') + '><i class="bi bi-box-arrow-in-down"></i> Wpisz na bufor' + (buf ? ' ' + esc(buf.code) : '') + '</button>';
+      html += stageSelect('st-wip-wait', w.id, w.targets, w.default_target_id) +
+        '<button type="button" class="btn btn-primary st-do-transfer" data-id="' + w.id + '"' + (enabled ? '' : ' disabled') + '><i class="bi bi-box-arrow-in-down"></i> Odstaw na bufor' + (buf ? ' ' + esc(buf.code) : '') + '</button>';
     }
     if (w.can_pack) {
       html += '<button type="button" class="btn btn-primary st-do-pack" data-id="' + w.id + '"><i class="bi bi-box-seam"></i> Spakowane</button>';
@@ -233,7 +236,7 @@
     document.querySelectorAll('.st-do-transfer').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var q = readQty('st-wip-qty', btn.dataset.id); if (!q) return;
-        act(URLS.transfer, { wip_id: parseInt(btn.dataset.id, 10), buffer_id: bufId(), quantity: q });
+        act(URLS.transfer, { wip_id: parseInt(btn.dataset.id, 10), buffer_id: bufId(), quantity: q, wait_stage_id: readSelect('st-wip-wait', btn.dataset.id) });
       });
     });
     document.querySelectorAll('.st-do-pack').forEach(function (btn) {
@@ -247,18 +250,18 @@
   // ── Składanie ──
   function renderAssembly() {
     var box = document.getElementById('st-assembly');
-    var o = state.order, st = bufStage();
-    if (!o || !st || !st.is_assembly || !o.assembly) { box.hidden = true; return; }
+    var o = state.order;
+    if (!o || !state.buffer || !o.assembly || !o.assembly.stage || !o.assembly.any) { box.hidden = true; return; }
     var a = o.assembly;
     var html = '<h3><i class="bi bi-boxes"></i> Złóż produkt na buforze ' + esc(state.buffer.code) + '</h3>';
     html += a.elements.map(function (e) {
-      return '<div class="st-el-row"><strong>' + esc(e.name) + '</strong><span>na buforze: ' + e.available + ' szt.</span><span>na sztukę: ' + e.per_unit + '</span><span>wystarczy na: ' + e.units + ' szt. produktu</span></div>';
+      return '<div class="st-el-row"><strong>' + esc(e.name) + '</strong><span>czeka na składanie: ' + e.available + ' szt.</span><span>na sztukę: ' + e.per_unit + '</span><span>wystarczy na: ' + e.units + ' szt. produktu</span></div>';
     }).join('');
     html += '<div class="st-sub" style="margin:.4rem 0;">Złożono dotąd: ' + a.produced + ' z ' + o.quantity + ' szt. Z tego bufora można złożyć najwyżej: <strong>' + a.limit + ' szt.</strong>' +
       (a.limit === 0 && a.missing.length ? ' Brakuje: ' + esc(a.missing.join(', ')) + '.' : '') + '</div>';
     var disabled = a.limit < 1 || o.status !== 'active';
     html += '<div class="st-act"><span class="st-label">Ile sztuk:</span><input type="number" class="form-control st-asm-qty" data-id="0" min="1" max="' + a.limit + '" value="' + (a.limit || '') + '" inputmode="numeric"' + (disabled ? ' disabled' : '') + '>' +
-      machineSelect('st-asm-machine', 0) +
+      machineSelect('st-asm-machine', 0, a.machines) +
       '<button type="button" class="btn btn-primary" id="st-do-asm"' + (disabled ? ' disabled' : '') + '><i class="bi bi-hammer"></i> Złóż produkt</button></div>';
     box.innerHTML = html;
     box.hidden = false;
@@ -276,42 +279,56 @@
     if (NEEDS_BADGE && !state.employee) return 'Najpierw zeskanuj swoją plakietkę.';
     if (!state.buffer) return 'Zeskanuj kod bufora.';
     if (!state.buffer.active) return 'Bufor jest nieaktywny.';
-    if (!state.buffer.stage) return 'Bufor nie ma przypisanego etapu.';
-    if (c.entry_stage_ids.indexOf(state.buffer.stage.id) < 0) return 'Etap bufora (' + state.buffer.stage.name + ') nie jest w trasie tego elementu.';
+    if (!c.entry_stages.length) return 'Element nie ma etapów w trasie.';
     if (c.remaining < 1) return 'Element wpisany w całości.';
     return '';
   }
 
-  function onBuffer(c) {
-    var q = 0;
-    (c.positions || []).forEach(function (p) { if (state.buffer && p.buffer_id === state.buffer.id && p.status === 'ok') q += p.quantity; });
-    return q;
+  function hereOk(positions) {
+    // pozycje gotowe do przejęcia leżące na zeskanowanym buforze
+    return (positions || []).filter(function (p) { return state.buffer && p.buffer_id === state.buffer.id && p.status === 'ok' && p.quantity > 0; });
+  }
+
+  function takeRows(compId, positions, asmStageId, isProduct) {
+    var html = '';
+    hereOk(positions).forEach(function (p) {
+      var key = compId + '-' + p.stage_id;
+      if (!isProduct && p.stage_id === asmStageId) {
+        html += '<div class="st-why" style="margin-top:.3rem;">' + p.quantity + ' szt. czeka na składanie (panel Złóż produkt).</div>';
+        return;
+      }
+      html += '<div class="st-act"><span class="st-label">Przejmij etap „' + esc(p.stage) + '”:</span><input type="number" class="form-control st-take-qty" data-id="' + key + '" min="1" max="' + p.quantity + '" value="' + p.quantity + '" inputmode="numeric">' +
+        machineSelect('st-take-machine', key, p.machines) +
+        '<button type="button" class="btn btn-primary st-do-take" data-id="' + key + '" data-comp="' + compId + '" data-stage="' + p.stage_id + '"><i class="bi bi-play-circle"></i> Przejmij (' + p.quantity + ' szt.)</button></div>';
+    });
+    return html;
+  }
+
+  function bindTake() {
+    document.querySelectorAll('.st-do-take').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var q = readQty('st-take-qty', btn.dataset.id); if (!q) return;
+        act(URLS.takeover, { component_id: parseInt(btn.dataset.comp, 10), stage_id: parseInt(btn.dataset.stage, 10), buffer_id: bufId(), quantity: q, machine_id: readMachine('st-take-machine', btn.dataset.id) });
+      });
+    });
   }
 
   function compHtml(c) {
-    var stage = bufStage();
-    var stageId = stage ? stage.id : null;
     var route = c.route.length ? c.route.map(function (s) {
-      return '<span class="st-chip' + (stageId === s.id ? ' here' : '') + '">' + esc(s.name) + '</span>';
+      return '<span class="st-chip">' + esc(s.name) + '</span>';
     }).join('') : '<span class="st-why">brak etapów w trasie</span>';
-    var pos = c.positions.length ? 'Leży: ' + c.positions.map(function (p) { return p.code + ' ' + p.quantity + ' szt.'; }).join(', ') : 'Nic jeszcze na buforach.';
+    var pos = c.positions.length ? 'Leży: ' + c.positions.map(function (p) { return p.code + ' ' + p.quantity + ' szt.' + (p.stage ? ' (czeka na: ' + p.stage + ')' : '') + (p.status !== 'ok' ? ' (' + p.status_label + ')' : ''); }).join(', ') : 'Nic jeszcze na buforach.';
     var why = whyNotEnter(c);
     var html = '<div class="st-comp"><div class="st-comp-head"><span class="st-comp-name">' + esc(c.name) + '</span>' +
       '<span class="st-nums"><span>Wymagane: <strong>' + c.required + '</strong></span><span>Wpisane: <strong>' + c.entered + '</strong></span><span>Pozostało: <strong>' + c.remaining + '</strong></span>' +
       (c.in_progress ? '<span>W realizacji: <strong>' + c.in_progress + '</strong></span>' : '') + '</span></div>' +
       '<div class="st-route">' + route + '</div><div class="st-pos">' + esc(pos) + '</div>';
     html += '<div class="st-act"><span class="st-label">Wpis na bufor:</span><input type="number" class="form-control st-qty" data-id="' + c.id + '" min="1" max="' + c.remaining + '" step="1" inputmode="numeric" placeholder="szt."' + (why ? ' disabled' : '') + '>' +
+      stageSelect('st-enter-wait', c.id, c.entry_stages, c.default_entry_stage_id) +
       '<button type="button" class="btn btn-outline st-do-enter" data-id="' + c.id + '"' + (why ? ' disabled' : '') + '><i class="bi bi-box-arrow-in-down"></i> Wpisz' + (state.buffer ? ' na ' + esc(state.buffer.code) : '') + '</button>' +
       (why ? '<span class="st-why">' + esc(why) + '</span>' : '') + '</div>';
-    // Przejęcie etapu: ilość leżąca na zeskanowanym buforze, etap w trasie elementu, nie składanie
-    var here = onBuffer(c);
-    if (stage && here > 0 && !stage.is_assembly && c.route_ids.indexOf(stage.id) >= 0) {
-      html += '<div class="st-act"><span class="st-label">Przejmij etap „' + esc(stage.name) + '”:</span><input type="number" class="form-control st-take-qty" data-id="' + c.id + '" min="1" max="' + here + '" value="' + here + '" inputmode="numeric">' +
-        machineSelect('st-take-machine', c.id) +
-        '<button type="button" class="btn btn-primary st-do-take" data-id="' + c.id + '"><i class="bi bi-play-circle"></i> Przejmij (na buforze ' + here + ' szt.)</button></div>';
-    } else if (stage && stage.is_assembly && here > 0) {
-      html += '<div class="st-why" style="margin-top:.3rem;">Na etapie składania elementy składa się razem w produkt (panel powyżej).</div>';
-    }
+    var asm = state.order && state.order.assembly && state.order.assembly.stage ? state.order.assembly.stage.id : null;
+    html += takeRows(c.id, c.positions, asm, false);
     return html + '</div>';
   }
 
@@ -327,12 +344,7 @@
     document.querySelectorAll('.st-qty').forEach(function (inp) {
       inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); var q = readQty('st-qty', inp.dataset.id); if (q) enter(parseInt(inp.dataset.id, 10), q); } });
     });
-    document.querySelectorAll('.st-do-take').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var q = readQty('st-take-qty', btn.dataset.id); if (!q) return;
-        act(URLS.takeover, { component_id: parseInt(btn.dataset.id, 10), buffer_id: bufId(), quantity: q, machine_id: readMachine('st-take-machine', btn.dataset.id) });
-      });
-    });
+    bindTake();
   }
 
   // ── Gotowy produkt (po złożeniu) ──
@@ -341,24 +353,14 @@
     var o = state.order;
     if (!o || !o.product_unit || (!o.product_unit.produced && !o.product_unit.positions.length)) { card.hidden = true; return; }
     card.hidden = false;
-    var pu = o.product_unit, stage = bufStage();
-    var here = 0;
-    pu.positions.forEach(function (p) { if (state.buffer && p.buffer_id === state.buffer.id && p.status === 'ok') here += p.quantity; });
-    var pos = pu.positions.length ? 'Leży: ' + pu.positions.map(function (p) { return p.code + ' ' + p.quantity + ' szt.'; }).join(', ') : 'Nic na buforach.';
+    var pu = o.product_unit;
+    var pos = pu.positions.length ? 'Leży: ' + pu.positions.map(function (p) { return p.code + ' ' + p.quantity + ' szt.' + (p.stage ? ' (czeka na: ' + p.stage + ')' : '') + (p.status !== 'ok' ? ' (' + p.status_label + ')' : ''); }).join(', ') : 'Nic na buforach.';
     var html = '<div class="st-comp"><div class="st-comp-head"><span class="st-comp-name">Gotowy produkt</span><span class="st-nums"><span>Wymagane: <strong>' + pu.required + '</strong></span><span>Złożone: <strong>' + pu.produced +
       '</strong></span><span>W realizacji: <strong>' + pu.in_progress + '</strong></span><span>Spakowane: <strong>' + pu.packed + '</strong></span></span></div><div class="st-pos">' + esc(pos) + '</div>';
-    if (stage && here > 0 && !stage.is_assembly && pu.component_id) {
-      html += '<div class="st-act"><span class="st-label">Przejmij etap „' + esc(stage.name) + '”:</span><input type="number" class="form-control st-take-qty" data-id="' + pu.component_id + '" min="1" max="' + here + '" value="' + here + '" inputmode="numeric">' +
-        machineSelect('st-take-machine', pu.component_id) +
-        '<button type="button" class="btn btn-primary st-do-take-prod" data-id="' + pu.component_id + '"><i class="bi bi-play-circle"></i> Przejmij (na buforze ' + here + ' szt.)</button></div>';
-    }
+    if (pu.component_id) html += takeRows(pu.component_id, pu.positions, null, true);
     html += '</div>';
     document.getElementById('st-product').innerHTML = html;
-    var btn = document.querySelector('.st-do-take-prod');
-    if (btn) btn.addEventListener('click', function () {
-      var q = readQty('st-take-qty', btn.dataset.id); if (!q) return;
-      act(URLS.takeover, { component_id: parseInt(btn.dataset.id, 10), buffer_id: bufId(), quantity: q, machine_id: readMachine('st-take-machine', btn.dataset.id) });
-    });
+    bindTake();
   }
 
   function renderRecent() {
@@ -401,7 +403,7 @@
   }
 
   function enter(compId, qty) {
-    act(URLS.enter, { component_id: compId, buffer_id: bufId(), quantity: qty });
+    act(URLS.enter, { component_id: compId, buffer_id: bufId(), quantity: qty, stage_id: readSelect('st-enter-wait', compId) });
   }
 
   function scan(raw) {
@@ -414,7 +416,7 @@
       if (d.type === 'employee') { state.employee = d.employee; state.recent = d.recent || []; say('Pracownik: ' + d.employee.name, 'ok'); }
       else if (d.type === 'buffer') {
         state.buffer = d.buffer; if (d.order) state.order = d.order;
-        say('Bufor ' + d.buffer.code + (d.buffer.stage ? ' (' + d.buffer.stage.name + ')' : ' bez etapu') + '.', 'ok');
+        say('Bufor ' + d.buffer.code + '.', 'ok');
       }
       else if (d.type === 'order') { state.order = d.order; say('Zlecenie ZO ' + d.order.zo + ' (' + d.order.product + ').', 'ok'); }
       render();

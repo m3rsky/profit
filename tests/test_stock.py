@@ -31,8 +31,19 @@ def badge(token):
     return 'PSH-DEP:' + token
 
 
-def enter(client, comp_id, buffer_id, quantity):
-    return api(client, '/stanowisko/wpis', component_id=comp_id, buffer_id=buffer_id, quantity=quantity)
+def buffer_stage(buffer_id):
+    """Etap, na który ilość ma czekać w testach: bufory fixture mają pole stage_id tylko jako wskazówkę
+    testową (w aplikacji bufor jest zwykłym wózkiem bez etapu)."""
+    with flask_app.app_context():
+        b = db.session.get(Buffer, buffer_id)
+        return b.stage_id if b else None
+
+
+def enter(client, comp_id, buffer_id, quantity, stage_id='auto'):
+    if stage_id == 'auto':
+        stage_id = buffer_stage(buffer_id) if isinstance(buffer_id, int) else None
+    return api(client, '/stanowisko/wpis', component_id=comp_id, buffer_id=buffer_id, quantity=quantity,
+               stage_id=stage_id)
 
 
 @pytest.fixture(autouse=True)
@@ -141,7 +152,8 @@ class TestEntry:
         assert (drzwi['required'], drzwi['entered'], drzwi['remaining']) == (12, 5, 7)
         assert drzwi['positions'] == [{'buffer_id': world['buf']['A1'], 'code': 'T3A1',
                                        'name': 'Przy laserze', 'stage': 'T3 Wycinanie',
-                                       'quantity': 5, 'status': 'ok'}]
+                                       'stage_id': world['stage']['A'], 'machines': [],
+                                       'quantity': 5, 'status': 'ok', 'status_label': 'gotowe'}]
         assert body['buffer']['total'] == 5 and body['recent'][0]['quantity'] == 5
         with app.app_context():
             mv = Movement.query.one()
@@ -196,7 +208,7 @@ class TestEntry:
         station_login(client, users, world['token']['e1'])
         d = world['comp']['Drzwi']
         assert 'nieaktywny' in enter(client, d, world['buf']['OFF'], 1).get_json()['error']
-        assert 'żadnego etapu' in enter(client, d, world['buf']['X'], 1).get_json()['error']
+        assert enter(client, d, world['buf']['X'], 1).status_code == 200      # bufor bez etapu to zwykły wózek
         assert 'nie istnieje' in enter(client, d, 999999, 1).get_json()['error']
         assert enter(client, 999999, world['buf']['A1'], 1).status_code == 404
         assert 'nie ma etapów w trasie' in enter(client, world['comp']['Plecy'], world['buf']['A1'], 1).get_json()['error']
@@ -205,7 +217,7 @@ class TestEntry:
             db.session.commit()
         assert 'anulowane' in enter(client, d, world['buf']['A1'], 1).get_json()['error']
         with app.app_context():
-            assert Movement.query.count() == 0
+            assert Movement.query.count() == 1
 
     def test_inactive_stage_rejected(self, client, app, users, world):
         station_login(client, users, world['token']['e1'])
@@ -213,7 +225,7 @@ class TestEntry:
             db.session.get(ProductionStage, world['stage']['A']).is_active = False
             db.session.commit()
         res = enter(client, world['comp']['Drzwi'], world['buf']['A1'], 1)
-        assert res.status_code == 400 and 'nieaktywny' in res.get_json()['error']
+        assert res.status_code == 400 and 'trasie elementu' in res.get_json()['error']
 
 
 # ── Pracownik (plakietka) ─────────────────────────────────────────────────────
@@ -275,7 +287,7 @@ class TestScanRecognition:
         for code in ('T3A1', 't3a1', ' t3 a1 '):
             body = scan(client, code).get_json()
             assert body['type'] == 'buffer' and body['buffer']['code'] == 'T3A1', code
-        assert (body['buffer']['stage']['id'], body['buffer']['stage']['name']) == (world['stage']['A'], 'T3 Wycinanie')
+        assert 'stage' not in body['buffer']
         res = scan(client, 'T3NIEMA')
         assert res.status_code == 404 and 'Nie znaleziono bufora' in res.get_json()['error']
 
@@ -420,8 +432,7 @@ class TestViews:
         login(client, 'oper', 'Oper1234!')
         page = client.get(KP + '/bufory').get_data(as_text=True)
         assert '5 szt.' in page and 'pusty' in page
-        only_b = client.get(f'{KP}/bufory?stage={world["stage"]["B"]}').get_data(as_text=True)
-        assert 'T3B1' in only_b and 'T3A1' not in only_b
+        assert 'T3B1' in page and 'T3A1' in page
         res = client.get(KP + '/bufory?code=t3 a1')
         assert res.status_code == 302 and res.headers['Location'].endswith(f'/bufory/{world["buf"]["A1"]}')
         assert 'Nie znaleziono bufora' in client.get(KP + '/bufory?code=NIEMA', follow_redirects=True).get_data(as_text=True)
@@ -488,11 +499,7 @@ class TestProtections:
         bid = world['buf']['A1']
         res = form_post(client, f'{US}/bufory/{bid}/usun')
         assert 'ma historię' in res.get_data(as_text=True)
-        res = form_post(client, f'{US}/bufory/{bid}/zapisz', code='T3A1', stage_id=world['stage']['B'],
-                        is_active='1')
-        assert 'nie można zmienić jego etapu' in res.get_data(as_text=True)
-        form_post(client, f'{US}/bufory/{bid}/zapisz', code='T3A1', name='Nowa nazwa',
-                  stage_id=world['stage']['A'], is_active='1')                  # ten sam etap: wolno
+        form_post(client, f'{US}/bufory/{bid}/zapisz', code='T3A1', name='Nowa nazwa', is_active='1')
         form_post(client, f'{US}/bufory/{world["buf"]["A2"]}/usun')             # pusty bufor: można
         with app.app_context():
             assert db.session.get(Buffer, bid).name == 'Nowa nazwa'

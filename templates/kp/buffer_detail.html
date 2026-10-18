@@ -9,7 +9,6 @@
       {% if not buffer.is_active %}<span class="badge badge-neutral" style="vertical-align:middle;">nieaktywny</span>{% endif %}</h1>
     <span class="text-muted" style="font-size:0.88rem;">
       {{ buffer.name or '' }}{% if buffer.number %} (nr {{ buffer.number }}){% endif %}
-      · Etap: <strong>{{ buffer.stage.name if buffer.stage else 'nieprzypisany' }}</strong>
     </span>
   </div>
   <div class="page-header-actions">
@@ -22,7 +21,7 @@
   {% if contents %}
   <div class="card-body" style="padding:0; overflow-x:auto;">
     <table class="data-table">
-      <thead><tr><th>ZO</th><th>Produkt</th><th>Klient</th><th>Element</th><th>Ilość</th><th>Status</th></tr></thead>
+      <thead><tr><th>ZO</th><th>Produkt</th><th>Klient</th><th>Element</th><th>Czeka na etap</th><th>Ilość</th><th>Status</th></tr></thead>
       <tbody>
         {% for r in contents %}
         <tr>
@@ -30,8 +29,12 @@
           <td>{{ r.product }}</td>
           <td>{{ r.client or '-' }}</td>
           <td>{{ r.component }}</td>
+          <td>{{ r.stage or '-' }}</td>
           <td><strong>{{ r.quantity }} szt.</strong></td>
-          <td>{% if r.status == 'wstrzymane' %}<span class="badge badge-warning">wstrzymane</span>{% else %}<span class="badge badge-ok">OK</span>{% endif %}</td>
+          <td>{% if r.status == 'wstrzymane' %}<span class="badge badge-danger">wstrzymane (NG)</span>
+              {% elif r.status == 'do_kontroli' %}<span class="badge badge-warning">czeka na kontrolę</span>
+              {% elif r.status == 'do_poprawki' %}<span class="badge badge-info">do poprawki</span>
+              {% else %}<span class="badge badge-ok">gotowe</span>{% endif %}</td>
         </tr>
         {% endfor %}
       </tbody>

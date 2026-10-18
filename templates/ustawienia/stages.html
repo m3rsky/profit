@@ -26,17 +26,13 @@
 </style>
 {% endblock %}
 
-{% macro buffer_row(b, stages) %}
+{% macro buffer_row(b) %}
 <div class="st-row {% if not b.is_active %}st-off{% endif %}">
   <form method="post" action="{{ url_for('ustawienia.buffer_save', buffer_id=b.id) }}">
     {{ csrf_input() }}
     <input type="text" name="code" class="form-control st-code" value="{{ b.code }}" maxlength="64" required title="Kod z etykiety (QR i kod kreskowy)">
     <input type="text" name="name" class="form-control" value="{{ b.name or '' }}" maxlength="128" placeholder="Nazwa" style="width:9rem;">
     <input type="text" name="number" class="form-control" value="{{ b.number or '' }}" maxlength="32" placeholder="Numer" style="width:5rem;">
-    <select name="stage_id" class="form-control" title="Etap">
-      <option value="">bez etapu</option>
-      {% for s in stages %}<option value="{{ s.id }}" {% if b.stage_id == s.id %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
-    </select>
     <label class="st-chk"><input type="checkbox" name="is_active" value="1" {% if b.is_active %}checked{% endif %}> aktywny</label>
     <button type="submit" class="btn btn-secondary btn-sm" title="Zapisz"><i class="bi bi-save"></i></button>
   </form>
@@ -87,10 +83,6 @@
         <input type="text" name="code" class="form-control" maxlength="64" placeholder="Kod, np. A001" required style="max-width:8rem;">
         <input type="text" name="name" class="form-control" maxlength="128" placeholder="Nazwa (opcjonalnie)">
         <input type="text" name="number" class="form-control" maxlength="32" placeholder="Numer" style="max-width:6rem;">
-        <select name="stage_id" class="form-control">
-          <option value="">bez etapu</option>
-          {% for s in stages %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
-        </select>
         <button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Dodaj</button>
       </form>
     </div>
@@ -104,10 +96,6 @@
         {{ csrf_input() }}
         <input type="text" name="from_code" class="form-control" maxlength="64" placeholder="od, np. A001" required style="max-width:7rem;">
         <input type="text" name="to_code" class="form-control" maxlength="64" placeholder="do, np. A010" required style="max-width:7rem;">
-        <select name="stage_id" class="form-control">
-          <option value="">bez etapu</option>
-          {% for s in stages %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
-        </select>
         <button type="submit" class="btn btn-primary"><i class="bi bi-collection"></i> Dodaj zakres</button>
       </form>
     </div>
@@ -116,7 +104,6 @@
 
 {% for stage in stages %}
 {% set machines = stage.machines.all() %}
-{% set buffers = stage.buffers.all() %}
 <div class="card st-stage {% if not stage.is_active %}st-off{% endif %}">
   <div class="st-head">
     <div class="st-move">
@@ -138,10 +125,12 @@
         <option value="element" {% if stage.level == 'element' %}selected{% endif %}>Element</option>
         <option value="produkt" {% if stage.level == 'produkt' %}selected{% endif %}>Produkt</option>
       </select>
-      <label class="st-chk" title="Przejęcie etapu tylko dla ilości z wynikiem OK"><input type="checkbox" name="control_required" value="1" {% if stage.control_required %}checked{% endif %}> kontrola obowiązkowa</label>
+      <label class="st-chk" title="Ilość po wykonaniu tego etapu czeka na kontrolę"><input type="checkbox" name="control_required" value="1" {% if stage.control_required %}checked{% endif %}> kontrola obowiązkowa</label>
       <label class="st-chk"><input type="checkbox" name="is_active" value="1" {% if stage.is_active %}checked{% endif %}> aktywny</label>
       <button type="submit" class="btn btn-secondary btn-sm"><i class="bi bi-save"></i> Zapisz</button>
     </form>
+    <a href="{{ url_for('ustawienia.stage_points', stage_id=stage.id) }}" class="btn btn-outline btn-sm" title="Punkty kontrolne etapu">
+      <i class="bi bi-list-check"></i> Punkty ({{ stage.control_points.count() }})</a>
     <form method="post" action="{{ url_for('ustawienia.stage_delete', stage_id=stage.id) }}" style="margin:0;"
           onsubmit="return confirm('Usunąć etap {{ stage.name }}?')">
       {{ csrf_input() }}
@@ -177,27 +166,19 @@
       </form>
     </div>
 
-    <div>
-      <p class="st-sub">Bufory ({{ buffers|length }})
-        {% if buffers %}<a class="st-pill" href="{{ url_for('ustawienia.buffer_labels', stage_id=stage.id) }}" style="margin-left:.4rem;text-decoration:none;"><i class="bi bi-printer"></i> etykiety etapu</a>{% endif %}
-      </p>
-      {% for b in buffers %}{{ buffer_row(b, stages) }}{% else %}
-      <p class="st-muted">Brak buforów. Dodaj bufor lub zakres kodów powyżej albo przypisz bufor bez etapu.</p>
-      {% endfor %}
-    </div>
   </div>
 </div>
 {% else %}
 <div class="card"><div class="card-body card-body--empty">Brak etapów. Dodaj pierwszy powyżej.</div></div>
 {% endfor %}
 
-{% if unassigned %}
 <div class="card st-stage">
-  <div class="st-head"><strong>Bufory bez etapu ({{ unassigned|length }})</strong>
-    <a class="st-pill" href="{{ url_for('ustawienia.buffer_labels', ids=unassigned|map(attribute='id')|join(',')) }}" style="text-decoration:none;"><i class="bi bi-printer"></i> etykiety</a></div>
+  <div class="st-head"><strong>Bufory, czyli wózki ({{ buffers|length }})</strong>
+    <span class="st-muted">Bufor nie jest przypisany do etapu. Operator sam wybiera wózek, a każda ilość pamięta, na jaki etap czeka.</span>
+    {% if buffers %}<a class="st-pill" href="{{ url_for('ustawienia.buffer_labels') }}" style="text-decoration:none;"><i class="bi bi-printer"></i> etykiety wszystkich</a>{% endif %}</div>
   <div class="st-body" style="grid-template-columns:1fr;">
-    <div>{% for b in unassigned %}{{ buffer_row(b, stages) }}{% endfor %}</div>
+    <div>{% for b in buffers %}{{ buffer_row(b) }}{% else %}
+      <p class="st-muted">Brak buforów. Dodaj bufor lub zakres kodów powyżej.</p>{% endfor %}</div>
   </div>
 </div>
-{% endif %}
 {% endblock %}

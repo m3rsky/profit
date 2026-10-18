@@ -131,7 +131,7 @@ class TestAccess:
         login(client, 'oper', 'Oper1234!')
         res = client.get(BASE + '/etapy')
         assert res.status_code == 200
-        for text in ('T1 Wycinanie', 'A001', 'Przy laserze', 'B777', 'Bufory bez etapu'):
+        for text in ('T1 Wycinanie', 'A001', 'Przy laserze', 'B777', 'wózki'):
             assert text.encode('utf-8') in res.data
 
 
@@ -174,16 +174,16 @@ class TestStages:
         with app.app_context():
             assert [s.name for s in ProductionStage.query.order_by(ProductionStage.order)] == ['T1 B', 'T1 A']
 
-    def test_delete_blocked_with_buffers_or_machines(self, client, app):
+    def test_delete_blocked_with_machines(self, client, app):
         sid = _stage(app)
         with app.app_context():
-            db.session.add(Buffer(code='A001', stage_id=sid))
+            db.session.add(Machine(stage_id=sid, name='Laser 1'))
             db.session.commit()
         login(client, 'oper', 'Oper1234!')
         post(client, f'/etapy/{sid}/usun')
         with app.app_context():
             assert db.session.get(ProductionStage, sid) is not None
-            Buffer.query.delete()
+            Machine.query.filter_by(stage_id=sid).delete()
             db.session.commit()
         post(client, f'/etapy/{sid}/usun')
         with app.app_context():
@@ -216,13 +216,13 @@ class TestBuffers:
     def test_add_normalizes_code_and_rejects_duplicates(self, client, app):
         sid = _stage(app)
         login(client, 'oper', 'Oper1234!')
-        post(client, '/bufory/nowy', code=' a 001 ', name='Przy laserze', number='7', stage_id=sid)
+        post(client, '/bufory/nowy', code=' a 001 ', name='Przy laserze', number='7')
         post(client, '/bufory/nowy', code='A001')       # duplikat
         post(client, '/bufory/nowy', code='   ')        # pusty
         with app.app_context():
             assert Buffer.query.count() == 1
             b = Buffer.query.one()
-            assert (b.code, b.name, b.number, b.stage_id) == ('A001', 'Przy laserze', '7', sid)
+            assert (b.code, b.name, b.number, b.stage_id) == ('A001', 'Przy laserze', '7', None)
 
     def test_range_creates_and_skips_existing(self, client, app):
         login(client, 'oper', 'Oper1234!')
@@ -257,12 +257,11 @@ class TestBuffers:
             db.session.commit()
             bid = Buffer.query.filter_by(code='A001').one().id
         login(client, 'oper', 'Oper1234!')
-        res = post(client, f'/bufory/{bid}/zapisz', code='z9', name='Nowa', number='3',
-                   stage_id=sid, is_active='1')
+        res = post(client, f'/bufory/{bid}/zapisz', code='z9', name='Nowa', number='3', is_active='1')
         assert 'przestała pasować'.encode('utf-8') in res.data
         with app.app_context():
             b = db.session.get(Buffer, bid)
-            assert (b.code, b.name, b.number, b.stage_id, b.is_active) == ('Z9', 'Nowa', '3', sid, True)
+            assert (b.code, b.name, b.number, b.stage_id, b.is_active) == ('Z9', 'Nowa', '3', None, True)
         # kod zajęty przez inny bufor
         post(client, f'/bufory/{bid}/zapisz', code='A002')
         with app.app_context():
@@ -290,16 +289,15 @@ class TestBuffers:
             assert norm_code(' e 010') == 'E010'
 
     def test_lookup_endpoint(self, client, app, order_user):
-        sid = _stage(app, 'T1 Gięcie')
         with app.app_context():
-            db.session.add(Buffer(code='A001', stage_id=sid))
+            db.session.add(Buffer(code='A001'))
             db.session.commit()
         assert client.get(BASE + '/bufory/znajdz?code=A001').status_code in (302, 401)
         login(client, order_user, 'Order1234!')   # odczyt dla każdego zalogowanego
         res = client.get(BASE + '/bufory/znajdz?code=a001')
         assert res.status_code == 200
         data = res.get_json()
-        assert data['code'] == 'A001' and data['stage']['name'] == 'T1 Gięcie'
+        assert data['code'] == 'A001' and 'stage' not in data
         assert client.get(BASE + '/bufory/znajdz?code=NIE').status_code == 404
 
 

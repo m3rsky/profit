@@ -113,7 +113,7 @@
       <div class="kd-pos">
         {% if sm.positions %}Leży:
           {% for p in sm.positions %}
-          <a href="{{ url_for('kp.buffer_detail', buffer_id=p.buffer_id) }}" class="kd-poschip">{{ p.code }}{% if p.stage %} ({{ p.stage }}){% endif %}: <strong>{{ p.quantity }} szt.</strong></a>
+          <a href="{{ url_for('kp.buffer_detail', buffer_id=p.buffer_id) }}" class="kd-poschip"{% if p.status != 'ok' %} style="background:var(--warn-bg,#fef3c7);border-color:#d97706;"{% endif %}>{{ p.code }}{% if p.stage %} ({{ p.stage }}){% endif %}: <strong>{{ p.quantity }} szt.</strong>{% if p.status != 'ok' %} · {{ p.status_label }}{% endif %}</a>
           {% endfor %}
         {% else %}<span class="text-muted">Nic jeszcze na buforach.</span>{% endif %}
       </div>
@@ -138,6 +138,46 @@
       {% endif %}
     </div>
     {% endfor %}
+  </div>
+
+  <div class="card">
+    <div class="card-header">Plan kontroli</div>
+    <div class="card-body">
+      {% if current_user.is_kontroler %}
+      <form method="post" action="{{ url_for('kp.order_plan_save', order_id=order.id) }}">
+        {{ csrf_input() }}
+        <p class="text-muted" style="font-size:.85rem;margin-top:0;">Po zaznaczonych etapach ilość odstawiona na bufor czeka na kontrolę i nie można jej przejąć, dopóki kontroler jej nie oceni. Etapy z kontrolą obowiązkową mają ją zawsze. Zmiana dotyczy kolejnych odstawień.</p>
+        <div class="kd-stages" style="margin-bottom:.6rem;">
+          {% for st in plan_stages %}
+          <label><input type="checkbox" name="stage_ids" value="{{ st.id }}" {% if st.id in plan_ids %}checked{% endif %}>
+            {{ st.name }}{% if st.control_required %} <span class="text-muted">(obowiązkowa)</span>{% endif %}</label>
+          {% endfor %}
+        </div>
+        <button type="submit" class="btn btn-secondary btn-sm"><i class="bi bi-save"></i> Zapisz plan kontroli</button>
+      </form>
+      {% else %}
+        {% set names = plan_stages|selectattr('id', 'in', plan_ids)|map(attribute='name')|list %}
+        {% if names %}Kontrola na etapach: <strong>{{ names|join(', ') }}</strong>{% else %}Brak etapów w planie kontroli.{% endif %}
+        {% set req = plan_stages|selectattr('control_required')|map(attribute='name')|list %}
+        {% if req %}<div class="text-muted" style="font-size:.85rem;">Kontrola obowiązkowa zawsze na: {{ req|join(', ') }}.</div>{% endif %}
+      {% endif %}
+      {% if order_controls %}
+      <table class="data-table" style="margin-top:.8rem;">
+        <thead><tr><th>Kontrola</th><th>Etap</th><th>Element</th><th>Ilość</th><th>Wynik</th></tr></thead>
+        <tbody>
+          {% for c in order_controls %}
+          <tr>
+            <td><a href="{{ url_for('kp.control_detail', control_id=c.id) }}">#{{ c.id }}</a> {{ c.created_at|localdt('%d.%m %H:%M') }}</td>
+            <td>po {{ c.stage.name }}{% if c.wait_stage %}, dalej {{ c.wait_stage.name }}{% endif %} ({{ c.buffer.code }})</td><td>{{ c.component.name }}</td><td>{{ c.quantity }} szt.</td>
+            <td>{% if c.status == 'oczekuje' %}<span class="badge badge-warning">czeka</span>
+                {% elif c.status == 'anulowana' %}<span class="badge badge-neutral">anulowana</span>
+                {% else %}zgodne {{ c.ok_qty }}, niezgodne {{ c.ng_qty }}{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    </div>
   </div>
 
   <div class="card">

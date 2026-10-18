@@ -191,13 +191,14 @@ def station_enter():
     buf = db.session.get(Buffer, _int(data.get('buffer_id')) or 0)
     if not comp:
         return jsonify({'error': 'Nie znaleziono elementu zlecenia.'}), 404
-    mv, err = stock.enter(comp, buf, _int(data.get('quantity')), emp, current_user)
+    mv, err = stock.enter(comp, buf, _int(data.get('quantity')), emp, current_user, _int(data.get('stage_id')))
     if err:
         db.session.rollback()
         return jsonify({'error': err}), 400
     db.session.commit()
     _audit('kp_stock_enter', mv.id, f'ZO={comp.order.zo_number} {comp.name} x{mv.quantity} -> {buf.code}')
-    return _reply(f'Wpisano {mv.quantity} szt. „{comp.name}” na bufor {buf.code}.', comp.order, buf.id, emp)
+    wait = f' Czeka na etap „{mv.wait_stage.name}”.' if mv.wait_stage else ''
+    return _reply(f'Wpisano {mv.quantity} szt. „{comp.name}” na bufor {buf.code}.{wait}', comp.order, buf.id, emp)
 
 
 def _action(emp_required=True):
@@ -220,15 +221,16 @@ def station_takeover():
     buf = db.session.get(Buffer, _int(data.get('buffer_id')) or 0)
     if not comp:
         return jsonify({'error': 'Nie znaleziono elementu zlecenia.'}), 404
-    mv, err = flow.takeover(comp, buf, _int(data.get('quantity')), emp, current_user, data.get('machine_id'))
+    mv, err = flow.takeover(comp, buf, data.get('stage_id'), _int(data.get('quantity')), emp, current_user,
+                            data.get('machine_id'))
     if err:
         db.session.rollback()
         return jsonify({'error': err}), 400
     db.session.commit()
-    _audit('kp_takeover', mv.id, f'ZO={comp.order.zo_number} {comp.name} x{mv.quantity} etap={buf.stage.name}')
+    _audit('kp_takeover', mv.id, f'ZO={comp.order.zo_number} {comp.name} x{mv.quantity} etap={mv.stage.name}')
     machine = f' na maszynie {mv.machine.name}' if mv.machine else ''
-    return _reply(f'Przejęto etap „{buf.stage.name}”{machine}: {mv.quantity} szt. „{comp.name}”. '
-                  f'Po wykonaniu zeskanuj bufor następnego etapu.', comp.order, buf.id, emp)
+    return _reply(f'Przejęto etap „{mv.stage.name}”{machine}: {mv.quantity} szt. „{comp.name}”. '
+                  f'Po wykonaniu odstaw na dowolny bufor.', comp.order, buf.id, emp)
 
 
 @kp_bp.route('/stanowisko/zloz', methods=['POST'])
@@ -249,7 +251,7 @@ def station_assemble():
         return jsonify({'error': err}), 400
     db.session.commit()
     _audit('kp_assemble', mv.id, f'ZO={order.zo_number} złożono {mv.quantity} szt. produktu')
-    return _reply(f'Złożono {mv.quantity} szt. produktu. Po wykonaniu zeskanuj bufor następnego etapu.',
+    return _reply(f'Złożono {mv.quantity} szt. produktu. Po wykonaniu odstaw na dowolny bufor.',
                   order, buf.id, emp)
 
 
@@ -257,7 +259,7 @@ def station_assemble():
 @login_required
 @stock_required
 def station_transfer():
-    """Wpis po etapie: ilość z „w realizacji” trafia na bufor następnego etapu."""
+    """Wpis po etapie: ilość z „w realizacji” trafia na dowolny bufor i czeka na wskazany etap trasy."""
     emp, data, fail = _action()
     if fail:
         return fail
@@ -267,14 +269,16 @@ def station_transfer():
         return jsonify({'error': 'Ta pozycja nie jest już w realizacji.'}), 404
     order = wip.component.order
     name = wip.component.name
-    mv, err = flow.transfer(wip, buf, _int(data.get('quantity')), emp, current_user)
+    mv, err = flow.transfer(wip, buf, _int(data.get('quantity')), emp, current_user, data.get('wait_stage_id'))
     if err:
         db.session.rollback()
         return jsonify({'error': err}), 400
     db.session.commit()
     _audit('kp_transfer', mv.id, f'ZO={order.zo_number} {name} x{mv.quantity} -> {buf.code}')
-    return _reply(f'Wpisano {mv.quantity} szt. „{name}” na bufor {buf.code} ({buf.stage.name}).',
-                  order, buf.id, emp)
+    wait = f' Czeka na etap „{mv.wait_stage.name}”.' if mv.wait_stage else ''
+    if mv.control_id:
+        wait = ' Ilość czeka na kontrolę.' + wait
+    return _reply(f'Wpisano {mv.quantity} szt. „{name}” na bufor {buf.code}.{wait}', order, buf.id, emp)
 
 
 @kp_bp.route('/stanowisko/spakowane', methods=['POST'])
@@ -335,18 +339,12 @@ def buffers():
         if b:
             return redirect(url_for('kp.buffer_detail', buffer_id=b.id))
         flash(f'Nie znaleziono bufora o kodzie „{code}”.', 'warning')
-    stage_id = request.args.get('stage', type=int)
-    q = Buffer.query.order_by(Buffer.code)
-    if stage_id:
-        q = q.filter(Buffer.stage_id == stage_id)
-    items = q.all()
+    items = Buffer.query.order_by(Buffer.code).all()
     totals = dict(db.session.query(StockPosition.buffer_id, func.sum(StockPosition.quantity))
                   .filter(StockPosition.quantity > 0).group_by(StockPosition.buffer_id).all())
     positions = dict(db.session.query(StockPosition.buffer_id, func.count(StockPosition.id))
                      .filter(StockPosition.quantity > 0).group_by(StockPosition.buffer_id).all())
-    stages = ProductionStage.query.order_by(ProductionStage.order, ProductionStage.id).all()
-    return render_template('kp/buffers.html', buffers=items, totals=totals, positions=positions,
-                           stages=stages, stage_id=stage_id, code=code)
+    return render_template('kp/buffers.html', buffers=items, totals=totals, positions=positions, code=code)
 
 
 @kp_bp.route('/bufory/<int:buffer_id>')

@@ -8,7 +8,7 @@ from flask_login import login_required, current_user
 from sqlalchemy import or_
 
 from models import (db, get_or_404, AuditLog, ProductionStage, WorkOrder, WorkOrderComponent,
-                    WorkOrderComponentStage, Movement, StockPosition)
+                    WorkOrderComponentStage, Movement, StockPosition, StageControl)
 from . import kp_bp
 from . import service, stock, flow
 
@@ -187,6 +187,10 @@ def order_detail(order_id):
     return render_template('kp/detail.html', order=order, all_stages=stages, summaries=summaries,
                            movements=movements, can_revert=can_revert,
                            product=stock.product_summary(order),
+                           plan_stages=ProductionStage.query.filter_by(is_active=True).order_by(
+                               ProductionStage.order, ProductionStage.id).all(),
+                           plan_ids={c.stage_id for c in order.control_plan},
+                           order_controls=order.controls.order_by(StageControl.created_at.desc()).limit(40).all(),
                            impact=service.delete_impact(order) if current_user.is_admin else None,
                            wip_rows=[stock.wip_json(w) for w in stock.order_wip(order)])
 
@@ -310,11 +314,11 @@ def _apply_component_form(comp, form):
         entered = stock.entered_qty(comp)
         if required < entered:
             return f'Wymagana ilość nie może być mniejsza niż już wpisana na bufory ({entered} szt.).'
-        blocked = sorted({p.buffer.stage.name for p in comp.positions
-                          if p.quantity > 0 and p.buffer.stage_id not in wanted and p.buffer.stage}
+        blocked = sorted({p.stage.name for p in comp.positions
+                          if p.quantity > 0 and p.stage_id not in wanted and p.stage}
                          | {w.stage.name for w in comp.wip if w.stage_id not in wanted})
         if blocked:
-            return ('Nie można usunąć z trasy etapu, na którego buforze leży element: '
+            return ('Nie można usunąć z trasy etapu, na który czeka element albo na którym jest w realizacji: '
                     + ', '.join(blocked) + '.')
     comp.name = name[:128]
     comp.per_unit = per_unit

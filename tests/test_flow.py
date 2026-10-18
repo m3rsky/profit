@@ -123,20 +123,29 @@ def boss(client, user='oper', pw='Oper1234!'):
     login(client, user, pw)
 
 
+def hint(w, buf):
+    """Etap, na który ilość czeka na buforze testowym (pole stage_id bufora to tylko wskazówka testów;
+    w aplikacji bufor jest zwykłym wózkiem bez etapu)."""
+    with flask_app.app_context():
+        return db.session.get(Buffer, w['buf'][buf]).stage_id
+
+
 def put(client, w, comp, buf, qty):
     """Wpis początkowy na bufor."""
-    res = api(client, '/stanowisko/wpis', component_id=w['comp'][comp], buffer_id=w['buf'][buf], quantity=qty)
+    res = api(client, '/stanowisko/wpis', component_id=w['comp'][comp], buffer_id=w['buf'][buf], quantity=qty,
+              stage_id=hint(w, buf))
     assert res.status_code == 200, res.get_json()
     return res.get_json()
 
 
 def take(client, w, comp, buf, qty, machine=None):
     return api(client, '/stanowisko/przejecie', component_id=w['comp'][comp], buffer_id=w['buf'][buf],
-               quantity=qty, machine_id=w['machine'][machine] if machine else None)
+               stage_id=hint(w, buf), quantity=qty, machine_id=w['machine'][machine] if machine else None)
 
 
 def move(client, wip_id, w, buf, qty):
-    return api(client, '/stanowisko/przenies', wip_id=wip_id, buffer_id=w['buf'][buf], quantity=qty)
+    return api(client, '/stanowisko/przenies', wip_id=wip_id, buffer_id=w['buf'][buf], quantity=qty,
+               wait_stage_id=hint(w, buf))
 
 
 def assemble(client, w, buf, qty, machine=None):
@@ -217,7 +226,7 @@ class TestTakeover:
         none = take(client, w, 'Drzwi', 'A1', 1)
         assert none.status_code == 400 and 'Wybierz maszynę' in none.get_json()['error']
         foreign = api(client, '/stanowisko/przejecie', component_id=w['comp']['Drzwi'], buffer_id=w['buf']['A1'],
-                      quantity=1, machine_id=999999)
+                      stage_id=hint(w, 'A1'), quantity=1, machine_id=999999)
         assert foreign.status_code == 400
         with app.app_context():
             other = Machine(stage_id=w['stage']['B'], name='T4 Giętarka')
@@ -225,7 +234,7 @@ class TestTakeover:
             db.session.commit()
             other_id = other.id
         wrong = api(client, '/stanowisko/przejecie', component_id=w['comp']['Drzwi'], buffer_id=w['buf']['A1'],
-                    quantity=1, machine_id=other_id)
+                    stage_id=hint(w, 'A1'), quantity=1, machine_id=other_id)
         assert wrong.status_code == 400 and 'nie należy do tego etapu' in wrong.get_json()['error']
         with app.app_context():
             db.session.get(Machine, w['machine']['L1']).is_active = False
@@ -314,9 +323,9 @@ class TestTransfer:
     def test_wrong_targets_rejected(self, client, app, users, w):
         who(client, w, 'A')
         wip = self._wip(client, w, 3)
-        for key, text in (('A2', 'Bufor T4A2'), ('F1', 'Bufor T4F1'), ('P1', 'Bufor T4P1')):
+        for key in ('A2', 'F1', 'P1'):                      # ten sam etap albo etap spoza trasy
             res = move(client, wip, w, key, 1)
-            assert res.status_code == 400 and 'może trafić na bufor etapu' in res.get_json()['error'], key
+            assert res.status_code == 400 and 'może czekać na etap' in res.get_json()['error'], key
         korpus = self._wip(client, w, 2, 'Korpus')
         res = move(client, korpus, w, 'B1', 1)                                         # Korpus nie ma etapu Gięcie
         assert res.status_code == 400 and 'T4 Kompletacja' in res.get_json()['error']
@@ -367,7 +376,8 @@ class TestAssembly:
             assert info['limit'] == 2 and info['left'] == 4 and info['missing'] == []
         body = api(client, '/stanowisko/skan', code='T4S1', order_id=w['order']).get_json()
         assert body['order']['assembly']['limit'] == 2
-        assert body['buffer']['stage']['is_assembly'] and not body['buffer']['stage']['is_final']
+        assert body['order']['assembly']['stage']['name'] == 'T4 Składanie'
+        assert 'stage' not in body['buffer']
 
     def test_assembly_consumes_elements_and_creates_product_wip(self, client, app, users, w):
         who(client, w, 'S')
@@ -417,7 +427,7 @@ class TestAssembly:
         self._stock(client, w, 4, 2)
         put(client, w, 'Drzwi', 'K1', 2)
         res = assemble(client, w, 'K1', 1)                                               # tylko etap składania
-        assert res.status_code == 400 and 'Składać można tylko na buforze etapu' in res.get_json()['error']
+        assert res.status_code == 400 and 'czekających na składanie' in res.get_json()['error']
         switch(client, w, 'X')                                                           # obcy dział
         res = assemble(client, w, 'S1', 1)
         assert res.status_code == 400 and 'tylko pracownicy działu' in res.get_json()['error']
@@ -465,13 +475,13 @@ class TestProductFlow:
         with app.app_context():
             product_id = db.session.get(WorkOrder, w['order']).product_component.id
         switch(client, w, 'F')
-        res = api(client, '/stanowisko/przejecie', component_id=product_id, buffer_id=w['buf']['F1'], quantity=3)
+        res = api(client, '/stanowisko/przejecie', component_id=product_id, buffer_id=w['buf']['F1'], stage_id=hint(w, 'F1'), quantity=3)
         assert res.status_code == 200
         wip_f = newest(res)
         assert move(client, wip_f, w, 'P1', 3).status_code == 200
         assert stock_of(app) == [('Gotowy produkt', 'T4P1', 4)]
         switch(client, w, 'P')
-        res = api(client, '/stanowisko/przejecie', component_id=product_id, buffer_id=w['buf']['P1'], quantity=4)
+        res = api(client, '/stanowisko/przejecie', component_id=product_id, buffer_id=w['buf']['P1'], stage_id=hint(w, 'P1'), quantity=4)
         assert res.status_code == 200
         pack_wip = res.get_json()['wip'][0]
         assert pack_wip['can_pack'] and pack_wip['targets'] == []
@@ -557,7 +567,7 @@ class TestRevert:
             wip_id = WorkInProgress.query.one().id
         move(client, wip_id, w, 'B1', 2)
         switch(client, w, 'B')
-        res = api(client, '/stanowisko/przejecie', component_id=w['comp']['Drzwi'], buffer_id=w['buf']['B1'], quantity=2)
+        res = api(client, '/stanowisko/przejecie', component_id=w['comp']['Drzwi'], buffer_id=w['buf']['B1'], stage_id=hint(w, 'B1'), quantity=2)
         assert res.status_code == 200
         with app.app_context():
             transfer_id = Movement.query.filter_by(kind='przeniesienie').one().id
@@ -627,7 +637,7 @@ class TestRevert:
             product_id = db.session.get(WorkOrder, w['order']).product_component.id
         switch(client, w, 'P')
         pack_wip = newest(api(client, '/stanowisko/przejecie', component_id=product_id,
-                              buffer_id=w['buf']['P1'], quantity=1))
+                              buffer_id=w['buf']['P1'], stage_id=hint(w, 'P1'), quantity=1))
         res = api(client, '/stanowisko/spakowane', wip_id=pack_wip, quantity=1)
         pack_move = res.get_json()['recent'][0]['id']
         with app.app_context():
@@ -708,10 +718,12 @@ class TestProtections:
         put(client, w, 'Drzwi', 'A1', 3)
         take(client, w, 'Drzwi', 'A1', 1, machine='L1')
         body = api(client, '/stanowisko/skan', code='T4A1').get_json()
-        stage = body['buffer']['stage']
-        assert stage['machines'] == [{'id': w['machine']['L1'], 'name': 'T4 Laser 1'},
-                                     {'id': w['machine']['L2'], 'name': 'T4 Laser 2'}]
-        assert not stage['is_assembly'] and not stage['is_final']
+        assert 'stage' not in body['buffer'] and body['buffer']['contents'][0]['stage'] == 'T4 Wycinanie'
+        body = api(client, '/stanowisko/skan', code='T4A1', order_id=w['order']).get_json()
+        pos = next(c for c in body['order']['components'] if c['name'] == 'Drzwi')['positions'][0]
+        assert pos['stage'] == 'T4 Wycinanie'
+        assert pos['machines'] == [{'id': w['machine']['L1'], 'name': 'T4 Laser 1'},
+                                   {'id': w['machine']['L2'], 'name': 'T4 Laser 2'}]
         with app.app_context():
             summary = stock.order_summary(db.session.get(WorkOrder, w['order']))
         drzwi = next(c for c in summary['components'] if c['name'] == 'Drzwi')

@@ -1,17 +1,18 @@
-"""Przepływ po wpisie na bufor (etap 4 planu): przejęcie etapu, wpis po etapie na bufor następnego etapu,
-składanie elementów w produkt, pakowanie i wycofanie dowolnego ruchu.
+"""Przepływ po wpisie na bufor (etap 4 planu): przejęcie etapu, odstawienie po etapie na dowolny bufor
+(wózek), składanie elementów w produkt, pakowanie i wycofanie dowolnego ruchu.
 
-Ilość elementu jest zawsze w jednym miejscu: na buforze (StockPosition) albo w realizacji
-(WorkInProgress, po przejęciu etapu). Złożenie zużywa elementy z zeskanowanego bufora i tworzy
-sztuki gotowego produktu (specjalny element zlecenia `is_product`), które idą dalej jak elementy."""
+Bufor jest tylko miejscem. Ilość elementu jest zawsze w jednym miejscu: na buforze jako pozycja czekająca
+na etap (`StockPosition.stage_id`) albo w realizacji (`WorkInProgress`, po przejęciu etapu). Złożenie
+zużywa elementy czekające na składanie na zeskanowanym buforze i tworzy sztuki gotowego produktu
+(specjalny element zlecenia `is_product`), które idą dalej jak elementy."""
 import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import func
 
-from models import (db, Buffer, Machine, Movement, StockPosition, WorkInProgress, WorkOrder,
+from models import (db, Buffer, Machine, Movement, ProductionStage, StockPosition, WorkInProgress, WorkOrder,
                     WorkOrderComponent)
-from . import stock
+from . import controls, stock
 
 UTC = timezone.utc
 
@@ -62,11 +63,6 @@ def machine_check(stage, machine_id):
     return machine, None
 
 
-def _position_ok(comp, buffer):
-    return (StockPosition.query.filter_by(component_id=comp.id, buffer_id=buffer.id, status='ok')
-            .populate_existing().first())
-
-
 def _take_from_position(pos, qty):
     pos.quantity -= qty
     pos.updated_at = _now()
@@ -82,16 +78,20 @@ def _wip_origin(wip_id):
 
 # ── Przejęcie etapu ───────────────────────────────────────────────────────────
 
-def takeover_error(comp, buffer, qty, employee, user, machine_id):
-    """Komunikat błędu przejęcia albo (None, maszyna)."""
+BLOCKED = {'do_kontroli': 'czeka na kontrolę', 'wstrzymane': 'jest wstrzymane (niezgodne, czeka na decyzję kontrolera)',
+           'do_poprawki': 'jest do poprawki'}
+
+
+def takeover_error(comp, buffer, stage_id, qty, employee, user, machine_id):
+    """(komunikat błędu, maszyna). Przejmuje się ilość leżącą na buforze i czekającą na dany etap."""
     order = comp.order
     if order.status != 'active':
         return f'Zlecenie ZO {order.zo_number} nie jest w toku.', None
     if buffer is None or not buffer.is_active:
         return 'Bufor jest nieaktywny albo nie istnieje.', None
-    stage = buffer.stage
+    stage = db.session.get(ProductionStage, _int(stage_id) or 0)
     if stage is None:
-        return f'Bufor {buffer.code} nie jest przypisany do żadnego etapu.', None
+        return 'Wskaż etap, który przejmujesz.', None
     if not stage.is_active:
         return f'Etap „{stage.name}” jest nieaktywny.', None
     first = stock.first_product_stage()
@@ -107,11 +107,22 @@ def takeover_error(comp, buffer, qty, employee, user, machine_id):
                     f'({", ".join(s.name for s in comp.stages)}).'), None
     if not isinstance(qty, int) or qty < 1:
         return 'Ilość musi być liczbą całkowitą większą od zera.', None
-    pos = _position_ok(comp, buffer)
+    pos = stock.position_ref(comp.id, buffer.id, stage.id)
     avail = pos.quantity if pos else 0
     if qty > avail:
-        return (f'Na buforze {buffer.code} jest tylko {avail} szt. „{comp.name}” gotowych do przejęcia.'
-                if avail else f'Na buforze {buffer.code} nie ma „{comp.name}” gotowych do przejęcia.'), None
+        notes = []
+        for p in StockPosition.query.filter(StockPosition.component_id == comp.id,
+                                            StockPosition.buffer_id == buffer.id,
+                                            StockPosition.quantity > 0).all():
+            if p.stage_id == stage.id and p.status != 'ok':
+                notes.append(f'{p.quantity} szt. {BLOCKED.get(p.status, p.status)}')
+            elif p.stage_id != stage.id:
+                notes.append(f'{p.quantity} szt. czeka na etap „{p.stage.name if p.stage else "?"}”')
+        extra = f' Ponadto na tym buforze: {"; ".join(notes)}.' if notes else ''
+        return (f'Na buforze {buffer.code} jest tylko {avail} szt. „{comp.name}” czekających na etap '
+                f'„{stage.name}” i gotowych do przejęcia.{extra}' if avail else
+                f'Na buforze {buffer.code} nie ma „{comp.name}” gotowych do przejęcia na etap '
+                f'„{stage.name}”.{extra}'), None
     err = identify_error(stage, employee, user)
     if err:
         return err, None
@@ -121,13 +132,13 @@ def takeover_error(comp, buffer, qty, employee, user, machine_id):
     return None, machine
 
 
-def takeover(comp, buffer, qty, employee, user, machine_id):
-    """Zdejmuje ilość z bufora do stanu „w realizacji”. Zwraca (ruch, błąd). Bez commitu."""
-    err, machine = takeover_error(comp, buffer, qty, employee, user, machine_id)
+def takeover(comp, buffer, stage_id, qty, employee, user, machine_id):
+    """Zdejmuje ilość czekającą na etap z bufora do stanu „w realizacji”. Zwraca (ruch, błąd). Bez commitu."""
+    err, machine = takeover_error(comp, buffer, stage_id, qty, employee, user, machine_id)
     if err:
         return None, err
-    stage = buffer.stage
-    _take_from_position(_position_ok(comp, buffer), qty)
+    stage = db.session.get(ProductionStage, _int(stage_id))
+    _take_from_position(stock.position_ref(comp.id, buffer.id, stage.id), qty)
     wip = WorkInProgress(component_id=comp.id, stage_id=stage.id, quantity=qty,
                          employee_id=employee.id if employee else None, user_id=user.id,
                          machine_id=machine.id if machine else None, source_buffer_id=buffer.id)
@@ -143,51 +154,61 @@ def takeover(comp, buffer, qty, employee, user, machine_id):
     return mv, None
 
 
-# ── Wpis po etapie na bufor następnego etapu ──────────────────────────────────
+# ── Odstawienie po etapie na dowolny bufor ────────────────────────────────────
 
-def transfer_error(wip, buffer, qty, employee, user):
+def transfer_error(wip, buffer, qty, employee, user, wait_stage_id=None):
+    """(komunikat błędu, etap oczekiwania). Po etapie ilość trafia na dowolny aktywny bufor (wózek) i czeka
+    na następny etap trasy albo na wskazany późniejszy."""
     comp = wip.component
     order = comp.order
     if order.status != 'active':
-        return f'Zlecenie ZO {order.zo_number} nie jest w toku.'
+        return f'Zlecenie ZO {order.zo_number} nie jest w toku.', None
     if buffer is None or not buffer.is_active:
-        return 'Bufor jest nieaktywny albo nie istnieje.'
-    stage = buffer.stage
-    if stage is None:
-        return f'Bufor {buffer.code} nie jest przypisany do żadnego etapu.'
-    allowed = stock.target_stages(comp, wip.stage)
-    if stage.id not in {s.id for s in allowed}:
-        names = ', '.join(s.name for s in allowed) or 'brak (to ostatni etap)'
-        return (f'Po etapie „{wip.stage.name}” element „{comp.name}” może trafić na bufor etapu: {names}. '
-                f'Bufor {buffer.code} należy do etapu „{stage.name}”.')
+        return 'Bufor jest nieaktywny albo nie istnieje.', None
+    targets = stock.target_stages(comp, wip.stage)
+    if not targets:
+        return (f'Po etapie „{wip.stage.name}” nie ma już kolejnego etapu. Ilość kończy się jako spakowana '
+                f'(przycisk „Spakowane”).'), None
+    if wait_stage_id in (None, '', 0):
+        wait = targets[0]
+    else:
+        wait = next((s for s in targets if s.id == _int(wait_stage_id)), None)
+        if wait is None:
+            names = ', '.join(s.name for s in targets)
+            return (f'Po etapie „{wip.stage.name}” element „{comp.name}” może czekać na etap: {names}.'), None
     if not isinstance(qty, int) or qty < 1:
-        return 'Ilość musi być liczbą całkowitą większą od zera.'
+        return 'Ilość musi być liczbą całkowitą większą od zera.', None
     if qty > wip.quantity:
-        return f'W realizacji jest tylko {wip.quantity} szt. „{comp.name}”.'
+        return f'W realizacji jest tylko {wip.quantity} szt. „{comp.name}”.', None
     if not user.is_kontroler and employee is None:
-        return 'Najpierw zeskanuj swoją plakietkę.'
-    return None
+        return 'Najpierw zeskanuj swoją plakietkę.', None
+    return None, wait
 
 
-def transfer(wip, buffer, qty, employee, user):
-    """Przenosi ilość z „w realizacji” na bufor następnego etapu. Zwraca (ruch, błąd). Bez commitu."""
-    err = transfer_error(wip, buffer, qty, employee, user)
+def transfer(wip, buffer, qty, employee, user, wait_stage_id=None):
+    """Odstawia ilość z „w realizacji” na bufor jako czekającą na kolejny etap. Gdy wykonany etap ma
+    kontrolę (obowiązkową albo z planu zlecenia), ilość czeka na kontrolę. Zwraca (ruch, błąd). Bez commitu."""
+    err, wait = transfer_error(wip, buffer, qty, employee, user, wait_stage_id)
     if err:
         return None, err
     comp = wip.component
+    performed = wip.stage
     stage_id, machine_id, wip_id = wip.stage_id, wip.machine_id, wip.id
     wip.quantity -= qty
     if wip.quantity <= 0:
         db.session.delete(wip)
-    pos = stock._position(comp, buffer)
+    status, ctrl, created = controls.register_arrival(comp, buffer, qty, performed, wait.id)
+    pos = stock._position(comp, buffer, status, wait.id)
     pos.quantity += qty
     pos.updated_at = _now()
     mv = Movement(order_id=comp.order_id, component_id=comp.id, kind='przeniesienie',
-                  to_buffer_id=buffer.id, quantity=qty, stage_id=stage_id, machine_id=machine_id,
-                  employee_id=employee.id if employee else None, user_id=user.id, wip_id=wip_id,
-                  group_id=uuid.uuid4().hex)
+                  to_buffer_id=buffer.id, wait_stage_id=wait.id, quantity=qty, stage_id=stage_id,
+                  machine_id=machine_id, employee_id=employee.id if employee else None, user_id=user.id,
+                  wip_id=wip_id, group_id=uuid.uuid4().hex, control_id=ctrl.id if ctrl else None)
     db.session.add(mv)
     db.session.flush()
+    if created:
+        controls.notify_new_control(ctrl)
     return mv, None
 
 
@@ -214,22 +235,24 @@ def product_packed(order):
 
 
 def assembly_info(order, buffer):
-    """Ile sztuk produktu da się złożyć z elementów leżących na zeskanowanym buforze: minimum po
-    elementach z (ilość na buforze podzielona przez ilość na sztukę, w dół), nie więcej niż zostało
-    do złożenia z `q`."""
+    """Ile sztuk produktu da się złożyć z elementów leżących na zeskanowanym buforze i czekających na
+    składanie: minimum po elementach z (ilość podzielona przez ilość na sztukę, w dół), nie więcej niż
+    zostało do złożenia z `q`."""
+    stage = stock.first_product_stage()
     elements = []
     for c in order.components:
-        pos = _position_ok(c, buffer)
+        pos = stock.position_ref(c.id, buffer.id, stage.id) if stage else None
         avail = pos.quantity if pos else 0
         per = max(1, c.per_unit)
         elements.append({'id': c.id, 'name': c.name, 'per_unit': per, 'available': avail,
                          'units': avail // per})
     produced = product_produced(order)
     left = max(0, order.quantity - produced)
-    limit = min([e['units'] for e in elements] + [left]) if elements else 0
+    limit = min([e['units'] for e in elements] + [left]) if (elements and stage) else 0
     missing = [e['name'] for e in elements if e['units'] == 0]
-    return {'limit': limit, 'produced': produced, 'left': left, 'elements': elements,
-            'missing': missing}
+    return {'limit': limit, 'produced': produced, 'left': left, 'elements': elements, 'missing': missing,
+            'stage': {'id': stage.id, 'name': stage.name} if stage else None,
+            'machines': stock.machines_json(stage), 'any': any(e['available'] for e in elements)}
 
 
 def _ensure_product_component(order):
@@ -248,18 +271,16 @@ def assemble_error(order, buffer, qty, employee, user, machine_id):
         return f'Zlecenie ZO {order.zo_number} nie jest w toku.', None, None
     if buffer is None or not buffer.is_active:
         return 'Bufor jest nieaktywny albo nie istnieje.', None, None
-    stage = buffer.stage
-    first = stock.first_product_stage()
-    if first is None or stage is None or stage.id != first.id:
-        where = f' „{first.name}”' if first else ''
-        return f'Składać można tylko na buforze etapu{where}.', None, None
+    stage = stock.first_product_stage()
+    if stage is None:
+        return 'Brak etapu składania w ustawieniach produkcji.', None, None
     info = assembly_info(order, buffer)
     if not isinstance(qty, int) or qty < 1:
         return 'Ilość musi być liczbą całkowitą większą od zera.', None, info
     if info['left'] == 0:
         return 'Wszystkie sztuki zlecenia zostały już złożone.', None, info
     if info['limit'] == 0:
-        return ('Na tym buforze brakuje elementów do złożenia produktu: ' + ', '.join(info['missing']) + '.',
+        return ('Na tym buforze brakuje elementów czekających na składanie: ' + ', '.join(info['missing']) + '.',
                 None, info)
     if qty > info['limit']:
         return f'Z elementów na tym buforze można złożyć najwyżej {info["limit"]} szt. produktu.', None, info
@@ -273,18 +294,18 @@ def assemble_error(order, buffer, qty, employee, user, machine_id):
 
 
 def assemble(order, buffer, qty, employee, user, machine_id):
-    """Składa `qty` sztuk produktu: zużywa elementy z bufora i tworzy produkt „w realizacji”.
-    Zwraca (ruch złożenia, błąd). Bez commitu."""
+    """Składa `qty` sztuk produktu: zużywa elementy czekające na składanie na buforze i tworzy produkt
+    „w realizacji”. Zwraca (ruch złożenia, błąd). Bez commitu."""
     err, machine, info = assemble_error(order, buffer, qty, employee, user, machine_id)
     if err:
         return None, err
-    stage = buffer.stage
+    stage = stock.first_product_stage()
     group = uuid.uuid4().hex
     emp_id = employee.id if employee else None
     for e in info['elements']:
         comp = db.session.get(WorkOrderComponent, e['id'])
         use = e['per_unit'] * qty
-        _take_from_position(_position_ok(comp, buffer), use)
+        _take_from_position(stock.position_ref(comp.id, buffer.id, stage.id), use)
         db.session.add(Movement(order_id=order.id, component_id=comp.id, kind='zuzycie',
                                 from_buffer_id=buffer.id, quantity=use, stage_id=stage.id,
                                 employee_id=emp_id, user_id=user.id, group_id=group))
@@ -368,17 +389,16 @@ def revert_error(movement, user, employee):
             return 'Najpierw zeskanuj swoją plakietkę, aby wycofać własny ruch.'
         return 'Możesz wycofać tylko własny ruch.'
     gone = 'Nie można wycofać: ilość nie leży już tam, gdzie trafiła (została przeniesiona dalej).'
-    if movement.kind == 'wpis':
-        pos = stock._position_ok_ref(movement.component_id, movement.to_buffer_id)
+    if movement.kind in ('wpis', 'przeniesienie') and movement.control_id:
+        return controls.pending_revert_error(movement)     # ilość czeka na kontrolę
+    if movement.kind in ('wpis', 'przeniesienie'):
+        pos = stock.position_ref(movement.component_id, movement.to_buffer_id, movement.wait_stage_id)
         return None if pos is not None and pos.quantity >= movement.quantity else gone
     if movement.kind in ('przejecie', 'zlozenie'):
         wip = db.session.get(WorkInProgress, movement.wip_id) if movement.wip_id else None
         if wip is None or wip.quantity != movement.quantity:
             return 'Nie można wycofać: część ilości została już przeniesiona na bufor lub spakowana.'
         return None
-    if movement.kind == 'przeniesienie':
-        pos = stock._position_ok_ref(movement.component_id, movement.to_buffer_id)
-        return None if pos is not None and pos.quantity >= movement.quantity else gone
     if movement.kind == 'spakowanie':
         return None
     return 'Tego ruchu nie można wycofać.'
@@ -411,14 +431,17 @@ def revert(movement, user, employee):
     kind = movement.kind
     back_to = None
     if kind in ('wpis', 'przeniesienie'):
-        pos = stock._position_ok_ref(movement.component_id, movement.to_buffer_id)
-        _take_from_position(pos, qty)
+        if movement.control_id:
+            controls.pending_revert(movement)
+        else:
+            _take_from_position(stock.position_ref(movement.component_id, movement.to_buffer_id,
+                                                   movement.wait_stage_id), qty)
         if kind == 'przeniesienie':
             _restore_wip(movement, qty)
     elif kind == 'przejecie':
         wip = db.session.get(WorkInProgress, movement.wip_id)
         back_to = db.session.get(Buffer, movement.from_buffer_id)
-        pos = stock._position(wip.component, back_to)
+        pos = stock._position(wip.component, back_to, 'ok', movement.stage_id)
         pos.quantity += qty
         pos.updated_at = now
         db.session.delete(wip)
@@ -427,7 +450,7 @@ def revert(movement, user, employee):
         db.session.delete(wip)
         for used in Movement.query.filter_by(group_id=movement.group_id, kind='zuzycie').all():
             if used.reverted_at is None:
-                pos = stock._position(used.component, used.from_buffer)
+                pos = stock._position(used.component, used.from_buffer, 'ok', used.stage_id)
                 pos.quantity += used.quantity
                 pos.updated_at = now
                 used.reverted_at = now

@@ -1,8 +1,9 @@
 """Logika zleceń produkcyjnych: dopasowanie szablonu produktu, tworzenie zlecenia, przeliczanie ilości."""
 import re
 
-from models import (db, Movement, ProductTemplate, StockPosition, WorkInProgress, WorkOrder,
-                    WorkOrderComponent, WorkOrderComponentStage)
+from models import (db, Movement, ProductTemplate, StageControl, StageControlResult, StockPosition,
+                    WorkInProgress, WorkOrder, WorkOrderComponent, WorkOrderComponentStage,
+                    WorkOrderControl)
 
 MAX_QTY = 9999
 
@@ -92,6 +93,8 @@ def create_order(zo, product_name, client, quantity, user_id, template, per_unit
         db.session.flush()
         for stage_id in comp.stage_ids:
             db.session.add(WorkOrderComponentStage(component_id=oc.id, stage_id=stage_id))
+    for tc in template.control_plan:
+        db.session.add(WorkOrderControl(order_id=order.id, stage_id=tc.stage_id))
     return order
 
 
@@ -115,13 +118,19 @@ def delete_impact(order):
         wip_qty = int(db.session.query(db.func.coalesce(db.func.sum(WorkInProgress.quantity), 0))
                       .filter(WorkInProgress.component_id.in_(comp_ids)).scalar() or 0)
     return {'movements': Movement.query.filter_by(order_id=order.id).count(),
-            'stock': stock_qty, 'wip': wip_qty}
+            'stock': stock_qty, 'wip': wip_qty,
+            'controls': StageControl.query.filter_by(order_id=order.id).count()}
 
 
 def delete_order(order):
     """Usuwa zlecenie razem z elementami, trasami, ilościami na buforach, pozycjami w realizacji i
     historią ruchów. Bufory, pracownicy i szablony zostają. Bez commitu."""
     comp_ids = [c.id for c in order.all_components]
+    control_ids = [c.id for c in StageControl.query.filter_by(order_id=order.id).all()]
+    if control_ids:
+        StageControlResult.query.filter(StageControlResult.control_id.in_(control_ids)).delete(
+            synchronize_session=False)
+        StageControl.query.filter(StageControl.id.in_(control_ids)).delete(synchronize_session=False)
     Movement.query.filter_by(order_id=order.id).delete(synchronize_session=False)
     if comp_ids:
         StockPosition.query.filter(StockPosition.component_id.in_(comp_ids)).delete(synchronize_session=False)

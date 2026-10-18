@@ -755,6 +755,7 @@ class Buffer(db.Model):
     tekst zakodowany na etykiecie (np. 0001, A001). Etap może być nieprzypisany."""
     __tablename__ = 'buffers'
     id         = db.Column(db.Integer, primary_key=True)
+    # Przestarzałe: bufor (wózek) nie jest przypisany do etapu, etap ma ilość leżąca na buforze.
     stage_id   = db.Column(db.Integer, db.ForeignKey('production_stages.id'), nullable=True)
     code       = db.Column(db.String(64), unique=True, nullable=False)
     name       = db.Column(db.String(128), nullable=True)
@@ -1304,15 +1305,20 @@ class StockPosition(db.Model):
     """Ilość elementu zlecenia leżąca na buforze (status ok albo wstrzymane). Stan wynika z ruchów,
     ale jest trzymany osobno, żeby widoki buforów i zleceń nie liczyły całej historii."""
     __tablename__ = 'stock_positions'
-    __table_args__ = (db.UniqueConstraint('component_id', 'buffer_id', 'status', name='uq_stock_position'),)
+    __table_args__ = (db.UniqueConstraint('component_id', 'buffer_id', 'status', 'stage_id',
+                                          name='uq_stock_position'),)
     id           = db.Column(db.Integer, primary_key=True)
     component_id = db.Column(db.Integer, db.ForeignKey('work_order_components.id'), nullable=False)
     buffer_id    = db.Column(db.Integer, db.ForeignKey('buffers.id'), nullable=False)
+    # Etap, na który ilość czeka. Bufor (wózek) jest tylko miejscem i nie ma etapu.
+    stage_id     = db.Column(db.Integer, db.ForeignKey('production_stages.id'), nullable=True)
     quantity     = db.Column(db.Integer, nullable=False, default=0)
-    status       = db.Column(db.String(16), nullable=False, default='ok')   # ok | wstrzymane
+    # ok | do_kontroli (czeka na kontrolę) | wstrzymane (NG, czeka na decyzję) | do_poprawki
+    status       = db.Column(db.String(16), nullable=False, default='ok')
     updated_at   = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
     component    = db.relationship('WorkOrderComponent', backref=db.backref('positions', lazy='select'))
     buffer       = db.relationship('Buffer', backref=db.backref('positions', lazy='select'))
+    stage        = db.relationship('ProductionStage', foreign_keys=[stage_id])
 
 
 class WorkInProgress(db.Model):
@@ -1349,11 +1355,15 @@ class Movement(db.Model):
     employee_id    = db.Column(db.Integer, db.ForeignKey('department_employees.id'), nullable=True)
     user_id        = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     stage_id       = db.Column(db.Integer, db.ForeignKey('production_stages.id'), nullable=True)
+    # Etap, na który ilość czeka po wpisie albo odstawieniu na bufor.
+    wait_stage_id  = db.Column(db.Integer, db.ForeignKey('production_stages.id'), nullable=True)
     machine_id     = db.Column(db.Integer, db.ForeignKey('machines.id'), nullable=True)
     # Ruchy jednej operacji (np. złożenie i zużycie elementów) mają wspólny identyfikator.
     group_id       = db.Column(db.String(32), nullable=True, index=True)
     # Pozycja w realizacji, której dotyczy ruch (przejęcie, przeniesienie, złożenie, spakowanie).
     wip_id         = db.Column(db.Integer, nullable=True, index=True)
+    # Kontrola, którą wywołał ruch (wejście na bufor etapu z kontrolą) albo której dotyczy ruch `kontrola`.
+    control_id     = db.Column(db.Integer, nullable=True, index=True)
     reverts_id     = db.Column(db.Integer, db.ForeignKey('movements.id'), nullable=True)
     reverted_at    = db.Column(db.DateTime, nullable=True)
     created_at     = db.Column(db.DateTime, default=lambda: datetime.now(UTC), index=True)
@@ -1364,12 +1374,13 @@ class Movement(db.Model):
     employee       = db.relationship('DepartmentEmployee', foreign_keys=[employee_id])
     user           = db.relationship('User', foreign_keys=[user_id])
     stage          = db.relationship('ProductionStage', foreign_keys=[stage_id])
+    wait_stage     = db.relationship('ProductionStage', foreign_keys=[wait_stage_id])
     machine        = db.relationship('Machine', foreign_keys=[machine_id])
 
     KIND_LABELS = {'wpis': 'Wpis na bufor', 'przejecie': 'Przejęcie etapu',
                    'przeniesienie': 'Wpis po etapie na bufor', 'zlozenie': 'Złożenie produktu',
                    'zuzycie': 'Zużycie elementu przy składaniu', 'spakowanie': 'Spakowane',
-                   'cofniecie': 'Wycofanie'}
+                   'kontrola': 'Kontrola etapu', 'cofniecie': 'Wycofanie'}
 
     @property
     def kind_label(self):
@@ -1377,3 +1388,110 @@ class Movement(db.Model):
 
     def __repr__(self):
         return f'<Movement {self.kind} {self.quantity}>'
+
+
+# ── Kontrole etapów (etap 5 planu) ────────────────────────────────────────────
+
+class StageControlPoint(db.Model):
+    """Punkt kontrolny etapu (osobna lista dla każdego etapu produkcji)."""
+    __tablename__ = 'stage_control_points'
+    id          = db.Column(db.Integer, primary_key=True)
+    stage_id    = db.Column(db.Integer, db.ForeignKey('production_stages.id'), nullable=False, index=True)
+    order       = db.Column(db.Integer, default=0)
+    title       = db.Column(db.String(256), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    is_active   = db.Column(db.Boolean, default=True)
+    created_at  = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    stage       = db.relationship('ProductionStage', backref=db.backref('control_points', lazy='dynamic',
+                                  order_by='StageControlPoint.order, StageControlPoint.id'))
+
+
+class ProductTemplateControl(db.Model):
+    """Domyślny plan kontroli produktu: etapy, na których zlecenie z tego szablonu ma kontrolę."""
+    __tablename__ = 'product_template_controls'
+    __table_args__ = (db.UniqueConstraint('template_id', 'stage_id', name='uq_tpl_control_stage'),)
+    id          = db.Column(db.Integer, primary_key=True)
+    template_id = db.Column(db.Integer, db.ForeignKey('product_templates.id'), nullable=False)
+    stage_id    = db.Column(db.Integer, db.ForeignKey('production_stages.id'), nullable=False)
+    template    = db.relationship('ProductTemplate', backref=db.backref(
+        'control_plan', cascade='all, delete-orphan', lazy='select'))
+    stage       = db.relationship('ProductionStage')
+
+
+class WorkOrderControl(db.Model):
+    """Plan kontroli zlecenia: etapy, na których ilości wchodzące na bufor czekają na kontrolę."""
+    __tablename__ = 'work_order_controls'
+    __table_args__ = (db.UniqueConstraint('order_id', 'stage_id', name='uq_order_control_stage'),)
+    id       = db.Column(db.Integer, primary_key=True)
+    order_id = db.Column(db.Integer, db.ForeignKey('work_orders.id'), nullable=False)
+    stage_id = db.Column(db.Integer, db.ForeignKey('production_stages.id'), nullable=False)
+    order    = db.relationship('WorkOrder', backref=db.backref(
+        'control_plan', cascade='all, delete-orphan', lazy='select'))
+    stage    = db.relationship('ProductionStage')
+
+
+class StageControl(db.Model):
+    """Kontrola ilości elementu na buforze etapu. Oczekująca kontrola jest scalona: jedna na element
+    i bufor, zasilana kolejnymi partiami. Wykonana kontrola ma ilość zgodną i niezgodną."""
+    __tablename__ = 'stage_controls'
+    id            = db.Column(db.Integer, primary_key=True)
+    order_id      = db.Column(db.Integer, db.ForeignKey('work_orders.id'), nullable=False, index=True)
+    component_id  = db.Column(db.Integer, db.ForeignKey('work_order_components.id'), nullable=False)
+    buffer_id     = db.Column(db.Integer, db.ForeignKey('buffers.id'), nullable=False)
+    # Etap wykonany, którego efekt jest kontrolowany (punkty kontrolne i flaga obowiązkowa należą do niego).
+    stage_id      = db.Column(db.Integer, db.ForeignKey('production_stages.id'), nullable=False)
+    # Etap, na który kontrolowana ilość czeka dalej (wraz z nią leży na buforze).
+    wait_stage_id = db.Column(db.Integer, db.ForeignKey('production_stages.id'), nullable=True)
+    kind          = db.Column(db.String(16), nullable=False, default='plan')   # obowiazkowa | plan | dorazna | ponowna
+    status        = db.Column(db.String(16), nullable=False, default='oczekuje')   # oczekuje | zakonczona | anulowana
+    quantity      = db.Column(db.Integer, nullable=False, default=0)
+    ok_qty        = db.Column(db.Integer, nullable=True)
+    ng_qty        = db.Column(db.Integer, nullable=True)
+    controller_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    notes         = db.Column(db.Text, nullable=True)
+    created_at    = db.Column(db.DateTime, default=lambda: datetime.now(UTC), index=True)
+    completed_at  = db.Column(db.DateTime, nullable=True)
+    order         = db.relationship('WorkOrder', backref=db.backref('controls', lazy='dynamic'))
+    component     = db.relationship('WorkOrderComponent')
+    buffer        = db.relationship('Buffer')
+    stage         = db.relationship('ProductionStage', foreign_keys=[stage_id])
+    wait_stage    = db.relationship('ProductionStage', foreign_keys=[wait_stage_id])
+    controller    = db.relationship('User', foreign_keys=[controller_id])
+    results       = db.relationship('StageControlResult', backref='control', cascade='all, delete-orphan',
+                                    order_by='StageControlResult.position, StageControlResult.id')
+
+    KIND_LABELS = {'obowiazkowa': 'Obowiązkowa', 'plan': 'Z planu zlecenia', 'dorazna': 'Doraźna',
+                   'ponowna': 'Ponowna po poprawce'}
+    STATUS_LABELS = {'oczekuje': 'Czeka na kontrolę', 'zakonczona': 'Zakończona', 'anulowana': 'Anulowana'}
+
+    @property
+    def kind_label(self):
+        return self.KIND_LABELS.get(self.kind, self.kind)
+
+    @property
+    def status_label(self):
+        return self.STATUS_LABELS.get(self.status, self.status)
+
+    @property
+    def result(self):
+        """Wynik zakończonej kontroli: OK (wszystko zgodne), NG (wszystko niezgodne) albo częściowo."""
+        if self.status != 'zakonczona':
+            return None
+        if (self.ng_qty or 0) == 0:
+            return 'OK'
+        return 'NG' if (self.ok_qty or 0) == 0 else 'częściowo'
+
+
+class StageControlResult(db.Model):
+    """Ocena punktu kontrolnego w wykonanej kontroli (kopia tytułu z chwili kontroli)."""
+    __tablename__ = 'stage_control_results'
+    id            = db.Column(db.Integer, primary_key=True)
+    control_id    = db.Column(db.Integer, db.ForeignKey('stage_controls.id'), nullable=False)
+    point_id      = db.Column(db.Integer, db.ForeignKey('stage_control_points.id'), nullable=True)
+    position      = db.Column(db.Integer, default=0)
+    title         = db.Column(db.String(256), nullable=False)
+    description   = db.Column(db.Text, nullable=True)
+    result        = db.Column(db.String(2), nullable=False)   # OK | NG
+    notes         = db.Column(db.Text, nullable=True)
+    qar_report_id = db.Column(db.Integer, db.ForeignKey('qar_reports.id'), nullable=True)
+    qar_report    = db.relationship('QARReport', foreign_keys=[qar_report_id])
