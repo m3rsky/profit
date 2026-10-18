@@ -509,3 +509,22 @@ class TestEdits:
             assert 'per_unit' in [c['name'] for c in inspect(db.engine).get_columns('product_components')]
             _migrate_schema()
             assert 'per_unit' not in [c['name'] for c in inspect(db.engine).get_columns('product_components')]
+
+
+# ── Skrypty stron ─────────────────────────────────────────────────────────────
+
+class TestPageScripts:
+    """Powtórzona deklaracja `var` w skrypcie strony po cichu nadpisuje zmienną (tak zepsuł się
+    skan zlecenia: druga `elQty` zastąpiła pierwszą). Test pilnuje głównego poziomu skryptów."""
+
+    @pytest.mark.parametrize('url', [KP + '/skan'])
+    def test_no_duplicate_top_level_vars(self, client, url):
+        import re
+        login(client, 'admin', 'Admin1234!')
+        html = client.get(url).get_data(as_text=True)
+        scripts = [s for s in re.findall(r'<script>(.*?)</script>', html, re.S) if len(s) > 500]
+        assert scripts
+        for script in scripts:
+            names = re.findall(r'^  var (\w+)\s*=', script, re.M)
+            dups = sorted({n for n in names if names.count(n) > 1})
+            assert not dups, f'Zdublowane zmienne w skrypcie {url}: {dups}'

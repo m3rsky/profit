@@ -247,7 +247,7 @@
   });
 
   // Krok 2: ilości elementów na sztukę produktu (zależą od zlecenia, nie od szablonu).
-  var elQty      = document.getElementById('qr-qty');
+  var elQtyCard  = document.getElementById('qr-qty');
   var elQtyRows  = document.getElementById('qr-qty-rows');
   var btnConfirm = document.getElementById('btn-qr-confirm');
   var btnCancel  = document.getElementById('btn-qr-cancel');
@@ -269,13 +269,13 @@
       elQtyRows.appendChild(row);
     });
     elActions.hidden = true;
-    elQty.hidden = false;
+    elQtyCard.hidden = false;
     var first = elQtyRows.querySelector('input');
     if (first) first.focus();
   }
 
   btnCancel.addEventListener('click', function () {
-    elQty.hidden = true;
+    elQtyCard.hidden = true;
     btnCreate.disabled = false;
     elActions.hidden = false;
   });
@@ -303,7 +303,7 @@
     .then(function (resp) { return resp.json().then(function (d) { return { ok: resp.ok, d: d }; }); })
     .then(function (res) {
       if (res.ok && res.d.ok) {
-        elQty.hidden = true;
+        elQtyCard.hidden = true;
         elInfoMsg.textContent = res.d.msg || 'Gotowe!';
         elInfo.hidden = false;
         setTimeout(function () { window.location.href = res.d.redirect; }, 500);
@@ -337,7 +337,7 @@
     btnCreate.disabled = false;
     btnCreate.hidden   = false;
     btnTpl.hidden      = true;
-    elQty.hidden       = true;
+    elQtyCard.hidden       = true;
   }
 
   // Skaner ręczny pracuje jak klawiatura: kod trafia do pola i kończy się Enterem (czasem Tabem).
