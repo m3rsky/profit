@@ -54,6 +54,8 @@ class User(UserMixin, db.Model):
     @property
     def can_view_control(self): return self.role in ('admin', 'kontroler', 'operator')
     @property
+    def can_enter_stock(self): return self.role in ('admin', 'kontroler', 'operator', 'produkcja')
+    @property
     def role_label(self):
         return {'admin': 'Administrator', 'order': 'Zamawiający',
                 'kontroler': 'Kontroler', 'monter': 'Monter',
@@ -1282,3 +1284,51 @@ class ControlResult(db.Model):
 
     record     = db.relationship('ControlRecord', back_populates='results')
     qar_report = db.relationship('QARReport', foreign_keys=[qar_report_id])
+
+
+class StockPosition(db.Model):
+    """Ilość elementu zlecenia leżąca na buforze (status ok albo wstrzymane). Stan wynika z ruchów,
+    ale jest trzymany osobno, żeby widoki buforów i zleceń nie liczyły całej historii."""
+    __tablename__ = 'stock_positions'
+    __table_args__ = (db.UniqueConstraint('component_id', 'buffer_id', 'status', name='uq_stock_position'),)
+    id           = db.Column(db.Integer, primary_key=True)
+    component_id = db.Column(db.Integer, db.ForeignKey('work_order_components.id'), nullable=False)
+    buffer_id    = db.Column(db.Integer, db.ForeignKey('buffers.id'), nullable=False)
+    quantity     = db.Column(db.Integer, nullable=False, default=0)
+    status       = db.Column(db.String(16), nullable=False, default='ok')   # ok | wstrzymane
+    updated_at   = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    component    = db.relationship('WorkOrderComponent', backref=db.backref('positions', lazy='select'))
+    buffer       = db.relationship('Buffer', backref=db.backref('positions', lazy='select'))
+
+
+class Movement(db.Model):
+    """Historia ruchów elementów: wpis na bufor (`wpis`) i jego wycofanie (`cofniecie`).
+    Wycofany wpis ma `reverted_at`, a wycofanie wskazuje wpis w `reverts_id`."""
+    __tablename__ = 'movements'
+    id             = db.Column(db.Integer, primary_key=True)
+    order_id       = db.Column(db.Integer, db.ForeignKey('work_orders.id'), nullable=False, index=True)
+    component_id   = db.Column(db.Integer, db.ForeignKey('work_order_components.id'), nullable=False)
+    kind           = db.Column(db.String(16), nullable=False)   # wpis | cofniecie
+    from_buffer_id = db.Column(db.Integer, db.ForeignKey('buffers.id'), nullable=True)
+    to_buffer_id   = db.Column(db.Integer, db.ForeignKey('buffers.id'), nullable=True)
+    quantity       = db.Column(db.Integer, nullable=False)
+    employee_id    = db.Column(db.Integer, db.ForeignKey('department_employees.id'), nullable=True)
+    user_id        = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    reverts_id     = db.Column(db.Integer, db.ForeignKey('movements.id'), nullable=True)
+    reverted_at    = db.Column(db.DateTime, nullable=True)
+    created_at     = db.Column(db.DateTime, default=lambda: datetime.now(UTC), index=True)
+    order          = db.relationship('WorkOrder', backref=db.backref('movements', lazy='dynamic'))
+    component      = db.relationship('WorkOrderComponent')
+    from_buffer    = db.relationship('Buffer', foreign_keys=[from_buffer_id])
+    to_buffer      = db.relationship('Buffer', foreign_keys=[to_buffer_id])
+    employee       = db.relationship('DepartmentEmployee', foreign_keys=[employee_id])
+    user           = db.relationship('User', foreign_keys=[user_id])
+
+    KIND_LABELS = {'wpis': 'Wpis na bufor', 'cofniecie': 'Wycofanie wpisu'}
+
+    @property
+    def kind_label(self):
+        return self.KIND_LABELS.get(self.kind, self.kind)
+
+    def __repr__(self):
+        return f'<Movement {self.kind} {self.quantity}>'

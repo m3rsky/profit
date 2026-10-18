@@ -517,7 +517,7 @@ class TestPageScripts:
     """Powtórzona deklaracja `var` w skrypcie strony po cichu nadpisuje zmienną (tak zepsuł się
     skan zlecenia: druga `elQty` zastąpiła pierwszą). Test pilnuje głównego poziomu skryptów."""
 
-    @pytest.mark.parametrize('url', [KP + '/skan'])
+    @pytest.mark.parametrize('url', [KP + '/skan', KP + '/stanowisko'])
     def test_no_duplicate_top_level_vars(self, client, url):
         import re
         login(client, 'admin', 'Admin1234!')

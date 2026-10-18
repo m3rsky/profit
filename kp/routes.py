@@ -8,9 +8,9 @@ from flask_login import login_required, current_user
 from sqlalchemy import or_
 
 from models import (db, get_or_404, AuditLog, ProductionStage, WorkOrder, WorkOrderComponent,
-                    WorkOrderComponentStage)
+                    WorkOrderComponentStage, Movement, StockPosition)
 from . import kp_bp
-from . import service
+from . import service, stock
 
 UTC = timezone.utc
 
@@ -180,7 +180,15 @@ def order_detail(order_id):
     order = get_or_404(WorkOrder, order_id)
     stages = ProductionStage.query.filter_by(is_active=True, level='element').order_by(
         ProductionStage.order, ProductionStage.id).all() if current_user.is_kontroler else []
-    return render_template('kp/detail.html', order=order, all_stages=stages)
+    from .station import current_employee
+    emp = current_employee()
+    summaries = {c.id: stock.component_summary(c) for c in order.components}
+    movements = (Movement.query.filter_by(order_id=order.id)
+                 .order_by(Movement.created_at.desc(), Movement.id.desc()).limit(60).all())
+    can_revert = {m.id: stock.revert_error(m, current_user, emp) is None
+                  for m in movements if m.kind == 'wpis' and m.reverted_at is None}
+    return render_template('kp/detail.html', order=order, all_stages=stages, summaries=summaries,
+                           movements=movements, can_revert=can_revert)
 
 
 # ── Korekty (tylko admin) ─────────────────────────────────────────────────────
@@ -209,6 +217,11 @@ def set_order_quantity(order_id):
         new_q = 0
     if not 1 <= new_q <= service.MAX_QTY:
         flash(f'Podaj ilość od 1 do {service.MAX_QTY}.', 'warning')
+        return _back(order)
+    too_low = [c.name for c in order.components if c.per_unit * new_q < stock.entered_qty(c)]
+    if too_low:
+        flash('Nie można zmniejszyć ilości poniżej już wpisanych na bufory. Dotyczy elementów: '
+              + ', '.join(too_low) + '.', 'warning')
         return _back(order)
     old_q = order.quantity
     service.set_quantity(order, new_q)
@@ -254,6 +267,15 @@ def _apply_component_form(comp, form):
         return 'Ilość na sztukę i wymagana ilość muszą być liczbami większymi od zera.'
     valid = {s.id for s in ProductionStage.query.filter_by(level='element').all()}
     wanted = {int(x) for x in form.getlist('stage_ids') if x.isdigit()} & valid
+    if comp.id is not None:
+        entered = stock.entered_qty(comp)
+        if required < entered:
+            return f'Wymagana ilość nie może być mniejsza niż już wpisana na bufory ({entered} szt.).'
+        blocked = sorted({p.buffer.stage.name for p in comp.positions
+                          if p.quantity > 0 and p.buffer.stage_id not in wanted and p.buffer.stage})
+        if blocked:
+            return ('Nie można usunąć z trasy etapu, na którego buforze leży element: '
+                    + ', '.join(blocked) + '.')
     comp.name = name[:128]
     comp.per_unit = per_unit
     comp.required_qty = required
@@ -314,6 +336,9 @@ def component_delete(comp_id):
     comp = get_or_404(WorkOrderComponent, comp_id)
     order = comp.order
     if not _editable(order):
+        return _back(order)
+    if stock.has_history(comp=comp):
+        flash(f'Element „{comp.name}” ma wpisy na bufory. Wycofaj je, zanim go usuniesz.', 'warning')
         return _back(order)
     if len(order.components) <= 1:
         flash('Zlecenie musi mieć co najmniej jeden element.', 'warning')

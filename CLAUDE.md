@@ -62,7 +62,7 @@ Przykład formatu:
 ## Informacje o projekcie
 
 - **Stack:** Python 3.14 (lokalnie, `venv`), Flask 3.0.3, Flask-SQLAlchemy 3.1.1, Flask-Login, Flask-WTF, SQLite. Pełna lista w `requirements.txt`.
-- **Testy:** `.\venv\Scripts\python.exe -m pytest tests/ -v` - 258 testów w `tests/` (m.in. `test_app.py`, `test_kontrola.py`, `test_api_v1.py`, `test_briefing.py`, `test_dokumentacja.py`, `test_installer_stats.py`, `test_marszruta.py`, `test_produkcja.py`, `test_produkcja_stanowisko.py`, `test_qar_employee.py`, `test_qar_from_checklist.py`, `test_zadania_qa.py`), wszystkie muszą przejść. Współdzielone fixture'y są w `tests/conftest.py`.
+- **Testy:** `.\venv\Scripts\python.exe -m pytest tests/ -v` - 309 testów w `tests/` (m.in. `test_app.py`, `test_kontrola.py`, `test_api_v1.py`, `test_briefing.py`, `test_dokumentacja.py`, `test_installer_stats.py`, `test_marszruta.py`, `test_produkcja.py`, `test_produkcja_stanowisko.py`, `test_qar_employee.py`, `test_qar_from_checklist.py`, `test_zadania_qa.py`), wszystkie muszą przejść. Współdzielone fixture'y są w `tests/conftest.py`.
 - **Uruchomienie lokalne:** `.\venv\Scripts\python.exe app.py` → http://127.0.0.1:5000
 - **Pre-commit hook:** automatycznie uruchamia testy przed każdym commitem
 - **Migracje schematu:** wszystkie realizowane przez `_migrate_schema()` w `app.py` - bez Alembic. Nowe kolumny dodawane jako `ALTER TABLE ... ADD COLUMN ...`.
@@ -132,6 +132,18 @@ Dodane 2026-10-18. Zlecenia produkcyjne ze skanu kodu QR (`p`, `c`, `o`, `q`) ro
 - **Uprawnienia:** skan i tworzenie zlecenia tylko admin i kontroler. Odczyt listy i szczegółów dla każdego zalogowanego. Korekta elementów zlecenia (ilości, trasy, dopisanie, usunięcie): kontroler i admin. Zmiana ilości całego zlecenia `q` oraz anulowanie lub przywrócenie: tylko admin.
 - Zmiana ilości zlecenia `q` przelicza wymagane ilości elementów. Usunięcie etapu używanego w trasie jest blokowane.
 - Testy: `tests/test_kp.py`.
+
+### Stanowisko, bufory i stan buforów (etap 3 planu)
+
+Dodane 2026-10-18 w `kp/` (`stock.py` logika, `station.py` trasy). Elementy zleceń wpisuje się na bufory, system trzyma stan i historię ruchów.
+
+- **Modele:** `StockPosition` (ilość elementu na buforze, status `ok`/`wstrzymane`, unikalne po elemencie, buforze i statusie), `Movement` (`wpis`, `cofniecie`, z pracownikiem, kontem i `reverts_id`; wycofany wpis ma `reverted_at`). Ruchy są nieusuwalną historią.
+- **Stanowisko** `/kontrolaprodukcji/stanowisko` (admin, kontroler, operator, rola `produkcja`): jedno pole skanera (kamera lub skaner ręczny), kody w dowolnej kolejności, typ rozpoznawany po formacie: `PSH-DEP:<token>` plakietka pracownika działu, JSON z polami `p`,`o` kod QR zlecenia, reszta to kod bufora (`ustawienia/lookup.py`). Plakietka zapisuje pracownika w sesji na 12 godzin (`kp_employee`). Operator i stanowisko muszą mieć zeskanowaną plakietkę, kontroler i admin mogą wpisywać bez niej. Zlecenia nie zakłada się na stanowisku (tylko kontroler skanem w module).
+- **Zasady wpisu** (`stock.entry_error`): zlecenie aktywne, bufor aktywny i z etapem, etap bufora w trasie elementu (dowolny etap trasy), ilość całkowita od 1 do pozostałej niewpisanej (`wymagana - suma niewycofanych wpisów`). Rozliczenie liczy się z ruchów, nie z bieżącego stanu buforów.
+- **Wycofanie** (`/ruch/<id>/cofnij`): admin i kontroler dowolny wpis, operator i stanowisko tylko własny (ten sam pracownik z plakietki), bez limitu czasu. Niemożliwe, gdy część ilości nie leży już na buforze (przygotowane pod przenoszenie z etapu 4). Kontrole spójności czytają stan z bazy (`populate_existing`).
+- **Ochrony:** ilość zlecenia i element nie spadną poniżej wpisanej ilości, z trasy elementu nie da się usunąć etapu z leżącą ilością, element z ruchami, bufor z historią lub zawartością i pracownik z ruchami nie dają się usunąć, bufor z zawartością nie zmienia etapu.
+- **Widoki dla wszystkich zalogowanych:** `/kontrolaprodukcji/bufory` (lista, filtr etapu, szukanie po kodzie), szczegóły bufora (co leży, ostatnie ruchy), na stronie zlecenia położenie elementów i historia ruchów. Rola `produkcja` po logowaniu trafia na nowe stanowisko, Lista produkcyjna zostaje w jej menu.
+- Testy: `tests/test_stock.py`.
 
 ---
 

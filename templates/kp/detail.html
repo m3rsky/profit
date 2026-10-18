@@ -20,6 +20,10 @@
 .kd-stages label { display:inline-flex; gap:.3rem; align-items:center; font-size:.86rem; white-space:nowrap; }
 .kd-admin { display:flex; gap:.6rem; flex-wrap:wrap; align-items:center; }
 .kd-admin form { margin:0; }
+.kd-nums { display:flex; gap:1.2rem; flex-wrap:wrap; font-size:.88rem; margin-top:.3rem; color:var(--text-muted,#64748b); }
+.kd-nums strong { color:inherit; }
+.kd-pos { margin-top:.4rem; font-size:.88rem; display:flex; flex-wrap:wrap; gap:.3rem .5rem; align-items:center; }
+.kd-poschip { padding:.1rem .55rem; border-radius:999px; background:var(--ok-bg,#dcfce7); border:1px solid var(--ok-border,#16a34a); text-decoration:none; color:inherit; font-size:.82rem; }
 .kd-edit summary { cursor:pointer; color:var(--progress-blue,#2563eb); font-size:.88rem; margin-top:.4rem; }
 </style>
 {% endblock %}
@@ -33,6 +37,7 @@
 {% endmacro %}
 
 {% block content %}
+{% include 'kp/_tabs.html' %}
 <div class="kd-wrap">
   <div class="page-header" style="margin-bottom:0;">
     <h1 class="page-title">
@@ -87,10 +92,23 @@
         <span class="text-muted" style="font-size:.88rem;">{{ c.per_unit }} na sztukę</span>
         <span class="kd-qty">Wymagane: {{ c.required_qty }} szt.</span>
       </div>
+      {% set sm = summaries[c.id] %}
+      <div class="kd-nums">
+        <span>Wpisane na bufory: <strong>{{ sm.entered }}</strong></span>
+        <span>Pozostało do wpisania: <strong>{{ sm.remaining }}</strong></span>
+      </div>
       <div class="kd-route">
         {% for st in c.stages %}
         <span class="kd-stage">{{ st.name }}</span>{% if not loop.last %}<span class="kd-arrow"><i class="bi bi-arrow-right"></i></span>{% endif %}
         {% else %}<span class="text-muted" style="font-size:.85rem;">brak etapów w trasie</span>{% endfor %}
+      </div>
+
+      <div class="kd-pos">
+        {% if sm.positions %}Leży:
+          {% for p in sm.positions %}
+          <a href="{{ url_for('kp.buffer_detail', buffer_id=p.buffer_id) }}" class="kd-poschip">{{ p.code }}{% if p.stage %} ({{ p.stage }}){% endif %}: <strong>{{ p.quantity }} szt.</strong></a>
+          {% endfor %}
+        {% else %}<span class="text-muted">Nic jeszcze na buforach.</span>{% endif %}
       </div>
 
       {% if current_user.is_kontroler and order.status == 'active' %}
@@ -113,6 +131,40 @@
       {% endif %}
     </div>
     {% endfor %}
+  </div>
+
+  <div class="card">
+    <div class="card-header">Historia ruchów</div>
+    {% if movements %}
+    <div class="card-body" style="padding:0; overflow-x:auto;">
+      <table class="data-table">
+        <thead><tr><th>Kiedy</th><th>Ruch</th><th>Element</th><th>Ilość</th><th>Bufor</th><th>Pracownik</th><th></th></tr></thead>
+        <tbody>
+          {% for m in movements %}
+          <tr {% if m.reverted_at %}style="opacity:.55"{% endif %}>
+            <td style="white-space:nowrap;">{{ m.created_at|localdt('%d.%m.%Y %H:%M') }}</td>
+            <td>{{ m.kind_label }}{% if m.reverted_at %} <span class="badge badge-neutral">wycofany</span>{% endif %}</td>
+            <td>{{ m.component.name }}</td>
+            <td>{{ m.quantity }} szt.</td>
+            <td>{% set b = m.to_buffer or m.from_buffer %}{% if b %}<a href="{{ url_for('kp.buffer_detail', buffer_id=b.id) }}">{{ b.code }}</a>{% else %}-{% endif %}</td>
+            <td>{{ m.employee.name if m.employee else (m.user.username if m.user else '-') }}</td>
+            <td>
+              {% if can_revert.get(m.id) %}
+              <form method="post" action="{{ url_for('kp.revert_movement', movement_id=m.id) }}" style="margin:0;"
+                    onsubmit="return confirm('Wycofać ten wpis?')">
+                {{ csrf_input() }}
+                <button type="submit" class="btn btn-outline btn-sm"><i class="bi bi-arrow-counterclockwise"></i> Cofnij</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="card-body card-body--empty">Brak ruchów. Elementy wpisuje się na bufor na stanowisku.</div>
+    {% endif %}
   </div>
 
   {% if current_user.is_kontroler and order.status == 'active' %}

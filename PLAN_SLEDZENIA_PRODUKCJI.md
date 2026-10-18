@@ -199,6 +199,8 @@ Akceptacja: skan prawdziwego kodu QR zlecenia tworzy zlecenie z elementami i pop
 
 ### Etap 3. Wpis na bufor i stan buforów (rozmiar L)
 
+Stan: zrealizowany lokalnie 2026-10-18, ustalenia z realizacji: kody skanowane w dowolnej kolejności z automatycznym rozpoznaniem, wpis na dowolny etap z trasy elementu, wycofanie wpisu od razu w tym etapie (admin i kontroler dowolny, operator i stanowisko własny, bez limitu czasu), rola `produkcja` otwiera nowe stanowisko, kontroler i admin mogą wpisywać bez plakietki.
+
 Cel: pracownik wpisuje ilość elementu zlecenia na bufor, system trzyma stan i historię.
 
 Zadania:

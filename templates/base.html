@@ -329,6 +329,12 @@
         </a>
 
       {% elif current_user.role == 'produkcja' %}
+        <a href="{{ url_for('kp.station') }}"
+           class="wk-nav-link {% if request.endpoint == 'kp.station' %}active{% endif %}"
+           title="Wpis na bufor">
+          <i class="bi bi-upc-scan"></i>
+          <span class="wk-nav-label">Wpis na bufor</span>
+        </a>
         <a href="{{ url_for('produkcja.scan_page') }}"
            class="wk-nav-link {% if request.endpoint == 'produkcja.scan_page' %}active{% endif %}"
            title="Skanuj QR">
@@ -337,6 +343,12 @@
         </a>
 
       {% elif current_user.role == 'operator' %}
+        <a href="{{ url_for('kp.station') }}"
+           class="wk-nav-link {% if request.endpoint == 'kp.station' %}active{% endif %}"
+           title="Wpis na bufor">
+          <i class="bi bi-upc-scan"></i>
+          <span class="wk-nav-label">Wpis na bufor</span>
+        </a>
         <a href="{{ url_for('kontrola.list_records') }}"
            class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('kontrola.') %}active{% endif %}"
            title="Kontrola zamówień">

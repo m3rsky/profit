@@ -264,11 +264,15 @@ def buffer_save(buffer_id):
     if err:
         flash(err, 'warning')
         return _back()
+    new_stage_id = _stage_or_none(request.form.get('stage_id'))
+    if new_stage_id != b.stage_id and any(p.quantity > 0 for p in b.positions):
+        flash(f'Na buforze {b.code} leżą elementy, więc nie można zmienić jego etapu.', 'warning')
+        return _back()
     old_code = b.code
     b.code = code
     b.name = request.form.get('name', '').strip()[:128] or None
     b.number = request.form.get('number', '').strip()[:32] or None
-    b.stage_id = _stage_or_none(request.form.get('stage_id'))
+    b.stage_id = new_stage_id
     b.is_active = request.form.get('is_active') == '1'
     db.session.commit()
     _audit('ustawienia_buffer_edit', 'Buffer', b.id, f'{old_code} -> {code}' if old_code != code else code)
@@ -285,6 +289,10 @@ def buffer_save(buffer_id):
 @settings_required
 def buffer_delete(buffer_id):
     b = get_or_404(Buffer, buffer_id)
+    from kp.stock import has_history
+    if has_history(buffer=b) or b.positions:
+        flash(f'Bufor {b.code} ma historię lub leżą na nim elementy. Dezaktywuj go zamiast usuwać.', 'warning')
+        return _back()
     code = b.code
     db.session.delete(b)
     db.session.commit()

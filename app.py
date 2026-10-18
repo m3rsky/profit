@@ -366,7 +366,7 @@ def dashboard():
     if current_user.role == 'planowanie':
         return redirect(url_for('produkcja.index'))
     if current_user.role == 'produkcja':
-        return redirect(url_for('produkcja.scan_page'))
+        return redirect(url_for('kp.station'))
     if current_user.role == 'operator':
         return redirect(url_for('kontrola.list_records'))
 

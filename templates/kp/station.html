@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+{% block title %}Stanowisko – wpis na bufor{% endblock %}
+
+{% block head %}
+<style>
+.st-wrap { display:flex; flex-direction:column; gap:1rem; }
+.st-scan { display:flex; gap:.5rem; flex-wrap:wrap; }
+.st-scan .form-control { flex:1; min-width:14rem; font-size:1.1rem; min-height:50px; }
+.st-scan .btn { min-height:50px; }
+#st-cam-wrap { max-width:420px; margin:0 auto; }
+#st-cam { width:100%; border-radius:var(--radius-md,8px); overflow:hidden; background:#000; }
+#st-cam video { width:100% !important; height:auto !important; }
+#st-cam img { display:none !important; }
+.st-msg { padding:.7rem 1rem; border-radius:var(--radius-md,8px); display:flex; gap:.6rem; align-items:center; }
+.st-msg.ok { background:var(--ok-bg,#dcfce7); color:var(--ok-text,#166534); }
+.st-msg.err { background:var(--danger-bg,#fee2e2); color:var(--danger-text,#b91c1c); }
+.st-msg.info { background:var(--blue-bg,#eff6ff); color:var(--progress-blue,#2563eb); }
+.st-cards { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:1rem; }
+.st-card { border:1px solid var(--border,#e2e8f0); border-radius:var(--radius-md,10px); padding:.85rem 1rem; background:var(--card-bg,var(--surface,#fff)); }
+.st-card h3 { margin:0 0 .4rem; font-size:.78rem; text-transform:uppercase; letter-spacing:.03em; color:var(--text-muted,#64748b); }
+.st-big { font-size:1.25rem; font-weight:700; word-break:break-word; }
+.st-sub { color:var(--text-muted,#64748b); font-size:.86rem; }
+.st-empty { color:var(--text-muted,#64748b); }
+.st-comp { padding:.8rem 1rem; border-top:1px solid var(--border,#e2e8f0); }
+.st-comp:first-child { border-top:none; }
+.st-comp-head { display:flex; gap:.6rem; align-items:baseline; flex-wrap:wrap; }
+.st-comp-name { font-weight:700; font-size:1.05rem; flex:1; min-width:9rem; }
+.st-nums { display:flex; gap:1rem; flex-wrap:wrap; font-size:.9rem; }
+.st-route { display:flex; flex-wrap:wrap; gap:.25rem; margin:.4rem 0; }
+.st-chip { font-size:.78rem; padding:.1rem .5rem; border-radius:999px; background:var(--blue-bg,#eff6ff); border:1px solid var(--border,#e2e8f0); }
+.st-chip.here { background:var(--ok-bg,#dcfce7); border-color:var(--ok-border,#16a34a); font-weight:700; }
+.st-pos { font-size:.86rem; color:var(--text-muted,#64748b); }
+.st-enter { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; margin-top:.5rem; }
+.st-enter .form-control { width:7rem; text-align:center; font-size:1.15rem; min-height:46px; }
+.st-enter .btn { min-height:46px; }
+.st-why { font-size:.82rem; color:var(--text-muted,#64748b); }
+.st-recent { display:flex; gap:.6rem; align-items:center; justify-content:space-between; padding:.45rem 0; border-bottom:1px solid var(--border,#e2e8f0); flex-wrap:wrap; }
+.st-recent:last-child { border-bottom:none; }
+.st-contents { margin:.4rem 0 0; padding:0; list-style:none; font-size:.88rem; }
+@media (max-width: 640px) { .st-enter .btn { flex:1; } }
+</style>
+{% endblock %}
+
+{% block content %}
+{% include 'kp/_tabs.html' %}
+<div class="st-wrap">
+  <div class="page-header" style="margin-bottom:0;">
+    <div>
+      <h1 class="page-title"><i class="bi bi-upc-scan"></i> Stanowisko: wpis na bufor</h1>
+      <span class="text-muted" style="font-size:0.82rem;">
+        Zeskanuj w dowolnej kolejności: plakietkę pracownika, kod bufora i kod QR zlecenia. Potem wpisz ilość elementu.
+      </span>
+    </div>
+  </div>
+
+  <div class="st-scan">
+    <input class="form-control" id="st-input" placeholder="Zeskanuj kod skanerem (lub wpisz kod bufora i naciśnij Enter)"
+           autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" autofocus>
+    <button type="button" class="btn btn-outline" id="st-cam-btn"><i class="bi bi-camera"></i> Kamera</button>
+  </div>
+  <div id="st-cam-wrap" hidden><div id="st-cam"></div></div>
+
+  <div id="st-msg" class="st-msg info"><i class="bi bi-info-circle"></i><span id="st-msg-text">Zeskanuj kod.</span></div>
+
+  <div class="st-cards">
+    <div class="st-card"><h3>Pracownik</h3><div id="st-emp"></div></div>
+    <div class="st-card"><h3>Bufor</h3><div id="st-buf"></div></div>
+    <div class="st-card"><h3>Zlecenie</h3><div id="st-ord"></div></div>
+  </div>
+
+  <div class="card" id="st-comps-card" hidden>
+    <div class="card-header">Elementy zlecenia</div>
+    <div id="st-comps"></div>
+  </div>
+
+  <div class="card" id="st-recent-card" hidden>
+    <div class="card-header">Moje ostatnie wpisy</div>
+    <div class="card-body" id="st-recent"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+(function () {
+  var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+  var NEEDS_BADGE = {{ needs_badge|tojson }};
+  var state = { employee: {{ employee|tojson }}, buffer: null, order: null, recent: {{ recent|tojson }} };
+
+  var $input = document.getElementById('st-input');
+  var $msg = document.getElementById('st-msg');
+  var $msgText = document.getElementById('st-msg-text');
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+  function say(text, kind) {
+    $msg.className = 'st-msg ' + (kind || 'info');
+    $msg.querySelector('i').className = 'bi ' + (kind === 'ok' ? 'bi-check-circle-fill' : kind === 'err' ? 'bi-exclamation-triangle-fill' : 'bi-info-circle');
+    $msgText.textContent = text;
+  }
+
+  function post(url, body) {
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+      body: JSON.stringify(body || {}),
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); });
+  }
+
+  // ── Rysowanie ──
+  function renderEmployee() {
+    var el = document.getElementById('st-emp');
+    if (state.employee) {
+      el.innerHTML = '<div class="st-big">' + esc(state.employee.name) + '</div><div class="st-sub">' + esc(state.employee.department) +
+        '</div><button type="button" class="btn btn-outline btn-sm" id="st-logout" style="margin-top:.5rem;">Wyloguj pracownika</button>';
+      document.getElementById('st-logout').addEventListener('click', function () {
+        post('{{ url_for("kp.station_logout_employee") }}').then(function () {
+          state.employee = null; state.recent = []; render(); say('Wylogowano pracownika.', 'info'); focus();
+        });
+      });
+    } else {
+      el.innerHTML = '<div class="st-empty">' + (NEEDS_BADGE ? 'Zeskanuj swoją plakietkę.' : 'Brak plakietki (kontroler i admin mogą wpisywać bez niej).') + '</div>';
+    }
+  }
+
+  function renderBuffer() {
+    var el = document.getElementById('st-buf');
+    var b = state.buffer;
+    if (!b) { el.innerHTML = '<div class="st-empty">Zeskanuj kod bufora.</div>'; return; }
+    var html = '<div class="st-big">' + esc(b.code) + '</div><div class="st-sub">' + esc(b.name !== b.code ? b.name : '') +
+      (b.stage ? ' · etap: <strong>' + esc(b.stage.name) + '</strong>' : ' · <strong>bufor bez etapu</strong>') + '</div>';
+    if (b.contents && b.contents.length) {
+      html += '<ul class="st-contents">' + b.contents.map(function (r) {
+        return '<li>' + esc(r.zo) + ' · ' + esc(r.component) + ': <strong>' + r.quantity + ' szt.</strong></li>';
+      }).join('') + '</ul>';
+    } else { html += '<div class="st-sub" style="margin-top:.3rem;">Bufor pusty.</div>'; }
+    el.innerHTML = html;
+  }
+
+  function renderOrder() {
+    var el = document.getElementById('st-ord');
+    var o = state.order;
+    var card = document.getElementById('st-comps-card');
+    if (!o) { el.innerHTML = '<div class="st-empty">Zeskanuj kod QR zlecenia.</div>'; card.hidden = true; return; }
+    el.innerHTML = '<div class="st-big">ZO ' + esc(o.zo) + '</div><div class="st-sub">' + esc(o.product) +
+      (o.client ? ' · ' + esc(o.client) : '') + ' · ' + o.quantity + ' szt.' + (o.status === 'cancelled' ? ' · <strong>ANULOWANE</strong>' : '') + '</div>';
+    card.hidden = false;
+    document.getElementById('st-comps').innerHTML = o.components.map(compHtml).join('');
+    document.querySelectorAll('.st-do-enter').forEach(function (btn) {
+      btn.addEventListener('click', function () { enter(parseInt(btn.dataset.id, 10)); });
+    });
+    document.querySelectorAll('.st-qty').forEach(function (inp) {
+      inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); enter(parseInt(inp.dataset.id, 10)); } });
+    });
+  }
+
+  function whyNot(c) {
+    if (state.order.status !== 'active') return 'Zlecenie jest anulowane.';
+    if (NEEDS_BADGE && !state.employee) return 'Najpierw zeskanuj swoją plakietkę.';
+    if (!state.buffer) return 'Zeskanuj kod bufora.';
+    if (!state.buffer.active) return 'Bufor jest nieaktywny.';
+    if (!state.buffer.stage) return 'Bufor nie ma przypisanego etapu.';
+    if (c.route_ids.indexOf(state.buffer.stage.id) < 0) return 'Etap bufora (' + state.buffer.stage.name + ') nie jest w trasie tego elementu.';
+    if (c.remaining < 1) return 'Element wpisany w całości.';
+    return '';
+  }
+
+  function compHtml(c) {
+    var stageId = state.buffer && state.buffer.stage ? state.buffer.stage.id : null;
+    var route = c.route.length ? c.route.map(function (s) {
+      return '<span class="st-chip' + (stageId === s.id ? ' here' : '') + '">' + esc(s.name) + '</span>';
+    }).join('') : '<span class="st-why">brak etapów w trasie</span>';
+    var pos = c.positions.length ? 'Leży: ' + c.positions.map(function (p) { return esc(p.code) + ' ' + p.quantity + ' szt.'; }).join(', ') : 'Nic jeszcze na buforach.';
+    var why = whyNot(c);
+    var inp = '<input type="number" class="form-control st-qty" data-id="' + c.id + '" min="1" max="' + c.remaining + '" step="1" inputmode="numeric" placeholder="szt."' + (why ? ' disabled' : '') + '>';
+    var btn = '<button type="button" class="btn btn-primary st-do-enter" data-id="' + c.id + '"' + (why ? ' disabled' : '') + '><i class="bi bi-box-arrow-in-down"></i> Wpisz na bufor' + (state.buffer ? ' ' + esc(state.buffer.code) : '') + '</button>';
+    return '<div class="st-comp"><div class="st-comp-head"><span class="st-comp-name">' + esc(c.name) + '</span>' +
+      '<span class="st-nums"><span>Wymagane: <strong>' + c.required + '</strong></span><span>Wpisane: <strong>' + c.entered + '</strong></span><span>Pozostało: <strong>' + c.remaining + '</strong></span></span></div>' +
+      '<div class="st-route">' + route + '</div><div class="st-pos">' + pos + '</div>' +
+      '<div class="st-enter">' + inp + btn + (why ? '<span class="st-why">' + esc(why) + '</span>' : '') + '</div></div>';
+  }
+
+  function renderRecent() {
+    var card = document.getElementById('st-recent-card');
+    var el = document.getElementById('st-recent');
+    if (!state.employee || !state.recent.length) { card.hidden = true; return; }
+    card.hidden = false;
+    el.innerHTML = state.recent.map(function (m) {
+      return '<div class="st-recent"><span>' + esc(m.at) + ' · ZO ' + esc(m.zo) + ' · ' + esc(m.component) + ' · <strong>' + m.quantity + ' szt.</strong> na ' + esc(m.buffer) +
+        '</span><button type="button" class="btn btn-outline btn-sm st-revert" data-id="' + m.id + '"><i class="bi bi-arrow-counterclockwise"></i> Cofnij</button></div>';
+    }).join('');
+    el.querySelectorAll('.st-revert').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (!confirm('Wycofać ten wpis?')) return;
+        fetch('{{ url_for("kp.revert_movement", movement_id=0) }}'.replace('/0/', '/' + btn.dataset.id + '/'), {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: '{}',
+        }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (res) { applyResult(res); });
+      });
+    });
+  }
+
+  function render() { renderEmployee(); renderBuffer(); renderOrder(); renderRecent(); }
+
+  function focus() { setTimeout(function () { $input.focus(); }, 30); }
+
+  // ── Akcje ──
+  function applyResult(res) {
+    if (res.ok && res.d.ok) {
+      if (res.d.order && state.order && res.d.order.id === state.order.id) state.order = res.d.order;
+      if (res.d.buffer && state.buffer && res.d.buffer.id === state.buffer.id) state.buffer = res.d.buffer;
+      if (res.d.recent) state.recent = res.d.recent;
+      render();
+      say(res.d.msg || 'Gotowe.', 'ok');
+    } else {
+      say((res.d && res.d.error) || 'Wystąpił błąd.', 'err');
+      if (res.d && res.d.need_employee) { state.employee = null; render(); }
+    }
+    focus();
+  }
+
+  function enter(compId) {
+    var inp = document.querySelector('.st-qty[data-id="' + compId + '"]');
+    var qty = parseInt((inp && inp.value) || '', 10);
+    if (!qty || qty < 1) { say('Wpisz ilość większą od zera.', 'err'); if (inp) inp.focus(); return; }
+    post('{{ url_for("kp.station_enter") }}', { component_id: compId, buffer_id: state.buffer && state.buffer.id, quantity: qty })
+      .then(applyResult);
+  }
+
+  function scan(raw) {
+    var text = (window.repairPolishText ? window.repairPolishText(raw.trim()) : raw.trim());
+    if (!text) return;
+    post('{{ url_for("kp.station_scan") }}', { code: text }).then(function (res) {
+      if (!(res.ok && res.d.ok)) { say((res.d && res.d.error) || 'Nie rozpoznano kodu.', 'err'); focus(); return; }
+      var d = res.d;
+      if (d.type === 'employee') { state.employee = d.employee; state.recent = d.recent || []; say('Pracownik: ' + d.employee.name, 'ok'); }
+      else if (d.type === 'buffer') { state.buffer = d.buffer; say('Bufor ' + d.buffer.code + (d.buffer.stage ? ' (' + d.buffer.stage.name + ')' : ' bez etapu') + '.', 'ok'); }
+      else if (d.type === 'order') { state.order = d.order; say('Zlecenie ZO ' + d.order.zo + ' (' + d.order.product + ').', 'ok'); }
+      render();
+      focus();
+    }).catch(function () { say('Błąd sieci. Spróbuj ponownie.', 'err'); focus(); });
+  }
+
+  // Skaner ręczny działa jak klawiatura: kod trafia do pola i kończy się Enterem (czasem Tabem).
+  $input.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== 'Tab') return;
+    e.preventDefault();
+    var v = $input.value; $input.value = '';
+    scan(v);
+  });
+
+  // ── Kamera ──
+  var reader = null, camOn = false, lastText = '', lastAt = 0;
+  var camBtn = document.getElementById('st-cam-btn');
+  camBtn.addEventListener('click', function () {
+    var wrap = document.getElementById('st-cam-wrap');
+    if (camOn) { reader.stop().catch(function () {}); camOn = false; wrap.hidden = true; return; }
+    wrap.hidden = false;
+    reader = new Html5Qrcode('st-cam');
+    Html5Qrcode.getCameras().then(function (cams) {
+      if (!cams || !cams.length) { say('Brak dostępnej kamery.', 'err'); wrap.hidden = true; return; }
+      return reader.start(cams[cams.length - 1].id, { fps: 10, qrbox: { width: 260, height: 260 } }, function (text) {
+        var now = Date.now();
+        if (text === lastText && now - lastAt < 2500) return;   // ten sam kod nie dwa razy z rzędu
+        lastText = text; lastAt = now;
+        scan(text);
+      }, function () {}).then(function () { camOn = true; });
+    }).catch(function () { say('Brak dostępu do kamery. Użyj skanera lub wpisz kod.', 'err'); wrap.hidden = true; });
+  });
+
+  // po kliknięciu poza polami kursor wraca do pola skanera
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('button, select, a, input, textarea, label')) focus();
+  });
+
+  render();
+})();
+</script>
+{% endblock %}
