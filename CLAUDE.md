@@ -62,7 +62,7 @@ Przykład formatu:
 ## Informacje o projekcie
 
 - **Stack:** Python 3.14 (lokalnie, `venv`), Flask 3.0.3, Flask-SQLAlchemy 3.1.1, Flask-Login, Flask-WTF, SQLite. Pełna lista w `requirements.txt`.
-- **Testy:** `.\venv\Scripts\python.exe -m pytest tests/ -v` - 309 testów w `tests/` (m.in. `test_app.py`, `test_kontrola.py`, `test_api_v1.py`, `test_briefing.py`, `test_dokumentacja.py`, `test_installer_stats.py`, `test_marszruta.py`, `test_produkcja.py`, `test_produkcja_stanowisko.py`, `test_qar_employee.py`, `test_qar_from_checklist.py`, `test_zadania_qa.py`), wszystkie muszą przejść. Współdzielone fixture'y są w `tests/conftest.py`.
+- **Testy:** `.\venv\Scripts\python.exe -m pytest tests/ -v` - 352 testy w `tests/` (m.in. `test_app.py`, `test_kontrola.py`, `test_api_v1.py`, `test_briefing.py`, `test_dokumentacja.py`, `test_installer_stats.py`, `test_marszruta.py`, `test_produkcja.py`, `test_produkcja_stanowisko.py`, `test_qar_employee.py`, `test_qar_from_checklist.py`, `test_zadania_qa.py`), wszystkie muszą przejść. Współdzielone fixture'y są w `tests/conftest.py`.
 - **Uruchomienie lokalne:** `.\venv\Scripts\python.exe app.py` → http://127.0.0.1:5000
 - **Pre-commit hook:** automatycznie uruchamia testy przed każdym commitem
 - **Migracje schematu:** wszystkie realizowane przez `_migrate_schema()` w `app.py` - bez Alembic. Nowe kolumny dodawane jako `ALTER TABLE ... ADD COLUMN ...`.
@@ -144,6 +144,22 @@ Dodane 2026-10-18 w `kp/` (`stock.py` logika, `station.py` trasy). Elementy zlec
 - **Ochrony:** ilość zlecenia i element nie spadną poniżej wpisanej ilości, z trasy elementu nie da się usunąć etapu z leżącą ilością, element z ruchami, bufor z historią lub zawartością i pracownik z ruchami nie dają się usunąć, bufor z zawartością nie zmienia etapu.
 - **Widoki dla wszystkich zalogowanych:** `/kontrolaprodukcji/bufory` (lista, filtr etapu, szukanie po kodzie), szczegóły bufora (co leży, ostatnie ruchy), na stronie zlecenia położenie elementów i historia ruchów. Rola `produkcja` po logowaniu trafia na nowe stanowisko, Lista produkcyjna zostaje w jej menu.
 - Testy: `tests/test_stock.py`.
+
+### Przejęcie etapu, przenoszenie, składanie i pakowanie (etap 4 planu)
+
+Dodane 2026-10-18 w `kp/flow.py` (logika), `kp/stock.py` (trasy, widoki danych) i `kp/station.py` (trasy stanowiska).
+
+- **Ilość jest zawsze w jednym miejscu:** na buforze (`StockPosition`) albo w realizacji (`WorkInProgress`, po przejęciu etapu). Ruchy (`Movement`): `wpis`, `przejecie`, `przeniesienie`, `zlozenie`, `zuzycie`, `spakowanie`, `cofniecie`, z etapem, maszyną, pracownikiem, `wip_id` i `group_id` (ruchy jednej operacji, np. złożenia).
+- **Przejęcie** (`flow.takeover`): ilość schodzi z bufora do „w realizacji”. Pracownik z działu etapu (etap bez działu nie ogranicza), maszyna wymagana, gdy etap ma aktywne maszyny, kontroler i admin bez plakietki i bez ograniczeń działu (maszyna nadal wymagana). Pozycje `wstrzymane` nie są dostępne (przygotowanie pod kontrole z etapu 5).
+- **Wpis po etapie** (`flow.transfer`): z „w realizacji” na bufor dowolnego późniejszego etapu trasy elementu, po trasie na etap składania (`stock.target_stages`). Kończyć może dowolny zidentyfikowany pracownik.
+- **Składanie** (`flow.assemble`): tylko na buforze pierwszego etapu poziomu `produkt`, z elementów leżących na **zeskanowanym buforze**. Limit sztuk to minimum po elementach (`ilość / na sztukę`, w dół), nie więcej niż zostało z `q`. Zużywa elementy (`zuzycie`) i tworzy gotowy produkt „w realizacji”. Gotowy produkt to specjalny element zlecenia (`WorkOrderComponent.is_product`, tworzony przy pierwszym złożeniu, ukryty w `order.components`, dostępny jako `order.product_component`), dalej idzie jak element przez etapy poziomu `produkt`. Element można wpisać z zewnątrz także na bufor etapu składania.
+- **Pakowanie** (`flow.pack`): ilość w realizacji na ostatnim etapie poziomu `produkt` oznacza się jako spakowaną. Spakowane całe `q` zmienia status zlecenia na `done` (Zakończone, `completed_at`).
+- **Wycofanie** (`flow.revert`): admin i kontroler dowolny ruch, operator i stanowisko tylko własny. Wycofać można tylko ruch, od którego nie odeszły dalsze (ilość leży tam, gdzie trafiła), `zuzycie` wycofuje się razem ze złożeniem.
+- **Ochrony:** ilość zlecenia nie spadnie poniżej złożonych sztuk, z trasy nie da się usunąć etapu z ilością w realizacji, etap, maszyna, bufor i pracownik z historią lub realizacją nie dają się usunąć.
+- **Stanowisko** `/kontrolaprodukcji/stanowisko`: panele „W realizacji”, „Złóż produkt”, elementy z przejęciem etapu i wyborem maszyny, gotowy produkt, ostatnie ruchy z „Cofnij”. Alerty i „Zleć decyzję” są w planie etapu 5 (powstaną razem z kontrolami).
+- Migracja: kolumny `work_order_components.is_product`, `work_orders.completed_at`, `movements.stage_id/machine_id/group_id/wip_id` dodaje `_migrate_schema()`.
+- **Usuwanie zleceń** (tylko admin): pojedynczo (`/kontrolaprodukcji/<id>/usun`, ze strony zlecenia) i zbiorczo (`/usun-zaznaczone`, pola wyboru na liście). W odróżnieniu od anulowania usuwa zlecenie trwale razem z elementami, trasami, ilościami na buforach, pozycjami w realizacji i historią ruchów (`service.delete_order`); bufory, pracownicy, etapy i szablony zostają. Okno potwierdzenia podaje liczbę ruchów i sztuk, w dzienniku zdarzeń zostaje wpis `kp_delete` / `kp_bulk_delete`.
+- Testy: `tests/test_flow.py`.
 
 ---
 

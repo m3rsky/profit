@@ -1,4 +1,5 @@
-"""Stanowisko wpisu na bufor, widoki buforów i wycofanie wpisu (etap 3 planu śledzenia produkcji)."""
+"""Stanowisko: wpis na bufor, przejęcie etapu, wpis po etapie, składanie, pakowanie i wycofanie ruchu
+(etapy 3 i 4 planu śledzenia produkcji), a także widoki buforów."""
 import json
 from datetime import datetime, timedelta, timezone
 from functools import wraps
@@ -9,9 +10,9 @@ from flask_login import login_required, current_user
 from sqlalchemy import func
 
 from models import (db, get_or_404, AuditLog, Buffer, DepartmentEmployee, Movement, ProductionStage,
-                    StockPosition, WorkOrder, WorkOrderComponent)
+                    StockPosition, WorkInProgress, WorkOrder, WorkOrderComponent)
 from ustawienia.lookup import find_buffer, find_department_employee, parse_badge
-from . import kp_bp, service, stock
+from . import kp_bp, service, stock, flow
 
 UTC = timezone.utc
 SESSION_KEY = 'kp_employee'
@@ -72,10 +73,26 @@ def _audit(action, target_id=None, detail=None):
 
 def _recent_json(emp):
     return [{'id': m.id, 'zo': m.order.zo_number, 'product': m.order.product_name,
-             'component': m.component.name, 'quantity': m.quantity,
-             'buffer': m.to_buffer.code if m.to_buffer else '',
+             'kind': m.kind_label, 'component': m.component.name, 'quantity': m.quantity,
+             'buffer': (m.to_buffer.code if m.to_buffer else (m.from_buffer.code if m.from_buffer else '')),
              'at': current_app.jinja_env.filters['localdt'](m.created_at, '%d.%m %H:%M')}
             for m in stock.recent_entries(emp)]
+
+
+def _wip_list(emp, order=None):
+    """Pozycje w realizacji: pracownika zidentyfikowanego plakietką oraz (gdy podano) zlecenia."""
+    rows = {w.id: w for w in stock.employee_wip(emp)}
+    if order is not None:
+        rows.update({w.id: w for w in stock.order_wip(order)})
+    return [stock.wip_json(rows[k]) for k in sorted(rows)]
+
+
+def _reply(msg, order, buffer_id, emp):
+    """Odpowiedź po akcji: zlecenie i bufor w kontekście stanowiska, pozycje w realizacji, ostatnie ruchy."""
+    buf = db.session.get(Buffer, buffer_id) if buffer_id else None
+    return jsonify({'ok': True, 'msg': msg, 'order': stock.order_summary(order, buf),
+                    'buffer': stock.buffer_summary(buf) if buf else None,
+                    'wip': _wip_list(emp, order), 'recent': _recent_json(emp)})
 
 
 def _int(raw):
@@ -105,10 +122,14 @@ def station():
 @login_required
 @stock_required
 def station_scan():
-    """Rozpoznaje zeskanowany kod: plakietka pracownika, kod bufora albo kod QR zlecenia."""
-    text = ((request.get_json(silent=True) or {}).get('code') or '').strip()
+    """Rozpoznaje zeskanowany kod: plakietka pracownika, kod bufora albo kod QR zlecenia. Opcjonalne
+    `order_id` i `buffer_id` to kontekst stanowiska (zlecenie i bufor zeskanowane wcześniej)."""
+    body = request.get_json(silent=True) or {}
+    text = (body.get('code') or '').strip()
     if not text:
         return jsonify({'error': 'Pusty kod.'}), 400
+    ctx_order = db.session.get(WorkOrder, _int(body.get('order_id')) or 0)
+    ctx_buffer = db.session.get(Buffer, _int(body.get('buffer_id')) or 0)
 
     # Plakietka pracownika działu
     if parse_badge(text) is not None:
@@ -117,7 +138,9 @@ def station_scan():
             return jsonify({'error': 'Nie rozpoznano plakietki (nieznany lub nieaktywny pracownik).'}), 404
         _set_employee(emp)
         return jsonify({'ok': True, 'type': 'employee', 'employee': _emp_json(emp),
-                        'recent': _recent_json(emp)})
+                        'recent': _recent_json(emp), 'wip': _wip_list(emp, ctx_order)})
+
+    emp = current_employee()
 
     # Kod QR zlecenia (JSON z polami p, c, o, q)
     if text.startswith('{'):
@@ -134,13 +157,16 @@ def station_scan():
             return jsonify({'error': f'Zlecenia ZO {zo} ({product}) nie ma w systemie. Zlecenie zakłada '
                                      f'kontroler skanem kodu w module Kontrola produkcji.',
                             'unknown_order': True}), 404
-        return jsonify({'ok': True, 'type': 'order', 'order': stock.order_summary(order)})
+        return jsonify({'ok': True, 'type': 'order', 'order': stock.order_summary(order, ctx_buffer),
+                        'wip': _wip_list(emp, order)})
 
     # Kod bufora (QR lub kod kreskowy z etykiety)
     buf = find_buffer(text)
     if not buf:
         return jsonify({'error': f'Nie znaleziono bufora o kodzie „{text}”.'}), 404
-    return jsonify({'ok': True, 'type': 'buffer', 'buffer': stock.buffer_summary(buf)})
+    return jsonify({'ok': True, 'type': 'buffer', 'buffer': stock.buffer_summary(buf),
+                    'order': stock.order_summary(ctx_order, buf) if ctx_order else None,
+                    'wip': _wip_list(emp, ctx_order)})
 
 
 @kp_bp.route('/stanowisko/wyloguj', methods=['POST'])
@@ -161,8 +187,8 @@ def station_enter():
     emp = current_employee()
     if emp is None and not current_user.is_kontroler:
         return jsonify({'error': 'Najpierw zeskanuj swoją plakietkę.', 'need_employee': True}), 401
-    comp = db.session.get(WorkOrderComponent, data.get('component_id') or 0)
-    buf = db.session.get(Buffer, data.get('buffer_id') or 0)
+    comp = db.session.get(WorkOrderComponent, _int(data.get('component_id')) or 0)
+    buf = db.session.get(Buffer, _int(data.get('buffer_id')) or 0)
     if not comp:
         return jsonify({'error': 'Nie znaleziono elementu zlecenia.'}), 404
     mv, err = stock.enter(comp, buf, _int(data.get('quantity')), emp, current_user)
@@ -171,9 +197,106 @@ def station_enter():
         return jsonify({'error': err}), 400
     db.session.commit()
     _audit('kp_stock_enter', mv.id, f'ZO={comp.order.zo_number} {comp.name} x{mv.quantity} -> {buf.code}')
-    return jsonify({'ok': True, 'msg': f'Wpisano {mv.quantity} szt. „{comp.name}” na bufor {buf.code}.',
-                    'order': stock.order_summary(comp.order), 'buffer': stock.buffer_summary(buf),
-                    'recent': _recent_json(emp)})
+    return _reply(f'Wpisano {mv.quantity} szt. „{comp.name}” na bufor {buf.code}.', comp.order, buf.id, emp)
+
+
+def _action(emp_required=True):
+    """Wspólny początek akcji: pracownik (kontroler i admin mogą bez plakietki) i treść żądania."""
+    emp = current_employee()
+    if emp_required and emp is None and not current_user.is_kontroler:
+        return None, None, (jsonify({'error': 'Najpierw zeskanuj swoją plakietkę.', 'need_employee': True}), 401)
+    return emp, (request.get_json(silent=True) or {}), None
+
+
+@kp_bp.route('/stanowisko/przejecie', methods=['POST'])
+@login_required
+@stock_required
+def station_takeover():
+    """Przejęcie etapu: ilość elementu schodzi z bufora do stanu „w realizacji”."""
+    emp, data, fail = _action()
+    if fail:
+        return fail
+    comp = db.session.get(WorkOrderComponent, _int(data.get('component_id')) or 0)
+    buf = db.session.get(Buffer, _int(data.get('buffer_id')) or 0)
+    if not comp:
+        return jsonify({'error': 'Nie znaleziono elementu zlecenia.'}), 404
+    mv, err = flow.takeover(comp, buf, _int(data.get('quantity')), emp, current_user, data.get('machine_id'))
+    if err:
+        db.session.rollback()
+        return jsonify({'error': err}), 400
+    db.session.commit()
+    _audit('kp_takeover', mv.id, f'ZO={comp.order.zo_number} {comp.name} x{mv.quantity} etap={buf.stage.name}')
+    machine = f' na maszynie {mv.machine.name}' if mv.machine else ''
+    return _reply(f'Przejęto etap „{buf.stage.name}”{machine}: {mv.quantity} szt. „{comp.name}”. '
+                  f'Po wykonaniu zeskanuj bufor następnego etapu.', comp.order, buf.id, emp)
+
+
+@kp_bp.route('/stanowisko/zloz', methods=['POST'])
+@login_required
+@stock_required
+def station_assemble():
+    """Składanie: elementy z zeskanowanego bufora zamieniają się w sztuki gotowego produktu w realizacji."""
+    emp, data, fail = _action()
+    if fail:
+        return fail
+    order = db.session.get(WorkOrder, _int(data.get('order_id')) or 0)
+    buf = db.session.get(Buffer, _int(data.get('buffer_id')) or 0)
+    if not order:
+        return jsonify({'error': 'Nie znaleziono zlecenia.'}), 404
+    mv, err = flow.assemble(order, buf, _int(data.get('quantity')), emp, current_user, data.get('machine_id'))
+    if err:
+        db.session.rollback()
+        return jsonify({'error': err}), 400
+    db.session.commit()
+    _audit('kp_assemble', mv.id, f'ZO={order.zo_number} złożono {mv.quantity} szt. produktu')
+    return _reply(f'Złożono {mv.quantity} szt. produktu. Po wykonaniu zeskanuj bufor następnego etapu.',
+                  order, buf.id, emp)
+
+
+@kp_bp.route('/stanowisko/przenies', methods=['POST'])
+@login_required
+@stock_required
+def station_transfer():
+    """Wpis po etapie: ilość z „w realizacji” trafia na bufor następnego etapu."""
+    emp, data, fail = _action()
+    if fail:
+        return fail
+    wip = db.session.get(WorkInProgress, _int(data.get('wip_id')) or 0)
+    buf = db.session.get(Buffer, _int(data.get('buffer_id')) or 0)
+    if not wip:
+        return jsonify({'error': 'Ta pozycja nie jest już w realizacji.'}), 404
+    order = wip.component.order
+    name = wip.component.name
+    mv, err = flow.transfer(wip, buf, _int(data.get('quantity')), emp, current_user)
+    if err:
+        db.session.rollback()
+        return jsonify({'error': err}), 400
+    db.session.commit()
+    _audit('kp_transfer', mv.id, f'ZO={order.zo_number} {name} x{mv.quantity} -> {buf.code}')
+    return _reply(f'Wpisano {mv.quantity} szt. „{name}” na bufor {buf.code} ({buf.stage.name}).',
+                  order, buf.id, emp)
+
+
+@kp_bp.route('/stanowisko/spakowane', methods=['POST'])
+@login_required
+@stock_required
+def station_pack():
+    """Oznacza ilość gotowego produktu jako spakowaną. Spakowane całe `q` kończy zlecenie."""
+    emp, data, fail = _action()
+    if fail:
+        return fail
+    wip = db.session.get(WorkInProgress, _int(data.get('wip_id')) or 0)
+    if not wip:
+        return jsonify({'error': 'Ta pozycja nie jest już w realizacji.'}), 404
+    order = wip.component.order
+    mv, err = flow.pack(wip, _int(data.get('quantity')), emp, current_user)
+    if err:
+        db.session.rollback()
+        return jsonify({'error': err}), 400
+    db.session.commit()
+    _audit('kp_pack', mv.id, f'ZO={order.zo_number} spakowano {mv.quantity} szt.')
+    done = ' Zlecenie zakończone.' if order.status == 'done' else ''
+    return _reply(f'Spakowano {mv.quantity} szt.{done}', order, _int(data.get('buffer_id')), emp)
 
 
 @kp_bp.route('/ruch/<int:movement_id>/cofnij', methods=['POST'])
@@ -182,7 +305,9 @@ def station_enter():
 def revert_movement(movement_id):
     m = get_or_404(Movement, movement_id)
     emp = current_employee()
-    new_mv, err = stock.revert(m, current_user, emp)
+    order = m.order
+    body = request.get_json(silent=True) or {}
+    new_mv, err = flow.revert(m, current_user, emp)
     wants_json = request.is_json or request.headers.get('X-Requested-With') == 'fetch'
     if err:
         db.session.rollback()
@@ -191,11 +316,10 @@ def revert_movement(movement_id):
         flash(err, 'warning')
         return redirect(url_for('kp.order_detail', order_id=m.order_id))
     db.session.commit()
-    _audit('kp_stock_revert', new_mv.id, f'wpis={m.id} ZO={m.order.zo_number} {m.component.name} x{m.quantity}')
-    msg = f'Wycofano wpis: {m.quantity} szt. „{m.component.name}” z bufora {m.to_buffer.code}.'
+    _audit('kp_revert', new_mv.id, f'ruch={m.id} {m.kind} ZO={order.zo_number} {m.component.name} x{m.quantity}')
+    msg = f'Wycofano: {m.kind_label.lower()}, {m.quantity} szt. „{m.component.name}”.'
     if wants_json:
-        return jsonify({'ok': True, 'msg': msg, 'order': stock.order_summary(m.order),
-                        'buffer': stock.buffer_summary(m.to_buffer), 'recent': _recent_json(emp)})
+        return _reply(msg, order, _int(body.get('buffer_id')), emp)
     flash(msg, 'success')
     return redirect(url_for('kp.order_detail', order_id=m.order_id))
 

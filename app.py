@@ -3525,6 +3525,18 @@ def _migrate_schema():
         if 'users' in insp.get_table_names():
             conn.execute(text("UPDATE users SET role='operator' WHERE role='spawacz'"))
             conn.commit()
+        for tbl, col, ddl in (
+                ('work_order_components', 'is_product',
+                 'ALTER TABLE work_order_components ADD COLUMN is_product BOOLEAN NOT NULL DEFAULT 0'),
+                ('work_orders', 'completed_at', 'ALTER TABLE work_orders ADD COLUMN completed_at DATETIME'),
+                ('movements', 'stage_id', 'ALTER TABLE movements ADD COLUMN stage_id INTEGER REFERENCES production_stages(id)'),
+                ('movements', 'machine_id', 'ALTER TABLE movements ADD COLUMN machine_id INTEGER REFERENCES machines(id)'),
+                ('movements', 'group_id', 'ALTER TABLE movements ADD COLUMN group_id VARCHAR(32)'),
+                ('movements', 'wip_id', 'ALTER TABLE movements ADD COLUMN wip_id INTEGER')):
+            if tbl in insp.get_table_names():
+                if col not in [c['name'] for c in insp.get_columns(tbl)]:
+                    conn.execute(text(ddl))
+                    conn.commit()
         if 'product_components' in insp.get_table_names():
             # Ilość na sztukę przeniesiona z szablonu na zlecenie (tabela istniała tylko w wersjach deweloperskich).
             cols = [c['name'] for c in insp.get_columns('product_components')]

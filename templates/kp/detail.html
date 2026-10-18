@@ -43,6 +43,7 @@
     <h1 class="page-title">
       <i class="bi bi-diagram-2"></i> ZO {{ order.zo_number }}
       {% if order.status == 'cancelled' %}<span class="badge badge-neutral" style="vertical-align:middle;">Anulowane</span>
+      {% elif order.status == 'done' %}<span class="badge badge-success" style="vertical-align:middle;">Zakończone</span>
       {% else %}<span class="badge badge-info" style="vertical-align:middle;">W toku</span>{% endif %}
     </h1>
     <div class="page-header-actions">
@@ -57,6 +58,7 @@
     <span>Szablon: {{ order.template.name if order.template else '(usunięty)' }}</span>
     <span>Utworzył(a): {{ order.created_by.username if order.created_by else '-' }}, {{ order.created_at|localdt('%d.%m.%Y %H:%M') }}</span>
     {% if order.cancelled_at %}<span>Anulowano: {{ order.cancelled_at|localdt('%d.%m.%Y %H:%M') }}</span>{% endif %}
+    {% if order.completed_at %}<span>Zakończono: {{ order.completed_at|localdt('%d.%m.%Y %H:%M') }}</span>{% endif %}
   </div>
 
   {% if current_user.is_admin %}
@@ -80,6 +82,11 @@
       <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-arrow-counterclockwise"></i> Przywróć zlecenie</button>
     </form>
     {% endif %}
+    <form method="post" action="{{ url_for('kp.delete_order', order_id=order.id) }}" style="margin-left:auto;"
+          onsubmit="return confirm('Usunąć trwale zlecenie {{ order.zo_number }}? Zniknie razem z historią ruchów ({{ impact.movements }}), ilością na buforach ({{ impact.stock }} szt.) i w realizacji ({{ impact.wip }} szt.). Tego nie można cofnąć. Jeśli chcesz tylko wyłączyć zlecenie z produkcji, użyj Anuluj.')">
+      {{ csrf_input() }}
+      <button type="submit" class="btn btn-danger btn-sm"><i class="bi bi-trash"></i> Usuń zlecenie</button>
+    </form>
   </div></div>
   {% endif %}
 
@@ -134,6 +141,38 @@
   </div>
 
   <div class="card">
+    <div class="card-header">Gotowy produkt i ilości w realizacji</div>
+    <div class="card-body">
+      <div class="kd-nums" style="margin:0 0 .5rem;">
+        <span>Wymagane: <strong>{{ product.required }} szt.</strong></span>
+        <span>Złożone: <strong>{{ product.produced }}</strong></span>
+        <span>W realizacji: <strong>{{ product.in_progress }}</strong></span>
+        <span>Spakowane: <strong>{{ product.packed }}</strong></span>
+      </div>
+      {% if product.positions %}
+      <div class="kd-pos" style="margin-bottom:.5rem;">Gotowy produkt leży:
+        {% for p in product.positions %}
+        <a href="{{ url_for('kp.buffer_detail', buffer_id=p.buffer_id) }}" class="kd-poschip">{{ p.code }}{% if p.stage %} ({{ p.stage }}){% endif %}: <strong>{{ p.quantity }} szt.</strong></a>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% if wip_rows %}
+      <table class="data-table">
+        <thead><tr><th>Element</th><th>Etap</th><th>Ilość</th><th>Maszyna</th><th>Pracownik</th></tr></thead>
+        <tbody>
+          {% for w in wip_rows %}
+          <tr><td>{{ w.component }}</td><td>{{ w.stage }}</td><td><strong>{{ w.quantity }} szt.</strong></td>
+              <td>{{ w.machine or '-' }}</td><td>{{ w.employee or '-' }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <span class="text-muted">Nic nie jest w realizacji.</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
     <div class="card-header">Historia ruchów</div>
     {% if movements %}
     <div class="card-body" style="padding:0; overflow-x:auto;">
@@ -146,7 +185,7 @@
             <td>{{ m.kind_label }}{% if m.reverted_at %} <span class="badge badge-neutral">wycofany</span>{% endif %}</td>
             <td>{{ m.component.name }}</td>
             <td>{{ m.quantity }} szt.</td>
-            <td>{% set b = m.to_buffer or m.from_buffer %}{% if b %}<a href="{{ url_for('kp.buffer_detail', buffer_id=b.id) }}">{{ b.code }}</a>{% else %}-{% endif %}</td>
+            <td>{% set b = m.to_buffer or m.from_buffer %}{% if b %}<a href="{{ url_for('kp.buffer_detail', buffer_id=b.id) }}">{{ b.code }}</a>{% else %}-{% endif %}{% if m.stage %} <span class="text-muted" style="font-size:.8rem;">({{ m.stage.name }}{% if m.machine %}, {{ m.machine.name }}{% endif %})</span>{% endif %}</td>
             <td>{{ m.employee.name if m.employee else (m.user.username if m.user else '-') }}</td>
             <td>
               {% if can_revert.get(m.id) %}

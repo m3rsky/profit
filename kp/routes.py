@@ -10,7 +10,7 @@ from sqlalchemy import or_
 from models import (db, get_or_404, AuditLog, ProductionStage, WorkOrder, WorkOrderComponent,
                     WorkOrderComponentStage, Movement, StockPosition)
 from . import kp_bp
-from . import service, stock
+from . import service, stock, flow
 
 UTC = timezone.utc
 
@@ -72,16 +72,13 @@ def list_orders():
         query = query.filter(or_(WorkOrder.zo_number.ilike(like),
                                  WorkOrder.product_name.ilike(like),
                                  WorkOrder.client.ilike(like)))
-    counts = {
-        'active': query.filter(WorkOrder.status == 'active').count(),
-        'cancelled': query.filter(WorkOrder.status == 'cancelled').count(),
-    }
+    counts = {s: query.filter(WorkOrder.status == s).count() for s in ('active', 'done', 'cancelled')}
     if status in WorkOrder.STATUS_LABELS:
         query = query.filter(WorkOrder.status == status)
     else:
         status = 'all'
     return render_template('kp/list.html', orders=query.all(), status=status, q=q_text,
-                           counts=counts, total=counts['active'] + counts['cancelled'])
+                           counts=counts, total=sum(counts.values()))
 
 
 # ── Skan kodu QR zlecenia ─────────────────────────────────────────────────────
@@ -185,10 +182,13 @@ def order_detail(order_id):
     summaries = {c.id: stock.component_summary(c) for c in order.components}
     movements = (Movement.query.filter_by(order_id=order.id)
                  .order_by(Movement.created_at.desc(), Movement.id.desc()).limit(60).all())
-    can_revert = {m.id: stock.revert_error(m, current_user, emp) is None
-                  for m in movements if m.kind == 'wpis' and m.reverted_at is None}
+    can_revert = {m.id: flow.revert_error(m, current_user, emp) is None
+                  for m in movements if m.reverted_at is None and m.kind in flow.REVERTIBLE}
     return render_template('kp/detail.html', order=order, all_stages=stages, summaries=summaries,
-                           movements=movements, can_revert=can_revert)
+                           movements=movements, can_revert=can_revert,
+                           product=stock.product_summary(order),
+                           impact=service.delete_impact(order) if current_user.is_admin else None,
+                           wip_rows=[stock.wip_json(w) for w in stock.order_wip(order)])
 
 
 # ── Korekty (tylko admin) ─────────────────────────────────────────────────────
@@ -223,12 +223,51 @@ def set_order_quantity(order_id):
         flash('Nie można zmniejszyć ilości poniżej już wpisanych na bufory. Dotyczy elementów: '
               + ', '.join(too_low) + '.', 'warning')
         return _back(order)
+    produced = flow.product_produced(order)
+    if new_q < produced:
+        flash(f'Nie można zmniejszyć ilości poniżej już złożonych sztuk produktu ({produced}).', 'warning')
+        return _back(order)
     old_q = order.quantity
     service.set_quantity(order, new_q)
     db.session.commit()
     _audit('kp_quantity', order.id, f'{old_q} -> {new_q}')
     flash(f'Zmieniono ilość z {old_q} na {new_q}. Wymagane ilości elementów przeliczono.', 'success')
     return _back(order)
+
+
+@kp_bp.route('/<int:order_id>/usun', methods=['POST'])
+@login_required
+@admin_required
+def delete_order(order_id):
+    """Trwale usuwa zlecenie z całą historią. W odróżnieniu od anulowania nie da się tego cofnąć."""
+    order = get_or_404(WorkOrder, order_id)
+    zo, product = order.zo_number, order.product_name
+    impact = service.delete_impact(order)
+    service.delete_order(order)
+    db.session.commit()
+    _audit('kp_delete', None, f'ZO={zo} product={product} ruchy={impact["movements"]} '
+                              f'na_buforach={impact["stock"]} w_realizacji={impact["wip"]}')
+    flash(f'Usunięto zlecenie ZO {zo} ({product}) razem z historią.', 'success')
+    return redirect(url_for('kp.list_orders'))
+
+
+@kp_bp.route('/usun-zaznaczone', methods=['POST'])
+@login_required
+@admin_required
+def bulk_delete_orders():
+    ids = request.form.getlist('order_ids', type=int)
+    orders = WorkOrder.query.filter(WorkOrder.id.in_(ids)).all() if ids else []
+    if not orders:
+        flash('Nie zaznaczono żadnych zleceń.', 'warning')
+        return redirect(url_for('kp.list_orders'))
+    names = [f'{o.zo_number} ({o.product_name})' for o in orders]
+    moves = sum(service.delete_impact(o)['movements'] for o in orders)
+    for o in orders:
+        service.delete_order(o)
+    db.session.commit()
+    _audit('kp_bulk_delete', None, f'zlecenia={len(orders)} ruchy={moves}: ' + '; '.join(names)[:400])
+    flash(f'Usunięto zlecenia: {len(orders)} (razem z historią ruchów).', 'success')
+    return redirect(url_for('kp.list_orders'))
 
 
 @kp_bp.route('/<int:order_id>/anuluj', methods=['POST'])
@@ -272,7 +311,8 @@ def _apply_component_form(comp, form):
         if required < entered:
             return f'Wymagana ilość nie może być mniejsza niż już wpisana na bufory ({entered} szt.).'
         blocked = sorted({p.buffer.stage.name for p in comp.positions
-                          if p.quantity > 0 and p.buffer.stage_id not in wanted and p.buffer.stage})
+                          if p.quantity > 0 and p.buffer.stage_id not in wanted and p.buffer.stage}
+                         | {w.stage.name for w in comp.wip if w.stage_id not in wanted})
         if blocked:
             return ('Nie można usunąć z trasy etapu, na którego buforze leży element: '
                     + ', '.join(blocked) + '.')

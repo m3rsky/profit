@@ -89,7 +89,7 @@ Niezmiennik rozliczenia: dla elementu zlecenia suma ilości na buforach, w reali
 
 - Składanie nie może rozpocząć się, dopóki na buforze składania nie ma wymaganych elementów.
 - Liczba sztuk produktu, które można złożyć, to minimum po elementach z (ilość na buforze podzielona przez ilość elementu na sztukę), z zaokrągleniem w dół. Przykład: szafa wymaga 2 drzwi i 1 korpusu, są 5 drzwi i 3 korpusy, więc można złożyć 2 szafy.
-- System blokuje przejęcie składania na ilość większą niż wynika z powyższego wzoru. Składanie częściowe jest dozwolone (np. 2 z 6 szafy), ustalone 2026-10-17.
+- System blokuje przejęcie składania na ilość większą niż wynika z powyższego wzoru. Składanie częściowe jest dozwolone (np. 2 z 6 szafy), ustalone 2026-10-17. Elementy liczą się tylko z **zeskanowanego bufora** (ustalone 2026-10-18).
 
 ## 4c. Kontrola końcowa
 
@@ -218,6 +218,8 @@ Akceptacja: na stanowisku da się wpisać zlecenie na bufor lasera i zobaczyć j
 
 ### Etap 4. Przejęcie etapu i przenoszenie (rozmiar L)
 
+Stan: zrealizowany lokalnie 2026-10-18. Ustalenia z realizacji: wpis po etapie na **dowolny późniejszy etap** trasy elementu (po trasie na etap składania), kontroler i admin przejmują i przenoszą bez plakietki i bez ograniczenia działu (maszynę nadal wskazują), składanie tylko z elementów leżących na **zeskanowanym buforze**, element można wpisać z zewnątrz także na bufor składania, pakowanie kończy zlecenie (status Zakończone) po spakowaniu całego `q`, wycofanie obejmuje wszystkie ruchy. **Alerty i "Zleć decyzję" przeniesione do etapu 5**, bo blokady pojawią się dopiero z kontrolami.
+
 Cel: pełny cykl bufor, przejęcie, bufor następnego etapu, z maszyną i wycofaniem.
 
 Zadania:
@@ -227,7 +229,7 @@ Zadania:
 - Kompletacja i składanie (sekcje 4b i 4g): limit sztuk do złożenia z elementów na buforze, składanie częściowe, blokada ponad limit, zużycie elementów i utworzenie sztuk gotowego produktu na buforze kolejnego etapu.
 - Wycofanie wpisu: admin i kontroler dowolny, operator tylko własny, bez limitu czasu. Nie wycofuje się wpisu, od którego odeszły dalsze ruchy.
 - Pakowanie: przejęcie ilości z bufora Pakowania i oznaczenie "Spakowane", status Zakończone po spakowaniu całego `q` (4h).
-- Alert dla operatora o braku możliwości przejęcia. Przycisk "Zleć decyzję" tworzy wniosek (`DecisionRequest`: zlecenie, element, bufor, ilość, kto zgłosił, status, kto i kiedy zdecydował, decyzja) z alertem dla kontrolera i admina.
+- (Przeniesione do etapu 5: alert dla operatora o braku możliwości przejęcia i przycisk "Zleć decyzję" z wnioskiem `DecisionRequest`.)
 - Przejęcie etapu tylko dla pracowników działu przypisanego do etapu.
 
 Testy: pełna ścieżka elementu przez kilka etapów, pominięcie etapów spoza trasy, limit składania (przykład z 4b), wycofanie i jego ograniczenia, transakcyjność przeniesienia.
@@ -244,6 +246,7 @@ Zadania:
 - Kontrola doraźna: kontroler na dowolnym buforze wskazuje element i ilość.
 - Kolejka kontrolera, ocena OK/NG per punkt, notatki.
 - Lista wniosków o decyzję (przyjęcie wymuszenia po potwierdzeniu lub odrzucenie), powiadomienie operatora o decyzji.
+- Alert dla operatora o braku możliwości przejęcia zablokowanej ilości i przycisk "Zleć decyzję" tworzący wniosek (`DecisionRequest`: zlecenie, element, bufor, ilość, kto zgłosił, status, kto i kiedy zdecydował, decyzja) z alertem dla kontrolera i admina (przeniesione z etapu 4).
 - Kontrolowane są ilości. Tam, gdzie kontrola obowiązuje, do przejęcia przechodzą tylko ilości z wynikiem OK. Operator przy zablokowanej ilości dostaje alert o braku możliwości przejęcia. Kontroler lub admin może wymusić przejęcie po potwierdzeniu.
 - NG: raport QAR (istniejący mechanizm), wstrzymanie ocenionej ilości na buforze, decyzja kontrolera lub admina (4f): zwolnienie, zwrot do wskazanego etapu z ponowną kontrolą po poprawce, złomowanie.
 - Archiwum elementów zezłomowanych i powtórnie wykonanych: lista z filtrami, powiązanie z ponownym wykonaniem, nowy element wpisywany od początku.

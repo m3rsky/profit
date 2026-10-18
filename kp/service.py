@@ -1,7 +1,8 @@
 """Logika zleceń produkcyjnych: dopasowanie szablonu produktu, tworzenie zlecenia, przeliczanie ilości."""
 import re
 
-from models import (db, ProductTemplate, WorkOrder, WorkOrderComponent, WorkOrderComponentStage)
+from models import (db, Movement, ProductTemplate, StockPosition, WorkInProgress, WorkOrder,
+                    WorkOrderComponent, WorkOrderComponentStage)
 
 MAX_QTY = 9999
 
@@ -99,3 +100,30 @@ def set_quantity(order, quantity):
     order.quantity = quantity
     for comp in order.components:
         comp.required_qty = comp.per_unit * quantity
+    product = order.product_component
+    if product is not None:
+        product.required_qty = quantity
+
+
+def delete_impact(order):
+    """Co zniknie wraz ze zleceniem: liczba ruchów oraz sztuk leżących na buforach i w realizacji."""
+    comp_ids = [c.id for c in order.all_components]
+    stock_qty = wip_qty = 0
+    if comp_ids:
+        stock_qty = int(db.session.query(db.func.coalesce(db.func.sum(StockPosition.quantity), 0))
+                        .filter(StockPosition.component_id.in_(comp_ids)).scalar() or 0)
+        wip_qty = int(db.session.query(db.func.coalesce(db.func.sum(WorkInProgress.quantity), 0))
+                      .filter(WorkInProgress.component_id.in_(comp_ids)).scalar() or 0)
+    return {'movements': Movement.query.filter_by(order_id=order.id).count(),
+            'stock': stock_qty, 'wip': wip_qty}
+
+
+def delete_order(order):
+    """Usuwa zlecenie razem z elementami, trasami, ilościami na buforach, pozycjami w realizacji i
+    historią ruchów. Bufory, pracownicy i szablony zostają. Bez commitu."""
+    comp_ids = [c.id for c in order.all_components]
+    Movement.query.filter_by(order_id=order.id).delete(synchronize_session=False)
+    if comp_ids:
+        StockPosition.query.filter(StockPosition.component_id.in_(comp_ids)).delete(synchronize_session=False)
+        WorkInProgress.query.filter(WorkInProgress.component_id.in_(comp_ids)).delete(synchronize_session=False)
+    db.session.delete(order)   # elementy i ich trasy usuwa kaskada

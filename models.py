@@ -838,11 +838,23 @@ class WorkOrder(db.Model):
     cancelled_at  = db.Column(db.DateTime, nullable=True)
     template      = db.relationship('ProductTemplate')
     created_by    = db.relationship('User', foreign_keys=[created_by_id])
-    components    = db.relationship('WorkOrderComponent', backref='order', lazy='select',
-                                    cascade='all, delete-orphan',
-                                    order_by='WorkOrderComponent.position, WorkOrderComponent.id')
+    completed_at  = db.Column(db.DateTime, nullable=True)
+    all_components = db.relationship('WorkOrderComponent', backref='order', lazy='select',
+                                     cascade='all, delete-orphan',
+                                     order_by='WorkOrderComponent.position, WorkOrderComponent.id')
 
-    STATUS_LABELS = {'active': 'W toku', 'cancelled': 'Anulowane'}
+    STATUS_LABELS = {'active': 'W toku', 'done': 'Zakończone', 'cancelled': 'Anulowane'}
+
+    @property
+    def components(self):
+        """Elementy zlecenia (bez pozycji gotowego produktu, która służy tylko do liczenia sztuk
+        od etapu składania)."""
+        return [c for c in self.all_components if not c.is_product]
+
+    @property
+    def product_component(self):
+        """Pozycja gotowego produktu (powstaje przy pierwszym składaniu) albo None."""
+        return next((c for c in self.all_components if c.is_product), None)
 
     @property
     def status_label(self):
@@ -861,6 +873,8 @@ class WorkOrderComponent(db.Model):
     per_unit     = db.Column(db.Integer, default=1, nullable=False)
     required_qty = db.Column(db.Integer, default=1, nullable=False)
     position     = db.Column(db.Integer, default=0)
+    # Gotowy produkt (od składania): sztuki zlecenia liczone razem, wymagana ilość to q.
+    is_product   = db.Column(db.Boolean, default=False, nullable=False)
     stage_links  = db.relationship('WorkOrderComponentStage', backref='component',
                                    cascade='all, delete-orphan', lazy='select')
 
@@ -1301,6 +1315,26 @@ class StockPosition(db.Model):
     buffer       = db.relationship('Buffer', backref=db.backref('positions', lazy='select'))
 
 
+class WorkInProgress(db.Model):
+    """Ilość elementu (albo gotowego produktu) przejęta do wykonania etapu: zeszła z bufora i jeszcze
+    nie trafiła na bufor następnego etapu. Każde przejęcie to osobna pozycja."""
+    __tablename__ = 'work_in_progress'
+    id           = db.Column(db.Integer, primary_key=True)
+    component_id = db.Column(db.Integer, db.ForeignKey('work_order_components.id'), nullable=False)
+    stage_id     = db.Column(db.Integer, db.ForeignKey('production_stages.id'), nullable=False)
+    quantity     = db.Column(db.Integer, nullable=False, default=0)
+    employee_id  = db.Column(db.Integer, db.ForeignKey('department_employees.id'), nullable=True)
+    user_id      = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    machine_id   = db.Column(db.Integer, db.ForeignKey('machines.id'), nullable=True)
+    source_buffer_id = db.Column(db.Integer, db.ForeignKey('buffers.id'), nullable=True)
+    started_at   = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    component    = db.relationship('WorkOrderComponent', backref=db.backref('wip', lazy='select'))
+    stage        = db.relationship('ProductionStage')
+    employee     = db.relationship('DepartmentEmployee', foreign_keys=[employee_id])
+    machine      = db.relationship('Machine', foreign_keys=[machine_id])
+    source_buffer = db.relationship('Buffer', foreign_keys=[source_buffer_id])
+
+
 class Movement(db.Model):
     """Historia ruchów elementów: wpis na bufor (`wpis`) i jego wycofanie (`cofniecie`).
     Wycofany wpis ma `reverted_at`, a wycofanie wskazuje wpis w `reverts_id`."""
@@ -1314,6 +1348,12 @@ class Movement(db.Model):
     quantity       = db.Column(db.Integer, nullable=False)
     employee_id    = db.Column(db.Integer, db.ForeignKey('department_employees.id'), nullable=True)
     user_id        = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    stage_id       = db.Column(db.Integer, db.ForeignKey('production_stages.id'), nullable=True)
+    machine_id     = db.Column(db.Integer, db.ForeignKey('machines.id'), nullable=True)
+    # Ruchy jednej operacji (np. złożenie i zużycie elementów) mają wspólny identyfikator.
+    group_id       = db.Column(db.String(32), nullable=True, index=True)
+    # Pozycja w realizacji, której dotyczy ruch (przejęcie, przeniesienie, złożenie, spakowanie).
+    wip_id         = db.Column(db.Integer, nullable=True, index=True)
     reverts_id     = db.Column(db.Integer, db.ForeignKey('movements.id'), nullable=True)
     reverted_at    = db.Column(db.DateTime, nullable=True)
     created_at     = db.Column(db.DateTime, default=lambda: datetime.now(UTC), index=True)
@@ -1323,8 +1363,13 @@ class Movement(db.Model):
     to_buffer      = db.relationship('Buffer', foreign_keys=[to_buffer_id])
     employee       = db.relationship('DepartmentEmployee', foreign_keys=[employee_id])
     user           = db.relationship('User', foreign_keys=[user_id])
+    stage          = db.relationship('ProductionStage', foreign_keys=[stage_id])
+    machine        = db.relationship('Machine', foreign_keys=[machine_id])
 
-    KIND_LABELS = {'wpis': 'Wpis na bufor', 'cofniecie': 'Wycofanie wpisu'}
+    KIND_LABELS = {'wpis': 'Wpis na bufor', 'przejecie': 'Przejęcie etapu',
+                   'przeniesienie': 'Wpis po etapie na bufor', 'zlozenie': 'Złożenie produktu',
+                   'zuzycie': 'Zużycie elementu przy składaniu', 'spakowanie': 'Spakowane',
+                   'cofniecie': 'Wycofanie'}
 
     @property
     def kind_label(self):

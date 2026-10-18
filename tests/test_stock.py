@@ -183,10 +183,11 @@ class TestEntry:
 
     def test_buffer_stage_must_be_in_element_route(self, client, app, users, world):
         station_login(client, users, world['token']['e1'])
-        # Korpus ma tylko etap Gięcie: bufor Wycinania odrzucony, bufor Składania (poziom produktu) też
-        for key in ('A1', 'C1'):
-            res = enter(client, world['comp']['Korpus'], world['buf'][key], 1)
-            assert res.status_code == 400 and 'trasie elementu' in res.get_json()['error'], key
+        # Korpus ma tylko etap Gięcie: bufor Wycinania odrzucony, bufor składania (pierwszy etap
+        # poziomu produktu) dozwolony, bo element może być już gotowy do złożenia
+        res = enter(client, world['comp']['Korpus'], world['buf']['A1'], 1)
+        assert res.status_code == 400 and 'trasie elementu' in res.get_json()['error']
+        assert enter(client, world['comp']['Korpus'], world['buf']['C1'], 1).status_code == 200
         # Drzwi mogą na dowolny etap swojej trasy (Wycinanie albo Gięcie)
         assert enter(client, world['comp']['Drzwi'], world['buf']['B1'], 2).status_code == 200
         assert enter(client, world['comp']['Drzwi'], world['buf']['A1'], 2).status_code == 200
@@ -274,7 +275,7 @@ class TestScanRecognition:
         for code in ('T3A1', 't3a1', ' t3 a1 '):
             body = scan(client, code).get_json()
             assert body['type'] == 'buffer' and body['buffer']['code'] == 'T3A1', code
-        assert body['buffer']['stage'] == {'id': world['stage']['A'], 'name': 'T3 Wycinanie'}
+        assert (body['buffer']['stage']['id'], body['buffer']['stage']['name']) == (world['stage']['A'], 'T3 Wycinanie')
         res = scan(client, 'T3NIEMA')
         assert res.status_code == 404 and 'Nie znaleziono bufora' in res.get_json()['error']
 
@@ -366,7 +367,7 @@ class TestRevert:
             StockPosition.query.one().quantity = 2
             db.session.commit()
         res = client.post(f'{KP}/ruch/{mid}/cofnij', json={}, headers={'X-CSRF-Token': _csrf(client)})
-        assert res.status_code == 400 and 'nie leży już na buforze' in res.get_json()['error']
+        assert res.status_code == 400 and 'nie leży już tam' in res.get_json()['error']
 
     def test_revert_form_on_order_page(self, client, app, users, world):
         mid = self._enter_as(client, users, world, 'e1')
@@ -375,7 +376,7 @@ class TestRevert:
         page = client.get(f'{KP}/{world["order"]}').get_data(as_text=True)
         assert 'Historia ruchów' in page and f'/ruch/{mid}/cofnij' in page
         res = form_post(client, f'{KP}/ruch/{mid}/cofnij')
-        assert 'Wycofano wpis' in res.get_data(as_text=True)
+        assert 'Wycofano:' in res.get_data(as_text=True)
         page = client.get(f'{KP}/{world["order"]}').get_data(as_text=True)
         assert 'wycofany' in page and f'/ruch/{mid}/cofnij' not in page
 
@@ -387,7 +388,7 @@ class TestRevert:
         client.get('/logout')
         login(client, 'admin', 'Admin1234!')
         res = client.post(f'{KP}/ruch/{rev_id}/cofnij', json={}, headers={'X-CSRF-Token': _csrf(client)})
-        assert res.status_code == 400 and 'tylko wpis' in res.get_json()['error']
+        assert res.status_code == 400 and 'nie można wycofać' in res.get_json()['error']
 
 
 # ── Widoki buforów i zleceń ───────────────────────────────────────────────────

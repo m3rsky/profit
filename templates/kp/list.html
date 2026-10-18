@@ -25,6 +25,9 @@
 .kp-zo { font-size:1.1rem; font-weight:700; word-break:break-word; }
 .kp-meta { display:flex; flex-wrap:wrap; gap:.15rem .9rem; color:var(--text-muted,#64748b); font-size:.82rem; }
 .kp-item .btn { min-height:46px; justify-content:center; width:100%; }
+.kp-sel { display:flex; align-items:center; cursor:pointer; }
+.kp-sel input { width:19px; height:19px; }
+.kp-bulk { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; margin-bottom:.75rem; }
 .kp-empty { text-align:center; padding:2.5rem 1rem; color:var(--text-muted,#64748b); }
 @media (min-width: 900px) { .kp-table-wrap { display:block; } .kp-list { display:none; } }
 @media (max-width: 640px) {
@@ -57,25 +60,37 @@
 
 <div class="kp-chips">
   <a class="kp-chip {% if status == 'active' %}active{% endif %}" href="{{ url_for('kp.list_orders', s='active', q=q) }}">W toku <span class="kp-chip-n">{{ counts.active }}</span></a>
+  <a class="kp-chip {% if status == 'done' %}active{% endif %}" href="{{ url_for('kp.list_orders', s='done', q=q) }}">Zakończone <span class="kp-chip-n">{{ counts.done }}</span></a>
   <a class="kp-chip {% if status == 'cancelled' %}active{% endif %}" href="{{ url_for('kp.list_orders', s='cancelled', q=q) }}">Anulowane <span class="kp-chip-n">{{ counts.cancelled }}</span></a>
   <a class="kp-chip {% if status == 'all' %}active{% endif %}" href="{{ url_for('kp.list_orders', s='all', q=q) }}">Wszystkie <span class="kp-chip-n">{{ total }}</span></a>
 </div>
 
 {% if orders %}
+{% if current_user.is_admin %}
+<form method="post" action="{{ url_for('kp.bulk_delete_orders') }}" id="kp-bulk-form" class="kp-bulk">
+  {{ csrf_input() }}
+  <button type="button" class="btn btn-outline btn-sm" id="kp-select-all">Zaznacz wszystkie</button>
+  <button type="submit" class="btn btn-danger btn-sm"
+          data-confirm="Usunąć trwale zaznaczone zlecenia razem z historią ruchów, ilościami na buforach i w realizacji? Tego nie można cofnąć.">
+    <i class="bi bi-trash"></i> Usuń zaznaczone
+  </button>
+</form>
+{% endif %}
 <div class="card kp-table-wrap">
   <div class="card-body" style="padding:0; overflow-x:auto;">
     <table class="kp-table">
-      <thead><tr><th>ZO</th><th>Produkt</th><th>Klient</th><th class="kp-num">Ilość</th><th>Elementy</th><th>Status</th><th>Utworzono</th><th></th></tr></thead>
+      <thead><tr>{% if current_user.is_admin %}<th></th>{% endif %}<th>ZO</th><th>Produkt</th><th>Klient</th><th class="kp-num">Ilość</th><th>Elementy</th><th>Status</th><th>Utworzono</th><th></th></tr></thead>
       <tbody>
         {% for o in orders %}
         <tr>
+          {% if current_user.is_admin %}<td><label class="kp-sel"><input type="checkbox" name="order_ids" value="{{ o.id }}" form="kp-bulk-form"></label></td>{% endif %}
           <td><strong>{{ o.zo_number }}</strong></td>
           <td>{{ o.product_name }}</td>
           <td>{{ o.client or '-' }}</td>
           <td class="kp-num">{{ o.quantity }} szt.</td>
           <td>{{ o.components|length }}
             <span class="kp-sub">({{ o.components|map(attribute='name')|join(', ') }})</span></td>
-          <td>{% if o.status == 'cancelled' %}<span class="badge badge-neutral">Anulowane</span>{% else %}<span class="badge badge-info">W toku</span>{% endif %}</td>
+          <td>{% if o.status == 'cancelled' %}<span class="badge badge-neutral">Anulowane</span>{% elif o.status == 'done' %}<span class="badge badge-success">Zakończone</span>{% else %}<span class="badge badge-info">W toku</span>{% endif %}</td>
           <td style="white-space:nowrap;">{{ o.created_at|localdt('%d.%m.%Y %H:%M') }}</td>
           <td><a class="btn btn-outline btn-sm" href="{{ url_for('kp.order_detail', order_id=o.id) }}">Szczegóły</a></td>
         </tr>
@@ -89,6 +104,7 @@
   {% for o in orders %}
   <div class="kp-item {% if o.status == 'cancelled' %}kp-item--cancelled{% endif %}">
     <div>
+      {% if current_user.is_admin %}<label class="kp-sel" style="float:right;"><input type="checkbox" name="order_ids" value="{{ o.id }}" form="kp-bulk-form"></label>{% endif %}
       <div class="kp-zo">ZO {{ o.zo_number }}</div>
       <div><strong>{{ o.product_name }}</strong></div>
       {% if o.client %}<div class="kp-sub">{{ o.client }}</div>{% endif %}
@@ -109,4 +125,20 @@
   <p>Brak zleceń w tym widoku.{% if current_user.is_kontroler %} Zeskanuj kod QR zlecenia, aby utworzyć pierwsze.{% endif %}</p>
 </div></div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var btn = document.getElementById('kp-select-all');
+  if (!btn) return;
+  btn.addEventListener('click', function () {
+    // Tabela i karty mają osobne pola wyboru, bierzemy tylko widoczne.
+    var boxes = Array.prototype.filter.call(document.querySelectorAll('input[name="order_ids"]'),
+      function (b) { return b.offsetParent !== null; });
+    var all = boxes.length && boxes.every(function (b) { return b.checked; });
+    boxes.forEach(function (b) { b.checked = !all; });
+  });
+})();
+</script>
 {% endblock %}
