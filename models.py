@@ -1305,13 +1305,15 @@ class StockPosition(db.Model):
     """Ilość elementu zlecenia leżąca na buforze (status ok albo wstrzymane). Stan wynika z ruchów,
     ale jest trzymany osobno, żeby widoki buforów i zleceń nie liczyły całej historii."""
     __tablename__ = 'stock_positions'
-    __table_args__ = (db.UniqueConstraint('component_id', 'buffer_id', 'status', 'stage_id',
+    __table_args__ = (db.UniqueConstraint('component_id', 'buffer_id', 'status', 'stage_id', 'recheck_stage_id',
                                           name='uq_stock_position'),)
     id           = db.Column(db.Integer, primary_key=True)
     component_id = db.Column(db.Integer, db.ForeignKey('work_order_components.id'), nullable=False)
     buffer_id    = db.Column(db.Integer, db.ForeignKey('buffers.id'), nullable=False)
     # Etap, na który ilość czeka. Bufor (wózek) jest tylko miejscem i nie ma etapu.
     stage_id     = db.Column(db.Integer, db.ForeignKey('production_stages.id'), nullable=True)
+    # Dla ilości wstrzymanej i do poprawki: etap, w którym wykryto niezgodność (jego punkty obejmie ponowna kontrola).
+    recheck_stage_id = db.Column(db.Integer, db.ForeignKey('production_stages.id'), nullable=True)
     quantity     = db.Column(db.Integer, nullable=False, default=0)
     # ok | do_kontroli (czeka na kontrolę) | wstrzymane (NG, czeka na decyzję) | do_poprawki
     status       = db.Column(db.String(16), nullable=False, default='ok')
@@ -1319,6 +1321,7 @@ class StockPosition(db.Model):
     component    = db.relationship('WorkOrderComponent', backref=db.backref('positions', lazy='select'))
     buffer       = db.relationship('Buffer', backref=db.backref('positions', lazy='select'))
     stage        = db.relationship('ProductionStage', foreign_keys=[stage_id])
+    recheck_stage = db.relationship('ProductionStage', foreign_keys=[recheck_stage_id])
 
 
 class WorkInProgress(db.Model):
@@ -1333,9 +1336,12 @@ class WorkInProgress(db.Model):
     user_id      = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     machine_id   = db.Column(db.Integer, db.ForeignKey('machines.id'), nullable=True)
     source_buffer_id = db.Column(db.Integer, db.ForeignKey('buffers.id'), nullable=True)
+    # Poprawka po kontroli: po odstawieniu ilość czeka na ponowną kontrolę punktów tego etapu.
+    recheck_stage_id = db.Column(db.Integer, db.ForeignKey('production_stages.id'), nullable=True)
     started_at   = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
     component    = db.relationship('WorkOrderComponent', backref=db.backref('wip', lazy='select'))
-    stage        = db.relationship('ProductionStage')
+    stage        = db.relationship('ProductionStage', foreign_keys=[stage_id])
+    recheck_stage = db.relationship('ProductionStage', foreign_keys=[recheck_stage_id])
     employee     = db.relationship('DepartmentEmployee', foreign_keys=[employee_id])
     machine      = db.relationship('Machine', foreign_keys=[machine_id])
     source_buffer = db.relationship('Buffer', foreign_keys=[source_buffer_id])
@@ -1364,6 +1370,8 @@ class Movement(db.Model):
     wip_id         = db.Column(db.Integer, nullable=True, index=True)
     # Kontrola, którą wywołał ruch (wejście na bufor etapu z kontrolą) albo której dotyczy ruch `kontrola`.
     control_id     = db.Column(db.Integer, nullable=True, index=True)
+    # Uwaga do decyzji kontrolera (zwolnienie, zwrot do poprawki, złomowanie).
+    note           = db.Column(db.String(512), nullable=True)
     reverts_id     = db.Column(db.Integer, db.ForeignKey('movements.id'), nullable=True)
     reverted_at    = db.Column(db.DateTime, nullable=True)
     created_at     = db.Column(db.DateTime, default=lambda: datetime.now(UTC), index=True)
@@ -1380,7 +1388,9 @@ class Movement(db.Model):
     KIND_LABELS = {'wpis': 'Wpis na bufor', 'przejecie': 'Przejęcie etapu',
                    'przeniesienie': 'Wpis po etapie na bufor', 'zlozenie': 'Złożenie produktu',
                    'zuzycie': 'Zużycie elementu przy składaniu', 'spakowanie': 'Spakowane',
-                   'kontrola': 'Kontrola etapu', 'cofniecie': 'Wycofanie'}
+                   'kontrola': 'Kontrola etapu', 'dorazna': 'Skierowanie na kontrolę doraźną',
+                   'zwolnienie': 'Zwolnienie wstrzymanej ilości', 'zwrot': 'Zwrot do poprawki',
+                   'zlomowanie': 'Zezłomowanie', 'cofniecie': 'Wycofanie'}
 
     @property
     def kind_label(self):
@@ -1495,3 +1505,24 @@ class StageControlResult(db.Model):
     notes         = db.Column(db.Text, nullable=True)
     qar_report_id = db.Column(db.Integer, db.ForeignKey('qar_reports.id'), nullable=True)
     qar_report    = db.relationship('QARReport', foreign_keys=[qar_report_id])
+
+
+class ScrapRecord(db.Model):
+    """Archiwum elementów zezłomowanych po kontroli. Wymagana ilość elementu wraca do uzupełnienia
+    (ilość zezłomowana odlicza się od wpisanej), a nowy element wpisuje się od początku."""
+    __tablename__ = 'scrap_records'
+    id           = db.Column(db.Integer, primary_key=True)
+    order_id     = db.Column(db.Integer, db.ForeignKey('work_orders.id'), nullable=False, index=True)
+    component_id = db.Column(db.Integer, db.ForeignKey('work_order_components.id'), nullable=False, index=True)
+    # Etap, w którym wykryto niezgodność.
+    stage_id     = db.Column(db.Integer, db.ForeignKey('production_stages.id'), nullable=True)
+    buffer_id    = db.Column(db.Integer, db.ForeignKey('buffers.id'), nullable=True)
+    quantity     = db.Column(db.Integer, nullable=False)
+    reason       = db.Column(db.String(512), nullable=True)
+    user_id      = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at   = db.Column(db.DateTime, default=lambda: datetime.now(UTC), index=True)
+    order        = db.relationship('WorkOrder', backref=db.backref('scrap_records', lazy='dynamic'))
+    component    = db.relationship('WorkOrderComponent')
+    stage        = db.relationship('ProductionStage')
+    buffer       = db.relationship('Buffer')
+    user         = db.relationship('User')

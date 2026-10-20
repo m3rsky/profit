@@ -6,7 +6,7 @@ Kontrola następuje po wykonanym etapie: ilość odstawiona na bufor po etapie z
 partie tego samego elementu, wykonanego etapu i etapu oczekiwania na tym buforze są scalone w jedną kontrolę."""
 from datetime import datetime, timezone
 
-from models import (db, Alert, Movement, QARReport, StageControl, StageControlPoint,
+from models import (db, Alert, Movement, ProductionStage, QARReport, StageControl, StageControlPoint,
                     StageControlResult, StockPosition, User, WorkOrderControl)
 
 UTC = timezone.utc
@@ -33,26 +33,32 @@ def control_kind(order, stage):
     return 'obowiazkowa' if stage.control_required else 'plan'
 
 
-def pending_for(component_id, buffer_id, stage_id, wait_stage_id):
-    return (StageControl.query.filter_by(component_id=component_id, buffer_id=buffer_id, stage_id=stage_id,
-                                         wait_stage_id=wait_stage_id, status='oczekuje')
-            .populate_existing().first())
+def pending_for(component_id, buffer_id, stage_id, wait_stage_id, kind=None):
+    q = StageControl.query.filter_by(component_id=component_id, buffer_id=buffer_id, stage_id=stage_id,
+                                     wait_stage_id=wait_stage_id, status='oczekuje')
+    if kind:
+        q = q.filter_by(kind=kind)
+    return q.populate_existing().first()
 
 
-def register_arrival(comp, buffer, qty, performed_stage, wait_stage_id):
+def register_arrival(comp, buffer, qty, performed_stage, wait_stage_id, recheck_stage_id=None):
     """Ustala status ilości odstawianej na bufor po wykonanym etapie i zasila oczekującą kontrolę.
-    Zwraca (status pozycji, kontrola albo None, czy kontrola została utworzona). Bez commitu."""
+    Ilość po poprawce (`recheck_stage_id`) zawsze czeka na ponowną kontrolę punktów etapu, w którym wykryto
+    niezgodność. Zwraca (status pozycji, kontrola albo None, czy kontrola została utworzona). Bez commitu."""
     order = comp.order
-    stage = performed_stage
-    if not needs_control(order, stage):
+    if recheck_stage_id:
+        stage, kind = db.session.get(ProductionStage, recheck_stage_id), 'ponowna'
+    elif needs_control(order, performed_stage):
+        stage, kind = performed_stage, control_kind(order, performed_stage)
+    else:
         return 'ok', None, False
-    ctrl = pending_for(comp.id, buffer.id, stage.id, wait_stage_id)
+    ctrl = pending_for(comp.id, buffer.id, stage.id, wait_stage_id, kind)
     created = False
     if ctrl is not None:
         ctrl.quantity += qty
     else:
         ctrl = StageControl(order_id=order.id, component_id=comp.id, buffer_id=buffer.id,
-                            stage_id=stage.id, wait_stage_id=wait_stage_id, kind=control_kind(order, stage), quantity=qty)
+                            stage_id=stage.id, wait_stage_id=wait_stage_id, kind=kind, quantity=qty)
         db.session.add(ctrl)
         created = True
     db.session.flush()
@@ -200,7 +206,8 @@ def evaluate(control, expected, ok_qty, ng_qty, point_results, notes, user):
         db.session.delete(pending)
     for status, qty in (('ok', ok_qty), ('wstrzymane', ng_qty)):
         if qty > 0:
-            pos = stock._position(comp, buffer, status, control.wait_stage_id)
+            pos = stock._position(comp, buffer, status, control.wait_stage_id,
+                                  done.stage_id if status == 'wstrzymane' else None)
             pos.quantity += qty
             pos.updated_at = _now()
 

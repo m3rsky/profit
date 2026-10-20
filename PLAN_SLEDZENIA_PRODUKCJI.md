@@ -294,6 +294,8 @@ Stan: zrealizowane lokalnie 2026-10-19. Odstępstwo od szkicu: status kontroli `
 
 #### 5b. Decyzje, kontrole doraźne i archiwum złomu (rozmiar M)
 
+Stan: zrealizowane lokalnie 2026-10-20. Ustalenia przy realizacji: zwrot do poprawki wskazuje etap i wózek (kod), ponowna kontrola dotyczy punktów etapu, który zawinił, kontroler doraźną wybiera etap punktów kontrolnych z listy. Decyzje działają na dowolną część ilości, gotowego produktu nie złomuje się.
+
 - Decyzje o ilości `wstrzymane`: zwolnij, zwróć do poprawki (wybór etapu i bufora, status `do_poprawki`, znacznik ponownej kontroli), zezłomuj (archiwum, odliczenie od wpisanej ilości).
 - Automatyczna ponowna kontrola po poprawce.
 - Kontrola doraźna na dowolnym buforze (element i ilość).
@@ -314,14 +316,14 @@ Akceptacja etapu: ilość wchodząca na obowiązkowy etap czeka na kontrolę i n
 
 ### Etap 6. Kontrola Końcowa automatycznie (rozmiar M)
 
-Cel: wpis na bufor etapu Kontrola końcowa tworzy listę Kontroli Końcowej (sekcja 4c).
+Cel: wpis na bufor etapu Kontrola końcowa tworzy listę Kontroli Końcowej (sekcja 4c). Jest to dodatek: ręczne tworzenie list skanem QR i raportów w module `/kontrola` zostaje bez zmian (decyzja 2026-10-20). Unikanie dubli (decyzja 2026-10-20): automat nie tworzy ani nie dopisuje list dla zlecenia, które ma już listy utworzone w module `/kontrola` (po kluczu `produkt|klient|ZO`), i odwrotnie, ręczne tworzenie nie jest blokowane.
 
 Zadania:
 - Funkcja dopisywania do serii list (wspólny `batch_id`, rosnący `batch_index`, stałe `batch_total` równe `q`), obok obecnego tworzenia pełnej serii.
 - Wyzwalacz: pierwszy wpis na bufor Kontroli końcowej tworzy serię na wpisaną ilość, kolejne wpisy dopisują do `q`, wpis ponad `q` blokowany.
 - Powiązanie listy ze zleceniem (klucz QR `produkt|klient|ZO`), wynik listy widoczny w widoku zlecenia.
 
-Testy: pierwszy wpis, dopisywanie do serii, limit `q`, spójność numeracji, produkt bez szablonu listy kontrolnej.
+Testy: pierwszy wpis, dopisywanie do serii, limit `q`, spójność numeracji, produkt bez szablonu listy kontrolnej, zlecenie z już istniejącymi listami ręcznymi (automat nic nie tworzy).
 
 Akceptacja: przykład z planu (q równe 6, wpis 3 szt., potem 2 szt.) daje listy 1/6 do 5/6.
 
@@ -337,14 +339,13 @@ Zadania:
 
 Testy: agregacje ilości, filtry, uprawnienia odczytu.
 
-### Etap 8. Wycofanie Kontroli zamówień i porządki (rozmiar M)
+### Etap 8. Porządki (rozmiar S) - ZMIANA 2026-10-20
 
-Cel: nowy moduł oficjalnie zastępuje stary.
+Decyzja: moduł Kontroli Końcowej (`/kontrola`, wcześniej Kontrola zamówień) **zostaje i działa równolegle** do nowego modułu, bez zmian: tworzenie listy skanem kodu QR i ręczne tworzenie raportu działają jak dotąd. Nic w nim nie jest usuwane (ani kod, ani dane `ControlRecord`, ani rola Operator, ani menu).
 
 Zadania:
-- Dane `ControlRecord` usuwamy razem z tabelami po wykonaniu kopii bazy na serwerze (jak przy Kontroli etapów). Raporty QAR utworzone z NG zostają.
-- Usunięcie modułu `/kontrola`, menu, rola Operator dostaje widok nowego modułu.
 - Aktualizacja CLAUDE.md, dokumentacji i planu.
+- Ewentualne drobne porządki w nowym module (np. przestarzałe pole `Buffer.stage_id`).
 
 ### Kolejność i zależności
 

@@ -150,7 +150,7 @@ class TestEntry:
         assert body['ok'] and '5 szt.' in body['msg'] and 'T3A1' in body['msg']
         drzwi = next(c for c in body['order']['components'] if c['name'] == 'Drzwi')
         assert (drzwi['required'], drzwi['entered'], drzwi['remaining']) == (12, 5, 7)
-        assert drzwi['positions'] == [{'buffer_id': world['buf']['A1'], 'code': 'T3A1',
+        assert [{k: v for k, v in x.items() if k != 'id'} for x in drzwi['positions']] == [{'recheck_stage_id': None, 'buffer_id': world['buf']['A1'], 'code': 'T3A1',
                                        'name': 'Przy laserze', 'stage': 'T3 Wycinanie',
                                        'stage_id': world['stage']['A'], 'machines': [],
                                        'quantity': 5, 'status': 'ok', 'status_label': 'gotowe'}]

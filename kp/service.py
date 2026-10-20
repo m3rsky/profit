@@ -1,7 +1,7 @@
 """Logika zleceń produkcyjnych: dopasowanie szablonu produktu, tworzenie zlecenia, przeliczanie ilości."""
 import re
 
-from models import (db, Movement, ProductTemplate, StageControl, StageControlResult, StockPosition,
+from models import (db, Movement, ProductTemplate, ScrapRecord, StageControl, StageControlResult, StockPosition,
                     WorkInProgress, WorkOrder, WorkOrderComponent, WorkOrderComponentStage,
                     WorkOrderControl)
 
@@ -131,6 +131,7 @@ def delete_order(order):
         StageControlResult.query.filter(StageControlResult.control_id.in_(control_ids)).delete(
             synchronize_session=False)
         StageControl.query.filter(StageControl.id.in_(control_ids)).delete(synchronize_session=False)
+    ScrapRecord.query.filter_by(order_id=order.id).delete(synchronize_session=False)
     Movement.query.filter_by(order_id=order.id).delete(synchronize_session=False)
     if comp_ids:
         StockPosition.query.filter(StockPosition.component_id.in_(comp_ids)).delete(synchronize_session=False)

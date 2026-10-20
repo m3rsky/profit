@@ -10,8 +10,8 @@ from datetime import datetime, timezone
 
 from sqlalchemy import func
 
-from models import (db, Buffer, Machine, Movement, ProductionStage, StockPosition, WorkInProgress, WorkOrder,
-                    WorkOrderComponent)
+from models import (db, Buffer, Machine, Movement, ProductionStage, StageControl, StockPosition, WorkInProgress,
+                    WorkOrder, WorkOrderComponent)
 from . import controls, stock
 
 UTC = timezone.utc
@@ -82,8 +82,9 @@ BLOCKED = {'do_kontroli': 'czeka na kontrolę', 'wstrzymane': 'jest wstrzymane (
            'do_poprawki': 'jest do poprawki'}
 
 
-def takeover_error(comp, buffer, stage_id, qty, employee, user, machine_id):
-    """(komunikat błędu, maszyna). Przejmuje się ilość leżącą na buforze i czekającą na dany etap."""
+def takeover_error(comp, buffer, stage_id, qty, employee, user, machine_id, recheck_stage_id=None):
+    """(komunikat błędu, maszyna). Przejmuje się ilość leżącą na buforze i czekającą na dany etap.
+    Z `recheck_stage_id` przejmuje się ilość zwróconą do poprawki po niezgodności wykrytej w tym etapie."""
     order = comp.order
     if order.status != 'active':
         return f'Zlecenie ZO {order.zo_number} nie jest w toku.', None
@@ -107,14 +108,16 @@ def takeover_error(comp, buffer, stage_id, qty, employee, user, machine_id):
                     f'({", ".join(s.name for s in comp.stages)}).'), None
     if not isinstance(qty, int) or qty < 1:
         return 'Ilość musi być liczbą całkowitą większą od zera.', None
-    pos = stock.position_ref(comp.id, buffer.id, stage.id)
+    fix = _int(recheck_stage_id) if recheck_stage_id else None
+    pos = (stock.position_ref(comp.id, buffer.id, stage.id, 'do_poprawki', fix) if fix
+           else stock.position_ref(comp.id, buffer.id, stage.id))
     avail = pos.quantity if pos else 0
     if qty > avail:
         notes = []
         for p in StockPosition.query.filter(StockPosition.component_id == comp.id,
                                             StockPosition.buffer_id == buffer.id,
                                             StockPosition.quantity > 0).all():
-            if p.stage_id == stage.id and p.status != 'ok':
+            if p.stage_id == stage.id and p.status != 'ok' and not (fix is None and p.status == 'do_poprawki'):
                 notes.append(f'{p.quantity} szt. {BLOCKED.get(p.status, p.status)}')
             elif p.stage_id != stage.id:
                 notes.append(f'{p.quantity} szt. czeka na etap „{p.stage.name if p.stage else "?"}”')
@@ -132,16 +135,18 @@ def takeover_error(comp, buffer, stage_id, qty, employee, user, machine_id):
     return None, machine
 
 
-def takeover(comp, buffer, stage_id, qty, employee, user, machine_id):
+def takeover(comp, buffer, stage_id, qty, employee, user, machine_id, recheck_stage_id=None):
     """Zdejmuje ilość czekającą na etap z bufora do stanu „w realizacji”. Zwraca (ruch, błąd). Bez commitu."""
-    err, machine = takeover_error(comp, buffer, stage_id, qty, employee, user, machine_id)
+    err, machine = takeover_error(comp, buffer, stage_id, qty, employee, user, machine_id, recheck_stage_id)
     if err:
         return None, err
     stage = db.session.get(ProductionStage, _int(stage_id))
-    _take_from_position(stock.position_ref(comp.id, buffer.id, stage.id), qty)
+    fix = _int(recheck_stage_id) if recheck_stage_id else None
+    _take_from_position(stock.position_ref(comp.id, buffer.id, stage.id, 'do_poprawki' if fix else 'ok', fix), qty)
     wip = WorkInProgress(component_id=comp.id, stage_id=stage.id, quantity=qty,
                          employee_id=employee.id if employee else None, user_id=user.id,
-                         machine_id=machine.id if machine else None, source_buffer_id=buffer.id)
+                         machine_id=machine.id if machine else None, source_buffer_id=buffer.id,
+                         recheck_stage_id=fix)
     db.session.add(wip)
     db.session.flush()
     mv = Movement(order_id=comp.order_id, component_id=comp.id, kind='przejecie',
@@ -197,7 +202,8 @@ def transfer(wip, buffer, qty, employee, user, wait_stage_id=None):
     wip.quantity -= qty
     if wip.quantity <= 0:
         db.session.delete(wip)
-    status, ctrl, created = controls.register_arrival(comp, buffer, qty, performed, wait.id)
+    status, ctrl, created = controls.register_arrival(comp, buffer, qty, performed, wait.id,
+                                                      wip.recheck_stage_id)
     pos = stock._position(comp, buffer, status, wait.id)
     pos.quantity += qty
     pos.updated_at = _now()
@@ -411,8 +417,10 @@ def _restore_wip(movement, qty):
         wip.quantity += qty
         return wip
     origin = _wip_origin(movement.wip_id) if movement.wip_id else None
+    ctrl = db.session.get(StageControl, movement.control_id) if movement.control_id else None
+    fix = ctrl.stage_id if ctrl is not None and ctrl.kind == 'ponowna' else None
     wip = WorkInProgress(component_id=movement.component_id, stage_id=movement.stage_id,
-                         quantity=qty, machine_id=movement.machine_id,
+                         quantity=qty, machine_id=movement.machine_id, recheck_stage_id=fix,
                          employee_id=(origin.employee_id if origin else movement.employee_id),
                          user_id=(origin.user_id if origin else movement.user_id),
                          source_buffer_id=(origin.from_buffer_id if origin else None))
@@ -441,7 +449,8 @@ def revert(movement, user, employee):
     elif kind == 'przejecie':
         wip = db.session.get(WorkInProgress, movement.wip_id)
         back_to = db.session.get(Buffer, movement.from_buffer_id)
-        pos = stock._position(wip.component, back_to, 'ok', movement.stage_id)
+        fix = wip.recheck_stage_id
+        pos = stock._position(wip.component, back_to, 'do_poprawki' if fix else 'ok', movement.stage_id, fix)
         pos.quantity += qty
         pos.updated_at = now
         db.session.delete(wip)

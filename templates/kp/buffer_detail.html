@@ -21,7 +21,7 @@
   {% if contents %}
   <div class="card-body" style="padding:0; overflow-x:auto;">
     <table class="data-table">
-      <thead><tr><th>ZO</th><th>Produkt</th><th>Klient</th><th>Element</th><th>Czeka na etap</th><th>Ilość</th><th>Status</th></tr></thead>
+      <thead><tr><th>ZO</th><th>Produkt</th><th>Klient</th><th>Element</th><th>Czeka na etap</th><th>Ilość</th><th>Status</th>{% if current_user.is_kontroler %}<th>Kontrola doraźna</th>{% endif %}</tr></thead>
       <tbody>
         {% for r in contents %}
         <tr>
@@ -35,6 +35,18 @@
               {% elif r.status == 'do_kontroli' %}<span class="badge badge-warning">czeka na kontrolę</span>
               {% elif r.status == 'do_poprawki' %}<span class="badge badge-info">do poprawki</span>
               {% else %}<span class="badge badge-ok">gotowe</span>{% endif %}</td>
+          {% if current_user.is_kontroler %}<td>
+            {% if r.status == 'ok' %}
+            <form method="post" action="{{ url_for('kp.ad_hoc_control', pos_id=r.id) }}" style="display:flex;gap:.3rem;flex-wrap:wrap;" autocomplete="off">
+              {{ csrf_input() }}
+              <input type="number" name="qty" class="form-control" min="1" max="{{ r.quantity }}" value="{{ r.quantity }}" style="width:5rem;" aria-label="Ilość">
+              <select name="stage_id" class="form-control" style="width:auto;" aria-label="Punkty którego etapu">
+                {% for s in stages %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+              </select>
+              <button type="submit" class="btn btn-outline btn-sm"><i class="bi bi-clipboard-check"></i> Skontroluj</button>
+            </form>
+            {% else %}-{% endif %}
+          </td>{% endif %}
         </tr>
         {% endfor %}
       </tbody>
@@ -58,7 +70,7 @@
           <td>{{ m.kind_label }}{% if m.reverted_at %} <span class="badge badge-neutral">wycofany</span>{% endif %}</td>
           <td><a href="{{ url_for('kp.order_detail', order_id=m.order_id) }}">{{ m.order.zo_number }}</a></td>
           <td>{{ m.component.name }}</td>
-          <td>{{ m.quantity }} szt.</td>
+          <td>{{ m.quantity }} szt.{% if m.note %}<div class="text-muted" style="font-size:.8rem;">{{ m.note }}</div>{% endif %}</td>
           <td>{{ m.employee.name if m.employee else (m.user.username if m.user else '-') }}</td>
         </tr>
         {% endfor %}

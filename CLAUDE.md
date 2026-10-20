@@ -62,7 +62,7 @@ Przykład formatu:
 ## Informacje o projekcie
 
 - **Stack:** Python 3.14 (lokalnie, `venv`), Flask 3.0.3, Flask-SQLAlchemy 3.1.1, Flask-Login, Flask-WTF, SQLite. Pełna lista w `requirements.txt`.
-- **Testy:** `.\venv\Scripts\python.exe -m pytest tests/ -v` - 388 testów w `tests/` (m.in. `test_app.py`, `test_kontrola.py`, `test_api_v1.py`, `test_briefing.py`, `test_dokumentacja.py`, `test_installer_stats.py`, `test_marszruta.py`, `test_produkcja.py`, `test_produkcja_stanowisko.py`, `test_qar_employee.py`, `test_qar_from_checklist.py`, `test_zadania_qa.py`), wszystkie muszą przejść. Współdzielone fixture'y są w `tests/conftest.py`.
+- **Testy:** `.\venv\Scripts\python.exe -m pytest tests/ -v` - 403 testy w `tests/` (m.in. `test_app.py`, `test_kontrola.py`, `test_api_v1.py`, `test_briefing.py`, `test_dokumentacja.py`, `test_installer_stats.py`, `test_marszruta.py`, `test_produkcja.py`, `test_produkcja_stanowisko.py`, `test_qar_employee.py`, `test_qar_from_checklist.py`, `test_zadania_qa.py`), wszystkie muszą przejść. Współdzielone fixture'y są w `tests/conftest.py`.
 - **Uruchomienie lokalne:** `.\venv\Scripts\python.exe app.py` → http://127.0.0.1:5000
 - **Pre-commit hook:** automatycznie uruchamia testy przed każdym commitem
 - **Migracje schematu:** wszystkie realizowane przez `_migrate_schema()` w `app.py` - bez Alembic. Nowe kolumny dodawane jako `ALTER TABLE ... ADD COLUMN ...`.
@@ -142,6 +142,17 @@ Bufor (wózek) jest tylko miejscem i nie jest przypisany do etapu. Operator sam 
 - **Kontrola po wykonanym etapie:** punkty kontrolne i flaga `control_required` należą do etapu wykonanego, a skontrolowana ilość leży na wózku jako `do_kontroli` z zapisanym etapem oczekiwania.
 - **Stanowisko:** wpis i odstawienie mają wybór etapu oczekiwania (domyślnie następny z trasy), przejęcie wybiera etap spośród pozycji leżących na zeskanowanym wózku, składanie działa na elementach czekających na składanie na zeskanowanym wózku.
 - Testy: `tests/test_carts.py`. W pozostałych plikach testów pole `stage_id` bufora testowego jest wskazówką, na jaki etap ma czekać wpis (pomocnik `hint`).
+
+### Decyzje o ilości NG, ponowna kontrola, złom, kontrola doraźna (etap 5b planu)
+
+Dodane 2026-10-20 w `kp/decisions.py` (logika) i `kp/control_views.py` (widoki). Decyzje podejmują kontroler i admin, listy widzą wszyscy zalogowani.
+
+- **Wstrzymane** (`/kontrolaprodukcji/kontrole/wstrzymane`, zakładka z licznikiem): ilości `wstrzymane` po ocenie kontroli. Pozycja niesie `recheck_stage_id`, czyli etap, w którym wykryto niezgodność. Decyzje na dowolną część ilości: **zwolnij** (wraca jako `ok`, ruch `zwolnienie`), **do poprawki** (kontroler wskazuje etap, nie późniejszy niż etap NG, oraz wózek po kodzie, wymagana uwaga; pozycja `do_poprawki`, ruch `zwrot`), **zezłomuj** (wymagany powód, wpis `ScrapRecord`, ruch `zlomowanie`). Gotowego produktu nie złomuje się. Uwaga decyzji zapisuje się w `Movement.note`. Decyzji nie da się wycofać.
+- **Poprawka:** ilość `do_poprawki` przejmuje się z `recheck_stage_id` w żądaniu (`flow.takeover`), pozycja w realizacji niesie `WorkInProgress.recheck_stage_id`. Pierwsze odstawienie po poprawce wymusza **ponowną kontrolę** (`StageControl.kind = ponowna`) z punktami etapu NG, niezależnie od planu. Wycofanie przejęcia lub odstawienia przywraca status i znacznik.
+- **Złom:** archiwum `/kontrolaprodukcji/zlom` (filtry: szukaj, etap). `stock.entered_qty` odlicza ilość zezłomowaną, więc element wraca do uzupełnienia i wpisuje się od początku. Usunięcie zlecenia kasuje jego wpisy złomu.
+- **Kontrola doraźna:** na stronie bufora kontroler lub admin kieruje zgodną ilość (`ok`) na kontrolę z punktami wybranego etapu (`decisions.ad_hoc`, rodzaj `dorazna`, ruch `dorazna`). Dalej jak zwykła kontrola.
+- **Model:** `StockPosition.recheck_stage_id` wchodzi do klucza unikalnego (przebudowa tabeli przy starcie, `_migrate_stock_positions` kopiuje wiersze), `WorkInProgress.recheck_stage_id`, `Movement.note`, tabela `scrap_records`.
+- Testy: `tests/test_decisions.py`.
 
 ### Stanowisko, bufory i stan buforów (etap 3 planu)
 

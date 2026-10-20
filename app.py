@@ -3536,14 +3536,16 @@ def _migrate_schema():
                 ('movements', 'group_id', 'ALTER TABLE movements ADD COLUMN group_id VARCHAR(32)'),
                 ('movements', 'wip_id', 'ALTER TABLE movements ADD COLUMN wip_id INTEGER'),
                 ('movements', 'control_id', 'ALTER TABLE movements ADD COLUMN control_id INTEGER'),
+                ('work_in_progress', 'recheck_stage_id', 'ALTER TABLE work_in_progress ADD COLUMN recheck_stage_id INTEGER REFERENCES production_stages(id)'),
+                ('movements', 'note', 'ALTER TABLE movements ADD COLUMN note VARCHAR(512)'),
                 ('movements', 'wait_stage_id', 'ALTER TABLE movements ADD COLUMN wait_stage_id INTEGER REFERENCES production_stages(id)'),
                 ('stage_controls', 'wait_stage_id', 'ALTER TABLE stage_controls ADD COLUMN wait_stage_id INTEGER REFERENCES production_stages(id)')):
             if tbl in insp.get_table_names():
                 if col not in [c['name'] for c in insp.get_columns(tbl)]:
                     conn.execute(text(ddl))
                     conn.commit()
-        if 'stock_positions' in insp.get_table_names() and 'stage_id' not in [
-                c['name'] for c in insp.get_columns('stock_positions')]:
+        if 'stock_positions' in insp.get_table_names() and not {'stage_id', 'recheck_stage_id'} <= {
+                c['name'] for c in insp.get_columns('stock_positions')}:
             # Etap przechodzi z bufora na ilość: tabela pozycji ma nowy klucz unikalny, więc jest
             # budowana od nowa, a wiersze wracają w _migrate_stock_positions() po create_all().
             conn.execute(text('DROP TABLE IF EXISTS stock_positions_old'))
@@ -4372,11 +4374,15 @@ def _migrate_stock_positions():
     from sqlalchemy import inspect, text
     if 'stock_positions_old' not in inspect(db.engine).get_table_names():
         return
+    old_cols = {c['name'] for c in inspect(db.engine).get_columns('stock_positions_old')}
+    # Wersja sprzed wózków: etap brany z bufora. Wersja z etapem w pozycji: kopiowany bez zmian.
+    stage_expr = 'o.stage_id' if 'stage_id' in old_cols else 'b.stage_id'
+    recheck_expr = 'o.recheck_stage_id' if 'recheck_stage_id' in old_cols else 'NULL'
     with db.engine.begin() as conn:
         conn.execute(text(
-            'INSERT INTO stock_positions (component_id, buffer_id, stage_id, quantity, status, updated_at) '
-            'SELECT o.component_id, o.buffer_id, b.stage_id, o.quantity, o.status, o.updated_at '
-            'FROM stock_positions_old o LEFT JOIN buffers b ON b.id = o.buffer_id'))
+            'INSERT INTO stock_positions (component_id, buffer_id, stage_id, recheck_stage_id, quantity, status, '
+            f'updated_at) SELECT o.component_id, o.buffer_id, {stage_expr}, {recheck_expr}, o.quantity, '
+            'o.status, o.updated_at FROM stock_positions_old o LEFT JOIN buffers b ON b.id = o.buffer_id'))
         conn.execute(text('DROP TABLE stock_positions_old'))
         conn.execute(text('UPDATE buffers SET stage_id = NULL'))
 

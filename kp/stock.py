@@ -8,8 +8,8 @@ from datetime import datetime, timezone
 
 from sqlalchemy import func
 
-from models import (db, Buffer, Machine, Movement, ProductionStage, StockPosition, WorkInProgress, WorkOrder,
-                    WorkOrderComponent)
+from models import (db, Buffer, Machine, Movement, ProductionStage, ScrapRecord, StockPosition, WorkInProgress,
+                    WorkOrder, WorkOrderComponent)
 
 UTC = timezone.utc
 
@@ -17,11 +17,14 @@ UTC = timezone.utc
 # ── Rozliczenie ilości ────────────────────────────────────────────────────────
 
 def entered_qty(comp):
-    """Ilość elementu wpisana na bufory (wpisy niewycofane)."""
+    """Ilość elementu wpisana na bufory (wpisy niewycofane) pomniejszona o ilość zezłomowaną: element
+    zezłomowany trzeba wpisać od nowa."""
     total = (db.session.query(func.coalesce(func.sum(Movement.quantity), 0))
              .filter(Movement.component_id == comp.id, Movement.kind == 'wpis',
                      Movement.reverted_at.is_(None)).scalar())
-    return int(total or 0)
+    scrap = (db.session.query(func.coalesce(func.sum(ScrapRecord.quantity), 0))
+             .filter(ScrapRecord.component_id == comp.id).scalar())
+    return max(0, int(total or 0) - int(scrap or 0))
 
 
 def remaining_qty(comp):
@@ -97,22 +100,24 @@ def target_stages(comp, stage):
 
 # ── Pozycje na buforach ───────────────────────────────────────────────────────
 
-def _position(comp, buffer, status='ok', stage_id=None):
-    """Pozycja elementu na buforze z danym statusem i etapem oczekiwania (tworzona, gdy nie istnieje)."""
+def _position(comp, buffer, status='ok', stage_id=None, recheck_stage_id=None):
+    """Pozycja elementu na buforze z danym statusem i etapem oczekiwania (tworzona, gdy nie istnieje).
+    `recheck_stage_id` to etap wykrytej niezgodności (dla ilości wstrzymanej i do poprawki)."""
     pos = (StockPosition.query.filter_by(component_id=comp.id, buffer_id=buffer.id, status=status,
-                                         stage_id=stage_id)
+                                         stage_id=stage_id, recheck_stage_id=recheck_stage_id)
            .populate_existing().first())
     if pos is None:
         pos = StockPosition(component_id=comp.id, buffer_id=buffer.id, status=status, stage_id=stage_id,
-                            quantity=0)
+                            recheck_stage_id=recheck_stage_id, quantity=0)
         db.session.add(pos)
     return pos
 
 
-def position_ref(component_id, buffer_id, stage_id, status='ok'):
+def position_ref(component_id, buffer_id, stage_id, status='ok', recheck_stage_id=None):
     """Pozycja odczytana na nowo z bazy (nie z pamięci sesji) albo None."""
     return (StockPosition.query.filter_by(component_id=component_id, buffer_id=buffer_id, status=status,
-                                          stage_id=stage_id).populate_existing().first())
+                                          stage_id=stage_id, recheck_stage_id=recheck_stage_id)
+            .populate_existing().first())
 
 
 # ── Wpis na bufor ─────────────────────────────────────────────────────────────
@@ -178,8 +183,8 @@ def machines_json(stage):
 
 def _position_json(p):
     st = p.stage
-    return {'buffer_id': p.buffer_id, 'code': p.buffer.code, 'name': p.buffer.display_name,
-            'stage_id': p.stage_id, 'stage': st.name if st else None, 'machines': machines_json(st),
+    return {'id': p.id, 'buffer_id': p.buffer_id, 'code': p.buffer.code, 'name': p.buffer.display_name,
+            'recheck_stage_id': p.recheck_stage_id, 'stage_id': p.stage_id, 'stage': st.name if st else None, 'machines': machines_json(st),
             'quantity': p.quantity, 'status': p.status, 'status_label': STATUS_LABELS.get(p.status, p.status)}
 
 
@@ -197,6 +202,7 @@ def wip_json(w):
     return {'id': w.id, 'component_id': comp.id, 'component': comp.name, 'is_product': comp.is_product,
             'order_id': comp.order_id, 'zo': comp.order.zo_number, 'product': comp.order.product_name,
             'stage_id': w.stage_id, 'stage': w.stage.name, 'quantity': w.quantity,
+            'recheck_stage': w.recheck_stage.name if w.recheck_stage else '',
             'machine': w.machine.name if w.machine else '', 'employee': w.employee.name if w.employee else '',
             'employee_id': w.employee_id,
             'targets': [{'id': s.id, 'name': s.name} for s in targets],
@@ -263,7 +269,7 @@ def buffer_contents(buffer):
     for p in (StockPosition.query.filter_by(buffer_id=buffer.id)
               .filter(StockPosition.quantity > 0).all()):
         o = p.component.order
-        rows.append({'order_id': o.id, 'zo': o.zo_number, 'product': o.product_name,
+        rows.append({'id': p.id, 'recheck_stage_id': p.recheck_stage_id, 'order_id': o.id, 'zo': o.zo_number, 'product': o.product_name,
                      'client': o.client or '', 'component_id': p.component_id,
                      'component': p.component.name, 'is_product': p.component.is_product,
                      'stage_id': p.stage_id, 'stage': p.stage.name if p.stage else '',

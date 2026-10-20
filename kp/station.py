@@ -222,7 +222,7 @@ def station_takeover():
     if not comp:
         return jsonify({'error': 'Nie znaleziono elementu zlecenia.'}), 404
     mv, err = flow.takeover(comp, buf, data.get('stage_id'), _int(data.get('quantity')), emp, current_user,
-                            data.get('machine_id'))
+                            data.get('machine_id'), data.get('recheck_stage_id'))
     if err:
         db.session.rollback()
         return jsonify({'error': err}), 400
@@ -353,5 +353,6 @@ def buffer_detail(buffer_id):
     b = get_or_404(Buffer, buffer_id)
     history = (Movement.query.filter((Movement.to_buffer_id == b.id) | (Movement.from_buffer_id == b.id))
                .order_by(Movement.created_at.desc(), Movement.id.desc()).limit(40).all())
+    stages = ProductionStage.query.filter_by(is_active=True).order_by(ProductionStage.order, ProductionStage.id).all()
     return render_template('kp/buffer_detail.html', buffer=b, contents=stock.buffer_contents(b),
-                           history=history)
+                           history=history, stages=stages)

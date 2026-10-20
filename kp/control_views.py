@@ -3,8 +3,10 @@ from flask import render_template, redirect, url_for, request, flash, abort, cur
 from flask_login import login_required, current_user
 from sqlalchemy import or_
 
-from models import (db, get_or_404, AuditLog, ProductionStage, StageControl, WorkOrder, WorkOrderControl)
-from . import kp_bp, controls
+from models import (db, get_or_404, AuditLog, Buffer, ProductionStage, ScrapRecord, StageControl, StockPosition,
+                    WorkOrder, WorkOrderControl)
+from ustawienia.lookup import find_buffer
+from . import kp_bp, controls, decisions
 from .routes import controller_required
 
 
@@ -15,7 +17,12 @@ def _inject_controls():
             return controls.pending_count()
         except Exception:   # np. przed migracją bazy
             return 0
-    return {'kp_pending_controls': pending}
+    def held():
+        try:
+            return decisions.held_count()
+        except Exception:
+            return 0
+    return {'kp_pending_controls': pending, 'kp_held_count': held}
 
 
 def _audit(action, target_id=None, detail=None):
@@ -114,3 +121,87 @@ def order_plan_save(order_id):
     _audit('kp_plan', order.id, f'ZO={order.zo_number} etapy={sorted(wanted)}')
     flash('Zapisano plan kontroli zlecenia. Obowiązuje dla kolejnych wejść ilości na bufory.', 'success')
     return redirect(url_for('kp.order_detail', order_id=order.id))
+
+
+# ── Ilości wstrzymane i decyzje (odczyt dla wszystkich, decyzje kontroler i admin) ──
+
+@kp_bp.route('/kontrole/wstrzymane')
+@login_required
+def held_list():
+    rows = []
+    for p in decisions.held_positions():
+        rows.append({'pos': p, 'returns': decisions.return_stages(p)})
+    return render_template('kp/held.html', rows=rows, can_decide=current_user.is_kontroler)
+
+
+@kp_bp.route('/kontrole/wstrzymane/<int:pos_id>/decyzja', methods=['POST'])
+@login_required
+@controller_required
+def held_decide(pos_id):
+    pos = db.session.get(StockPosition, pos_id)
+    form = request.form
+    action = form.get('action', '')
+    qty = form.get('qty')
+    note = form.get('note')
+    if pos is None:
+        flash('Ta ilość nie czeka już na decyzję. Odśwież stronę.', 'warning')
+        return redirect(url_for('kp.held_list'))
+    name, zo = pos.component.name, pos.component.order.zo_number
+    if action == 'zwolnij':
+        mv, err = decisions.release(pos, qty, current_user, note)
+        label = 'Zwolniono'
+    elif action == 'popraw':
+        mv, err = decisions.send_back(pos, qty, form.get('stage_id'), find_buffer(form.get('buffer_code')),
+                                      current_user, note)
+        label = 'Zwrócono do poprawki'
+    elif action == 'zlomuj':
+        mv, err = decisions.scrap(pos, qty, current_user, note)
+        label = 'Zezłomowano'
+    else:
+        mv, err = None, 'Wybierz decyzję.'
+    if err:
+        db.session.rollback()
+        flash(err, 'warning')
+        return redirect(url_for('kp.held_list'))
+    db.session.commit()
+    _audit('kp_decision', mv.id, f'ZO={zo} {name} {action} x{mv.quantity}')
+    flash(f'{label}: {mv.quantity} szt. „{name}” (ZO {zo}).', 'success')
+    return redirect(url_for('kp.held_list'))
+
+
+@kp_bp.route('/zlom')
+@login_required
+def scrap_list():
+    q_text = request.args.get('q', '').strip()
+    stage_id = request.args.get('stage', type=int)
+    query = ScrapRecord.query.join(WorkOrder, WorkOrder.id == ScrapRecord.order_id)
+    if q_text:
+        like = f'%{q_text}%'
+        query = query.filter(or_(WorkOrder.zo_number.ilike(like), WorkOrder.product_name.ilike(like),
+                                 WorkOrder.client.ilike(like), ScrapRecord.reason.ilike(like)))
+    if stage_id:
+        query = query.filter(ScrapRecord.stage_id == stage_id)
+    items = query.order_by(ScrapRecord.created_at.desc(), ScrapRecord.id.desc()).limit(500).all()
+    stages = ProductionStage.query.order_by(ProductionStage.order, ProductionStage.id).all()
+    return render_template('kp/scrap.html', items=items, total=sum(i.quantity for i in items), stages=stages,
+                           stage_id=stage_id, q=q_text)
+
+
+@kp_bp.route('/pozycja/<int:pos_id>/kontrola-dorazna', methods=['POST'])
+@login_required
+@controller_required
+def ad_hoc_control(pos_id):
+    pos = db.session.get(StockPosition, pos_id)
+    if pos is None:
+        flash('Ta ilość nie leży już na buforze.', 'warning')
+        return redirect(url_for('kp.buffers'))
+    buffer_id = pos.buffer_id
+    ctrl, err = decisions.ad_hoc(pos, request.form.get('qty'), request.form.get('stage_id'), current_user)
+    if err:
+        db.session.rollback()
+        flash(err, 'warning')
+        return redirect(url_for('kp.buffer_detail', buffer_id=buffer_id))
+    db.session.commit()
+    _audit('kp_adhoc_control', ctrl.id, f'ZO={ctrl.order.zo_number} {ctrl.component.name} x{ctrl.quantity}')
+    flash('Skierowano na kontrolę doraźną. Oceń ją w kolejce kontroli.', 'success')
+    return redirect(url_for('kp.control_detail', control_id=ctrl.id))
