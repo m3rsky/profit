@@ -1131,9 +1131,31 @@ class ControlPoint(db.Model):
     description = db.Column(db.Text, nullable=True)
     is_active   = db.Column(db.Boolean, default=True)
     created_at  = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    # Dział, do którego należy punkt. Pusty: punkt ogólny (trafia do każdej kontroli).
+    department_id = db.Column(db.Integer, db.ForeignKey('production_departments.id'), nullable=True)
+    department  = db.relationship('ProductionDepartment', foreign_keys=[department_id])
 
     def __repr__(self):
         return f'<ControlPoint {self.title}>'
+
+
+class ControlOrder(db.Model):
+    """Zlecenie na liście Kontroli zamówień (para ZO + produkt ze skanu QR). Ma historię kontroli po
+    działach (`ControlRecord.control_order_id`), każda kontrola to dział, osoba i wynik."""
+    __tablename__ = 'control_orders'
+    id           = db.Column(db.Integer, primary_key=True)
+    zo_number    = db.Column(db.String(64), nullable=False, index=True)
+    product_name = db.Column(db.String(256), nullable=True)
+    client       = db.Column(db.String(256), nullable=True)
+    quantity     = db.Column(db.Integer, nullable=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at   = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    created_by   = db.relationship('User', foreign_keys=[created_by_id])
+    controls     = db.relationship('ControlRecord', back_populates='control_order',
+                                   order_by='ControlRecord.id.desc()')
+
+    def __repr__(self):
+        return f'<ControlOrder {self.zo_number} {self.product_name}>'
 
 
 class ControlRecord(db.Model):
@@ -1154,8 +1176,17 @@ class ControlRecord(db.Model):
     completed_at = db.Column(db.DateTime, nullable=True)
     done_by_id   = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     done_at      = db.Column(db.DateTime, nullable=True)
+    # Pracownik, który wykonał kontrolowaną pracę (dział wynika z pracownika). Opcjonalny.
+    employee_id  = db.Column(db.Integer, db.ForeignKey('department_employees.id'), nullable=True)
+    # Kontrola działu (jedna ocena, bez cyklu). Pusty: kontrola ogólna z cyklem wstępna, Wykonane, sprawdzająca.
+    department_id = db.Column(db.Integer, db.ForeignKey('production_departments.id'), nullable=True)
+    # Zlecenie z listy zleceń, do którego należy kontrola działu (puste: stara kontrola ogólna).
+    control_order_id = db.Column(db.Integer, db.ForeignKey('control_orders.id'), nullable=True, index=True)
 
     controller = db.relationship('User', foreign_keys=[user_id])
+    department = db.relationship('ProductionDepartment', foreign_keys=[department_id])
+    control_order = db.relationship('ControlOrder', back_populates='controls')
+    employee   = db.relationship('DepartmentEmployee', foreign_keys=[employee_id])
     done_by    = db.relationship('User', foreign_keys=[done_by_id])
     previous   = db.relationship('ControlRecord', remote_side=[id],
                                  backref=db.backref('followup', uselist=False))
@@ -1171,6 +1202,12 @@ class ControlRecord(db.Model):
         return 'NG' if any(r.result == 'NG' for r in self.results) else 'OK'
 
     @property
+    def performer(self):
+        """Wykonawca pracy: z najnowszej kontroli cyklu (sprawdzającej, jeśli ma wskazanego)."""
+        fu = self.followup
+        return (fu.employee if fu is not None and fu.employee is not None else self.employee)
+
+    @property
     def ng_count(self):
         return sum(1 for r in self.results if r.result == 'NG')
 
@@ -1180,9 +1217,12 @@ class ControlRecord(db.Model):
 
     @property
     def state(self):
-        """Stan cyklu (dla kontroli wstępnej): in_control | to_do | recheck | closed."""
+        """Stan cyklu (dla kontroli wstępnej): in_control | to_do | recheck | closed.
+        Kontrola działu nie ma cyklu: po zakończeniu jest od razu zamknięta."""
         if self.status != 'completed':
             return 'in_control'
+        if self.department_id is not None:
+            return 'closed'
         if not self.done_at:
             return 'to_do'
         if self.followup is not None and self.followup.status == 'completed':

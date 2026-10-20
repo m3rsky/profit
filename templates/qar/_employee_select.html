@@ -2,9 +2,9 @@
    (z ustawień produkcji).
    Oczekuje: departments, selected_employee_id (int|None), selected_employee (obiekt|None) #}
 <div class="form-group">
-  <label class="form-label">Osoba odpowiedzialna za zadanie</label>
+  <label class="form-label">{{ employee_label or 'Osoba odpowiedzialna za zadanie' }}</label>
   <select name="employee_id" id="employee-select" class="form-control" style="font-size:16px;">
-    <option value="">— nie przypisano —</option>
+    <option value="">— nie wskazano —</option>
     {% if selected_employee and (not selected_employee.is_active or not selected_employee.department.is_active) %}
       <option value="{{ selected_employee.id }}" selected>
         {{ selected_employee.name }} ({{ selected_employee.department.name }} — nieaktywny)

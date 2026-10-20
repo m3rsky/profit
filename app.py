@@ -3529,6 +3529,21 @@ def _migrate_schema():
         if 'alerts' in insp.get_table_names():
             conn.execute(text("DELETE FROM alerts WHERE message LIKE 'Do kontroli: ZO%'"))
             conn.commit()
+        for tbl, col, ddl in (
+                ('control_points', 'department_id',
+                 'ALTER TABLE control_points ADD COLUMN department_id INTEGER REFERENCES production_departments(id)'),
+                ('control_records', 'department_id',
+                 'ALTER TABLE control_records ADD COLUMN department_id INTEGER REFERENCES production_departments(id)'),
+                ('control_records', 'control_order_id',
+                 'ALTER TABLE control_records ADD COLUMN control_order_id INTEGER REFERENCES control_orders(id)')):
+            if tbl in insp.get_table_names() and col not in [c['name'] for c in insp.get_columns(tbl)]:
+                conn.execute(text(ddl))
+                conn.commit()
+        if 'control_records' in insp.get_table_names() and 'employee_id' not in [
+                c['name'] for c in insp.get_columns('control_records')]:
+            conn.execute(text('ALTER TABLE control_records ADD COLUMN employee_id INTEGER '
+                              'REFERENCES department_employees(id)'))
+            conn.commit()
         if 'product_components' in insp.get_table_names():
             # Ilość na sztukę przeniesiona z szablonu na zlecenie (tabela istniała tylko w wersjach deweloperskich).
             cols = [c['name'] for c in insp.get_columns('product_components')]

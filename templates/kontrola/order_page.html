@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Zlecenie {{ order.zo_number }} – Kontrola zamówień{% endblock %}
+
+{% block head %}
+<style>
+.op-wrap { max-width: 760px; margin: 0 auto; display:flex; flex-direction:column; gap:.9rem; }
+.op-meta { display:flex; flex-wrap:wrap; gap:.4rem 1.2rem; color:var(--text-muted,#64748b); font-size:.92rem; }
+.op-new { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
+.op-new select { flex:1; min-width:11rem; min-height:48px; font-size:16px; }
+.op-new .btn { min-height:48px; }
+.op-hist { display:flex; flex-direction:column; gap:.55rem; }
+.op-row { display:flex; gap:.7rem; align-items:center; flex-wrap:wrap; padding:.8rem 1rem; border:1px solid var(--border,#e2e8f0);
+  border-left:5px solid #94a3b8; border-radius:var(--radius-md,10px); background:var(--card-bg,var(--surface,#fff)); }
+.op-row--progress { border-left-color:#d97706; }
+.op-row--ok { border-left-color:#16a34a; }
+.op-row--ng { border-left-color:#b91c1c; }
+.op-row--old { opacity:.72; }
+.op-name { flex:1; min-width:9rem; font-weight:600; }
+.op-sub { color:var(--text-muted,#64748b); font-size:.82rem; font-weight:400; }
+.op-row form { margin:0; }
+.op-row .btn { min-height:44px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="op-wrap">
+  <div class="page-header" style="margin-bottom:0;">
+    <h1 class="page-title"><i class="bi bi-diagram-2"></i> ZO {{ order.zo_number }}</h1>
+    <div class="page-header-actions">
+      <a href="{{ url_for('kontrola.scan_page') }}" class="btn btn-outline"><i class="bi bi-qr-code-scan"></i> Skanuj QR</a>
+      <a href="{{ url_for('kontrola.list_records') }}" class="btn btn-outline"><i class="bi bi-arrow-left"></i> Lista</a>
+    </div>
+  </div>
+
+  <div class="op-meta">
+    {% if order.product_name %}<span><i class="bi bi-box-seam"></i> {{ order.product_name }}</span>{% endif %}
+    {% if order.client %}<span><i class="bi bi-person"></i> {{ order.client }}</span>{% endif %}
+    {% if order.quantity %}<span>{{ order.quantity }} szt.</span>{% endif %}
+    <span>Dodano: {{ order.created_at|localdt('%d.%m.%Y %H:%M') }}</span>
+  </div>
+
+  <div class="card"><div class="card-body">
+    <form method="post" action="{{ url_for('kontrola.order_start', order_id=order.id) }}" class="op-new" autocomplete="off">
+      {{ csrf_input() }}
+      <select name="department_id" class="form-control" aria-label="Dział kontroli" required>
+        <option value="">— wybierz dział kontroli —</option>
+        {% for d in departments %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}
+      </select>
+      <button type="submit" class="btn btn-primary"><i class="bi bi-clipboard-check"></i> Nowa kontrola</button>
+    </form>
+    {% if not departments %}
+    <p class="text-muted" style="margin:.6rem 0 0;font-size:.85rem;">Brak działów z punktami kontrolnymi. Admin przypisuje punkty do działów w ustawieniach kontroli.</p>
+    {% endif %}
+  </div></div>
+
+  <h2 style="font-size:1.05rem;margin:.2rem 0 0;">Historia kontroli</h2>
+  <div class="op-hist">
+    {% for c in order.controls %}
+    <div class="op-row {% if c.status != 'completed' %}op-row--progress{% elif c.result == 'OK' %}op-row--ok{% else %}op-row--ng{% endif %}
+                {% if c.status == 'completed' and latest.get(c.department_id) != c.id %}op-row--old{% endif %}">
+      <div class="op-name">{{ c.department.name if c.department else 'ogólna' }}
+        <div class="op-sub">
+          {{ (c.completed_at or c.created_at)|localdt('%d.%m.%Y %H:%M') }}
+          · kontroler: {{ c.controller.username if c.controller else '-' }}
+          {% if c.employee %}· osoba: {{ c.employee.name }}{% endif %}
+          {% if c.status == 'completed' and latest.get(c.department_id) == c.id %}· aktualna{% endif %}
+        </div>
+      </div>
+      <div>
+        {% if c.status != 'completed' %}<span class="badge badge-warning">w trakcie ({{ c.rated_count }}/{{ c.results|length }})</span>
+        {% elif c.result == 'OK' %}<span class="badge badge-success">zgodna</span>
+        {% else %}<span class="badge badge-danger">niezgodna ({{ c.ng_count }})</span>{% endif %}
+      </div>
+      {% if current_user.is_admin %}
+      <form method="post" action="{{ url_for('kontrola.delete_record', record_id=c.id) }}">
+        {{ csrf_input() }}
+        <button type="submit" class="btn btn-danger btn-sm" title="Usuń kontrolę" data-confirm="Usunąć tę kontrolę z historii zlecenia? Raport QAR zostaje."><i class="bi bi-trash"></i></button>
+      </form>
+      {% endif %}
+      {% if c.status != 'completed' %}
+      <a class="btn btn-primary" href="{{ url_for('kontrola.view_record', record_id=c.id) }}">Kontynuuj</a>
+      {% else %}
+      <a class="btn btn-outline" href="{{ url_for('kontrola.view_record', record_id=c.id) }}">Szczegóły</a>
+      {% if latest.get(c.department_id) == c.id and c.department_id %}
+      <form method="post" action="{{ url_for('kontrola.order_start', order_id=order.id) }}">
+        {{ csrf_input() }}
+        <input type="hidden" name="department_id" value="{{ c.department_id }}">
+        <button type="submit" class="btn btn-outline" data-confirm="Rozpocząć ponowną kontrolę działu {{ c.department.name }}? Poprzednia zostaje w historii."><i class="bi bi-arrow-repeat"></i> Ponowna kontrola</button>
+      </form>
+      {% endif %}
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="card"><div class="card-body card-body--empty">Brak kontroli. Wybierz dział i rozpocznij pierwszą.</div></div>
+    {% endfor %}
+  </div>
+
+  {% if current_user.is_admin %}
+  <form method="post" action="{{ url_for('kontrola.order_delete', order_id=order.id) }}">
+    {{ csrf_input() }}
+    <button type="submit" class="btn btn-danger btn-sm" data-confirm="Usunąć zlecenie ZO {{ order.zo_number }} z listy razem z jego kontrolami? Raporty QAR zostają.">
+      <i class="bi bi-trash"></i> Usuń zlecenie</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

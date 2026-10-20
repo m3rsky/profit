@@ -155,6 +155,33 @@
     elConfirm.hidden = false;
     elActions.hidden = false;
     btnCreate.hidden = false;
+    setButton(null);
+    lookupOrder(data);
+  }
+
+  // Napis przycisku zależy od tego, czy zlecenie jest już na liście (pierwszy skan: wpis, kolejny: kontrola).
+  var infoText = 'Otwieram kontrolę zamówienia…';
+  function setButton(info) {
+    var label = 'Rozpocznij kontrolę zamówienia';
+    infoText = 'Otwieram kontrolę zamówienia…';
+    if (info && info.mode === 'orders') {
+      if (info.exists) { label = 'Rozpocznij kontrolę'; infoText = 'Otwieram zlecenie…'; }
+      else { label = 'Wpis zlecenia na listę'; infoText = 'Dodaję zlecenie do listy…'; }
+    } else if (info && info.exists) {
+      label = 'Otwórz kontrolę';
+    }
+    btnCreate.innerHTML = '<i class="bi bi-play-fill"></i> ' + label;
+  }
+
+  function lookupOrder(data) {
+    fetch('{{ url_for("kontrola.qr_lookup") }}', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+      body: JSON.stringify(data),
+    })
+    .then(function (resp) { return resp.json(); })
+    .then(function (d) { if (scannedData === data && d && d.ok) setButton(d); })
+    .catch(function () {});
   }
 
   function parseQr(text) {
@@ -179,7 +206,7 @@
     elActions.hidden   = true;
     elError.hidden     = true;
     elInfo.hidden      = false;
-    elInfoMsg.textContent = 'Otwieram kontrolę zamówienia…';
+    elInfoMsg.textContent = infoText;
 
     fetch('{{ url_for("kontrola.from_qr") }}', {
       method:  'POST',

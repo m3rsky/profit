@@ -3,267 +3,271 @@
 
 {% block head %}
 <style>
-.kz-chips { display:flex; gap:.4rem; margin:.25rem 0 1rem; overflow-x:auto; -webkit-overflow-scrolling:touch;
-  padding-bottom:.35rem; scrollbar-width:thin; }
-.kz-chip { display:inline-flex; align-items:center; gap:.4rem; padding:.45rem .85rem; border-radius:999px; white-space:nowrap; flex:0 0 auto;
-  border:1px solid var(--border,#e2e8f0); color:inherit; text-decoration:none; font-size:.88rem; }
-.kz-chip.active { background:var(--blue-bg,#eff6ff); border-color:var(--progress-blue,#2563eb); color:var(--progress-blue,#2563eb); font-weight:600; }
-.kz-chip-n { font-weight:700; }
-.kz-filter { display:flex; gap:.4rem; }
-.kz-filter .form-control { flex:1; min-width:0; }
+.kz-ctl-badges { display:flex; flex-wrap:wrap; gap:.3rem; }
+.kz-ctl-badges a { text-decoration:none; }
 .kz-sub { color:var(--text-muted,#64748b); font-size:.82rem; }
-.kz-empty { text-align:center; padding:2.5rem 1rem; color:var(--text-muted,#64748b); }
-
-.kz-table-wrap { display:none; }
-.kz-table { width:100%; border-collapse:collapse; font-size:.92rem; }
-.kz-table th { text-align:left; padding:.6rem .75rem; font-size:.75rem; text-transform:uppercase; letter-spacing:.03em;
-  color:var(--text-muted,#64748b); border-bottom:2px solid var(--border,#e2e8f0); white-space:nowrap; }
-.kz-table td { padding:.55rem .75rem; border-bottom:1px solid var(--border,#e2e8f0); vertical-align:middle; }
-.kz-table tbody tr:hover { background:var(--blue-bg,rgba(37,99,235,.05)); }
-.kz-table .kz-zo { font-size:.95rem; white-space:nowrap; }
-.kz-table .kz-state { border-left:4px solid transparent; }
-.kz-table .kz-state--to_do { border-left-color:#d97706; }
-.kz-table .kz-state--recheck { border-left-color:var(--progress-blue,#2563eb); }
-.kz-table .kz-state--closed { border-left-color:#16a34a; }
-.kz-table .kz-state--in_control { border-left-color:#94a3b8; }
-.kz-table .kz-num { text-align:right; white-space:nowrap; }
-.kz-table .kz-sel input { width:18px; height:18px; }
-.kz-table .kz-rowact { display:flex; gap:.4rem; justify-content:flex-end; }
-.kz-table .kz-rowact form { margin:0; }
-.kz-list { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:.75rem; }
-.kz-item { display:flex; flex-direction:column; gap:.55rem; padding:.9rem 1rem; border:1px solid var(--border,#e2e8f0);
-  border-left-width:5px; border-radius:var(--radius-md,10px); background:var(--card-bg,var(--surface,#fff)); }
-.kz-item--to_do { border-left-color:#d97706; }
-.kz-item--recheck { border-left-color:var(--progress-blue,#2563eb); }
-.kz-item--closed { border-left-color:#16a34a; }
-.kz-item--in_control { border-left-color:#94a3b8; }
-.kz-item-top { display:flex; justify-content:space-between; align-items:flex-start; gap:.6rem; }
-.kz-zo { font-size:1.15rem; font-weight:700; word-break:break-word; }
-.kz-prod { font-weight:600; word-break:break-word; }
-.kz-badges { display:flex; flex-wrap:wrap; gap:.35rem; }
-.kz-meta { display:flex; flex-wrap:wrap; gap:.15rem .9rem; color:var(--text-muted,#64748b); font-size:.82rem; }
-.kz-sel { display:flex; align-items:center; gap:.4rem; font-size:.82rem; color:var(--text-muted,#64748b); cursor:pointer; }
-.kz-sel input { width:20px; height:20px; }
-.kz-bulk { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; margin-bottom:.75rem; }
-.kz-actions { display:flex; gap:.5rem; margin-top:.15rem; }
-.kz-actions form { flex:1; margin:0; }
-.kz-actions .btn { width:100%; min-height:46px; justify-content:center; }
-.kz-actions > a.btn { flex:1; }
-@media (min-width: 900px) {
-  .kz-table-wrap { display:block; }
-  .kz-list { display:none; }
-}
-@media (max-width: 640px) {
-  .kz-list { grid-template-columns:1fr; }
-  .kz-filter { width:100%; }
-  .page-header-actions { display:flex; flex-direction:column; gap:.5rem; width:100%; }
-  .page-header-actions .btn { width:100%; justify-content:center; min-height:46px; }
-}
+.kz-zo-small { color:var(--text-muted,#64748b); font-size:.78rem; line-height:1.2; margin-top:.1rem; }
+.kz-add { margin:0 0 1rem; }
+.kz-add summary { cursor:pointer; display:inline-flex; }
+.kz-add-form { display:flex; gap:.4rem; flex-wrap:wrap; margin-top:.6rem; }
+.kz-add-form .form-control { flex:1; min-width:8rem; }
 </style>
 {% endblock %}
 
 {% block content %}
-{% set is_op = current_user.is_operator %}
 <div class="page-header">
   <div>
-    <h1 class="page-title"><i class="bi bi-patch-check"></i> Kontrola zamówień</h1>
+    <h1 class="page-title">Kontrola zamówień</h1>
     <span class="text-muted" style="font-size:0.82rem;">
-      {% if is_op %}Zamówienia po kontroli jakości, gotowe do dalszej obróbki{% else %}Kontrola zamówień po stałych punktach kontrolnych{% endif %}
+      {% if is_op %}Zamówienia po kontroli jakości, gotowe do dalszej obróbki{% else %}Lista zleceń z kontrolami po działach{% endif %}
     </span>
   </div>
   <div class="page-header-actions">
-    <form method="get" class="kz-filter">
-      <input type="hidden" name="s" value="{{ flt }}">
-      <input type="text" name="zo" value="{{ zo_filter }}" placeholder="Szukaj: ZO, produkt, klient…" class="form-control">
-      <button type="submit" class="btn btn-secondary" title="Szukaj"><i class="bi bi-search"></i></button>
-    </form>
     {% if current_user.is_admin %}
-    <a href="{{ url_for('kontrola.points') }}" class="btn btn-outline" title="Punkty kontrolne">
-      <i class="bi bi-list-check"></i> Punkty
-    </a>
+    <a href="{{ url_for('kontrola.points') }}" class="btn btn-ghost btn-sm" title="Punkty kontrolne"><i class="bi bi-list-check"></i> Punkty</a>
     {% endif %}
     {% if current_user.is_kontroler %}
-    <a href="{{ url_for('kontrola.scan_page') }}" class="btn btn-primary">
-      <i class="bi bi-qr-code-scan"></i> Skanuj QR
-    </a>
+    <a href="{{ url_for('kontrola.scan_page') }}" class="btn btn-primary"><i class="bi bi-qr-code-scan"></i> Skanuj QR</a>
     {% endif %}
   </div>
 </div>
 
-<div class="kz-chips">
-  {% if not is_op %}
-  <a class="kz-chip {% if flt == 'all' %}active{% endif %}" href="{{ url_for('kontrola.list_records', s='all', zo=zo_filter) }}">
-    Wszystkie <span class="kz-chip-n">{{ total }}</span></a>
-  {% endif %}
-  {% for key, label in labels.items() %}
-    {% if not (is_op and key == 'in_control') %}
-    <a class="kz-chip {% if flt == key %}active{% endif %}" href="{{ url_for('kontrola.list_records', s=key, zo=zo_filter) }}">
-      {{ label.replace('Wykonane, czeka na kontrolę sprawdzającą','Do kontroli sprawdzającej') }} <span class="kz-chip-n">{{ counts[key] }}</span></a>
+{% if current_user.is_kontroler %}
+<details class="kz-add" {% if not pager.total and not filters.zo %}open{% endif %}>
+  <summary class="btn btn-outline btn-sm"><i class="bi bi-plus-lg"></i> Dodaj zlecenie ręcznie</summary>
+  <form method="post" action="{{ url_for('kontrola.order_create') }}" class="kz-add-form" autocomplete="off">
+    {{ csrf_input() }}
+    <input type="text" name="zo" class="form-control" maxlength="64" placeholder="Numer ZO" required>
+    <input type="text" name="p" class="form-control" maxlength="256" placeholder="Produkt" required>
+    <input type="text" name="c" class="form-control" maxlength="256" placeholder="Klient (opcjonalnie)">
+    <input type="number" name="q" class="form-control" min="1" max="99" value="1" style="max-width:6rem;" aria-label="Sztuki">
+    <button type="submit" class="btn btn-primary"><i class="bi bi-check2"></i> Dodaj</button>
+  </form>
+</details>
+{% endif %}
+
+<form method="get" action="{{ url_for('kontrola.list_records') }}" class="filter-bar filter-bar--rows">
+  <div class="filter-row">
+    <input class="form-control filter-search" type="search" name="zo"
+           placeholder="Szukaj: ZO, produkt, klient, pracownik…" value="{{ filters.zo }}">
+  </div>
+  <div class="filter-row">
+    <select class="form-control filter-select" name="s" title="Filtruj po statusie">
+      <option value="">Wszystkie statusy</option>
+      {% for key, label in statuses %}
+      {% if not (is_op and key in ('new', 'in_progress')) %}
+      <option value="{{ key }}" {% if filters.s == key %}selected{% endif %}>{{ label }}</option>
+      {% endif %}
+      {% endfor %}
+    </select>
+    <select class="form-control filter-select" name="dzial" title="Filtruj po dziale">
+      <option value="">Wszystkie działy</option>
+      {% for d in departments %}
+      <option value="{{ d.id }}" {% if filters.dzial == d.id %}selected{% endif %}>{{ d.name }}</option>
+      {% endfor %}
+    </select>
+    <select class="form-control filter-select filter-perpage" name="per_page"
+            title="Pozycji na stronę" onchange="this.form.submit()">
+      {% for n in [10, 20, 25, 50, 100] %}
+      <option value="{{ n }}" {% if per_page == n %}selected{% endif %}>{{ n }} / stronę</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="filter-row">
+    <div class="filter-date-group">
+      <label class="filter-label" for="k_date_from">Od:</label>
+      <input class="form-control filter-date" type="date" id="k_date_from" name="date_from" value="{{ filters.date_from }}">
+    </div>
+    <div class="filter-date-group">
+      <label class="filter-label" for="k_date_to">Do:</label>
+      <input class="form-control filter-date" type="date" id="k_date_to" name="date_to" value="{{ filters.date_to }}">
+    </div>
+    <button type="submit" class="btn btn-secondary btn-sm"><i class="bi bi-funnel"></i> Filtruj</button>
+    <a href="{{ url_for('kontrola.list_records', s='') }}" class="btn btn-ghost btn-sm"><i class="bi bi-x-lg"></i> Wyczyść</a>
+  </div>
+</form>
+
+{% if current_user.is_admin and pager.items %}
+<form method="post" action="{{ url_for('kontrola.orders_bulk_delete') }}" id="bulk-form">
+  {{ csrf_input() }}
+  <div class="bulk-bar" id="bulk-bar">
+    <span class="bulk-count" id="bulk-count">0 zaznaczonych</span>
+    <div class="bulk-actions">
+      <button type="button" id="btn-select-all" class="btn btn-outline btn-sm" onclick="toggleSelectAll()">
+        Zaznacz wszystkie
+      </button>
+      <button type="submit" class="btn btn-danger btn-sm" id="btn-delete-selected"
+              data-confirm="Usunąć zaznaczone pozycje razem z kontrolami? Raporty QAR zostają.">
+        Usuń zaznaczone
+      </button>
+    </div>
+  </div>
+{% endif %}
+
+<div class="card">
+  <div class="card-body card-body--flush">
+    {% if pager.items %}
+    <div class="table-wrap">
+      <table class="data-table tbl-cards">
+        <thead>
+          <tr>
+            {% if current_user.is_admin %}
+            <th class="th-check" scope="col">
+              <label class="sr-only" for="select-all">Zaznacz wszystkie</label>
+              <input type="checkbox" id="select-all" title="Zaznacz wszystkie">
+            </th>
+            {% endif %}
+            <th>Produkt / ZO</th>
+            <th>Klient</th>
+            <th>Szt.</th>
+            <th>Kontrole</th>
+            <th>Data</th>
+            <th>Status</th>
+            <th scope="col"><span class="sr-only">Akcje</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in pager.items %}
+          {% set o = row.obj %}
+          <tr>
+            {% if current_user.is_admin %}
+            <td class="th-check">
+              <label class="sr-only" for="check-{{ row.kind }}-{{ o.id }}">Zaznacz {{ o.product_name or o.zo_number }}</label>
+              <input type="checkbox" id="check-{{ row.kind }}-{{ o.id }}" class="row-check"
+                     name="{{ 'order_ids' if row.kind == 'order' else 'record_ids' }}" value="{{ o.id }}">
+            </td>
+            {% endif %}
+            <td data-label="Produkt" class="td-title-expandable">
+              {% if row.kind == 'legacy' %}{% set href = url_for('kontrola.view_record', record_id=o.id) %}
+              {% elif current_user.is_kontroler %}{% set href = url_for('kontrola.order_page', order_id=o.id) %}
+              {% else %}{% set done = o.controls | selectattr('status', 'equalto', 'completed') | list %}{% set href = url_for('kontrola.view_record', record_id=done[0].id) if done else '#' %}{% endif %}
+              <a href="{{ href }}"><strong>{{ o.product_name or 'Bez nazwy produktu' }}</strong></a>
+              <div class="kz-zo-small">ZO {{ o.zo_number }}</div>
+              <button type="button" class="row-expand-btn" aria-expanded="false" aria-label="Rozwiń szczegóły">
+                <i class="bi bi-chevron-down row-expand-chevron"></i>
+              </button>
+            </td>
+            <td data-label="Klient" class="td-collapse-sm">{{ o.client or '-' }}</td>
+            <td data-label="Szt." class="td-collapse-sm">{{ o.quantity or '-' }}</td>
+            <td data-label="Kontrole" class="td-collapse-sm">
+              <div class="kz-ctl-badges">
+              {% if row.kind == 'order' %}
+                {% for c in o.controls if (c.status == 'completed' or not is_op) %}
+                <a href="{{ url_for('kontrola.view_record', record_id=c.id) }}"
+                   class="badge {{ 'badge-warning' if c.status != 'completed' else ('badge-success' if c.result == 'OK' else 'badge-danger') }}"
+                   title="{{ (c.completed_at or c.created_at)|localdt('%d.%m.%Y %H:%M') }}{% if c.employee %} · {{ c.employee.name }}{% endif %}">
+                  {{ c.department.name if c.department else 'ogólna' }}{% if c.employee %}: {{ c.employee.name }}{% endif %}</a>
+                {% else %}<span class="text-muted">brak</span>{% endfor %}
+              {% else %}
+                {% set pf = o.performer %}
+                <span class="badge badge-neutral">ogólna</span>
+                {% if o.result == 'OK' %}<span class="badge badge-success">Zgodny</span>
+                {% elif o.result == 'NG' %}<span class="badge badge-danger">Niezgodny ({{ o.ng_count }})</span>
+                {% else %}<span class="badge badge-neutral">{{ o.rated_count }}/{{ o.results|length }}</span>{% endif %}
+                {% if pf %}<span class="kz-sub">{{ pf.name }} ({{ pf.department.name }})</span>{% endif %}
+              {% endif %}
+              </div>
+            </td>
+            <td data-label="Data" class="td-collapse-sm">{{ o.created_at | localdt('%d.%m.%Y') }}</td>
+            <td data-label="Status">
+              {% if row.kind == 'order' %}
+                {% if row.status == 'in_progress' %}<span class="badge badge-warning">W trakcie</span>
+                {% elif row.status == 'completed' %}<span class="badge badge-success">Zakończone</span>
+                {% else %}<span class="badge badge-info">Do skontrolowania</span>{% endif %}
+              {% else %}
+                {% set fu = o.followup %}
+                {% if o.state == 'to_do' %}<span class="badge badge-warning">Do wykonania</span>
+                {% elif o.state == 'recheck' %}<span class="badge badge-info">Do kontroli sprawdzającej</span>
+                {% elif o.state == 'closed' %}
+                  <span class="badge {{ 'badge-success' if fu.result == 'OK' else 'badge-danger' }}">Zamknięte: {{ 'zgodny' if fu.result == 'OK' else 'niezgodny' }}</span>
+                {% else %}<span class="badge badge-neutral">W trakcie kontroli</span>{% endif %}
+              {% endif %}
+            </td>
+            <td class="td-actions td-collapse-sm" data-label="">
+              {% if row.kind == 'order' %}
+                {% if current_user.is_kontroler %}
+                <a class="btn btn-secondary btn-sm" href="{{ url_for('kontrola.order_page', order_id=o.id) }}">Nowa kontrola</a>
+                {% endif %}
+                {% if current_user.is_admin %}
+                <button type="button" class="btn btn-danger btn-sm" title="Usuń zlecenie"
+                        data-post-url="{{ url_for('kontrola.order_delete', order_id=o.id) }}"
+                        data-post-confirm="Usunąć zlecenie ZO {{ o.zo_number }} razem z kontrolami? Raporty QAR zostają.">Usuń</button>
+                {% endif %}
+              {% else %}
+                {% if o.state == 'to_do' and (is_op or current_user.is_admin) %}
+                <button type="button" class="btn btn-primary btn-sm"
+                        data-post-url="{{ url_for('kontrola.mark_done', record_id=o.id) }}"
+                        data-post-confirm="Oznaczyć ZO {{ o.zo_number }}{% if o.product_name %} ({{ o.product_name }}){% endif %} jako wykonane? Powstanie kontrola sprawdzająca.">Wykonane</button>
+                {% endif %}
+                {% if o.state == 'recheck' and current_user.is_kontroler %}
+                <a class="btn btn-secondary btn-sm" href="{{ url_for('kontrola.view_record', record_id=o.followup.id) }}">Kontroluj</a>
+                {% elif o.state == 'in_control' and current_user.is_kontroler %}
+                <a class="btn btn-secondary btn-sm" href="{{ url_for('kontrola.view_record', record_id=o.id) }}">Kontynuuj</a>
+                {% else %}
+                <a class="btn btn-outline btn-sm" href="{{ url_for('kontrola.view_record', record_id=o.id) }}">Szczegóły</a>
+                {% endif %}
+                {% if current_user.is_admin %}
+                <button type="button" class="btn btn-danger btn-sm"
+                        data-post-url="{{ url_for('kontrola.delete_record', record_id=o.id) }}"
+                        data-post-confirm="Usunąć kontrolę ZO {{ o.zo_number }} razem z kontrolą sprawdzającą? Raporty QAR zostają.">Usuń</button>
+                {% endif %}
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pagination">
+      {% if pager.has_prev %}
+      <a href="{{ url_for('kontrola.list_records', zo=filters.zo, s=filters.s, dzial=filters.dzial, date_from=filters.date_from, date_to=filters.date_to, per_page=per_page, page=pager.prev_num) }}" class="btn btn-outline btn-sm"><i class="bi bi-arrow-left"></i> Poprzednia</a>
+      {% endif %}
+      <span>{{ pager.page }} / {{ pager.pages }} ({{ pager.total }} pozycji)</span>
+      {% if pager.has_next %}
+      <a href="{{ url_for('kontrola.list_records', zo=filters.zo, s=filters.s, dzial=filters.dzial, date_from=filters.date_from, date_to=filters.date_to, per_page=per_page, page=pager.next_num) }}" class="btn btn-outline btn-sm">Następna <i class="bi bi-arrow-right"></i></a>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="empty-state">Brak zamówień w tym widoku.</div>
     {% endif %}
-  {% endfor %}
+  </div>
 </div>
 
-{% if records %}
-{% if current_user.is_admin %}
-<form method="post" action="{{ url_for('kontrola.bulk_delete') }}" id="kz-bulk-form" class="kz-bulk">
-  {{ csrf_input() }}
-  <button type="button" class="btn btn-outline btn-sm" id="kz-select-all">Zaznacz wszystkie</button>
-  <button type="submit" class="btn btn-danger btn-sm" data-confirm="Usunąć zaznaczone kontrole razem z kontrolami sprawdzającymi? Raporty QAR zostają.">
-    <i class="bi bi-trash"></i> Usuń zaznaczone
-  </button>
+{% if current_user.is_admin and pager.items %}
 </form>
 {% endif %}
-<div class="card kz-table-wrap">
-  <div class="card-body" style="padding:0; overflow-x:auto;">
-    <table class="kz-table">
-      <thead>
-        <tr>
-          {% if current_user.is_admin %}<th></th>{% endif %}
-          <th>ZO</th><th>Produkt</th><th>Klient</th><th class="kz-num">Szt.</th>
-          <th>Kontrola</th><th>Stan</th><th>Kontroler</th><th>Data</th><th>Wykonane</th><th></th>
-        </tr>
-      </thead>
-      <tbody>
-      {% for r in records %}
-        {% set fu = r.followup %}
-        <tr>
-          {% if current_user.is_admin %}
-          <td><label class="kz-sel"><input type="checkbox" name="record_ids" value="{{ r.id }}" form="kz-bulk-form"></label></td>
-          {% endif %}
-          <td class="kz-zo"><strong>{{ r.zo_number }}</strong></td>
-          <td>{{ r.product_name or '-' }}</td>
-          <td>{{ r.client or '-' }}</td>
-          <td class="kz-num">{{ r.quantity or '-' }}</td>
-          <td>
-            {% if r.result == 'OK' %}<span class="badge badge-success">Zgodny</span>
-            {% elif r.result == 'NG' %}<span class="badge badge-danger">Niezgodny ({{ r.ng_count }})</span>
-            {% else %}<span class="badge badge-neutral">{{ r.rated_count }}/{{ r.results|length }}</span>{% endif %}
-          </td>
-          <td class="kz-state kz-state--{{ r.state }}">
-            {% if r.state == 'to_do' %}<span class="badge badge-warning">Do wykonania</span>
-            {% elif r.state == 'recheck' %}<span class="badge badge-info">Czeka na kontrolę sprawdzającą</span>
-            {% elif r.state == 'closed' %}
-              <span class="badge {{ 'badge-success' if fu.result == 'OK' else 'badge-danger' }}">
-                Zamknięte: {{ 'zgodny' if fu.result == 'OK' else 'niezgodny' }}</span>
-            {% else %}<span class="badge badge-neutral">W trakcie kontroli</span>{% endif %}
-          </td>
-          <td>{{ r.controller.username if r.controller else '-' }}</td>
-          <td style="white-space:nowrap;">{{ (r.completed_at or r.created_at)|localdt('%d.%m.%Y %H:%M') }}</td>
-          <td style="white-space:nowrap;">
-            {% if r.done_at %}{{ r.done_by.username if r.done_by else '-' }}<div class="kz-sub">{{ r.done_at|localdt('%d.%m %H:%M') }}</div>{% else %}-{% endif %}
-          </td>
-          <td>
-            <div class="kz-rowact">
-              {% if r.state == 'to_do' and (is_op or current_user.is_admin) %}
-              <form method="post" action="{{ url_for('kontrola.mark_done', record_id=r.id) }}">
-                {{ csrf_input() }}
-                <button type="submit" class="btn btn-primary btn-sm"
-                        data-confirm="Oznaczyć ZO {{ r.zo_number }}{% if r.product_name %} ({{ r.product_name }}){% endif %} jako wykonane? Powstanie kontrola sprawdzająca.">
-                  <i class="bi bi-check2-circle"></i> Wykonane
-                </button>
-              </form>
-              {% endif %}
-              {% if r.state == 'recheck' and current_user.is_kontroler %}
-              <a class="btn btn-primary btn-sm" href="{{ url_for('kontrola.view_record', record_id=fu.id) }}">
-                <i class="bi bi-clipboard-check"></i> Kontroluj</a>
-              {% endif %}
-              {% if r.state == 'in_control' and current_user.is_kontroler %}
-              <a class="btn btn-primary btn-sm" href="{{ url_for('kontrola.view_record', record_id=r.id) }}">
-                <i class="bi bi-pencil"></i> Kontynuuj</a>
-              {% else %}
-              <a class="btn btn-outline btn-sm" href="{{ url_for('kontrola.view_record', record_id=r.id) }}">Szczegóły</a>
-              {% endif %}
-            </div>
-          </td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
-
-<div class="kz-list">
-  {% for r in records %}
-  {% set fu = r.followup %}
-  <div class="kz-item kz-item--{{ r.state }}">
-    <div class="kz-item-top">
-      {% if current_user.is_admin %}
-      <label class="kz-sel"><input type="checkbox" name="record_ids" value="{{ r.id }}" form="kz-bulk-form"></label>
-      {% endif %}
-      <div style="flex:1;min-width:0;">
-        <div class="kz-zo">ZO {{ r.zo_number }}</div>
-        <div class="kz-prod">{{ r.product_name or '-' }}</div>
-        {% if r.client %}<div class="kz-sub">{{ r.client }}</div>{% endif %}
-      </div>
-      <div>
-        {% if r.result == 'OK' %}<span class="badge badge-success">Zgodny</span>
-        {% elif r.result == 'NG' %}<span class="badge badge-danger">Niezgodny ({{ r.ng_count }})</span>
-        {% else %}<span class="badge badge-neutral">{{ r.rated_count }}/{{ r.results|length }}</span>{% endif %}
-      </div>
-    </div>
-
-    <div class="kz-badges">
-      {% if r.state == 'to_do' %}<span class="badge badge-warning">Do wykonania</span>
-      {% elif r.state == 'recheck' %}<span class="badge badge-info">Czeka na kontrolę sprawdzającą</span>
-      {% elif r.state == 'closed' %}
-        <span class="badge {{ 'badge-success' if fu.result == 'OK' else 'badge-danger' }}">
-          Zamknięte: {{ 'zgodny' if fu.result == 'OK' else 'niezgodny' }}</span>
-      {% else %}<span class="badge badge-neutral">W trakcie kontroli</span>{% endif %}
-    </div>
-
-    <div class="kz-meta">
-      {% if r.quantity %}<span>{{ r.quantity }} szt.</span>{% endif %}
-      <span>Kontroler: {{ r.controller.username if r.controller else '-' }}</span>
-      <span>{{ (r.completed_at or r.created_at)|localdt('%d.%m.%Y %H:%M') }}</span>
-      {% if r.done_at %}<span>Wykonał(a): {{ r.done_by.username if r.done_by else '-' }}, {{ r.done_at|localdt('%d.%m %H:%M') }}</span>{% endif %}
-    </div>
-
-    <div class="kz-actions">
-      {% if r.state == 'to_do' and (is_op or current_user.is_admin) %}
-      <form method="post" action="{{ url_for('kontrola.mark_done', record_id=r.id) }}">
-        {{ csrf_input() }}
-        <button type="submit" class="btn btn-primary"
-                data-confirm="Oznaczyć ZO {{ r.zo_number }} jako wykonane? Powstanie kontrola sprawdzająca.">
-          <i class="bi bi-check2-circle"></i> Wykonane
-        </button>
-      </form>
-      {% endif %}
-      {% if r.state == 'recheck' and current_user.is_kontroler %}
-      <a class="btn btn-primary" href="{{ url_for('kontrola.view_record', record_id=fu.id) }}">
-        <i class="bi bi-clipboard-check"></i> Kontroluj
-      </a>
-      {% endif %}
-      {% if r.state == 'in_control' and current_user.is_kontroler %}
-      <a class="btn btn-primary" href="{{ url_for('kontrola.view_record', record_id=r.id) }}">
-        <i class="bi bi-pencil"></i> Kontynuuj
-      </a>
-      {% else %}
-      <a class="btn btn-outline" href="{{ url_for('kontrola.view_record', record_id=r.id) }}">Szczegóły</a>
-      {% endif %}
-    </div>
-  </div>
-  {% endfor %}
-</div>
-{% else %}
-<div class="card"><div class="card-body kz-empty">
-  <i class="bi bi-inbox" style="font-size:2rem;"></i>
-  <p>Brak zamówień w tym widoku.</p>
-</div></div>
-{% endif %}
-
 {% endblock %}
 
 {% block scripts %}
 <script>
+/* Akordeon wierszy na telefonie (jak na liście Kontroli Końcowej) */
 (function () {
-  var btn = document.getElementById('kz-select-all');
-  if (!btn) return;
-  btn.addEventListener('click', function () {
-    // Tabela i karty mają osobne pola wyboru, bierzemy tylko widoczne.
-    var boxes = Array.prototype.filter.call(document.querySelectorAll('input[name="record_ids"]'),
-      function (b) { return b.offsetParent !== null; });
-    var all = Array.prototype.every.call(boxes, function (b) { return b.checked; });
-    boxes.forEach(function (b) { b.checked = !all; });
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.row-expand-btn');
+    if (!btn) return;
+    var row = btn.closest('tr');
+    var expanded = btn.getAttribute('aria-expanded') === 'true';
+    row.classList.toggle('row-expanded', !expanded);
+    btn.setAttribute('aria-expanded', String(!expanded));
+    var chevron = btn.querySelector('.row-expand-chevron');
+    if (chevron) chevron.className = expanded ? 'bi bi-chevron-down row-expand-chevron' : 'bi bi-chevron-up row-expand-chevron';
+  });
+})();
+
+/* Akcje wiersza (usuń, Wykonane) wysyłane poza formularzem zbiorczym */
+(function () {
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-post-url]');
+    if (!btn) return;
+    if (btn.dataset.postConfirm && !confirm(btn.dataset.postConfirm)) return;
+    var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+    var f = document.createElement('form');
+    f.method = 'POST';
+    f.action = btn.dataset.postUrl;
+    f.innerHTML = '<input type="hidden" name="_csrf_token" value="' + csrf + '">';
+    document.body.appendChild(f);
+    f.submit();
   });
 })();
 </script>

@@ -37,10 +37,22 @@
       <input type="text" id="new-title" name="title" class="form-control" maxlength="256"
              placeholder="np. Zgodność wymiarów z rysunkiem" required>
       <textarea name="description" class="form-control" rows="2" placeholder="Opis lub wskazówka dla kontrolera (opcjonalnie)"></textarea>
+      <select name="department_id" class="form-control" aria-label="Dział punktu">
+        <option value="">ogólny (dla każdej kontroli)</option>
+        {% for d in departments %}<option value="{{ d.id }}" {% if dept_filter == d.id %}selected{% endif %}>{{ d.name }}</option>{% endfor %}
+      </select>
       <div><button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Dodaj punkt</button></div>
     </form>
   </div>
 </div>
+
+<form method="get" style="margin-bottom:1rem;display:flex;gap:.4rem;flex-wrap:wrap;">
+  <select name="dzial" class="form-control" style="width:auto;" onchange="this.form.submit()" aria-label="Filtr działu">
+    <option value="">wszystkie punkty</option>
+    <option value="-1" {% if dept_filter == -1 %}selected{% endif %}>tylko ogólne</option>
+    {% for d in departments %}<option value="{{ d.id }}" {% if dept_filter == d.id %}selected{% endif %}>{{ d.name }}</option>{% endfor %}
+  </select>
+</form>
 
 <div class="card">
   <div class="card-body" style="padding:0;">
@@ -63,6 +75,10 @@
         <input type="text" name="title" class="form-control" maxlength="256" value="{{ p.title }}" required>
         <textarea name="description" class="form-control" rows="2" placeholder="Opis (opcjonalnie)">{{ p.description or '' }}</textarea>
         <div class="kz-pt-foot">
+          <select name="department_id" class="form-control" style="width:auto;" aria-label="Dział punktu">
+            <option value="">ogólny</option>
+            {% for d in departments %}<option value="{{ d.id }}" {% if p.department_id == d.id %}selected{% endif %}>{{ d.name }}</option>{% endfor %}
+          </select>
           <label><input type="checkbox" name="is_active" value="1" {% if p.is_active %}checked{% endif %}> Aktywny</label>
           <button type="submit" class="btn btn-secondary btn-sm"><i class="bi bi-save"></i> Zapisz</button>
         </div>

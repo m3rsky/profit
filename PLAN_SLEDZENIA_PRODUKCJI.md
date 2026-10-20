@@ -318,7 +318,7 @@ Akceptacja etapu: ilość wchodząca na obowiązkowy etap czeka na kontrolę i n
 
 ### Etap 6. Kontrola Końcowa automatycznie (rozmiar M)
 
-Cel: wpis na bufor etapu Kontrola końcowa tworzy listę Kontroli Końcowej (sekcja 4c). Jest to dodatek: ręczne tworzenie list skanem QR i raportów w module `/kontrola` zostaje bez zmian (decyzja 2026-10-20). Unikanie dubli (decyzja 2026-10-20): automat nie tworzy ani nie dopisuje list dla zlecenia, które ma już listy utworzone w module `/kontrola` (po kluczu `produkt|klient|ZO`), i odwrotnie, ręczne tworzenie nie jest blokowane.
+Cel: wpis na bufor etapu Kontrola końcowa tworzy listę Kontroli Końcowej (sekcja 4c). Jest to dodatek: ręczne tworzenie list skanem QR i raportów w module Kontrola Końcowa zostaje bez zmian (decyzja 2026-10-20). Unikanie dubli (decyzja 2026-10-20): automat nie tworzy ani nie dopisuje list dla zlecenia, które ma już listy utworzone w module Kontrola Końcowa (po kluczu `produkt|klient|ZO`), i odwrotnie, ręczne tworzenie nie jest blokowane.
 
 Zadania:
 - Funkcja dopisywania do serii list (wspólny `batch_id`, rosnący `batch_index`, stałe `batch_total` równe `q`), obok obecnego tworzenia pełnej serii.
@@ -343,7 +343,7 @@ Testy: agregacje ilości, filtry, uprawnienia odczytu.
 
 ### Etap 8. Porządki (rozmiar S) - ZMIANA 2026-10-20
 
-Decyzja: moduł Kontroli Końcowej (`/kontrola`, wcześniej Kontrola zamówień) **zostaje i działa równolegle** do nowego modułu, bez zmian: tworzenie listy skanem kodu QR i ręczne tworzenie raportu działają jak dotąd. Nic w nim nie jest usuwane (ani kod, ani dane `ControlRecord`, ani rola Operator, ani menu).
+Decyzja (doprecyzowana 2026-10-21): moduł **Kontrola Końcowa** (pozycja menu "Kontrola Końcowa" i "Szablony": `reports_list`, `/checklist/from-qr`, `/checklist/new`, modele `Report` i `ChecklistTemplate`) **zostaje bez żadnych zmian** i działa równolegle do nowego modułu: tworzenie listy skanem kodu QR i ręczne tworzenie raportu działają jak dotąd. Uwaga: pozycja menu "Kontrola zamówień" (`/kontrola`, `ControlRecord`) to INNY, osobny moduł. Wcześniejsze zapisy utożsamiające go z Kontrolą Końcową były błędne, jego los jest do ustalenia.
 
 Zadania:
 - Aktualizacja CLAUDE.md, dokumentacji i planu.
@@ -353,7 +353,9 @@ Zadania:
 
 1, potem 2, potem 3, potem 4, potem 5 i 6 (6 zależy od 3 i 4, 5 od 4), potem 7, na końcu 8. Etapy 1 i 2 nie zmieniają dotychczasowej pracy w aplikacji, więc można je wdrażać bez ryzyka.
 
-## Nowy moduł (projekt, 2026-10-21)
+## Nowy moduł (projekt, 2026-10-21) - WSTRZYMANY
+
+Decyzja 2026-10-21: zamiast osobnego modułu rozwijamy obecną Kontrolę zamówień (`/kontrola`), patrz `PLAN_KONTROLA_WYKONAWCA.md`. Poniższy projekt zostaje jako archiwum.
 
 Cel: łatwa obsługa na telefonie, na wzór Kontroli Końcowej, bez wózków i śledzenia ilości po buforach.
 
@@ -364,4 +366,12 @@ Ustalone:
 - Liczy się tylko ilość sztuk zlecenia (zgodne i niezgodne), bez wózków i bez elementów.
 - Do ponownego użycia: etapy i maszyny, punkty kontrolne etapów, plakietki pracowników, szablony produktów, bufory z etykietami.
 
-Do ustalenia przed implementacją: układ ekranów na telefonie, rola punktów kontrolnych etapów względem szablonów Kontroli Końcowej, sposób oznaczania etapu zlecenia, relacja do Kontroli Końcowej (osobny moduł czy rozszerzenie).
+Ustalenia 2026-10-21: lista etapów zlecenia pochodzi z szablonu produktu (kontroler może dopisać lub usunąć etapy), kontrola w etapie to punkty etapu OK/NG z raportem QAR za każdy NG, nowy moduł ma zastąpić Kontrolę zamówień (`/kontrola`, wycofanie po backupie i dopiero po akceptacji działania nowego modułu), Kontrola Końcowa (listy, szablony, zamówienia) zostaje bez żadnych zmian. Nazwa modułu: "Kontrola zleceń" (decyzja 2026-10-21; do czasu wycofania Kontroli zamówień obie nazwy będą w menu).
+
+### Szkic ekranów (telefon, do akceptacji)
+
+1. **Lista zleceń** (karty): ZO, produkt, klient, pasek postępu etapów, bieżący etap, bufor. Szukanie, przycisk "Skanuj QR" i "Nowe zlecenie" (ręcznie: ZO, produkt, klient, ilość).
+2. **Skan QR zlecenia**: istniejące zlecenie otwiera kartę, nowe tworzy się z kodu (p, c, o, q) z szablonem dopasowanym po nazwie produktu (jak w Kontroli Końcowej). Brak szablonu: wybór szablonu z listy albo tworzenie bez etapów.
+3. **Karta zlecenia**: oś etapów z szablonu (kolejność jak w ustawieniach). Przy każdym etapie przyciski: "Wykonany" (data, kto z plakietki lub konta, opcjonalnie maszyna) i "Kontrola" (punkty etapu OK/NG, uwagi, ilość zgodna i niezgodna opcjonalnie, NG tworzy QAR). Bieżący etap = pierwszy niewykonany. Opcjonalnie pole "Bufor": skan kodu bufora zapisuje, gdzie leży zlecenie.
+4. **Historia na karcie**: kto, kiedy, co (wykonany, kontrola, zmiana bufora), z możliwością cofnięcia ostatniego wpisu.
+5. **Uprawnienia**: kontroler i admin tworzą zlecenia i oceniają kontrole, produkcja i operator oznaczają etapy i bufor (do ustalenia).

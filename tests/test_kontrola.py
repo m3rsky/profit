@@ -2,7 +2,8 @@
 import pytest
 
 from app import db
-from models import (User, Alert, QARReport, ControlPoint, ControlRecord, ControlResult)
+from models import (User, Alert, QARReport, ControlPoint, ControlRecord, ControlResult,
+                    ProductionDepartment, DepartmentEmployee)
 from test_app import login, _csrf
 
 QR = {'p': 'Szafa PSH', 'c': 'Klient X', 'o': 'ZO/100/2026', 'q': 3}
@@ -316,3 +317,187 @@ class TestDelete:
             assert client.post('/kontrola/bulk-delete', data={'record_ids': [rid]},
                                headers=h).status_code == 403
             client.get('/logout')
+
+
+# ── Wykonawca kontrolowanej pracy (pracownik i dział) ─────────────────────────
+
+@pytest.fixture
+def staff(app):
+    """Dwa działy testowe T8 z pracownikami (jeden nieaktywny) oraz nieaktywny dział."""
+    with app.app_context():
+        d1 = ProductionDepartment(name='T8 Spawalnia', order=990)
+        d2 = ProductionDepartment(name='T8 Montaż', order=991)
+        d3 = ProductionDepartment(name='T8 Stary', order=992, is_active=False)
+        db.session.add_all([d1, d2, d3])
+        db.session.flush()
+        e = {'jan': DepartmentEmployee(department_id=d1.id, name='T8 Jan Spawacz'),
+             'ola': DepartmentEmployee(department_id=d2.id, name='T8 Ola Monterka'),
+             'off': DepartmentEmployee(department_id=d1.id, name='T8 Nieaktywny', is_active=False),
+             'old': DepartmentEmployee(department_id=d3.id, name='T8 Z starego działu')}
+        db.session.add_all(e.values())
+        db.session.commit()
+        ids = {k: v.id for k, v in e.items()}
+        ids['d1'], ids['d2'] = d1.id, d2.id
+    yield ids
+    with app.app_context():
+        QARReport.query.filter(QARReport.employee_id.in_([ids[k] for k in ('jan', 'ola', 'off', 'old')])).update(
+            {'employee_id': None}, synchronize_session=False)
+        ControlResult.query.delete()
+        ControlRecord.query.update({'employee_id': None})
+        ControlRecord.query.delete()
+        DepartmentEmployee.query.filter(DepartmentEmployee.name.like('T8 %')).delete(synchronize_session=False)
+        ProductionDepartment.query.filter(ProductionDepartment.name.like('T8 %')).delete(synchronize_session=False)
+        db.session.commit()
+
+
+def _save(client, app, rid, results=None, employee=None, action='save'):
+    with app.app_context():
+        ids = [r.id for r in db.session.get(ControlRecord, rid).results]
+    data = {'action': action}
+    for res_id, val in zip(ids, results or []):
+        data[f'result_{res_id}'] = val
+    if employee is not None:
+        data['employee_id'] = str(employee)
+    return client.post(f'/kontrola/{rid}', data=data, headers={'X-CSRF-Token': _csrf(client)},
+                       follow_redirects=True)
+
+
+class TestPerformer:
+    def test_form_has_grouped_list_and_saves_performer(self, client, app, staff):
+        login(client, 'oper', 'Oper1234!')
+        _scan(client)
+        rid = _rec_id(app)
+        page = client.get(f'/kontrola/{rid}').get_data(as_text=True)
+        assert 'Kto wykonał pracę' in page and 'optgroup label="T8 Spawalnia"' in page
+        assert 'T8 Jan Spawacz' in page and 'T8 Nieaktywny' not in page and 'T8 Z starego' not in page
+        _save(client, app, rid, ['OK', 'OK'], staff['jan'])
+        with app.app_context():
+            rec = db.session.get(ControlRecord, rid)
+            assert rec.employee.name == 'T8 Jan Spawacz' and rec.employee.department.name == 'T8 Spawalnia'
+            assert rec.status == 'in_progress'
+
+    def test_optional_and_can_be_cleared(self, client, app, staff):
+        login(client, 'oper', 'Oper1234!')
+        _scan(client)
+        rid = _rec_id(app)
+        _save(client, app, rid, ['OK', 'OK'], action='complete')           # bez pola: wolno zakończyć
+        with app.app_context():
+            assert db.session.get(ControlRecord, rid).status == 'completed'
+            assert db.session.get(ControlRecord, rid).employee_id is None
+        client.get('/logout')
+        login(client, 'admin', 'Admin1234!')
+        client.post(f'/kontrola/{rid}/reopen', headers={'X-CSRF-Token': _csrf(client)})
+        _save(client, app, rid, employee=staff['ola'])
+        _save(client, app, rid, employee='')
+        with app.app_context():
+            assert db.session.get(ControlRecord, rid).employee_id is None
+
+    def test_inactive_and_unknown_not_accepted_but_saved_one_stays(self, client, app, staff):
+        login(client, 'oper', 'Oper1234!')
+        _scan(client)
+        rid = _rec_id(app)
+        res = _save(client, app, rid, employee=staff['off'])
+        assert 'nieaktywnego pracownika' in res.get_data(as_text=True)
+        assert 'Nie znaleziono' in _save(client, app, rid, employee=999999).get_data(as_text=True)
+        assert 'nieaktywnego' in _save(client, app, rid, employee=staff['old']).get_data(as_text=True)
+        with app.app_context():
+            assert db.session.get(ControlRecord, rid).employee_id is None
+            db.session.get(ControlRecord, rid).employee_id = staff['jan']
+            db.session.commit()
+            db.session.get(DepartmentEmployee, staff['jan']).is_active = False
+            db.session.commit()
+        page = client.get(f'/kontrola/{rid}').get_data(as_text=True)
+        assert 'T8 Jan Spawacz' in page and 'nieaktywny' in page
+        _save(client, app, rid, employee=staff['jan'])                     # zapisany zostaje dozwolony
+        with app.app_context():
+            assert db.session.get(ControlRecord, rid).employee_id == staff['jan']
+
+    def test_performer_copied_to_recheck_and_changeable(self, client, app, staff, operator_user):
+        login(client, 'oper', 'Oper1234!')
+        _scan(client)
+        rid = _rec_id(app)
+        _save(client, app, rid, ['OK', 'OK'], staff['jan'], action='complete')
+        client.get('/logout')
+        login(client, operator_user, 'Operator123!')
+        client.post(f'/kontrola/{rid}/done', headers={'X-CSRF-Token': _csrf(client)})
+        client.get('/logout')
+        login(client, 'oper', 'Oper1234!')
+        rid2 = _rec_id(app, 2)
+        with app.app_context():
+            assert db.session.get(ControlRecord, rid2).employee_id == staff['jan']
+        _save(client, app, rid2, employee=staff['ola'])
+        with app.app_context():
+            first = db.session.get(ControlRecord, rid)
+            assert (first.employee_id, first.performer.name) == (staff['jan'], 'T8 Ola Monterka')
+
+    def test_qar_gets_performer_at_creation(self, client, app, staff):
+        login(client, 'oper', 'Oper1234!')
+        _scan(client)
+        rid = _rec_id(app)
+        _save(client, app, rid, ['NG', 'OK'], staff['jan'])
+        with app.app_context():
+            qar = QARReport.query.filter_by(zo_number='ZO/100/2026').one()
+            assert qar.employee_id == staff['jan']
+            assert 'Wykonawca: T8 Jan Spawacz (T8 Spawalnia)' in qar.description
+
+    def test_qar_performer_filled_later_but_not_overwritten(self, client, app, staff):
+        login(client, 'oper', 'Oper1234!')
+        _scan(client)
+        rid = _rec_id(app)
+        _save(client, app, rid, ['NG', 'NG'])                              # raporty bez wykonawcy
+        with app.app_context():
+            qars = QARReport.query.filter_by(zo_number='ZO/100/2026').order_by(QARReport.id).all()
+            assert [q.employee_id for q in qars] == [None, None]
+            qars[0].employee_id = staff['ola']                             # jeden ma już pracownika
+            db.session.commit()
+        _save(client, app, rid, employee=staff['jan'])
+        with app.app_context():
+            qars = QARReport.query.filter_by(zo_number='ZO/100/2026').order_by(QARReport.id).all()
+            assert [q.employee_id for q in qars] == [staff['ola'], staff['jan']]
+
+    def test_list_shows_performer_and_filters_by_department_and_name(self, client, app, staff):
+        login(client, 'oper', 'Oper1234!')
+        _scan(client)
+        _scan(client, {**QR, 'o': 'ZO/200/2026', 'p': 'Inna szafa'})
+        _save(client, app, _rec_id(app), employee=staff['jan'])
+        page = client.get('/kontrola/').get_data(as_text=True)
+        assert 'Kontrole' in page and 'T8 Jan Spawacz' in page and 'T8 Spawalnia' in page
+        assert 'T8 Montaż' in page                                          # w filtrze działów
+        assert 'ZO/100/2026' in page and 'ZO/200/2026' in page
+        d1 = client.get(f'/kontrola/?dzial={staff["d1"]}').get_data(as_text=True)
+        assert 'ZO/100/2026' in d1 and 'ZO/200/2026' not in d1
+        d2 = client.get(f'/kontrola/?dzial={staff["d2"]}').get_data(as_text=True)
+        assert 'ZO/100/2026' not in d2 and 'ZO/200/2026' not in d2
+        by_name = client.get('/kontrola/?zo=spawacz').get_data(as_text=True)
+        assert 'ZO/100/2026' in by_name and 'ZO/200/2026' not in by_name
+        assert 'ZO/100/2026' in client.get('/kontrola/?zo=ZO/100').get_data(as_text=True)
+
+    def test_filter_matches_performer_from_recheck_and_chips_keep_it(self, client, app, staff, operator_user):
+        login(client, 'oper', 'Oper1234!')
+        _scan(client)
+        rid = _rec_id(app)
+        _save(client, app, rid, ['OK', 'OK'], action='complete')
+        client.get('/logout')
+        login(client, operator_user, 'Operator123!')
+        client.post(f'/kontrola/{rid}/done', headers={'X-CSRF-Token': _csrf(client)})
+        client.get('/logout')
+        login(client, 'oper', 'Oper1234!')
+        _save(client, app, _rec_id(app, 2), employee=staff['ola'])        # wykonawca dopiero w sprawdzającej
+        page = client.get(f'/kontrola/?dzial={staff["d2"]}&s=all').get_data(as_text=True)
+        assert 'ZO/100/2026' in page and 'T8 Ola Monterka' in page
+        assert f'<option value="{staff["d2"]}" selected>' in page          # wybrany dział zostaje w filtrze
+
+    def test_operator_sees_but_cannot_edit(self, client, app, staff, operator_user):
+        login(client, 'oper', 'Oper1234!')
+        _scan(client)
+        rid = _rec_id(app)
+        _save(client, app, rid, ['OK', 'OK'], staff['jan'], action='complete')
+        client.get('/logout')
+        login(client, operator_user, 'Operator123!')
+        page = client.get(f'/kontrola/{rid}').get_data(as_text=True)
+        assert 'Wykonawca: T8 Jan Spawacz (T8 Spawalnia)' in page and 'employee_id' not in page
+        assert client.post(f'/kontrola/{rid}', data={'employee_id': str(staff['ola'])},
+                           headers={'X-CSRF-Token': _csrf(client)}).status_code == 403
+        assert 'T8 Jan Spawacz' in client.get('/kontrola/').get_data(as_text=True)
+        with app.app_context():
+            assert db.session.get(ControlRecord, rid).employee_id == staff['jan']
