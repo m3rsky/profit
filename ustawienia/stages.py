@@ -7,7 +7,7 @@ from flask_login import login_required
 from sqlalchemy import func
 
 from models import (db, get_or_404, ProductionDepartment, ProductionStage, Machine, Buffer,
-                    ProductComponentStage, WorkOrderComponentStage)
+                    ProductComponentStage)
 from . import ustawienia_bp
 from .routes import settings_required, _audit
 from .lookup import norm_code, find_buffer
@@ -119,17 +119,9 @@ def stage_delete(stage_id):
         flash(f'Nie można usunąć etapu „{stage.name}”: ma maszyny. '
               f'Usuń je albo dezaktywuj etap.', 'warning')
         return _back()
-    from models import Movement, StockPosition, WorkInProgress
-    if (Movement.query.filter((Movement.stage_id == stage.id) | (Movement.wait_stage_id == stage.id)).first()
-            or WorkInProgress.query.filter_by(stage_id=stage.id).first()
-            or StockPosition.query.filter_by(stage_id=stage.id).first()):
-        flash(f'Nie można usunąć etapu „{stage.name}”: ma historię przejęć lub ilości w realizacji. '
-              f'Dezaktywuj etap.', 'warning')
-        return _back()
-    if (ProductComponentStage.query.filter_by(stage_id=stage.id).first()
-            or WorkOrderComponentStage.query.filter_by(stage_id=stage.id).first()):
+    if ProductComponentStage.query.filter_by(stage_id=stage.id).first():
         flash(f'Nie można usunąć etapu „{stage.name}”: jest użyty w trasie elementu '
-              f'(szablon produktu lub zlecenie). Dezaktywuj etap.', 'warning')
+              f'szablonu produktu. Dezaktywuj etap.', 'warning')
         return _back()
     name = stage.name
     db.session.delete(stage)
@@ -183,11 +175,6 @@ def machine_save(machine_id):
 @settings_required
 def machine_delete(machine_id):
     m = get_or_404(Machine, machine_id)
-    from models import Movement, WorkInProgress
-    if (Movement.query.filter_by(machine_id=m.id).first()
-            or WorkInProgress.query.filter_by(machine_id=m.id).first()):
-        flash(f'Maszyna „{m.name}” jest zapisana w historii przejęć. Dezaktywuj ją zamiast usuwać.', 'warning')
-        return _back()
     name = m.name
     db.session.delete(m)
     db.session.commit()
@@ -294,11 +281,6 @@ def buffer_save(buffer_id):
 @settings_required
 def buffer_delete(buffer_id):
     b = get_or_404(Buffer, buffer_id)
-    from kp.stock import has_history
-    from models import WorkInProgress
-    if has_history(buffer=b) or b.positions or WorkInProgress.query.filter_by(source_buffer_id=b.id).first():
-        flash(f'Bufor {b.code} ma historię lub leżą na nim elementy. Dezaktywuj go zamiast usuwać.', 'warning')
-        return _back()
     code = b.code
     db.session.delete(b)
     db.session.commit()

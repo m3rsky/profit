@@ -160,10 +160,8 @@ def admin_employees(dept_id):
 
         elif action == 'delete':
             emp = get_or_404(DepartmentEmployee, request.form.get('emp_id', type=int))
-            from models import Movement, WorkInProgress
-            if (emp.qar_reports.count() > 0 or Movement.query.filter_by(employee_id=emp.id).first()
-                    or WorkInProgress.query.filter_by(employee_id=emp.id).first()):
-                flash(f'Nie można usunąć „{emp.name}”: ma przypisane raporty QAR lub wpisy na bufory. '
+            if emp.qar_reports.count() > 0:
+                flash(f'Nie można usunąć „{emp.name}”: ma przypisane raporty QAR. '
                       f'Dezaktywuj pracownika.', 'warning')
             else:
                 name = emp.name

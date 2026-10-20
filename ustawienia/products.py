@@ -4,7 +4,7 @@ from flask_login import login_required
 from sqlalchemy import func
 
 from models import (db, get_or_404, ProductionStage, ProductTemplate, ProductComponent,
-                    ProductComponentStage, ProductTemplateControl, WorkOrder)
+                    ProductComponentStage, ProductTemplateControl)
 from . import ustawienia_bp
 from .routes import settings_required, _audit
 
@@ -15,7 +15,8 @@ def _element_stages():
 
 
 def _name_taken(name, exclude_id=None):
-    from kp.service import norm
+    def norm(text):
+        return ' '.join((text or '').upper().split())
     wanted = norm(name)
     for t in ProductTemplate.query.all():
         if t.id != exclude_id and norm(t.name) == wanted:
@@ -119,8 +120,6 @@ def product_copy(tpl_id):
 def product_delete(tpl_id):
     tpl = get_or_404(ProductTemplate, tpl_id)
     name = tpl.name
-    # Zlecenia mają własną kopię elementów, więc zostają.
-    WorkOrder.query.filter_by(template_id=tpl.id).update({'template_id': None})
     db.session.delete(tpl)
     db.session.commit()
     _audit('ustawienia_product_delete', 'ProductTemplate', tpl_id, name)

@@ -1,3 +1,5 @@
+> **PLAN ANULOWANY (2026-10-21).** Moduł śledzenia produkcji opisany poniżej (etapy 1 do 5b) został wdrożony i usunięty jako zbyt skomplikowany do użycia na telefonie. Zostały tylko etapy, maszyny, bufory, punkty kontrolne etapów, plakietki i szablony produktów. Nowy, prostszy moduł na wzór Kontroli Końcowej jest w fazie projektu (patrz sekcja "Nowy moduł" na dole). Treść poniżej to archiwum decyzji.
+
 # Plan: śledzenie produkcji na buforach (następca Kontroli zamówień)
 
 Dokument roboczy, uzupełniany w miarę dodawania zadań. Stan na 2026-10-18 (po pełnej analizie planu): wszystkie decyzje podjęte, nic nie jest jeszcze zakodowane. Punkt wyjścia: wdrożony commit `dd667df`.
@@ -350,3 +352,16 @@ Zadania:
 ### Kolejność i zależności
 
 1, potem 2, potem 3, potem 4, potem 5 i 6 (6 zależy od 3 i 4, 5 od 4), potem 7, na końcu 8. Etapy 1 i 2 nie zmieniają dotychczasowej pracy w aplikacji, więc można je wdrażać bez ryzyka.
+
+## Nowy moduł (projekt, 2026-10-21)
+
+Cel: łatwa obsługa na telefonie, na wzór Kontroli Końcowej, bez wózków i śledzenia ilości po buforach.
+
+Ustalone:
+- Zlecenie powstaje ze skanu kodu QR albo ręcznie (jak w Kontroli Końcowej).
+- Do zlecenia dobiera się szablon kontrolny (ustawianie szablonów podobne do szablonów Kontroli Końcowej).
+- Opcjonalnie: skan bufora (miejsce zlecenia) i oznaczenie, na jakim etapie jest zlecenie.
+- Liczy się tylko ilość sztuk zlecenia (zgodne i niezgodne), bez wózków i bez elementów.
+- Do ponownego użycia: etapy i maszyny, punkty kontrolne etapów, plakietki pracowników, szablony produktów, bufory z etykietami.
+
+Do ustalenia przed implementacją: układ ekranów na telefonie, rola punktów kontrolnych etapów względem szablonów Kontroli Końcowej, sposób oznaczania etapu zlecenia, relacja do Kontroli Końcowej (osobny moduł czy rozszerzenie).

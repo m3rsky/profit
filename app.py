@@ -62,15 +62,6 @@ app.register_blueprint(produkcja_bp)
 from kontrola import kontrola_bp  # noqa: E402
 app.register_blueprint(kontrola_bp)
 
-from kp import kp_bp  # noqa: E402
-app.register_blueprint(kp_bp)
-
-
-@app.route('/kp')
-@app.route('/kp/')
-def kp_alias():
-    """Skrót do modułu Kontrola produkcji."""
-    return redirect(url_for('kp.list_orders'))
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 _log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
@@ -366,7 +357,7 @@ def dashboard():
     if current_user.role == 'planowanie':
         return redirect(url_for('produkcja.index'))
     if current_user.role == 'produkcja':
-        return redirect(url_for('kp.station'))
+        return redirect(url_for('produkcja.scan_page'))
     if current_user.role == 'operator':
         return redirect(url_for('kontrola.list_records'))
 
@@ -3359,7 +3350,6 @@ def init_db():
         _seed_kosztorys()
         _seed_zadania_qa()
         _seed_departments()
-        _migrate_stock_positions()
         _seed_stages()
         _seed_stage_control_points()
         _backfill_department_tokens()
@@ -3527,29 +3517,17 @@ def _migrate_schema():
         if 'users' in insp.get_table_names():
             conn.execute(text("UPDATE users SET role='operator' WHERE role='spawacz'"))
             conn.commit()
-        for tbl, col, ddl in (
-                ('work_order_components', 'is_product',
-                 'ALTER TABLE work_order_components ADD COLUMN is_product BOOLEAN NOT NULL DEFAULT 0'),
-                ('work_orders', 'completed_at', 'ALTER TABLE work_orders ADD COLUMN completed_at DATETIME'),
-                ('movements', 'stage_id', 'ALTER TABLE movements ADD COLUMN stage_id INTEGER REFERENCES production_stages(id)'),
-                ('movements', 'machine_id', 'ALTER TABLE movements ADD COLUMN machine_id INTEGER REFERENCES machines(id)'),
-                ('movements', 'group_id', 'ALTER TABLE movements ADD COLUMN group_id VARCHAR(32)'),
-                ('movements', 'wip_id', 'ALTER TABLE movements ADD COLUMN wip_id INTEGER'),
-                ('movements', 'control_id', 'ALTER TABLE movements ADD COLUMN control_id INTEGER'),
-                ('work_in_progress', 'recheck_stage_id', 'ALTER TABLE work_in_progress ADD COLUMN recheck_stage_id INTEGER REFERENCES production_stages(id)'),
-                ('movements', 'note', 'ALTER TABLE movements ADD COLUMN note VARCHAR(512)'),
-                ('movements', 'wait_stage_id', 'ALTER TABLE movements ADD COLUMN wait_stage_id INTEGER REFERENCES production_stages(id)'),
-                ('stage_controls', 'wait_stage_id', 'ALTER TABLE stage_controls ADD COLUMN wait_stage_id INTEGER REFERENCES production_stages(id)')):
+        # Moduł śledzenia produkcji (zlecenia, wózki z ilościami, ruchy, kontrole etapów, złom) został
+        # usunięty (2026-10-21). Kasujemy jego tabele, dzieci przed rodzicami. Etapy, maszyny, bufory,
+        # punkty kontrolne etapów i szablony produktów zostają.
+        for tbl in ('scrap_records', 'stage_control_results', 'stage_controls', 'work_order_controls',
+                    'movements', 'work_in_progress', 'stock_positions', 'stock_positions_old',
+                    'work_order_component_stages', 'work_order_components', 'work_orders'):
             if tbl in insp.get_table_names():
-                if col not in [c['name'] for c in insp.get_columns(tbl)]:
-                    conn.execute(text(ddl))
-                    conn.commit()
-        if 'stock_positions' in insp.get_table_names() and not {'stage_id', 'recheck_stage_id'} <= {
-                c['name'] for c in insp.get_columns('stock_positions')}:
-            # Etap przechodzi z bufora na ilość: tabela pozycji ma nowy klucz unikalny, więc jest
-            # budowana od nowa, a wiersze wracają w _migrate_stock_positions() po create_all().
-            conn.execute(text('DROP TABLE IF EXISTS stock_positions_old'))
-            conn.execute(text('ALTER TABLE stock_positions RENAME TO stock_positions_old'))
+                conn.execute(text(f'DROP TABLE {tbl}'))
+                conn.commit()
+        if 'alerts' in insp.get_table_names():
+            conn.execute(text("DELETE FROM alerts WHERE message LIKE 'Do kontroli: ZO%'"))
             conn.commit()
         if 'product_components' in insp.get_table_names():
             # Ilość na sztukę przeniesiona z szablonu na zlecenie (tabela istniała tylko w wersjach deweloperskich).
@@ -4366,25 +4344,6 @@ def _seed_stages():
         if i == 1:
             for m in _DEFAULT_MACHINES:
                 db.session.add(Machine(stage_id=stage.id, name=m))
-
-
-def _migrate_stock_positions():
-    """Przenosi pozycje ze starej tabeli (bufor przypisany do etapu) do nowej: etap bufora staje się etapem,
-    na który ilość czeka, a przypisanie etapu do bufora jest czyszczone."""
-    from sqlalchemy import inspect, text
-    if 'stock_positions_old' not in inspect(db.engine).get_table_names():
-        return
-    old_cols = {c['name'] for c in inspect(db.engine).get_columns('stock_positions_old')}
-    # Wersja sprzed wózków: etap brany z bufora. Wersja z etapem w pozycji: kopiowany bez zmian.
-    stage_expr = 'o.stage_id' if 'stage_id' in old_cols else 'b.stage_id'
-    recheck_expr = 'o.recheck_stage_id' if 'recheck_stage_id' in old_cols else 'NULL'
-    with db.engine.begin() as conn:
-        conn.execute(text(
-            'INSERT INTO stock_positions (component_id, buffer_id, stage_id, recheck_stage_id, quantity, status, '
-            f'updated_at) SELECT o.component_id, o.buffer_id, {stage_expr}, {recheck_expr}, o.quantity, '
-            'o.status, o.updated_at FROM stock_positions_old o LEFT JOIN buffers b ON b.id = o.buffer_id'))
-        conn.execute(text('DROP TABLE stock_positions_old'))
-        conn.execute(text('UPDATE buffers SET stage_id = NULL'))
 
 
 def _seed_stage_control_points():
