@@ -19,6 +19,7 @@
 .kz-cb--ng:has(input:checked) { border-color:var(--danger-text,#b91c1c); background:var(--danger-bg,#fee2e2); color:var(--danger-text,#b91c1c); }
 .kz-notes { width:calc(100% - 2.1rem); margin:.5rem 0 0 2.1rem; font-size:.9rem; }
 .kz-ro-notes { margin:.4rem 0 0 2.1rem; font-size:.88rem; }
+.kz-group { padding:.55rem 1rem; background:var(--bg-subtle,#f1f5f9); font-weight:700; font-size:.85rem; border-top:1px solid var(--border,#e2e8f0); }
 .kz-save { display:flex; gap:.6rem; flex-wrap:wrap; }
 .kz-save .btn { flex:1; min-height:48px; }
 .kz-chain { display:flex; gap:.5rem; flex-wrap:wrap; }
@@ -52,6 +53,7 @@
     {% if rec.client %}<span><i class="bi bi-person"></i> {{ rec.client }}</span>{% endif %}
     {% if rec.quantity %}<span>{{ rec.quantity }} szt.</span>{% endif %}
     <span>Kontroler: {{ rec.controller.username if rec.controller else '-' }}</span>
+    {% if rec.elements_label %}<span><i class="bi bi-box"></i> Elementy: <strong>{{ rec.elements_label }}</strong></span>{% endif %}
     {% if not can_edit and rec.employee %}<span><i class="bi bi-person-gear"></i> Wykonawca: {{ rec.employee.name }} ({{ rec.employee.department.name }})</span>{% endif %}
     {% if rec.completed_at %}<span>Zakończono: {{ rec.completed_at|localdt('%d.%m.%Y %H:%M') }}</span>{% endif %}
   </div>
@@ -81,10 +83,16 @@
     {{ csrf_input() }}
     <div class="card">
       <div class="card-body" style="padding:0;">
-        {% for res in rec.results %}
+        {% set ns = namespace(i=0) %}
+        {% for group in rec.result_groups %}
+        {% if group.name or rec.result_groups|length > 1 %}
+        <div class="kz-group">{% if group.name %}<i class="bi bi-box"></i> Element: {{ group.name }}{% else %}Wspólne{% endif %}</div>
+        {% endif %}
+        {% for res in group.results %}
+        {% set ns.i = ns.i + 1 %}
         <div class="kz-point">
           <div class="kz-point-head">
-            <span class="kz-lp">{{ loop.index }}.</span>
+            <span class="kz-lp">{{ ns.i }}.</span>
             <span class="kz-title">{{ res.title }}</span>
             {% if res.qar_report %}
             <a class="badge badge-danger" href="{{ url_for('qar.detail_report', report_id=res.qar_report.id) }}"
@@ -115,9 +123,11 @@
           <div class="kz-ro-notes"><i class="bi bi-chat-left-text"></i> {{ res.notes }}</div>
           {% endif %}
         </div>
-        {% else %}
-        <div class="kz-point text-muted">Brak punktów kontrolnych.</div>
         {% endfor %}
+        {% endfor %}
+        {% if not rec.results %}
+        <div class="kz-point text-muted">Brak punktów kontrolnych.</div>
+        {% endif %}
       </div>
     </div>
 

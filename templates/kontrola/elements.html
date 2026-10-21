@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Elementy kontroli{% endblock %}
+
+{% block head %}
+<style>
+.el-row { display:flex; gap:.6rem; align-items:center; padding:.8rem 1rem; flex-wrap:wrap; }
+.el-row + .el-row { border-top:1px solid var(--border,#e2e8f0); }
+.el-off { opacity:.6; }
+.el-move { display:flex; flex-direction:column; gap:2px; }
+.el-main { flex:1; min-width:240px; display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
+.el-main .form-control { flex:1; min-width:10rem; }
+.el-use { color:var(--text-muted,#64748b); font-size:.82rem; }
+.el-new { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
+.el-new .form-control { flex:1; min-width:12rem; }
+.kz-savebar { position:sticky; bottom:0; z-index:5; display:flex; gap:.6rem; align-items:center; flex-wrap:wrap;
+  padding:.7rem 1rem; margin-top:1rem; background:var(--card-bg,var(--surface,#fff)); border:1px solid var(--border,#e2e8f0);
+  border-radius:var(--radius-md,10px); box-shadow:0 -2px 10px rgba(0,0,0,.08); }
+.kz-savebar .btn { min-height:46px; }
+.kz-dirty { color:#b45309; font-size:.88rem; font-weight:600; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-boxes"></i> Elementy kontroli</h1>
+    <span class="text-muted" style="font-size:0.82rem;">Wspólna lista elementów (np. Drzwi, Korpus). Zmiany w wielu elementach i nowy element zapisujesz jednym przyciskiem „Zapisz wszystko”. Kontroler zaznacza elementy po wyborze działu, a punkty elementu pojawiają się w osobnej sekcji kontroli.</span>
+  </div>
+  <div class="page-header-actions">
+    <a href="{{ url_for('kontrola.points') }}" class="btn btn-outline"><i class="bi bi-list-check"></i> Punkty kontrolne</a>
+    <a href="{{ url_for('kontrola.list_records') }}" class="btn btn-outline"><i class="bi bi-arrow-left"></i> Wróć do kontroli</a>
+  </div>
+</div>
+
+<form method="post" action="{{ url_for('kontrola.elements_save_all') }}" id="elements-form" autocomplete="off">
+  {{ csrf_input() }}
+  <input type="hidden" name="save_first" value="1">
+
+  <div class="card" style="margin-bottom:1rem;">
+    <div class="card-body">
+      <div class="el-new">
+        <input type="text" name="new_name" class="form-control" maxlength="128" placeholder="Nowy element, np. Drzwi (zapisze się razem ze zmianami)">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body" style="padding:0;">
+      {% for e in elements %}
+      <div class="el-row {% if not e.is_active %}el-off{% endif %}">
+        <div class="el-move">
+          <button type="submit" formnovalidate formaction="{{ url_for('kontrola.element_move', element_id=e.id, direction='up') }}"
+                  class="btn btn-outline btn-sm" title="W górę (zapisuje też zmiany)" {% if loop.first %}disabled{% endif %}><i class="bi bi-chevron-up"></i></button>
+          <button type="submit" formnovalidate formaction="{{ url_for('kontrola.element_move', element_id=e.id, direction='down') }}"
+                  class="btn btn-outline btn-sm" title="W dół (zapisuje też zmiany)" {% if loop.last %}disabled{% endif %}><i class="bi bi-chevron-down"></i></button>
+        </div>
+        <div class="el-main">
+          <input type="text" name="name_{{ e.id }}" class="form-control" maxlength="128" value="{{ e.name }}" required>
+          <label><input type="checkbox" name="active_{{ e.id }}" value="1" {% if e.is_active %}checked{% endif %}> Aktywny</label>
+          <span class="el-use">punkty: {{ usage[e.id].points }} · kontrole: {{ usage[e.id].records }}</span>
+        </div>
+        <button type="submit" formnovalidate formaction="{{ url_for('kontrola.element_delete', element_id=e.id) }}"
+                class="btn btn-danger btn-sm" title="Usuń element (zapisuje też pozostałe zmiany)"
+                data-confirm="Usunąć element „{{ e.name }}”? Pozostałe zmiany zostaną zapisane, historia kontroli zachowa jego nazwę.">
+          <i class="bi bi-trash"></i></button>
+      </div>
+      {% else %}
+      <div class="el-row text-muted">Brak elementów. Dodaj pierwszy powyżej, a potem przypisz do niego punkty w Punktach kontrolnych.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="kz-savebar">
+    <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Zapisz wszystko</button>
+    <span class="kz-dirty" id="elements-dirty" hidden><i class="bi bi-exclamation-circle"></i> Masz niezapisane zmiany</span>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var form = document.getElementById('elements-form');
+  var note = document.getElementById('elements-dirty');
+  var dirty = false, submitting = false;
+  form.addEventListener('input', function () { dirty = true; note.hidden = false; });
+  form.addEventListener('change', function () { dirty = true; note.hidden = false; });
+  form.addEventListener('submit', function () { submitting = true; });
+  window.addEventListener('beforeunload', function (e) {
+    if (dirty && !submitting) { e.preventDefault(); e.returnValue = ''; }
+  });
+})();
+</script>
+{% endblock %}

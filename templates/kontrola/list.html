@@ -25,6 +25,7 @@
   <div class="page-header-actions">
     {% if current_user.is_admin %}
     <a href="{{ url_for('kontrola.points') }}" class="btn btn-ghost btn-sm" title="Punkty kontrolne"><i class="bi bi-list-check"></i> Punkty</a>
+    <a href="{{ url_for('kontrola.elements') }}" class="btn btn-ghost btn-sm" title="Elementy kontroli"><i class="bi bi-boxes"></i> Elementy</a>
     {% endif %}
     {% if current_user.is_kontroler %}
     <a href="{{ url_for('kontrola.scan_page') }}" class="btn btn-primary"><i class="bi bi-qr-code-scan"></i> Skanuj QR</a>
@@ -64,6 +65,12 @@
       <option value="">Wszystkie działy</option>
       {% for d in departments %}
       <option value="{{ d.id }}" {% if filters.dzial == d.id %}selected{% endif %}>{{ d.name }}</option>
+      {% endfor %}
+    </select>
+    <select class="form-control filter-select" name="element" title="Filtruj po elemencie">
+      <option value="">Wszystkie elementy</option>
+      {% for el in elements %}
+      <option value="{{ el.id }}" {% if filters.element == el.id %}selected{% endif %}>{{ el.name }}</option>
       {% endfor %}
     </select>
     <select class="form-control filter-select filter-perpage" name="per_page"
@@ -156,7 +163,7 @@
                 <a href="{{ url_for('kontrola.view_record', record_id=c.id) }}"
                    class="badge {{ 'badge-warning' if c.status != 'completed' else ('badge-success' if c.result == 'OK' else 'badge-danger') }}"
                    title="{{ (c.completed_at or c.created_at)|localdt('%d.%m.%Y %H:%M') }}{% if c.employee %} · {{ c.employee.name }}{% endif %}">
-                  {{ c.department.name if c.department else 'ogólna' }}{% if c.employee %}: {{ c.employee.name }}{% endif %}</a>
+                  {{ c.department.name if c.department else 'ogólna' }}{% if c.elements_label %} ({{ c.elements_label }}){% endif %}{% if c.employee %}: {{ c.employee.name }}{% endif %}</a>
                 {% else %}<span class="text-muted">brak</span>{% endfor %}
               {% else %}
                 {% set pf = o.performer %}
@@ -221,11 +228,11 @@
 
     <div class="pagination">
       {% if pager.has_prev %}
-      <a href="{{ url_for('kontrola.list_records', zo=filters.zo, s=filters.s, dzial=filters.dzial, date_from=filters.date_from, date_to=filters.date_to, per_page=per_page, page=pager.prev_num) }}" class="btn btn-outline btn-sm"><i class="bi bi-arrow-left"></i> Poprzednia</a>
+      <a href="{{ url_for('kontrola.list_records', zo=filters.zo, s=filters.s, dzial=filters.dzial, element=filters.element, date_from=filters.date_from, date_to=filters.date_to, per_page=per_page, page=pager.prev_num) }}" class="btn btn-outline btn-sm"><i class="bi bi-arrow-left"></i> Poprzednia</a>
       {% endif %}
       <span>{{ pager.page }} / {{ pager.pages }} ({{ pager.total }} pozycji)</span>
       {% if pager.has_next %}
-      <a href="{{ url_for('kontrola.list_records', zo=filters.zo, s=filters.s, dzial=filters.dzial, date_from=filters.date_from, date_to=filters.date_to, per_page=per_page, page=pager.next_num) }}" class="btn btn-outline btn-sm">Następna <i class="bi bi-arrow-right"></i></a>
+      <a href="{{ url_for('kontrola.list_records', zo=filters.zo, s=filters.s, dzial=filters.dzial, element=filters.element, date_from=filters.date_from, date_to=filters.date_to, per_page=per_page, page=pager.next_num) }}" class="btn btn-outline btn-sm">Następna <i class="bi bi-arrow-right"></i></a>
       {% endif %}
     </div>
     {% else %}

@@ -7,7 +7,8 @@ from flask_login import login_required, current_user
 from sqlalchemy import func, or_
 
 from models import (db, get_or_404, AuditLog, Alert, User, QARReport,
-                    ControlOrder, ControlPoint, ControlRecord, ControlResult, DepartmentEmployee,
+                    ControlElement, ControlOrder, ControlPoint, ControlRecord, ControlRecordElement,
+                    ControlResult, DepartmentEmployee,
                     ProductionDepartment, CONTROL_STATE_LABELS)
 from . import kontrola_bp
 
@@ -76,7 +77,7 @@ def _clean_zo(raw):
 
 def _active_points(department_id=None):
     """Punkty kontroli ogólnej (bez działu) albo kontroli działu (punkty działu i ogólne)."""
-    q = ControlPoint.query.filter_by(is_active=True)
+    q = ControlPoint.query.filter_by(is_active=True).filter(ControlPoint.element_id.is_(None))
     if department_id is None:
         q = q.filter(ControlPoint.department_id.is_(None))
     else:
@@ -91,6 +92,50 @@ def _control_departments():
                 db.session.query(ControlPoint.department_id).filter(
                     ControlPoint.is_active.is_(True), ControlPoint.department_id.isnot(None))))
             .order_by(ProductionDepartment.order, ProductionDepartment.name).all())
+
+
+def _active_elements():
+    return ControlElement.query.filter_by(is_active=True).order_by(ControlElement.order, ControlElement.id).all()
+
+
+def _element_points(element_id, department_id):
+    """Punkty elementu w danym dziale: punkty elementu bez działu oraz punkty elementu tego działu."""
+    return (ControlPoint.query.filter_by(is_active=True, element_id=element_id)
+            .filter(or_(ControlPoint.department_id.is_(None), ControlPoint.department_id == department_id))
+            .order_by(ControlPoint.order, ControlPoint.id).all())
+
+
+def _add_department_results(rec, department_id, elements):
+    """Wyniki kontroli działu: sekcja wspólna (punkty ogólne i działu), potem punkty każdego wybranego
+    elementu osobno. Zwraca liczbę punktów. Bez commitu."""
+    position = 0
+    for p in _active_points(department_id):
+        position += 1
+        db.session.add(ControlResult(record=rec, point_id=p.id, position=position,
+                                     title=p.title, description=p.description))
+    for i, el in enumerate(elements, 1):
+        db.session.add(ControlRecordElement(record_id=rec.id, element_id=el.id, name=el.name, position=i))
+        for p in _element_points(el.id, department_id):
+            position += 1
+            db.session.add(ControlResult(record=rec, point_id=p.id, position=position, title=p.title,
+                                         description=p.description, element_id=el.id, element_name=el.name))
+    return position
+
+
+def _parse_elements(raw_ids):
+    """Wybrane elementy (kolejność wyboru, bez duplikatów). Zwraca (lista elementów, błąd)."""
+    elements, seen = [], set()
+    for raw in raw_ids:
+        try:
+            el = db.session.get(ControlElement, int(raw))
+        except (TypeError, ValueError):
+            el = None
+        if el is None or not el.is_active:
+            return [], 'Wybrany element nie istnieje albo jest nieaktywny.'
+        if el.id not in seen:
+            seen.add(el.id)
+            elements.append(el)
+    return elements, None
 
 
 def _add_results(rec, rows):
@@ -138,13 +183,17 @@ def _create_qar_for_result(rec, res):
         description += ' | Zlecenie: ' + extra
     if rec.department is not None:
         description += f' | Dział kontroli: {rec.department.name}'
+    if res.element_name:
+        description += f' | Element: {res.element_name}'
     emp = rec.employee or (rec.previous.employee if rec.previous is not None else None)
     if emp is not None:
         description += f' | Wykonawca: {emp.name} ({emp.department.name})'
     qar = QARReport(
         number=_next_qar_number(),
         zo_number=rec.zo_number,
-        title=f'Kontrola zamówienia NG: {res.title}, ZO {rec.zo_number}'[:256],
+        title=(f'Kontrola zamówienia NG: {res.title}'
+               + (f' ({res.element_name})' if res.element_name else '')
+               + f', ZO {rec.zo_number}')[:256],
         location=res.title[:128],
         description=description,
         user_id=current_user.id,
@@ -188,6 +237,19 @@ def _parse_department(raw):
     except (TypeError, ValueError):
         return None
     return dept.id if dept else None
+
+
+def _parse_element(raw):
+    """Id istniejącego elementu albo None (puste pole: punkt nie zależy od elementu)."""
+    try:
+        el = db.session.get(ControlElement, int(raw))
+    except (TypeError, ValueError):
+        return None
+    return el.id if el else None
+
+
+def _all_elements():
+    return ControlElement.query.order_by(ControlElement.order, ControlElement.id).all()
 
 
 def _sync_qar_employee(rec):
@@ -269,6 +331,7 @@ def list_records():
     is_op = current_user.is_operator
     zo_filter = request.args.get('zo', '').strip()
     dept_filter = request.args.get('dzial', type=int)
+    element_filter = request.args.get('element', type=int)
     status_f = request.args.get('s')
     if status_f is None:
         status_f = 'to_do' if is_op else ''
@@ -297,7 +360,11 @@ def list_records():
                            ControlOrder.client.ilike(like),
                            ControlOrder.id.in_(db.session.query(ControlRecord.control_order_id).filter(
                                ControlRecord.control_order_id.isnot(None),
-                               ControlRecord.employee_id.in_(by_name)))))
+                               ControlRecord.employee_id.in_(by_name))),
+                           ControlOrder.id.in_(db.session.query(ControlRecord.control_order_id).filter(
+                               ControlRecord.control_order_id.isnot(None),
+                               ControlRecord.id.in_(db.session.query(ControlRecordElement.record_id).filter(
+                                   ControlRecordElement.name.ilike(like)))))))
         q = q.filter(or_(ControlRecord.zo_number.ilike(like),
                          ControlRecord.product_name.ilike(like),
                          ControlRecord.client.ilike(like),
@@ -310,6 +377,12 @@ def list_records():
             ControlRecord.control_order_id.isnot(None),
             or_(ControlRecord.department_id == dept_filter, ControlRecord.employee_id.in_(in_dept)))))
 
+    if element_filter:
+        oq = oq.filter(ControlOrder.id.in_(db.session.query(ControlRecord.control_order_id).filter(
+            ControlRecord.control_order_id.isnot(None),
+            ControlRecord.id.in_(db.session.query(ControlRecordElement.record_id).filter(
+                ControlRecordElement.element_id == element_filter)))))
+        q = q.filter(db.false())                       # stare kontrole ogólne nie mają elementów
     rows = []
     for o in oq.all():
         rows.append({'kind': 'order', 'obj': o, 'date': o.created_at, 'status': _order_status(o, is_op)})
@@ -331,10 +404,10 @@ def list_records():
     page = min(page, max(1, -(-total // per_page)))
     pager = _Page(rows[(page - 1) * per_page: page * per_page], page, per_page, total)
 
-    filters = {'zo': zo_filter, 's': status_f, 'dzial': dept_filter or '', 'date_from': date_from,
+    filters = {'zo': zo_filter, 's': status_f, 'dzial': dept_filter or '', 'element': element_filter or '', 'date_from': date_from,
                'date_to': date_to, 'per_page': per_page}
     return render_template('kontrola/list.html', pager=pager, filters=filters, per_page=per_page,
-                           statuses=LIST_STATUSES, departments=_employee_departments(),
+                           statuses=LIST_STATUSES, departments=_employee_departments(), elements=_all_elements(),
                            labels=CONTROL_STATE_LABELS, is_op=is_op)
 
 
@@ -469,7 +542,7 @@ def order_page(order_id):
         if c.status == 'completed' and c.department_id not in latest:
             latest[c.department_id] = c.id
     return render_template('kontrola/order_page.html', order=order, departments=_control_departments(),
-                           latest=latest)
+                           latest=latest, elements=_active_elements())
 
 
 @kontrola_bp.route('/zlecenie/nowe', methods=['POST'])
@@ -545,12 +618,16 @@ def order_start(order_id):
     if dept is None:
         flash('Wybierz dział kontroli (dział z przypisanymi punktami).', 'warning')
         return redirect(back)
-    open_one = (ControlRecord.query.filter_by(control_order_id=order.id, department_id=dept.id,
-                                              status='in_progress').first())
-    if open_one:
-        return redirect(url_for('kontrola.view_record', record_id=open_one.id))
-    points = _active_points(dept.id)
-    if not points:
+    elements, err = _parse_elements(request.form.getlist('element_ids'))
+    if err:
+        flash(err, 'warning')
+        return redirect(back)
+    wanted = {e.id for e in elements}
+    for cand in ControlRecord.query.filter_by(control_order_id=order.id, department_id=dept.id,
+                                              status='in_progress').all():
+        if cand.element_ids == wanted:             # ta sama kontrola w toku: otwieramy zamiast tworzyć drugą
+            return redirect(url_for('kontrola.view_record', record_id=cand.id))
+    if not _active_points(dept.id) and not any(_element_points(e.id, dept.id) for e in elements):
         flash('Ten dział nie ma punktów kontrolnych.', 'warning')
         return redirect(back)
     rec = ControlRecord(zo_number=order.zo_number, product_name=order.product_name, client=order.client,
@@ -558,9 +635,10 @@ def order_start(order_id):
                         control_order_id=order.id)
     db.session.add(rec)
     db.session.flush()
-    _add_results(rec, points)
+    _add_department_results(rec, dept.id, elements)
     db.session.commit()
-    _audit('kontrola_create', rec.id, f'ZO={order.zo_number} product={order.product_name} dzial={dept.id}')
+    _audit('kontrola_create', rec.id, f'ZO={order.zo_number} product={order.product_name} dzial={dept.id} '
+                                      f'elementy={[e.name for e in elements]}')
     return redirect(url_for('kontrola.view_record', record_id=rec.id))
 
 
@@ -701,6 +779,168 @@ def bulk_delete():
     return redirect(url_for('kontrola.list_records'))
 
 
+# ── Admin: elementy kontroli ──────────────────────────────────────────────────
+
+def _element_usage(el):
+    """Ile punktów i kontroli używa elementu."""
+    return {'points': ControlPoint.query.filter_by(element_id=el.id).count(),
+            'records': ControlRecordElement.query.filter_by(element_id=el.id).count()}
+
+
+@kontrola_bp.route('/elementy')
+@login_required
+@admin_required
+def elements():
+    items = _all_elements()
+    return render_template('kontrola/elements.html', elements=items,
+                           usage={e.id: _element_usage(e) for e in items})
+
+
+@kontrola_bp.route('/elementy/dodaj', methods=['POST'])
+@login_required
+@admin_required
+def element_add():
+    name = ' '.join(request.form.get('name', '').split())
+    if not name:
+        flash('Nazwa elementu jest wymagana.', 'warning')
+    elif ControlElement.query.filter(func.lower(ControlElement.name) == name.lower()).first():
+        flash(f'Element „{name}” już istnieje.', 'warning')
+    else:
+        order = (db.session.query(func.max(ControlElement.order)).scalar() or 0) + 1
+        db.session.add(ControlElement(name=name[:128], order=order))
+        db.session.commit()
+        _audit('kontrola_element_add', None, name)
+        flash(f'Dodano element „{name}”.', 'success')
+    return redirect(url_for('kontrola.elements'))
+
+
+@kontrola_bp.route('/elementy/<int:element_id>/zapisz', methods=['POST'])
+@login_required
+@admin_required
+def element_save(element_id):
+    el = get_or_404(ControlElement, element_id)
+    name = ' '.join(request.form.get('name', '').split())
+    other = (ControlElement.query.filter(func.lower(ControlElement.name) == name.lower(),
+                                         ControlElement.id != el.id).first() if name else None)
+    if not name:
+        flash('Nazwa elementu jest wymagana.', 'warning')
+    elif other:
+        flash(f'Element „{name}” już istnieje.', 'warning')
+    else:
+        el.name = name[:128]
+        el.is_active = request.form.get('is_active') == '1'
+        db.session.commit()
+        _audit('kontrola_element_edit', None, f'{el.id}: {el.name}')
+        flash('Zapisano element.', 'success')
+    return redirect(url_for('kontrola.elements'))
+
+
+def _apply_elements_form(form):
+    """Zapisuje wszystkie elementy z jednego formularza (`name_<id>`, `active_<id>`) i nowy z `new_name`.
+    Zwraca (liczba zmienionych, czy dodano, błędy). Bez commitu."""
+    ids = _ids_with_prefix(form, 'name_')
+    els = {e.id: e for e in ControlElement.query.filter(ControlElement.id.in_(ids)).all()} if ids else {}
+    taken = {e.name.lower() for e in ControlElement.query.all()}
+    changed, errors = 0, []
+    renamed = {}
+    for eid in ids:
+        el = els.get(eid)
+        if el is None:
+            continue
+        name = ' '.join(form.get(f'name_{eid}', '').split())
+        if not name:
+            errors.append(f'Element nr {eid}: nazwa jest wymagana, zmiany pominięto.')
+            continue
+        others = {e.name.lower() for e in els.values() if e.id != eid} | {
+            n.lower() for i, n in renamed.items() if i != eid}
+        outside = {e.name.lower() for e in ControlElement.query.filter(~ControlElement.id.in_(ids)).all()}
+        if name.lower() in others | outside:
+            errors.append(f'Element „{name}” już istnieje, zmiany pominięto.')
+            continue
+        active = form.get(f'active_{eid}') == '1'
+        if el.name != name[:128] or bool(el.is_active) != active:
+            el.name, el.is_active = name[:128], active
+            changed += 1
+        renamed[eid] = name
+    added = False
+    new_name = ' '.join(form.get('new_name', '').split())
+    if new_name:
+        if new_name.lower() in taken | {n.lower() for n in renamed.values()}:
+            errors.append(f'Element „{new_name}” już istnieje, nowego nie dodano.')
+        else:
+            order = (db.session.query(func.max(ControlElement.order)).scalar() or 0) + 1
+            db.session.add(ControlElement(name=new_name[:128], order=order))
+            added = True
+    return changed, added, errors
+
+
+@kontrola_bp.route('/elementy/zapisz-wszystko', methods=['POST'])
+@login_required
+@admin_required
+def elements_save_all():
+    """Jeden zapis wszystkich zmian na stronie elementów: edycje istniejących i nowy element."""
+    changed, added, errors = _apply_elements_form(request.form)
+    db.session.commit()
+    for e in errors:
+        flash(e, 'warning')
+    if changed or added:
+        _audit('kontrola_elements_save_all', None, f'zmienione={changed} nowy={added}')
+        parts = []
+        if changed:
+            parts.append(f'zapisano zmiany w elementach: {changed}')
+        if added:
+            parts.append('dodano nowy element')
+        flash((', '.join(parts)).capitalize() + '.', 'success')
+    elif not errors:
+        flash('Brak zmian do zapisania.', 'info')
+    return redirect(url_for('kontrola.elements'))
+
+
+@kontrola_bp.route('/elementy/<int:element_id>/przesun/<direction>', methods=['POST'])
+@login_required
+@admin_required
+def element_move(element_id, direction):
+    if request.form.get('save_first'):
+        _apply_elements_form(request.form)        # niezapisane zmiany nie giną przy przesuwaniu
+        db.session.flush()
+    items = _all_elements()
+    idx = next((i for i, e in enumerate(items) if e.id == element_id), None)
+    if idx is None:
+        abort(404)
+    swap = idx - 1 if direction == 'up' else idx + 1
+    if 0 <= swap < len(items):
+        items[idx], items[swap] = items[swap], items[idx]
+    for i, e in enumerate(items, 1):
+        e.order = i
+    db.session.commit()
+    return redirect(url_for('kontrola.elements'))
+
+
+@kontrola_bp.route('/elementy/<int:element_id>/usun', methods=['POST'])
+@login_required
+@admin_required
+def element_delete(element_id):
+    """Usunięcie elementu. Element z przypisanymi punktami nie może zniknąć (punkty zmieniłyby zasięg),
+    w zakończonych i rozpoczętych kontrolach zostaje kopia nazwy."""
+    el = get_or_404(ControlElement, element_id)
+    if request.form.get('save_first'):
+        _apply_elements_form({k: v for k, v in request.form.items() if k != f'name_{element_id}'})
+        db.session.flush()
+    if ControlPoint.query.filter_by(element_id=el.id).first():
+        db.session.commit()                      # zachowaj niezapisane zmiany z formularza
+        flash(f'Nie można usunąć elementu „{el.name}”: ma przypisane punkty kontrolne. '
+              f'Zmień punkty albo dezaktywuj element.', 'warning')
+        return redirect(url_for('kontrola.elements'))
+    name = el.name
+    ControlRecordElement.query.filter_by(element_id=el.id).update({'element_id': None})
+    ControlResult.query.filter_by(element_id=el.id).update({'element_id': None})
+    db.session.delete(el)
+    db.session.commit()
+    _audit('kontrola_element_delete', None, name)
+    flash(f'Usunięto element „{name}”.', 'success')
+    return redirect(url_for('kontrola.elements'))
+
+
 # ── Admin: punkty kontrolne ───────────────────────────────────────────────────
 
 @kontrola_bp.route('/points')
@@ -708,14 +948,19 @@ def bulk_delete():
 @admin_required
 def points():
     dept_filter = request.args.get('dzial', type=int)
+    element_filter = request.args.get('element', type=int)
     q = ControlPoint.query
     if dept_filter == -1:
         q = q.filter(ControlPoint.department_id.is_(None))
     elif dept_filter:
         q = q.filter(ControlPoint.department_id == dept_filter)
+    if element_filter == -1:
+        q = q.filter(ControlPoint.element_id.is_(None))
+    elif element_filter:
+        q = q.filter(ControlPoint.element_id == element_filter)
     pts = q.order_by(ControlPoint.order, ControlPoint.id).all()
     return render_template('kontrola/points.html', points=pts, departments=_employee_departments(),
-                           dept_filter=dept_filter)
+                           dept_filter=dept_filter, elements=_all_elements(), element_filter=element_filter)
 
 
 @kontrola_bp.route('/points/add', methods=['POST'])
@@ -729,7 +974,8 @@ def point_add():
     max_order = db.session.query(func.max(ControlPoint.order)).scalar() or 0
     db.session.add(ControlPoint(title=title[:256], order=max_order + 1,
                                 description=request.form.get('description', '').strip() or None,
-                                department_id=_parse_department(request.form.get('department_id'))))
+                                department_id=_parse_department(request.form.get('department_id')),
+                                element_id=_parse_element(request.form.get('element_id'))))
     db.session.commit()
     _audit('kontrola_point_add', None, title)
     flash('Dodano punkt kontrolny.', 'success')
@@ -750,16 +996,88 @@ def point_save(point_id):
     pt.is_active = request.form.get('is_active') == '1'
     if 'department_id' in request.form:
         pt.department_id = _parse_department(request.form.get('department_id'))
+    if 'element_id' in request.form:
+        pt.element_id = _parse_element(request.form.get('element_id'))
     db.session.commit()
     _audit('kontrola_point_edit', None, f'{pt.id}: {pt.title}')
     flash('Zapisano punkt kontrolny.', 'success')
     return redirect(url_for('kontrola.points'))
 
 
+def _ids_with_prefix(form, prefix):
+    return sorted({int(k[len(prefix):]) for k in form if k.startswith(prefix) and k[len(prefix):].isdigit()})
+
+
+def _apply_points_form(form):
+    """Zapisuje wszystkie punkty z jednego formularza (pola `title_<id>`, `description_<id>`, `department_<id>`,
+    `element_<id>`, `active_<id>`) oraz nowy punkt z pól `new_*`, jeśli ma nazwę. Zwraca
+    (liczba zmienionych, czy dodano nowy, lista błędów). Bez commitu."""
+    ids = _ids_with_prefix(form, 'title_')
+    pts = {p.id: p for p in ControlPoint.query.filter(ControlPoint.id.in_(ids)).all()} if ids else {}
+    changed, errors = 0, []
+    for pid in ids:
+        pt = pts.get(pid)
+        if pt is None:
+            continue
+        title = form.get(f'title_{pid}', '').strip()
+        if not title:
+            errors.append(f'Punkt nr {pid}: nazwa jest wymagana, zmiany tego punktu pominięto.')
+            continue
+        new = {'title': title[:256],
+               'description': form.get(f'description_{pid}', '').strip() or None,
+               'is_active': form.get(f'active_{pid}') == '1',
+               'department_id': _parse_department(form.get(f'department_{pid}')),
+               'element_id': _parse_element(form.get(f'element_{pid}'))}
+        if any(getattr(pt, k) != v for k, v in new.items()):
+            for k, v in new.items():
+                setattr(pt, k, v)
+            changed += 1
+    added = False
+    new_title = form.get('new_title', '').strip()
+    if new_title:
+        max_order = db.session.query(func.max(ControlPoint.order)).scalar() or 0
+        db.session.add(ControlPoint(title=new_title[:256], order=max_order + 1,
+                                    description=form.get('new_description', '').strip() or None,
+                                    department_id=_parse_department(form.get('new_department')),
+                                    element_id=_parse_element(form.get('new_element'))))
+        added = True
+    return changed, added, errors
+
+
+def _back_to_points():
+    return redirect(url_for('kontrola.points', dzial=request.form.get('back_dzial') or None,
+                            element=request.form.get('back_element') or None))
+
+
+@kontrola_bp.route('/points/zapisz-wszystko', methods=['POST'])
+@login_required
+@admin_required
+def points_save_all():
+    """Jeden zapis wszystkich zmian na stronie punktów: edycje istniejących i nowy punkt."""
+    changed, added, errors = _apply_points_form(request.form)
+    db.session.commit()
+    for e in errors:
+        flash(e, 'warning')
+    if changed or added:
+        _audit('kontrola_points_save_all', None, f'zmienione={changed} nowy={added}')
+        parts = []
+        if changed:
+            parts.append(f'zapisano zmiany w punktach: {changed}')
+        if added:
+            parts.append('dodano nowy punkt')
+        flash((', '.join(parts)).capitalize() + '.', 'success')
+    elif not errors:
+        flash('Brak zmian do zapisania.', 'info')
+    return _back_to_points()
+
+
 @kontrola_bp.route('/points/<int:point_id>/move/<direction>', methods=['POST'])
 @login_required
 @admin_required
 def point_move(point_id, direction):
+    if request.form.get('save_first'):
+        _apply_points_form(request.form)          # niezapisane zmiany nie giną przy przesuwaniu
+        db.session.flush()
     pts = ControlPoint.query.order_by(ControlPoint.order, ControlPoint.id).all()
     idx = next((i for i, p in enumerate(pts) if p.id == point_id), None)
     if idx is None:
@@ -770,7 +1088,7 @@ def point_move(point_id, direction):
     for i, p in enumerate(pts, 1):
         p.order = i
     db.session.commit()
-    return redirect(url_for('kontrola.points'))
+    return _back_to_points() if request.form.get('save_first') else redirect(url_for('kontrola.points'))
 
 
 @kontrola_bp.route('/points/<int:point_id>/delete', methods=['POST'])
@@ -778,10 +1096,13 @@ def point_move(point_id, direction):
 @admin_required
 def point_delete(point_id):
     pt = get_or_404(ControlPoint, point_id)
+    if request.form.get('save_first'):
+        _apply_points_form({k: v for k, v in request.form.items() if k != f'title_{point_id}'})
+        db.session.flush()
     # Historia zostaje: wyniki mają własną kopię tytułu.
     ControlResult.query.filter_by(point_id=pt.id).update({'point_id': None})
     db.session.delete(pt)
     db.session.commit()
     _audit('kontrola_point_delete', None, f'{point_id}: {pt.title}')
     flash('Usunięto punkt kontrolny.', 'success')
-    return redirect(url_for('kontrola.points'))
+    return _back_to_points() if request.form.get('save_first') else redirect(url_for('kontrola.points'))

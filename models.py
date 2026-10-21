@@ -1053,9 +1053,36 @@ class ControlPoint(db.Model):
     # Dział, do którego należy punkt. Pusty: punkt ogólny (trafia do każdej kontroli).
     department_id = db.Column(db.Integer, db.ForeignKey('production_departments.id'), nullable=True)
     department  = db.relationship('ProductionDepartment', foreign_keys=[department_id])
+    # Element kontroli, do którego należy punkt (pusty: punkt nie zależy od elementu).
+    element_id  = db.Column(db.Integer, db.ForeignKey('control_elements.id'), nullable=True)
+    element     = db.relationship('ControlElement', foreign_keys=[element_id])
 
     def __repr__(self):
         return f'<ControlPoint {self.title}>'
+
+
+class ControlElement(db.Model):
+    """Element kontroli ze wspólnej listy (np. Drzwi, Korpus). Kontroler zaznacza elementy po wyborze działu,
+    a punkty elementu pojawiają się w osobnej sekcji kontroli."""
+    __tablename__ = 'control_elements'
+    id         = db.Column(db.Integer, primary_key=True)
+    name       = db.Column(db.String(128), nullable=False, unique=True)
+    order      = db.Column(db.Integer, default=0)
+    is_active  = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+
+    def __repr__(self):
+        return f'<ControlElement {self.name}>'
+
+
+class ControlRecordElement(db.Model):
+    """Element wybrany w kontroli. Nazwa jest kopią, więc historia przetrwa zmianę nazwy lub usunięcie."""
+    __tablename__ = 'control_record_elements'
+    id         = db.Column(db.Integer, primary_key=True)
+    record_id  = db.Column(db.Integer, db.ForeignKey('control_records.id'), nullable=False, index=True)
+    element_id = db.Column(db.Integer, db.ForeignKey('control_elements.id'), nullable=True)
+    name       = db.Column(db.String(128), nullable=False)
+    position   = db.Column(db.Integer, default=0)
 
 
 class ControlOrder(db.Model):
@@ -1112,6 +1139,33 @@ class ControlRecord(db.Model):
     results    = db.relationship('ControlResult', back_populates='record',
                                  cascade='all, delete-orphan',
                                  order_by='ControlResult.position, ControlResult.id')
+    element_links = db.relationship('ControlRecordElement', cascade='all, delete-orphan',
+                                    order_by='ControlRecordElement.position, ControlRecordElement.id')
+
+    @property
+    def element_names(self):
+        return [l.name for l in self.element_links]
+
+    @property
+    def element_ids(self):
+        return {l.element_id for l in self.element_links if l.element_id is not None}
+
+    @property
+    def elements_label(self):
+        return ', '.join(self.element_names)
+
+    @property
+    def result_groups(self):
+        """Wyniki w sekcjach: najpierw wspólne (bez elementu), potem każdy wybrany element."""
+        groups, index = [], {}
+        for r in self.results:
+            key = r.element_name or None
+            if key not in index:
+                index[key] = {'name': key, 'results': []}
+                groups.append(index[key])
+            index[key]['results'].append(r)
+        groups.sort(key=lambda g: (g['name'] is not None, 0))
+        return groups
 
     @property
     def result(self):
@@ -1174,6 +1228,9 @@ class ControlResult(db.Model):
     notes         = db.Column(db.Text, nullable=True)
     qar_report_id = db.Column(db.Integer, db.ForeignKey('qar_reports.id'), nullable=True)
     checked_at    = db.Column(db.DateTime, nullable=True)
+    # Punkt elementu: element kontroli (id i kopia nazwy), puste dla punktów wspólnych.
+    element_id    = db.Column(db.Integer, db.ForeignKey('control_elements.id'), nullable=True)
+    element_name  = db.Column(db.String(128), nullable=True)
 
     record     = db.relationship('ControlRecord', back_populates='results')
     qar_report = db.relationship('QARReport', foreign_keys=[qar_report_id])

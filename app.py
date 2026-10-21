@@ -2811,7 +2811,13 @@ def _migrate_schema():
                 ('control_records', 'department_id',
                  'ALTER TABLE control_records ADD COLUMN department_id INTEGER REFERENCES production_departments(id)'),
                 ('control_records', 'control_order_id',
-                 'ALTER TABLE control_records ADD COLUMN control_order_id INTEGER REFERENCES control_orders(id)')):
+                 'ALTER TABLE control_records ADD COLUMN control_order_id INTEGER REFERENCES control_orders(id)'),
+                ('control_points', 'element_id',
+                 'ALTER TABLE control_points ADD COLUMN element_id INTEGER REFERENCES control_elements(id)'),
+                ('control_results', 'element_id',
+                 'ALTER TABLE control_results ADD COLUMN element_id INTEGER REFERENCES control_elements(id)'),
+                ('control_results', 'element_name',
+                 'ALTER TABLE control_results ADD COLUMN element_name VARCHAR(128)')):
             if tbl in insp.get_table_names() and col not in [c['name'] for c in insp.get_columns(tbl)]:
                 conn.execute(text(ddl))
                 conn.commit()

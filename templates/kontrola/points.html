@@ -6,11 +6,15 @@
 .kz-pt { display:flex; gap:.6rem; align-items:flex-start; padding:.9rem 1rem; flex-wrap:wrap; }
 .kz-pt + .kz-pt { border-top:1px solid var(--border,#e2e8f0); }
 .kz-pt-move { display:flex; flex-direction:column; gap:2px; }
-.kz-pt-move form { margin:0; }
 .kz-pt-main { flex:1; min-width:240px; display:flex; flex-direction:column; gap:.4rem; }
 .kz-pt-foot { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; }
 .kz-pt-off { opacity:.6; }
-.kz-pt-del { margin:0; }
+.kz-new { display:flex; flex-direction:column; gap:.4rem; }
+.kz-savebar { position:sticky; bottom:0; z-index:5; display:flex; gap:.6rem; align-items:center; flex-wrap:wrap;
+  padding:.7rem 1rem; margin-top:1rem; background:var(--card-bg,var(--surface,#fff)); border:1px solid var(--border,#e2e8f0);
+  border-radius:var(--radius-md,10px); box-shadow:0 -2px 10px rgba(0,0,0,.08); }
+.kz-savebar .btn { min-height:46px; }
+.kz-dirty { color:#b45309; font-size:.88rem; font-weight:600; }
 </style>
 {% endblock %}
 
@@ -19,80 +23,110 @@
   <div>
     <h1 class="page-title"><i class="bi bi-list-check"></i> Punkty kontrolne</h1>
     <span class="text-muted" style="font-size:0.82rem;">
-      Jedna wspólna lista dla każdej kontroli zamówienia. Zmiany dotyczą nowych kontroli, historia zostaje bez zmian.
+      Zmiany w wielu punktach i nowy punkt zapisujesz jednym przyciskiem „Zapisz wszystko”. Zmiany dotyczą nowych kontroli, historia zostaje bez zmian.
     </span>
   </div>
   <div class="page-header-actions">
+    <a href="{{ url_for('kontrola.elements') }}" class="btn btn-outline"><i class="bi bi-boxes"></i> Elementy</a>
     <a href="{{ url_for('kontrola.list_records') }}" class="btn btn-outline">
       <i class="bi bi-arrow-left"></i> Wróć do kontroli
     </a>
   </div>
 </div>
 
-<div class="card" style="margin-bottom:1rem;">
-  <div class="card-body">
-    <form method="post" action="{{ url_for('kontrola.point_add') }}" class="kz-pt-main" style="padding:0;">
-      {{ csrf_input() }}
-      <label class="form-label" for="new-title">Nowy punkt</label>
-      <input type="text" id="new-title" name="title" class="form-control" maxlength="256"
-             placeholder="np. Zgodność wymiarów z rysunkiem" required>
-      <textarea name="description" class="form-control" rows="2" placeholder="Opis lub wskazówka dla kontrolera (opcjonalnie)"></textarea>
-      <select name="department_id" class="form-control" aria-label="Dział punktu">
-        <option value="">ogólny (dla każdej kontroli)</option>
-        {% for d in departments %}<option value="{{ d.id }}" {% if dept_filter == d.id %}selected{% endif %}>{{ d.name }}</option>{% endfor %}
-      </select>
-      <div><button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Dodaj punkt</button></div>
-    </form>
-  </div>
-</div>
-
-<form method="get" style="margin-bottom:1rem;display:flex;gap:.4rem;flex-wrap:wrap;">
+<form method="get" id="points-filter" style="margin-bottom:1rem;display:flex;gap:.4rem;flex-wrap:wrap;">
   <select name="dzial" class="form-control" style="width:auto;" onchange="this.form.submit()" aria-label="Filtr działu">
     <option value="">wszystkie punkty</option>
     <option value="-1" {% if dept_filter == -1 %}selected{% endif %}>tylko ogólne</option>
     {% for d in departments %}<option value="{{ d.id }}" {% if dept_filter == d.id %}selected{% endif %}>{{ d.name }}</option>{% endfor %}
   </select>
+  <select name="element" class="form-control" style="width:auto;" onchange="this.form.submit()" aria-label="Filtr elementu">
+    <option value="">wszystkie elementy</option>
+    <option value="-1" {% if element_filter == -1 %}selected{% endif %}>bez elementu</option>
+    {% for el in elements %}<option value="{{ el.id }}" {% if element_filter == el.id %}selected{% endif %}>{{ el.name }}</option>{% endfor %}
+  </select>
 </form>
 
-<div class="card">
-  <div class="card-body" style="padding:0;">
-    {% for p in points %}
-    <div class="kz-pt {% if not p.is_active %}kz-pt-off{% endif %}">
-      <div class="kz-pt-move">
-        <form method="post" action="{{ url_for('kontrola.point_move', point_id=p.id, direction='up') }}">
-          {{ csrf_input() }}
-          <button type="submit" class="btn btn-outline btn-sm" title="W górę" {% if loop.first %}disabled{% endif %}>
-            <i class="bi bi-chevron-up"></i></button>
-        </form>
-        <form method="post" action="{{ url_for('kontrola.point_move', point_id=p.id, direction='down') }}">
-          {{ csrf_input() }}
-          <button type="submit" class="btn btn-outline btn-sm" title="W dół" {% if loop.last %}disabled{% endif %}>
-            <i class="bi bi-chevron-down"></i></button>
-        </form>
-      </div>
-      <form method="post" action="{{ url_for('kontrola.point_save', point_id=p.id) }}" class="kz-pt-main">
-        {{ csrf_input() }}
-        <input type="text" name="title" class="form-control" maxlength="256" value="{{ p.title }}" required>
-        <textarea name="description" class="form-control" rows="2" placeholder="Opis (opcjonalnie)">{{ p.description or '' }}</textarea>
-        <div class="kz-pt-foot">
-          <select name="department_id" class="form-control" style="width:auto;" aria-label="Dział punktu">
-            <option value="">ogólny</option>
-            {% for d in departments %}<option value="{{ d.id }}" {% if p.department_id == d.id %}selected{% endif %}>{{ d.name }}</option>{% endfor %}
-          </select>
-          <label><input type="checkbox" name="is_active" value="1" {% if p.is_active %}checked{% endif %}> Aktywny</label>
-          <button type="submit" class="btn btn-secondary btn-sm"><i class="bi bi-save"></i> Zapisz</button>
-        </div>
-      </form>
-      <form method="post" action="{{ url_for('kontrola.point_delete', point_id=p.id) }}" class="kz-pt-del">
-        {{ csrf_input() }}
-        <button type="submit" class="btn btn-danger btn-sm"
-                data-confirm="Usunąć punkt „{{ p.title }}”? Historia kontroli zostaje.">
-          <i class="bi bi-trash"></i></button>
-      </form>
+<form method="post" action="{{ url_for('kontrola.points_save_all') }}" id="points-form" autocomplete="off">
+  {{ csrf_input() }}
+  <input type="hidden" name="save_first" value="1">
+  <input type="hidden" name="back_dzial" value="{{ dept_filter if dept_filter is not none else '' }}">
+  <input type="hidden" name="back_element" value="{{ element_filter if element_filter is not none else '' }}">
+
+  <div class="card" style="margin-bottom:1rem;">
+    <div class="card-body kz-new">
+      <label class="form-label" for="new-title">Nowy punkt (zapisze się razem ze zmianami)</label>
+      <input type="text" id="new-title" name="new_title" class="form-control" maxlength="256"
+             placeholder="np. Zgodność wymiarów z rysunkiem">
+      <textarea name="new_description" class="form-control" rows="2" placeholder="Opis lub wskazówka dla kontrolera (opcjonalnie)"></textarea>
+      <select name="new_department" class="form-control" aria-label="Dział punktu">
+        <option value="">ogólny (dla każdej kontroli)</option>
+        {% for d in departments %}<option value="{{ d.id }}" {% if dept_filter == d.id %}selected{% endif %}>{{ d.name }}</option>{% endfor %}
+      </select>
+      <select name="new_element" class="form-control" aria-label="Element punktu">
+        <option value="">bez elementu</option>
+        {% for el in elements %}<option value="{{ el.id }}" {% if element_filter == el.id %}selected{% endif %}>Element: {{ el.name }}</option>{% endfor %}
+      </select>
     </div>
-    {% else %}
-    <div class="kz-pt text-muted">Brak punktów. Dodaj pierwszy, inaczej nie da się rozpocząć kontroli.</div>
-    {% endfor %}
   </div>
-</div>
+
+  <div class="card">
+    <div class="card-body" style="padding:0;">
+      {% for p in points %}
+      <div class="kz-pt {% if not p.is_active %}kz-pt-off{% endif %}">
+        <div class="kz-pt-move">
+          <button type="submit" formnovalidate formaction="{{ url_for('kontrola.point_move', point_id=p.id, direction='up') }}"
+                  class="btn btn-outline btn-sm" title="W górę (zapisuje też zmiany)" {% if loop.first %}disabled{% endif %}>
+            <i class="bi bi-chevron-up"></i></button>
+          <button type="submit" formnovalidate formaction="{{ url_for('kontrola.point_move', point_id=p.id, direction='down') }}"
+                  class="btn btn-outline btn-sm" title="W dół (zapisuje też zmiany)" {% if loop.last %}disabled{% endif %}>
+            <i class="bi bi-chevron-down"></i></button>
+        </div>
+        <div class="kz-pt-main">
+          <input type="text" name="title_{{ p.id }}" class="form-control" maxlength="256" value="{{ p.title }}" required>
+          <textarea name="description_{{ p.id }}" class="form-control" rows="2" placeholder="Opis (opcjonalnie)">{{ p.description or '' }}</textarea>
+          <div class="kz-pt-foot">
+            <select name="department_{{ p.id }}" class="form-control" style="width:auto;" aria-label="Dział punktu">
+              <option value="">ogólny</option>
+              {% for d in departments %}<option value="{{ d.id }}" {% if p.department_id == d.id %}selected{% endif %}>{{ d.name }}</option>{% endfor %}
+            </select>
+            <select name="element_{{ p.id }}" class="form-control" style="width:auto;" aria-label="Element punktu">
+              <option value="">bez elementu</option>
+              {% for el in elements %}<option value="{{ el.id }}" {% if p.element_id == el.id %}selected{% endif %}>{{ el.name }}</option>{% endfor %}
+            </select>
+            <label><input type="checkbox" name="active_{{ p.id }}" value="1" {% if p.is_active %}checked{% endif %}> Aktywny</label>
+          </div>
+        </div>
+        <button type="submit" formnovalidate formaction="{{ url_for('kontrola.point_delete', point_id=p.id) }}" class="btn btn-danger btn-sm"
+                title="Usuń punkt (zapisuje też pozostałe zmiany)"
+                data-confirm="Usunąć punkt „{{ p.title }}”? Pozostałe zmiany zostaną zapisane, historia kontroli zostaje.">
+          <i class="bi bi-trash"></i></button>
+      </div>
+      {% else %}
+      <div class="kz-pt text-muted">Brak punktów. Dodaj pierwszy powyżej, inaczej nie da się rozpocząć kontroli.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="kz-savebar">
+    <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Zapisz wszystko</button>
+    <span class="kz-dirty" id="points-dirty" hidden><i class="bi bi-exclamation-circle"></i> Masz niezapisane zmiany</span>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var form = document.getElementById('points-form');
+  var note = document.getElementById('points-dirty');
+  var dirty = false, submitting = false;
+  form.addEventListener('input', function () { dirty = true; note.hidden = false; });
+  form.addEventListener('change', function () { dirty = true; note.hidden = false; });
+  form.addEventListener('submit', function () { submitting = true; });
+  window.addEventListener('beforeunload', function (e) {
+    if (dirty && !submitting) { e.preventDefault(); e.returnValue = ''; }
+  });
+})();
+</script>
 {% endblock %}
