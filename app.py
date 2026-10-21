@@ -24,11 +24,11 @@ from sqlalchemy import func, or_, and_, case
 from sqlalchemy.exc import IntegrityError
 from config import Config
 from models import (db, get_or_404, User, ChecklistTemplate, Category, Task, Report, ReportItem,
-                    Photo, AuditLog, Order, Alert,
+                    Photo, AuditLog, Alert,
                     CabinetType, MaterialPrice, LaborRate, Quote, QuoteConfig,
                     CatalogProduct,
                     ChecklistSession, Installer, ReportItemInstaller,
-                    QARReport, QARPhoto, QATask, QARCategory,
+                    QARReport, QARPhoto, QARCategory,
                     ProductionDepartment, DepartmentEmployee, ProductionStage, Machine,
                     DailyBriefing, DocEntry, DocFile, DocNote)
 import anthropic
@@ -47,8 +47,6 @@ from qar import qar_bp  # noqa: E402
 app.register_blueprint(qar_bp)
 from qar.routes import _next_qar_number  # noqa: E402 — reużyte przez /api/v1/qar
 
-from zadania_qa import zadania_qa_bp  # noqa: E402
-app.register_blueprint(zadania_qa_bp)
 
 from ustawienia import ustawienia_bp  # noqa: E402
 app.register_blueprint(ustawienia_bp)
@@ -209,28 +207,10 @@ def admin_required(f):
     return decorated
 
 
-def order_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if not current_user.is_authenticated or not current_user.is_order_user:
-            abort(403)
-        return f(*args, **kwargs)
-    return decorated
-
-
 def kontroler_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if not current_user.is_authenticated or not current_user.is_kontroler:
-            abort(403)
-        return f(*args, **kwargs)
-    return decorated
-
-
-def monter_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if not current_user.is_authenticated or (not current_user.is_monter and not current_user.is_admin):
             abort(403)
         return f(*args, **kwargs)
     return decorated
@@ -253,6 +233,52 @@ def api_key_required(f):
 
 
 app.jinja_env.globals['today'] = None  # filled per-request below
+
+
+# Pozycje menu, które użytkownik może przestawiać (klucz → domyślna pozycja z listy).
+NAV_DEFAULT = ['dashboard', 'kontrola_etapowa', 'kontrola_koncowa', 'nowa_kontrola', 'zlecenia_qa', 'qar',
+               'lista_produkcyjna', 'stanowisko', 'ustawienia', 'szablony', 'dokumentacja']
+
+
+def _menu_keys_for(user):
+    """Klucze w kolejności użytkownika: zapisana lista (tylko znane klucze), potem reszta w kolejności domyślnej."""
+    import json
+    saved = []
+    try:
+        saved = [k for k in json.loads(user.menu_order or '[]') if k in NAV_DEFAULT]
+    except (ValueError, TypeError):
+        saved = []
+    out = list(dict.fromkeys(saved))
+    return out + [k for k in NAV_DEFAULT if k not in out]
+
+
+@app.context_processor
+def _inject_menu():
+    def menu_pos(key):
+        """Pozycja pozycji menu (CSS order) dla admina i kontrolera, dla innych ról None (bez przestawiania)."""
+        if not current_user.is_authenticated or current_user.role not in ('admin', 'kontroler'):
+            return None
+        keys = _menu_keys_for(current_user)
+        return keys.index(key) + 1 if key in keys else len(keys) + 1
+    return dict(menu_pos=menu_pos)
+
+
+@app.route('/menu/kolejnosc', methods=['POST'])
+@login_required
+def menu_order_save():
+    """Zapis własnej kolejności menu użytkownika (przeciąganie) albo powrót do domyślnej."""
+    import json
+    data = request.get_json(silent=True) or {}
+    if data.get('reset'):
+        current_user.menu_order = None
+    else:
+        keys = data.get('order')
+        if (not isinstance(keys, list) or not all(isinstance(k, str) for k in keys)
+                or any(k not in NAV_DEFAULT for k in keys)):
+            return jsonify({'ok': False, 'error': 'Nieprawidłowa kolejność menu.'}), 400
+        current_user.menu_order = json.dumps(list(dict.fromkeys(keys)))
+    db.session.commit()
+    return jsonify({'ok': True})
 
 
 @app.context_processor
@@ -361,16 +387,6 @@ def dashboard():
     if current_user.role == 'operator':
         return redirect(url_for('kontrola.list_records'))
 
-    # Pracownicy niebędący adminem dostają uproszczony dashboard z kafelkami
-    if current_user.role in ('order', 'monter'):
-        # Minimalne dane potrzebne do kafelkowego dashboardu
-        return render_template('dashboard.html',
-                               recent_reports=[], all_reports_count=0,
-                               completed_count=0, in_progress_count=0,
-                               date_from='', date_to='', templates=[],
-                               pending_order_reports=[], recent_orders=[],
-                               orders_active=0, orders_ready=0)
-
     date_from = request.args.get('date_from', '')
     date_to   = request.args.get('date_to', '')
     q = Report.query if current_user.is_admin else Report.query.filter_by(user_id=current_user.id)
@@ -426,18 +442,6 @@ def dashboard():
     else:
         pending_order_reports = []
     if current_user.is_admin:
-        from sqlalchemy import asc, nullslast
-        recent_orders   = (Order.query
-                           .filter(Order.status.in_(['active', 'in_control', 'ready_to_ship']))
-                           .order_by(nullslast(asc(Order.due_date)), Order.created_at.desc())
-                           .limit(8).all())
-        orders_active   = Order.query.filter(Order.status.in_(['active', 'in_control'])).count()
-        orders_ready    = Order.query.filter_by(status='ready_to_ship').count()
-    else:
-        recent_orders   = []
-        orders_active   = 0
-        orders_ready    = 0
-    if current_user.is_admin:
         quality_alerts = (Alert.query
                           .filter_by(recipient_id=current_user.id, alert_type='ng')
                           .order_by(Alert.created_at.desc())
@@ -452,9 +456,6 @@ def dashboard():
                            date_from=date_from, date_to=date_to,
                            templates=templates,
                            pending_order_reports=pending_order_reports,
-                           recent_orders=recent_orders,
-                           orders_active=orders_active,
-                           orders_ready=orders_ready,
                            quality_alerts=quality_alerts)
 
 
@@ -482,9 +483,6 @@ def _recent_duplicate_report(user_id, template_id, title, window_seconds=10):
 @kontroler_required
 def new_checklist():
     templates = ChecklistTemplate.query.filter_by(is_active=True, template_type='kontroler').order_by(ChecklistTemplate.name).all()
-    active_orders = (Order.query
-                     .filter(Order.status.in_(['active', 'in_control']))
-                     .order_by(Order.number).all())
     if request.method == 'POST':
         tmpl_id     = request.form.get('template_id', type=int)
         tmpl        = get_or_404(ChecklistTemplate, tmpl_id)
@@ -499,7 +497,7 @@ def new_checklist():
                     db.session.add(ReportItem(report_id=rpt.id, task_id=task.id))
 
         if quantity > 1:
-            # ── Tryb seryjny: bez powiązania z zamówieniem ──
+            # ── Tryb seryjny ──
             dup = _recent_duplicate_report(current_user.id, tmpl_id, f'{base_title} – 1/{quantity}')
             if dup:
                 flash('Taka seria kontroli została już utworzona — otwieram istniejącą.', 'warning')
@@ -519,39 +517,20 @@ def new_checklist():
             flash(f'Utworzono serię {quantity} kontroli. Wypełnij po kolei.', 'info')
             return redirect(url_for('checklist_view', report_id=first_id))
 
-        # ── Tryb pojedynczy: z opcjonalnym powiązaniem z zamówieniem ──
+        # ── Tryb pojedynczy ──
         dup = _recent_duplicate_report(current_user.id, tmpl_id, base_title)
         if dup:
             flash('Taka kontrola została już utworzona — otwieram istniejącą.', 'warning')
             return redirect(url_for('checklist_view', report_id=dup.id))
 
-        explicit_order_id = request.form.get('order_id', type=int)
-        linked_order = None
-        if explicit_order_id:
-            linked_order = Order.query.filter(
-                Order.id == explicit_order_id, Order.status != 'shipped'
-            ).first()
-        if not linked_order and user_suffix:
-            needle = user_suffix.upper().replace(' ', '').replace('-', '').replace('/', '')
-            for o in Order.query.filter(Order.status != 'shipped').all():
-                canon = o.number.upper().replace(' ', '').replace('-', '').replace('/', '')
-                if canon in needle or needle in canon:
-                    linked_order = o
-                    break
-        report = Report(user_id=current_user.id, template_id=tmpl_id,
-                        title=base_title, order_id=linked_order.id if linked_order else None)
+        report = Report(user_id=current_user.id, template_id=tmpl_id, title=base_title)
         db.session.add(report)
         db.session.flush()
         _add_items(report)
-        if linked_order:
-            if linked_order.status == 'active':
-                linked_order.status = 'in_control'
-            flash(f'Raport powiązany z zamówieniem {linked_order.number}.', 'success')
         db.session.commit()
         return redirect(url_for('checklist_view', report_id=report.id))
 
-    return render_template('checklist_new.html', templates=templates,
-                           active_orders=active_orders)
+    return render_template('checklist_new.html', templates=templates)
 
 
 def _qr_key(product_name, client, order_no):
@@ -704,9 +683,8 @@ def checklist_from_qr():
 def checklist_view(report_id):
     report = get_or_404(Report, report_id)
     is_kontroler_report = report.report_type == 'kontroler' and current_user.is_kontroler
-    is_monter_report = report.report_type == 'monter' and current_user.is_monter and report.user_id == current_user.id
     if (report.user_id != current_user.id and not current_user.is_admin
-            and not is_kontroler_report and not is_monter_report):
+            and not is_kontroler_report):
         abort(403)
     if report.status == 'in_progress':
         if report.lock_active and report.locked_by_id != current_user.id:
@@ -732,7 +710,8 @@ def checklist_view(report_id):
                       .order_by(QARCategory.order, QARCategory.name).all()]
     qar_departments = (ProductionDepartment.query.filter_by(is_active=True)
                        .order_by(ProductionDepartment.order, ProductionDepartment.name).all())
-    qar_zo = report.order.number if report.order else ''
+    # ZO do wstępnego wypełnienia raportu QAR: trzeci człon klucza QR listy (produkt|klient|ZO).
+    qar_zo = ((report.qr_key or '').split('|') + ['', '', ''])[2]
     return render_template('checklist.html', report=report,
                            items_by_category=items_by_category, installers=installers,
                            qar_categories=qar_categories, qar_departments=qar_departments,
@@ -744,9 +723,8 @@ def checklist_view(report_id):
 def complete_checklist(report_id):
     report = get_or_404(Report, report_id)
     is_kontroler_report = report.report_type == 'kontroler' and current_user.is_kontroler
-    is_monter_report = report.report_type == 'monter' and current_user.is_monter and report.user_id == current_user.id
     if (report.user_id != current_user.id and not current_user.is_admin
-            and not is_kontroler_report and not is_monter_report):
+            and not is_kontroler_report):
         abort(403)
     if is_kontroler_report and report.user_id != current_user.id:
         report.user_id = current_user.id
@@ -768,15 +746,6 @@ def complete_checklist(report_id):
     report.duration_seconds = total_seconds if total_seconds > 0 else None
     db.session.flush()
     _create_ng_alerts_on_complete(report)
-    if report.order_id:
-        _notify_order_report_done(report)
-        _check_order_complete(report.order)
-        if report.report_type == 'monter':
-            msg = (f'Montaż ukończony: {report.title} — '
-                   f'przez {current_user.username}')
-            for u in User.query.filter(User.role.in_(['admin', 'kontroler'])).all():
-                db.session.add(Alert(recipient_id=u.id, message=msg,
-                                     alert_type='info', order_id=report.order_id))
     db.session.commit()
     _audit('report_complete', 'report', report.id, report.title)
     sc = report.score
@@ -798,72 +767,6 @@ def complete_checklist(report_id):
     else:
         flash('Raport został zamknięty.', 'success')
     return redirect(url_for('report_detail', report_id=report.id))
-
-
-@app.route('/monter/pool')
-@login_required
-@monter_required
-def monter_pool():
-    """Lista dostępnych (nieprzypisanych) list montażowych do pobrania przez montera."""
-    from sqlalchemy import asc, nullslast
-    available = (Report.query
-                 .join(Order, Report.order_id == Order.id)
-                 .filter(Report.report_type == 'monter',
-                         Report.status == 'in_progress',
-                         Report.user_id == Report.user_id)  # placeholder — filtered below
-                 .order_by(nullslast(asc(Order.due_date)), Report.created_at.asc())
-                 .all())
-    # Only show reports not yet taken by anyone (user_id points to order creator — not a monter)
-    raw_pool = [r for r in available
-                if not db.session.get(User, r.user_id) or db.session.get(User, r.user_id).role not in ('monter',)]
-
-    # Grupuj serie — pokaż jeden wiersz na serię (pierwszy raport z batch)
-    seen_batches = set()
-    pool = []
-    for r in raw_pool:
-        if r.batch_id:
-            if r.batch_id not in seen_batches:
-                seen_batches.add(r.batch_id)
-                pool.append(r)   # reprezentant serii (batch_index == 1)
-        else:
-            pool.append(r)
-
-    my_reports = (Report.query
-                  .filter(Report.report_type == 'monter',
-                          Report.user_id == current_user.id)
-                  .order_by(Report.created_at.desc()).all())
-    return render_template('monter/pool.html', pool=pool, my_reports=my_reports)
-
-
-@app.route('/monter/take/<int:report_id>', methods=['POST'])
-@login_required
-@monter_required
-def monter_take(report_id):
-    """Monter przypisuje sobie listę montażową z puli."""
-    report = get_or_404(Report, report_id)
-    if report.report_type != 'monter':
-        abort(400)
-    if report.status != 'in_progress':
-        flash('Ta lista montażowa jest już zamknięta.', 'warning')
-        return redirect(url_for('monter_pool'))
-    owner = db.session.get(User, report.user_id)
-    if owner and owner.role == 'monter' and report.user_id != current_user.id:
-        flash('Ta lista jest już przypisana do innego montera.', 'warning')
-        return redirect(url_for('monter_pool'))
-    if report.batch_id:
-        # Przejmij całą serię — przypisz wszystkie raporty z tego batcha do montera
-        batch_reports = Report.query.filter_by(batch_id=report.batch_id).all()
-        for r in batch_reports:
-            r.user_id = current_user.id
-        db.session.commit()
-        _audit('monter_take', 'report', report.id, f'monter={current_user.username} batch={report.batch_id}')
-        flash(f'Seria {report.batch_total} list montażowych przypisana do Ciebie.', 'success')
-    else:
-        report.user_id = current_user.id
-        db.session.commit()
-        _audit('monter_take', 'report', report.id, f'monter={current_user.username}')
-        flash(f'Lista montażowa przypisana do Ciebie: {report.title}', 'success')
-    return redirect(url_for('checklist_view', report_id=report.id))
 
 
 @app.route('/reports')
@@ -992,9 +895,8 @@ def reports_export_csv():
 def report_detail(report_id):
     report = get_or_404(Report, report_id)
     is_kontroler_report = report.report_type == 'kontroler' and current_user.is_kontroler
-    is_monter_report = report.report_type == 'monter' and current_user.is_monter and report.user_id == current_user.id
     if (report.user_id != current_user.id and not current_user.is_admin
-            and not is_kontroler_report and not is_monter_report):
+            and not is_kontroler_report):
         abort(403)
     items_by_category = {}
     for item in report.items.all():
@@ -1186,7 +1088,7 @@ def _create_ng_alerts_on_complete(report):
         msg = msg[:511] + '…'
     for u in User.query.filter(User.role.in_(['admin', 'kontroler'])).all():
         db.session.add(Alert(recipient_id=u.id, message=msg,
-                             alert_type='ng', order_id=report.order_id))
+                             alert_type='ng'))
 
 
 @app.route('/api/item/<int:item_id>/result', methods=['POST'])
@@ -1913,12 +1815,8 @@ def api_template_duration_reports():
 @login_required
 @kontroler_required
 def admin_templates():
-    type_filter = request.args.get('type', '')  # '' | 'kontroler' | 'monter'
-    q = ChecklistTemplate.query
-    if type_filter in ('kontroler', 'monter'):
-        q = q.filter_by(template_type=type_filter)
-    templates = q.order_by(ChecklistTemplate.name).all()
-    return render_template('admin/templates.html', templates=templates, type_filter=type_filter)
+    templates = ChecklistTemplate.query.order_by(ChecklistTemplate.name).all()
+    return render_template('admin/templates.html', templates=templates)
 
 
 @app.route('/admin/templates/export')
@@ -2390,7 +2288,7 @@ def admin_user_delete(user_id):
     return redirect(url_for('admin_users'))
 
 
-# ── Helpers: Order flow ───────────────────────────────────────────────────────
+# ── Helpers: szablony i serie list ───────────────────────────────────────────────────────
 
 def _find_matching_template(product_name, template_type='kontroler'):
     """Dopasowuje szablon po tokenach nazwy.
@@ -2426,662 +2324,28 @@ def _find_matching_template(product_name, template_type='kontroler'):
     return candidates[0][1]
 
 
-def _create_reports_for_template(order, template, rtype, user_id=None):
-    """Tworzy quantity raportów jednego typu (kontroler lub monter).
-
-    `user_id` pozwala nadpisać autora raportów, gdy wywołanie nie pochodzi
-    z sesji przeglądarki (np. tworzenie zamówienia przez /api/v1/orders)."""
-    uid = user_id if user_id is not None else current_user.id
-    bid = uuid.uuid4().hex if order.quantity > 1 else None
-    for unit in range(1, order.quantity + 1):
-        label = 'kontrola QA' if rtype == 'kontroler' else 'montaż'
-        title = f'{order.product_name} – {order.client} – {label} szt. {unit}/{order.quantity}'
-        if order.due_date:
-            title += f' (termin {order.due_date.strftime("%d.%m.%Y")})'
-        report = Report(user_id=uid, template_id=template.id,
-                        order_id=order.id, title=title, report_type=rtype,
-                        batch_id=bid,
-                        batch_index=unit if bid else None,
-                        batch_total=order.quantity if bid else None)
+def _create_checklist_series(product, client, zo, quantity, template, user_id, due=None):
+    """Tworzy `quantity` list kontrolnych (seria) dla zlecenia z Listy produkcyjnej: klucz QR
+    (produkt|klient|ZO) pozwala odnaleźć je skanem tego samego kodu. Zwraca liczbę utworzonych list."""
+    quantity = max(1, int(quantity or 1))
+    bid = uuid.uuid4().hex if quantity > 1 else None
+    key = _qr_key(product, client, zo)
+    label = zo or ''
+    for unit in range(1, quantity + 1):
+        title = f'{product} – {client or "-"} – kontrola QA szt. {unit}/{quantity}'
+        if label:
+            title += f' ({label})'
+        if due:
+            title += f' (termin {due.strftime("%d.%m.%Y")})'
+        report = Report(user_id=user_id, template_id=template.id, title=title[:256], qr_key=key,
+                        batch_id=bid, batch_index=unit if bid else None,
+                        batch_total=quantity if bid else None)
         db.session.add(report)
         db.session.flush()
         for cat in template.categories.filter_by(is_active=True).order_by(Category.order):
             for task in cat.tasks.filter_by(is_active=True).order_by(Task.order):
                 db.session.add(ReportItem(report_id=report.id, task_id=task.id))
-
-
-def _create_order_reports(order, template, monter_template=None, user_id=None):
-    """Tworzy quantity raportów powiązanych z zamówieniem + alerty."""
-    _create_reports_for_template(order, template, 'kontroler', user_id=user_id)
-    if monter_template:
-        _create_reports_for_template(order, monter_template, 'monter', user_id=user_id)
-
-    due_str = order.due_date.strftime('%d.%m.%Y') if order.due_date else '—'
-
-    # Alert dla kontrolerów i adminów
-    msg_k = (f'Nowe zlecenie kontroli: {order.product_name} '
-             f'({order.number}) – {order.quantity} szt., klient: {order.client}, termin {due_str}')
-    for u in User.query.filter(User.role.in_(['admin', 'kontroler'])).all():
-        db.session.add(Alert(recipient_id=u.id, message=msg_k,
-                             alert_type='urgent', order_id=order.id))
-
-    # Alert dla monterów (tylko gdy jest szablon montera)
-    if monter_template:
-        msg_m = (f'Nowe zlecenie montażu: {order.product_name} '
-                 f'({order.number}) – {order.quantity} szt., termin {due_str}')
-        for u in User.query.filter_by(role='monter').all():
-            db.session.add(Alert(recipient_id=u.id, message=msg_m,
-                                 alert_type='info', order_id=order.id))
-
-    order.status = 'in_control'
-    order.template_id = template.id
-    if monter_template:
-        order.monter_template_id = monter_template.id
-
-
-def _order_recipients(order, include_controllers=False):
-    """Zwraca zbiór ID użytkowników do powiadamiania o zamówieniu."""
-    ids = {order.created_by_id}
-    roles = ['admin', 'order']
-    if include_controllers:
-        roles.append('kontroler')
-    for u in User.query.filter(User.role.in_(roles)).all():
-        ids.add(u.id)
-    return ids
-
-
-def _notify_order_report_done(report):
-    """Powiadamia zamawiających i adminów o ukończeniu pojedynczej kontroli."""
-    order = report.order
-    done  = order.reports.filter_by(status='completed').count()
-    total = order.reports.count()
-    s     = report.stats
-    ng_info = f' · NG: {s["ng"]}' if s['ng'] > 0 else ''
-    msg = (f'Kontrola zakończona: {report.title}{ng_info} '
-           f'— postęp zamówienia {order.number}: {done}/{total}')
-    alert_type = 'success' if s['ng'] == 0 else 'urgent'
-    for rid in _order_recipients(order):
-        db.session.add(Alert(recipient_id=rid, message=msg,
-                             alert_type=alert_type, order_id=order.id))
-
-
-def _check_order_complete(order):
-    """Jeśli wszystkie raporty zamówienia zamknięte — zmień status i powiadom wszystkich."""
-    if order.reports_total == 0:
-        return
-    if order.reports_done < order.reports_total:
-        return
-    order.status = 'ready_to_ship'
-    msg = (f'Zamówienie gotowe do wysyłki: {order.product_name} ({order.number}) '
-           f'– {order.quantity} szt.')
-    for rid in _order_recipients(order):
-        db.session.add(Alert(recipient_id=rid, message=msg,
-                             alert_type='success', order_id=order.id))
-    app.logger.info('ORDER_COMPLETE order=%s', order.number)
-
-
-# ── Zamówienia ────────────────────────────────────────────────────────────────
-
-def _parse_order_date(s):
-    try:
-        return datetime.strptime(s, '%Y-%m-%d').date() if s else None
-    except ValueError:
-        return None
-
-
-@app.route('/orders')
-@login_required
-@order_required
-def orders_list():
-    from sqlalchemy import asc, nullslast, func
-    from sqlalchemy.orm import joinedload
-    from datetime import date as _date
-
-    status    = request.args.get('status', 'active')
-    page      = request.args.get('page', 1, type=int)
-    q_number  = request.args.get('q_number', '').strip()
-    q_product = request.args.get('q_product', '').strip()
-    q_client  = request.args.get('q_client', '').strip()
-
-    q = Order.query
-    if status == 'active':
-        q = q.filter(Order.status.in_(['active', 'in_control']))
-    elif status == 'ready':
-        q = q.filter_by(status='ready_to_ship')
-    elif status == 'shipped':
-        q = q.filter_by(status='shipped')
-    if q_number:
-        q = q.filter(Order.number.ilike(f'%{q_number}%'))
-    if q_product:
-        q = q.filter(Order.product_name.ilike(f'%{q_product}%'))
-    if q_client:
-        q = q.filter(Order.client.ilike(f'%{q_client}%'))
-    orders = q.order_by(nullslast(asc(Order.due_date)), Order.created_at.desc()).paginate(
-        page=page, per_page=25, error_out=False)
-
-    # Batch progress — zastępuje N+1 (reports_total/done/pct per order)
-    order_ids = [o.id for o in orders.items]
-    progress_map = {}
-    if order_ids:
-        for row in (db.session.query(
-                Report.order_id,
-                func.count(Report.id).label('total'),
-                func.sum(func.cast(Report.status == 'completed', db.Integer)).label('done')
-            ).filter(Report.order_id.in_(order_ids))
-             .group_by(Report.order_id).all()):
-            t, d = row.total, (row.done or 0)
-            progress_map[row.order_id] = {
-                'total': t, 'done': d,
-                'pct': int(d / t * 100) if t else 0,
-            }
-
-    rq = (Report.query
-          .filter(Report.order_id.isnot(None))
-          .join(Order, Report.order_id == Order.id)
-          .options(joinedload(Report.author), joinedload(Report.order)))
-    if status == 'active':
-        rq = rq.filter(Order.status.in_(['active', 'in_control']))
-    elif status == 'ready':
-        rq = rq.filter(Order.status == 'ready_to_ship')
-    elif status == 'shipped':
-        rq = rq.filter(Order.status == 'shipped')
-    if q_number:
-        rq = rq.filter(Order.number.ilike(f'%{q_number}%'))
-    if q_product:
-        rq = rq.filter(Order.product_name.ilike(f'%{q_product}%'))
-    if q_client:
-        rq = rq.filter(Order.client.ilike(f'%{q_client}%'))
-    order_reports = rq.order_by(
-        nullslast(asc(Order.due_date)), Report.created_at.asc()
-    ).limit(100).all()
-
-    # Batch stats dla order_reports — zastępuje N+1 (stats.ng + completion_percent)
-    report_ng  = {}
-    report_pct = {}
-    r_ids = [r.id for r in order_reports]
-    if r_ids:
-        for row in (db.session.query(ReportItem.report_id,
-                                     func.count(ReportItem.id).label('ng'))
-                    .filter(ReportItem.report_id.in_(r_ids), ReportItem.result == 'ng')
-                    .group_by(ReportItem.report_id).all()):
-            report_ng[row.report_id] = row.ng
-        for row in (db.session.query(
-                ReportItem.report_id,
-                func.count(ReportItem.id).label('total'),
-                func.sum(func.cast(ReportItem.is_checked == True, db.Integer)).label('checked')
-            ).filter(ReportItem.report_id.in_(r_ids))
-             .group_by(ReportItem.report_id).all()):
-            report_pct[row.report_id] = (
-                int((row.checked or 0) / row.total * 100) if row.total else 0)
-
-    # ── Statystyki dla mini-dash ─────────────────────────────────────────────
-    today = _date.today()
-    cnt_active     = Order.query.filter(Order.status.in_(['active', 'in_control'])).count()
-    cnt_in_control = Order.query.filter_by(status='in_control').count()
-    cnt_ready      = Order.query.filter_by(status='ready_to_ship').count()
-    cnt_overdue    = Order.query.filter(
-        Order.due_date < today,
-        Order.status.in_(['active', 'in_control'])
-    ).count()
-    pct_in_control = round(cnt_in_control / cnt_active * 100) if cnt_active else 0
-
-    return render_template('orders/list.html',
-                           orders=orders, active_tab=status,
-                           order_reports=order_reports,
-                           progress_map=progress_map,
-                           report_ng=report_ng,
-                           report_pct=report_pct,
-                           q_number=q_number, q_product=q_product, q_client=q_client,
-                           cnt_active=cnt_active,
-                           cnt_in_control=cnt_in_control,
-                           cnt_ready=cnt_ready,
-                           cnt_overdue=cnt_overdue,
-                           pct_in_control=pct_in_control,
-                           today=today)
-
-
-@app.route('/orders/new', methods=['GET', 'POST'])
-@login_required
-@order_required
-def orders_new():
-    if request.method == 'POST':
-        number  = request.form.get('number', '').strip()
-        product = request.form.get('product_name', '').strip()
-        client  = request.form.get('client', '').strip()
-        qty     = request.form.get('quantity', 1, type=int)
-        due     = _parse_order_date(request.form.get('due_date', ''))
-        notes   = request.form.get('notes', '').strip() or None
-        if not number or not product or not client:
-            flash('Numer, nazwa produktu i klient są wymagane.', 'error')
-        elif Order.query.filter_by(number=number).first():
-            flash('Zamówienie o tym numerze już istnieje.', 'error')
-        else:
-            order = Order(number=number, product_name=product, client=client,
-                          quantity=qty, due_date=due, notes=notes,
-                          created_by_id=current_user.id)
-            db.session.add(order)
-            db.session.flush()
-
-            # Optional PDF documentation uploaded at creation time
-            pdf_file = request.files.get('pdf')
-            if pdf_file and pdf_file.filename and allowed_pdf(pdf_file.filename):
-                import uuid as _uuid
-                ext = pdf_file.filename.rsplit('.', 1)[1].lower()
-                pdf_filename = f'order_{order.id}_{_uuid.uuid4().hex[:8]}.{ext}'
-                pdf_file.save(os.path.join(app.config['UPLOAD_FOLDER'], pdf_filename))
-                order.pdf_filename = pdf_filename
-
-            tpl = _find_matching_template(product, 'kontroler')
-            monter_tpl = _find_matching_template(product, 'monter')
-            if tpl:
-                _create_order_reports(order, tpl, monter_tpl)
-                monter_info = f' + {order.quantity} list montażowych ({monter_tpl.name})' if monter_tpl else ''
-                flash(f'Zamówienie {number} dodane. Wygenerowano {qty} list kontrolnych '
-                      f'(szablon: {tpl.name}){monter_info}.', 'success')
-            else:
-                flash(f'Zamówienie {number} dodane. Brak pasującego szablonu QA.', 'info')
-            db.session.commit()
-            _audit('order_create', 'order', order.id,
-                   f'number={number} product={product} tpl={tpl.name if tpl else "none"}'
-                   + (f' pdf={order.pdf_filename}' if order.pdf_filename else ''))
-            return redirect(url_for('orders_detail', order_id=order.id))
-    kontroler_tpls = ChecklistTemplate.query.filter_by(is_active=True, template_type='kontroler').order_by(ChecklistTemplate.name).all()
-    monter_tpls    = ChecklistTemplate.query.filter_by(is_active=True, template_type='monter').order_by(ChecklistTemplate.name).all()
-    return render_template('orders/new.html', kontroler_tpls=kontroler_tpls, monter_tpls=monter_tpls)
-
-
-@app.route('/orders/import-csv', methods=['GET', 'POST'])
-@login_required
-@order_required
-def orders_import_csv():
-    import csv, io, uuid as _uuid
-
-    def _parse_csv(file_bytes):
-        """Parsuje CSV z separatorem ; i kodowaniem UTF-8-BOM lub cp1250."""
-        for enc in ('utf-8-sig', 'cp1250', 'utf-8'):
-            try:
-                text = file_bytes.decode(enc)
-                break
-            except (UnicodeDecodeError, ValueError):
-                continue
-        else:
-            return None, 'Nie udało się odczytać pliku – sprawdź kodowanie.'
-        reader = csv.DictReader(io.StringIO(text), delimiter=';')
-        rows = []
-        for r in reader:
-            rows.append({k.strip(): v.strip() for k, v in r.items()})
-        return rows, None
-
-    def _make_number(numer_wew, lp, existing_in_file):
-        """Buduje unikalny numer zamówienia w systemie."""
-        base = numer_wew.strip()
-        if existing_in_file.get(base, 0) > 1:
-            return f'{base}-{lp}'
-        return base
-
-    if request.method == 'POST':
-        action = request.form.get('action', 'preview')
-
-        # ── KROK 1: podgląd ──────────────────────────────────────────────────
-        if action == 'preview':
-            f = request.files.get('csv_file')
-            if not f or not f.filename.lower().endswith('.csv'):
-                flash('Wybierz plik CSV.', 'error')
-                return render_template('orders/import_csv.html')
-
-            raw = f.read()
-            rows, err = _parse_csv(raw)
-            if err:
-                flash(err, 'error')
-                return render_template('orders/import_csv.html')
-
-            # Zlicz ile razy każdy Numer wew. występuje → unikalność numeru
-            from collections import Counter
-            num_counts = Counter(r.get('Numer wew.', '').strip() for r in rows)
-
-            preview = []
-            for r in rows:
-                numer_wew = r.get('Numer wew.', '').strip()
-                lp        = r.get('Lp', '1').strip()
-                number    = _make_number(numer_wew, lp, num_counts)
-                product   = r.get('Identyfikator', '').strip()
-                client    = r.get('Kontrahent', '').strip()
-                qty_raw   = r.get('Ilość', r.get('Ilość', '1')).strip().replace(',', '.')
-                due_raw   = r.get('Termin dostawy', '').strip()
-                notes_val = r.get('Numer zew.', '').strip() or None
-
-                errors = []
-                if not number:
-                    errors.append('brak numeru')
-                if not product:
-                    errors.append('brak produktu')
-                if not client:
-                    errors.append('brak klienta')
-                try:
-                    qty = int(float(qty_raw)) if qty_raw else 1
-                    if qty < 1:
-                        qty = 1
-                except ValueError:
-                    qty = 1
-                    errors.append(f'nieprawidłowa ilość ({qty_raw!r})')
-
-                due = None
-                if due_raw:
-                    for fmt in ('%Y-%m-%d', '%d.%m.%Y', '%d-%m-%Y'):
-                        try:
-                            from datetime import date as _date
-                            due = datetime.strptime(due_raw, fmt).date()
-                            break
-                        except ValueError:
-                            pass
-
-                duplicate = bool(Order.query.filter_by(number=number).first())
-                tpl       = _find_matching_template(product, 'kontroler')
-                monter_t  = _find_matching_template(product, 'monter')
-
-                preview.append({
-                    'number':   number,
-                    'product':  product,
-                    'client':   client,
-                    'quantity': qty,
-                    'due':      due.strftime('%d.%m.%Y') if due else '',
-                    'due_iso':  due.strftime('%Y-%m-%d') if due else '',
-                    'notes':    notes_val or '',
-                    'errors':   errors,
-                    'duplicate': duplicate,
-                    'tpl':      tpl.name if tpl else '',
-                    'monter_tpl': monter_t.name if monter_t else '',
-                    'status':   'error' if errors else ('duplicate' if duplicate else 'ok'),
-                })
-
-            # Zapisz CSV jako plik tymczasowy — sesja cookie ma limit ~4KB
-            tmp_name = f'_csv_tmp_{_uuid.uuid4().hex}.csv'
-            tmp_path = os.path.join(app.config['UPLOAD_FOLDER'], tmp_name)
-            with open(tmp_path, 'wb') as fh:
-                fh.write(raw)
-            return render_template('orders/import_csv.html', preview=preview, csv_tmp=tmp_name)
-
-        # ── KROK 2: import ───────────────────────────────────────────────────
-        elif action == 'import':
-            tmp_name = request.form.get('csv_tmp', '').strip()
-            # Zabezpieczenie przed path traversal
-            if not tmp_name or '/' in tmp_name or '\\' in tmp_name or not tmp_name.startswith('_csv_tmp_'):
-                flash('Nieprawidłowy plik tymczasowy – wgraj CSV ponownie.', 'error')
-                return redirect(url_for('orders_import_csv'))
-
-            tmp_path = os.path.join(app.config['UPLOAD_FOLDER'], tmp_name)
-            if not os.path.exists(tmp_path):
-                flash('Plik tymczasowy wygasł lub nie istnieje – wgraj CSV ponownie.', 'error')
-                return redirect(url_for('orders_import_csv'))
-
-            with open(tmp_path, 'rb') as fh:
-                raw = fh.read()
-            os.remove(tmp_path)
-
-            rows, err = _parse_csv(raw)
-            if err:
-                flash(err, 'error')
-                return redirect(url_for('orders_import_csv'))
-
-            selected = set(request.form.getlist('selected_numbers'))
-            if not selected:
-                flash('Nie zaznaczono żadnych wierszy.', 'error')
-                return redirect(url_for('orders_import_csv'))
-
-            # Opcjonalny PDF wspólny dla całego importu
-            pdf_filename_shared = None
-            pdf_file = request.files.get('pdf')
-            if pdf_file and pdf_file.filename and allowed_pdf(pdf_file.filename):
-                ext = pdf_file.filename.rsplit('.', 1)[1].lower()
-                pdf_filename_shared = f'import_{_uuid.uuid4().hex[:10]}.{ext}'
-                pdf_file.save(os.path.join(app.config['UPLOAD_FOLDER'], pdf_filename_shared))
-
-            from collections import Counter
-            num_counts = Counter(r.get('Numer wew.', '').strip() for r in rows)
-
-            created = skipped = errors_count = 0
-            for r in rows:
-                numer_wew = r.get('Numer wew.', '').strip()
-                lp        = r.get('Lp', '1').strip()
-                number    = _make_number(numer_wew, lp, num_counts)
-
-                if number not in selected:
-                    continue
-
-                product  = r.get('Identyfikator', '').strip()
-                client   = r.get('Kontrahent', '').strip()
-                qty_raw  = r.get('Ilość', r.get('Ilość', '1')).strip().replace(',', '.')
-                due_raw  = r.get('Termin dostawy', '').strip()
-                notes_v  = r.get('Numer zew.', '').strip() or None
-
-                if not number or not product or not client:
-                    errors_count += 1
-                    continue
-                if Order.query.filter_by(number=number).first():
-                    skipped += 1
-                    continue
-
-                try:
-                    qty = max(1, int(float(qty_raw))) if qty_raw else 1
-                except ValueError:
-                    qty = 1
-
-                due = None
-                if due_raw:
-                    for fmt in ('%Y-%m-%d', '%d.%m.%Y', '%d-%m-%Y'):
-                        try:
-                            due = datetime.strptime(due_raw, fmt).date()
-                            break
-                        except ValueError:
-                            pass
-
-                order = Order(number=number, product_name=product, client=client,
-                              quantity=qty, due_date=due, notes=notes_v,
-                              created_by_id=current_user.id,
-                              pdf_filename=pdf_filename_shared)
-                db.session.add(order)
-                db.session.flush()
-
-                tpl       = _find_matching_template(product, 'kontroler')
-                monter_t  = _find_matching_template(product, 'monter')
-                if tpl:
-                    _create_order_reports(order, tpl, monter_t)
-
-                _audit('order_create', 'order', order.id,
-                       f'csv_import number={number} product={product} tpl={tpl.name if tpl else "none"}')
-                created += 1
-
-            db.session.commit()
-            parts = [f'Utworzono: {created}']
-            if skipped:
-                parts.append(f'pominięto duplikaty: {skipped}')
-            if errors_count:
-                parts.append(f'błędy: {errors_count}')
-            flash('. '.join(parts) + '.', 'success' if created else 'warning')
-            return redirect(url_for('orders_list'))
-
-    return render_template('orders/import_csv.html')
-
-
-@app.route('/orders/<int:order_id>/edit', methods=['GET', 'POST'])
-@login_required
-@order_required
-def orders_edit(order_id):
-    order = get_or_404(Order, order_id)
-    if not current_user.is_admin and order.created_by_id != current_user.id:
-        abort(403)
-    if request.method == 'POST':
-        number  = request.form.get('number', '').strip()
-        product = request.form.get('product_name', '').strip()
-        client  = request.form.get('client', '').strip()
-        qty     = request.form.get('quantity', 1, type=int)
-        due     = _parse_order_date(request.form.get('due_date', ''))
-        notes   = request.form.get('notes', '').strip() or None
-        if not number or not product or not client:
-            flash('Numer, nazwa produktu i klient są wymagane.', 'error')
-        elif Order.query.filter(Order.number == number, Order.id != order_id).first():
-            flash('Zamówienie o tym numerze już istnieje.', 'error')
-        else:
-            order.number      = number
-            order.product_name = product
-            order.client      = client
-            order.quantity    = qty
-            order.due_date    = due
-            order.notes       = notes
-            db.session.commit()
-            _audit('order_edit', 'order', order.id, f'number={number}')
-            flash(f'Zamówienie {number} zostało zaktualizowane.', 'success')
-            return redirect(url_for('orders_detail', order_id=order.id))
-    return render_template('orders/edit.html', order=order)
-
-
-@app.route('/orders/<int:order_id>')
-@login_required
-def orders_detail(order_id):
-    order = Order.query.filter_by(id=order_id).first()
-    if not order:
-        flash('Zamówienie nie istnieje lub zostało usunięte.', 'warning')
-        return redirect(url_for('dashboard'))
-    reports = order.reports.order_by(Report.id).all()
-    kontroler_reports = [r for r in reports if r.report_type == 'kontroler']
-    monter_reports    = [r for r in reports if r.report_type == 'monter']
-    return render_template('orders/detail.html', order=order, reports=reports,
-                           kontroler_reports=kontroler_reports, monter_reports=monter_reports)
-
-
-@app.route('/orders/bulk-delete', methods=['POST'])
-@login_required
-@order_required
-def orders_bulk_delete():
-    action = request.form.get('action')
-    if action == 'selected':
-        ids = request.form.getlist('order_ids', type=int)
-        if not ids:
-            flash('Nie zaznaczono żadnych zamówień.', 'warning')
-            return redirect(url_for('orders_list'))
-        orders_q = Order.query.filter(Order.id.in_(ids)).all()
-    elif action == 'all':
-        orders_q = Order.query.all() if current_user.is_admin else \
-                   Order.query.filter_by(created_by_id=current_user.id).all()
-        if not orders_q:
-            flash('Brak zamówień do usunięcia.', 'info')
-            return redirect(url_for('orders_list'))
-    else:
-        abort(400)
-    count = 0
-    for order in orders_q:
-        if not current_user.is_admin and order.created_by_id != current_user.id:
-            continue
-        for report in order.reports.all():
-            _delete_reports([report])
-        Alert.query.filter_by(order_id=order.id).delete()
-        _audit('order_delete', 'order', order.id, f'bulk number={order.number}')
-        db.session.delete(order)
-        count += 1
-    db.session.commit()
-    flash(f'Usunięto {count} {"zamówienie" if count == 1 else "zamówienia" if 2 <= count <= 4 else "zamówień"} wraz z listami kontrolnymi.', 'success')
-    return redirect(url_for('orders_list'))
-
-
-@app.route('/orders/<int:order_id>/delete', methods=['POST'])
-@login_required
-@order_required
-def orders_delete(order_id):
-    order = Order.query.filter_by(id=order_id).first()
-    if not order:
-        flash('Zamówienie nie istnieje.', 'warning')
-        return redirect(url_for('orders_list'))
-    if not current_user.is_admin and order.created_by_id != current_user.id:
-        abort(403)
-
-    number = order.number
-    for report in order.reports.all():
-        _delete_reports([report])
-    Alert.query.filter_by(order_id=order.id).delete()
-    db.session.delete(order)
-    db.session.commit()
-    _audit('order_delete', 'order', order_id, f'number={number}')
-    flash(f'Zamówienie {number} oraz powiązane listy kontrolne zostały usunięte.', 'success')
-    return redirect(url_for('orders_list'))
-
-
-@app.route('/orders/<int:order_id>/ship', methods=['POST'])
-@login_required
-@order_required
-def orders_ship(order_id):
-    order = get_or_404(Order, order_id)
-    order.status = 'shipped'
-    db.session.commit()
-    _audit('order_ship', 'order', order.id)
-    flash('Zamówienie oznaczone jako wysłane.', 'success')
-    return redirect(url_for('orders_detail', order_id=order_id))
-
-
-@app.route('/orders/<int:order_id>/regenerate', methods=['POST'])
-@login_required
-@order_required
-def orders_regenerate(order_id):
-    """Usuwa istniejące raporty (bez wypełnionych odpowiedzi) i tworzy nowe na podstawie szablonu."""
-    order = get_or_404(Order, order_id)
-    if not current_user.is_admin and order.created_by_id != current_user.id:
-        abort(403)
-
-    if order.status == 'shipped':
-        flash('Nie można regenerować raportów dla wysłanego zamówienia.', 'error')
-        return redirect(url_for('orders_detail', order_id=order_id))
-
-    for report in order.reports.all():
-        if report.items.filter(ReportItem.result.isnot(None)).count() > 0:
-            flash('Nie można zregenerować — część list kontrolnych zawiera już wypełnione odpowiedzi.', 'error')
-            return redirect(url_for('orders_detail', order_id=order_id))
-
-    tpl = _find_matching_template(order.product_name, 'kontroler')
-    if not tpl:
-        flash('Nie znaleziono pasującego szablonu QA dla tej nazwy produktu.', 'error')
-        return redirect(url_for('orders_detail', order_id=order_id))
-    monter_tpl = _find_matching_template(order.product_name, 'monter')
-
-    for report in order.reports.all():
-        _delete_reports([report])
-    order.status = 'active'
-    order.template_id = None
-    order.monter_template_id = None
-    db.session.flush()
-
-    _create_order_reports(order, tpl, monter_tpl)
-    db.session.commit()
-    _audit('order_regenerate', 'order', order.id, f'template={tpl.name}')
-    flash(f'Listy Kontroli Końcowej zregenerowane na podstawie szablonu „{tpl.name}".', 'success')
-    return redirect(url_for('orders_detail', order_id=order_id))
-
-
-@app.route('/orders/<int:order_id>/pdf', methods=['POST'])
-@login_required
-@order_required
-def orders_upload_pdf(order_id):
-    order = get_or_404(Order, order_id)
-    if not current_user.is_admin and order.created_by_id != current_user.id:
-        abort(403)
-    f = request.files.get('pdf')
-    if not f or not f.filename:
-        flash('Nie wybrano pliku.', 'error')
-        return redirect(url_for('orders_detail', order_id=order_id))
-    if not allowed_pdf(f.filename):
-        flash('Dozwolony tylko plik PDF.', 'error')
-        return redirect(url_for('orders_detail', order_id=order_id))
-    import uuid as _uuid
-    ext = f.filename.rsplit('.', 1)[1].lower()
-    filename = f'order_{order.id}_{_uuid.uuid4().hex[:8]}.{ext}'
-    f.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-    if order.pdf_filename:
-        old_path = os.path.join(app.config['UPLOAD_FOLDER'], order.pdf_filename)
-        if os.path.exists(old_path):
-            os.remove(old_path)
-    order.pdf_filename = filename
-    db.session.commit()
-    _audit('order_pdf_upload', 'order', order.id, f'file={filename}')
-    flash('PDF dokumentacji technicznej został przesłany.', 'success')
-    return redirect(url_for('orders_detail', order_id=order_id))
+    return quantity
 
 
 # ── Alerty ────────────────────────────────────────────────────────────────────
@@ -3107,8 +2371,7 @@ def alerts_poll():
               .all())
     return jsonify({
         'unread': unread,
-        'items': [{'id': a.id, 'message': a.message, 'type': a.alert_type,
-                   'order_id': a.order_id} for a in latest],
+        'items': [{'id': a.id, 'message': a.message, 'type': a.alert_type} for a in latest],
     })
 
 
@@ -3341,6 +2604,7 @@ def init_db():
         _migrate_schema()
         db.create_all()
         _migrate_installer_data()
+        _drop_orders_and_monter()
         if not User.query.filter_by(username='admin').first():
             admin = User(username='admin', email='admin@psh.pl', role='admin')
             admin.set_password('admin123')
@@ -3348,13 +2612,39 @@ def init_db():
         if not ChecklistTemplate.query.first():
             _seed_demo_data()
         _seed_kosztorys()
-        _seed_zadania_qa()
         _seed_departments()
         _seed_stages()
         _seed_stage_control_points()
         _backfill_department_tokens()
         _seed_qar_categories()
         db.session.commit()
+
+
+def _drop_orders_and_monter():
+    """Usunięcie modułu Zamówienia i roli Monter (2026-10-21): konta o usuniętych rolach dostają rolę
+    operatora (tylko odczyt), kasowane są szablony i listy montażowe, kolumny i tabela zamówień."""
+    from sqlalchemy import inspect, text
+    insp = inspect(db.engine)
+    names = insp.get_table_names()
+    with db.engine.begin() as conn:
+        if 'users' in names:
+            conn.execute(text("UPDATE users SET role='operator' WHERE role IN ('monter', 'order')"))
+    if 'reports' in names and 'checklist_templates' in names:
+        monter_reports = Report.query.filter_by(report_type='monter').all()
+        if monter_reports:
+            _delete_reports(monter_reports)
+        for tpl in ChecklistTemplate.query.filter_by(template_type='monter').all():
+            db.session.delete(tpl)
+        db.session.commit()
+    with db.engine.begin() as conn:
+        for tbl, col in (('reports', 'order_id'), ('alerts', 'order_id'), ('prod_rows', 'order_id')):
+            if tbl in names and col in [c['name'] for c in insp.get_columns(tbl)]:
+                try:
+                    conn.execute(text(f'ALTER TABLE {tbl} DROP COLUMN {col}'))
+                except Exception as exc:   # starszy SQLite lub ograniczenie: kolumna zostaje, bez wpływu
+                    app.logger.info('Kolumna %s.%s zostaje (nie da się jej usunąć): %s', tbl, col, str(exc)[:80])
+        if 'orders' in names:
+            conn.execute(text('DROP TABLE orders'))
 
 
 def _migrate_installer_data():
@@ -3433,11 +2723,6 @@ def _migrate_schema():
                 conn.commit()
         if 'reports' in insp.get_table_names():
             cols = [c['name'] for c in insp.get_columns('reports')]
-            if 'order_id' not in cols:
-                conn.execute(text('ALTER TABLE reports ADD COLUMN order_id INTEGER REFERENCES orders(id)'))
-                conn.commit()
-        if 'reports' in insp.get_table_names():
-            cols = [c['name'] for c in insp.get_columns('reports')]
             for col, ddl in [
                 ('locked_by_id',     'ALTER TABLE reports ADD COLUMN locked_by_id INTEGER REFERENCES users(id)'),
                 ('locked_at',        'ALTER TABLE reports ADD COLUMN locked_at DATETIME'),
@@ -3473,15 +2758,6 @@ def _migrate_schema():
             if 'template_type' not in cols:
                 conn.execute(text("ALTER TABLE checklist_templates ADD COLUMN template_type VARCHAR(16) DEFAULT 'kontroler'"))
                 conn.commit()
-        if 'orders' in insp.get_table_names():
-            cols = [c['name'] for c in insp.get_columns('orders')]
-            for col, ddl in [
-                ('monter_template_id', 'ALTER TABLE orders ADD COLUMN monter_template_id INTEGER REFERENCES checklist_templates(id)'),
-                ('pdf_filename',       'ALTER TABLE orders ADD COLUMN pdf_filename VARCHAR(256)'),
-                ('external_number',    'ALTER TABLE orders ADD COLUMN external_number VARCHAR(64)'),
-            ]:
-                if col not in cols:
-                    conn.execute(text(ddl)); conn.commit()
         if 'reports' in insp.get_table_names():
             cols = [c['name'] for c in insp.get_columns('reports')]
             if 'report_type' not in cols:
@@ -3539,6 +2815,23 @@ def _migrate_schema():
             if tbl in insp.get_table_names() and col not in [c['name'] for c in insp.get_columns(tbl)]:
                 conn.execute(text(ddl))
                 conn.commit()
+        if 'users' in insp.get_table_names() and 'menu_order' not in [
+                c['name'] for c in insp.get_columns('users')]:
+            conn.execute(text('ALTER TABLE users ADD COLUMN menu_order TEXT'))
+            conn.commit()
+        # Lista produkcyjna: znacznik utworzenia list kontrolnych zastępuje powiązanie z zamówieniem.
+        if 'prod_rows' in insp.get_table_names():
+            prod_cols = [c['name'] for c in insp.get_columns('prod_rows')]
+            if 'checklists_at' not in prod_cols:
+                conn.execute(text('ALTER TABLE prod_rows ADD COLUMN checklists_at DATETIME'))
+                if 'order_id' in prod_cols:
+                    conn.execute(text('UPDATE prod_rows SET checklists_at = CURRENT_TIMESTAMP '
+                                      'WHERE order_id IS NOT NULL'))
+                conn.commit()
+        # Moduł Zadania QA został usunięty (2026-10-21), kasujemy jego tabelę.
+        if 'qa_tasks' in insp.get_table_names():
+            conn.execute(text('DROP TABLE qa_tasks'))
+            conn.commit()
         if 'control_records' in insp.get_table_names() and 'employee_id' not in [
                 c['name'] for c in insp.get_columns('control_records')]:
             conn.execute(text('ALTER TABLE control_records ADD COLUMN employee_id INTEGER '
@@ -3618,10 +2911,6 @@ def _api_checklist_dict(report):
         'completed_at': report.completed_at.isoformat() if report.completed_at else None,
         'duration_seconds': report.duration_seconds,
         'duration_str': report.duration_str,
-        'order': {
-            'id': report.order.id, 'number': report.order.number,
-            'product_name': report.order.product_name, 'client': report.order.client,
-        } if report.order else None,
         'template': report.template.name if report.template else None,
         'stats': report.stats,
         'score': report.score,
@@ -3647,7 +2936,6 @@ def api_v1_templates():
 def api_v1_checklists():
     status       = request.args.get('status', '')
     template_id  = request.args.get('template_id', type=int)
-    order_number = request.args.get('order_number', '').strip()
     date_from    = request.args.get('date_from', '')
     date_to      = request.args.get('date_to', '')
     page         = request.args.get('page', 1, type=int)
@@ -3657,12 +2945,6 @@ def api_v1_checklists():
         q = q.filter_by(status=status)
     if template_id:
         q = q.filter_by(template_id=template_id)
-    if order_number:
-        order = Order.query.filter(Order.number.ilike(f'%{order_number}%')).first()
-        if order:
-            q = q.filter_by(order_id=order.id)
-        else:
-            return jsonify({'items': [], 'page': 1, 'pages': 0, 'total': 0})
     if date_from:
         try:
             q = q.filter(Report.created_at >= datetime.strptime(date_from, '%Y-%m-%d'))
@@ -3679,7 +2961,6 @@ def api_v1_checklists():
         'items': [{
             'id': r.id, 'title': r.title, 'status': r.status,
             'template': r.template.name if r.template else None,
-            'order_number': r.order.number if r.order else None,
             'author': r.author.username,
             'created_at': r.created_at.isoformat(),
             'completed_at': r.completed_at.isoformat() if r.completed_at else None,
@@ -3799,14 +3080,6 @@ def api_v1_create_checklist():
     if performed_at is None:
         return jsonify({'error': 'performed_at musi być datą w formacie ISO 8601'}), 400
 
-    order_id = None
-    order_number = (data.get('order_number') or '').strip()
-    if order_number:
-        order = Order.query.filter_by(number=order_number).first()
-        if not order:
-            return jsonify({'error': f'Zamówienie {order_number!r} nie istnieje'}), 404
-        order_id = order.id
-
     user_suffix = (data.get('title') or '').strip()
     base_title  = (user_suffix
                    or f'{tmpl.name} – {performed_at.strftime("%d.%m.%Y %H:%M")}')
@@ -3833,7 +3106,7 @@ def api_v1_create_checklist():
         title = f'{base_title} – {i}/{quantity}' if quantity > 1 else base_title
         report = Report(
             user_id=operator.id, template_id=tmpl.id, title=title,
-            order_id=order_id, created_at=performed_at,
+            created_at=performed_at,
             batch_id=bid, batch_index=i if bid else None,
             batch_total=quantity if bid else None,
         )
@@ -3845,15 +3118,7 @@ def api_v1_create_checklist():
         db.session.flush()
         _fill_items(report)
         created.append(report)
-        if order_id and completed:
-            _notify_order_report_done(report)
 
-    if order_id:
-        order = db.session.get(Order, order_id)
-        if order.status == 'active':
-            order.status = 'in_control'
-        if completed:
-            _check_order_complete(order)
     db.session.commit()
     _audit('api_create_checklist', 'report', created[0].id,
            f'{base_title} x{quantity} operator={operator.username} completed={completed}')
@@ -3862,12 +3127,12 @@ def api_v1_create_checklist():
         r = created[0]
         return jsonify({
             'ok': True, 'id': r.id, 'title': r.title, 'template': tmpl.name,
-            'operator': operator.username, 'order_number': order_number or None,
+            'operator': operator.username,
             'status': r.status, 'created_at': r.created_at.isoformat(),
         }), 201
     return jsonify({
         'ok': True, 'batch_id': bid, 'quantity': quantity, 'template': tmpl.name,
-        'operator': operator.username, 'order_number': order_number or None,
+        'operator': operator.username,
         'items': [{'id': r.id, 'title': r.title, 'status': r.status} for r in created],
     }), 201
 
@@ -3894,84 +3159,6 @@ def api_v1_installers():
 def api_v1_checklist_detail(report_id):
     report = get_or_404(Report, report_id)
     return jsonify(_api_checklist_dict(report))
-
-
-def _api_order_dict(o):
-    return {
-        'id': o.id, 'number': o.number, 'external_number': o.external_number,
-        'product_name': o.product_name,
-        'client': o.client, 'quantity': o.quantity,
-        'due_date': o.due_date.isoformat() if o.due_date else None,
-        'status': o.status,
-        'template': o.template.name if o.template else None,
-        'monter_template': o.monter_template.name if o.monter_template else None,
-        'reports_total': o.reports_total, 'reports_done': o.reports_done,
-        'has_ng': o.has_ng,
-        'created_at': o.created_at.isoformat(),
-    }
-
-
-@app.route('/api/v1/orders', methods=['GET'])
-@api_key_required
-def api_v1_orders():
-    external_number = request.args.get('external_number', '').strip()
-    q = Order.query
-    if external_number:
-        q = q.filter_by(external_number=external_number)
-    else:
-        q = q.filter(Order.status != 'shipped')
-    orders = q.order_by(Order.created_at.desc()).all()
-    return jsonify([_api_order_dict(o) for o in orders])
-
-
-@app.route('/api/v1/orders/<int:order_id>', methods=['GET'])
-@api_key_required
-def api_v1_order_detail(order_id):
-    order = get_or_404(Order, order_id)
-    return jsonify(_api_order_dict(order))
-
-
-@app.route('/api/v1/orders', methods=['POST'])
-@api_key_required
-def api_v1_create_order():
-    data    = request.get_json(silent=True) or {}
-    number  = (data.get('number') or '').strip()
-    product = (data.get('product_name') or '').strip()
-    client  = (data.get('client') or '').strip()
-    if not number or not product or not client:
-        return jsonify({'error': 'number, product_name i client są wymagane'}), 400
-    if Order.query.filter_by(number=number).first():
-        return jsonify({'error': f'Zamówienie {number!r} już istnieje'}), 409
-
-    try:
-        quantity = max(1, int(data.get('quantity', 1)))
-    except (TypeError, ValueError):
-        quantity = 1
-    due = _parse_order_date((data.get('due_date') or '').strip())
-    external_number = (data.get('external_number') or '').strip() or None
-
-    admin_user = User.query.filter_by(role='admin').first()
-    if not admin_user:
-        return jsonify({'error': 'Brak użytkownika systemowego (admin)'}), 500
-
-    order = Order(number=number, product_name=product, client=client,
-                  quantity=quantity, due_date=due, external_number=external_number,
-                  created_by_id=admin_user.id)
-    db.session.add(order)
-    db.session.flush()
-
-    tpl        = _find_matching_template(product, 'kontroler')
-    monter_tpl = _find_matching_template(product, 'monter')
-    if tpl:
-        _create_order_reports(order, tpl, monter_tpl, user_id=admin_user.id)
-    db.session.commit()
-    _audit('api_order_create', 'order', order.id,
-           f'number={number} external={external_number} tpl={tpl.name if tpl else "none"}')
-    return jsonify({
-        'ok': True, 'id': order.id, 'number': order.number,
-        'template_matched': tpl.name if tpl else None,
-        'monter_template_matched': monter_tpl.name if (tpl and monter_tpl) else None,
-    }), 201
 
 
 @app.route('/api/v1/report/<int:report_id>', methods=['GET'])
@@ -4018,9 +3205,6 @@ def api_v1_complete_checklist(report_id):
     report.locked_at        = None
     report.duration_seconds = total_seconds if total_seconds > 0 else None
     db.session.flush()
-    if report.order_id:
-        _notify_order_report_done(report)
-        _check_order_complete(report.order)
     db.session.commit()
     _audit('api_checklist_complete', 'report', report.id, report.title)
     return jsonify(_api_checklist_dict(report))
@@ -4265,47 +3449,6 @@ def _seed_kosztorys():
             ))
 
 
-def _seed_zadania_qa():
-    """Inicjuje domyślną listę zadań karty kontroli jakości (na podstawie
-    papierowej karty wykonania zadań – produkcja rozdzielnic)."""
-    if QATask.query.first():
-        return
-    default_tasks = [
-        ('Kontrola przekątnej PSH/PS',
-         'Sprawdzenie wymiarów i przekątnych konstrukcji/obudowy, weryfikacja zgodności '
-         'z dokumentacją techniczną, zapis wyników oraz zgłoszenie ewentualnych odchyłek.'),
-        ('Zebranie dotyczące kontroli jakości prowadzone przez Marka',
-         'Omówienie błędów na podstawie statystyk i raportu QAR, analiza niezgodności, '
-         'wyników kontroli, reklamacji, priorytetów na zmianę oraz działań korygujących.'),
-        ('Kontrola przekątnej - hala A',
-         'Kontrola wymiarów i przekątnych obudów PSH/PS, sprawdzenie zgodności '
-         'z dokumentacją oraz zapis wyników kontroli.'),
-        ('Kontrola jakości obudów typowych',
-         'Sprawdzenie zgodności wykonania obudów standardowych z dokumentacją, kontrola '
-         'wymiarów, kompletności, estetyki wykonania, oznaczeń oraz ewentualnych uszkodzeń.'),
-        ('Kontrola obudów z aplikacją',
-         'Weryfikacja wykonania obudów zgodnie z dokumentacją, wymaganiami klienta '
-         'i zapisami w aplikacji kontrolnej.'),
-        ('Wyjaśnianie reklamacji',
-         'Analiza zgłoszeń reklamacyjnych, sprawdzanie przyczyn niezgodności, kontakt '
-         'z produkcją oraz przygotowanie informacji zwrotnej.'),
-        ('Zebrania dotyczące kontroli jakości',
-         'Omówienie bieżących problemów jakościowych, ustalenie działań korygujących '
-         'i przekazanie informacji do odpowiednich działów.'),
-        ('Przygotowywanie raportów niedoskonałości',
-         'Wpisywanie wykrytych niezgodności, dokumentowanie zdjęć/opisów, klasyfikacja '
-         'problemów oraz przekazanie raportów do dalszej analizy.'),
-        ('Aktualizacje systemowe',
-         'Wprowadzanie i aktualizacja danych w systemach jakościowych, uzupełnianie '
-         'statusów kontroli, raportów, reklamacji oraz zapisów dotyczących niezgodności.'),
-        ('Podsumowanie zmiany',
-         'Zamknięcie dokumentacji, przekazanie informacji przełożonemu lub kolejnej '
-         'zmianie oraz uporządkowanie tematów otwartych.'),
-    ]
-    for i, (title, description) in enumerate(default_tasks):
-        db.session.add(QATask(title=title, description=description, order=i))
-
-
 def _seed_departments():
     """Inicjuje domyślną listę działów produkcyjnych (Ustawienia produkcji)."""
     if ProductionDepartment.query.first():
@@ -4398,7 +3541,7 @@ def _seed_qar_categories():
 # który przy uruchomieniu `python app.py` załadowałby moduł drugi raz).
 from produkcja import register_helpers  # noqa: E402
 register_helpers(find_matching_template=_find_matching_template,
-                 create_order_reports=_create_order_reports,
+                 create_checklist_series=_create_checklist_series,
                  qr_key=_qr_key,
                  find_qr_reports=_find_qr_reports)
 

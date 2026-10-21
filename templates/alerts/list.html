@@ -19,13 +19,6 @@
       <p class="alert-item__msg">{{ a.message }}</p>
       <p class="alert-item__meta">{{ a.created_at|localdt }}</p>
     </div>
-    {% if a.order_id %}
-    <div class="alert-item__action">
-      <a href="{{ url_for('orders_detail', order_id=a.order_id) }}" class="btn btn-ghost btn-sm">
-        Otwórz zamówienie <i class="bi bi-arrow-right"></i>
-      </a>
-    </div>
-    {% endif %}
   </div>
   {% endfor %}
 </div>

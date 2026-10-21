@@ -26,6 +26,8 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(256), nullable=False)
     role = db.Column(db.String(16), nullable=False, default='kontroler')
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    # Własna kolejność pozycji menu (JSON z listą kluczy), puste: kolejność domyślna.
+    menu_order = db.Column(db.Text, nullable=True)
     reports = db.relationship('Report', backref='author', lazy='dynamic',
                              foreign_keys='[Report.user_id]')
 
@@ -40,10 +42,6 @@ class User(UserMixin, db.Model):
     @property
     def is_kontroler(self): return self.role in ('admin', 'kontroler')
     @property
-    def is_monter(self): return self.role == 'monter'
-    @property
-    def is_order_user(self): return self.role in ('admin', 'order')
-    @property
     def is_planning(self): return self.role in ('admin', 'planowanie')
     @property
     def is_production_station(self): return self.role in ('admin', 'planowanie', 'produkcja')
@@ -57,8 +55,8 @@ class User(UserMixin, db.Model):
     def can_enter_stock(self): return self.role in ('admin', 'kontroler', 'operator', 'produkcja')
     @property
     def role_label(self):
-        return {'admin': 'Administrator', 'order': 'Zamawiający',
-                'kontroler': 'Kontroler', 'monter': 'Monter',
+        return {'admin': 'Administrator',
+                'kontroler': 'Kontroler',
                 'konstruktor': 'Konstruktor',
                 'planowanie': 'Planowanie', 'produkcja': 'Stanowisko produkcji',
                 'operator': 'Operator'}.get(self.role, self.role)
@@ -70,7 +68,7 @@ class ChecklistTemplate(db.Model):
     name = db.Column(db.String(128), nullable=False)
     description = db.Column(db.Text, nullable=True)
     is_active = db.Column(db.Boolean, default=True)
-    template_type = db.Column(db.String(16), default='kontroler')  # kontroler | monter
+    template_type = db.Column(db.String(16), default='kontroler')  # tylko kontroler (typ monter usunięty)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
     categories = db.relationship('Category', backref='template', lazy='dynamic',
                                  cascade='all, delete-orphan', order_by='Category.order')
@@ -126,10 +124,9 @@ class Report(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     template_id = db.Column(db.Integer, db.ForeignKey('checklist_templates.id'), nullable=True)
-    order_id = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=True)
     title = db.Column(db.String(256), nullable=False)
     status = db.Column(db.String(32), default='in_progress')
-    report_type = db.Column(db.String(16), default='kontroler')  # kontroler | monter
+    report_type = db.Column(db.String(16), default='kontroler')  # tylko kontroler (typ monter usunięty)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
     started_at = db.Column(db.DateTime, nullable=True)
     completed_at = db.Column(db.DateTime, nullable=True)
@@ -148,6 +145,11 @@ class Report(db.Model):
                                 lazy='dynamic', cascade='all, delete-orphan')
     template  = db.relationship('ChecklistTemplate')
     locked_by = db.relationship('User', foreign_keys=[locked_by_id])
+
+    @property
+    def zo(self):
+        """Numer ZO listy: trzeci człon klucza QR (produkt|klient|ZO) albo pusty napis."""
+        return ((self.qr_key or '').split('|') + ['', '', ''])[2]
 
     @property
     def completion_percent(self):
@@ -330,66 +332,6 @@ class Photo(db.Model):
 
 # ── Zamówienia klientów ───────────────────────────────────────────────────────
 
-class Order(db.Model):
-    __tablename__ = 'orders'
-    id            = db.Column(db.Integer, primary_key=True)
-    number        = db.Column(db.String(64), unique=True, nullable=False)
-    product_name  = db.Column(db.String(256), nullable=False)
-    client        = db.Column(db.String(256), nullable=False)
-    quantity      = db.Column(db.Integer, default=1)
-    due_date      = db.Column(db.Date, nullable=True)
-    status        = db.Column(db.String(32), default='active')
-    # active / in_control / ready_to_ship / shipped
-    notes         = db.Column(db.Text, nullable=True)
-    external_number = db.Column(db.String(64), nullable=True)  # nr zamówienia w systemie ERP (np. Streamsoft)
-    template_id        = db.Column(db.Integer, db.ForeignKey('checklist_templates.id'), nullable=True)
-    monter_template_id = db.Column(db.Integer, db.ForeignKey('checklist_templates.id'), nullable=True)
-    pdf_filename       = db.Column(db.String(256), nullable=True)
-    created_by_id      = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    created_at         = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
-    created_by         = db.relationship('User', foreign_keys=[created_by_id])
-    template           = db.relationship('ChecklistTemplate', foreign_keys=[template_id])
-    monter_template    = db.relationship('ChecklistTemplate', foreign_keys=[monter_template_id])
-    reports       = db.relationship('Report', backref='order', lazy='dynamic',
-                                    foreign_keys='Report.order_id')
-
-    STATUS_LABELS = {
-        'active':        'Oczekuje',
-        'in_control':    'W kontroli',
-        'ready_to_ship': 'Gotowe do wysyłki',
-        'shipped':       'Wysłane',
-    }
-    STATUS_CSS = {
-        'active':        'status-info',
-        'in_control':    'status-warning',
-        'ready_to_ship': 'status-success',
-        'shipped':       'status-neutral',
-    }
-
-    @property
-    def status_label(self): return self.STATUS_LABELS.get(self.status, self.status)
-    @property
-    def status_css(self):   return self.STATUS_CSS.get(self.status, '')
-
-    @property
-    def reports_total(self):   return self.reports.count()
-    @property
-    def reports_done(self):    return self.reports.filter_by(status='completed').count()
-    @property
-    def progress_pct(self):
-        t = self.reports_total
-        return int(self.reports_done / t * 100) if t else 0
-
-    @property
-    def has_ng(self):
-        return (ReportItem.query
-                .join(Report)
-                .filter(Report.order_id == self.id, ReportItem.result == 'ng')
-                .count() > 0)
-
-
-# ── Kosztorys ─────────────────────────────────────────────────────────────────
-
 class CabinetType(db.Model):
     __tablename__ = 'cabinet_types'
     id          = db.Column(db.Integer, primary_key=True)
@@ -550,11 +492,9 @@ class Alert(db.Model):
     recipient_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     message      = db.Column(db.String(512), nullable=False)
     alert_type   = db.Column(db.String(32), default='info')  # info / urgent / success
-    order_id     = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=True)
     is_read      = db.Column(db.Boolean, default=False)
     created_at   = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
     recipient    = db.relationship('User', foreign_keys=[recipient_id])
-    order        = db.relationship('Order', foreign_keys=[order_id])
 
 
 class QARReport(db.Model):
@@ -607,27 +547,6 @@ class QARPhoto(db.Model):
 
     def __repr__(self):
         return f'<QARPhoto {self.filename}>'
-
-
-class QATask(db.Model):
-    """Stała lista zadań karty kontroli jakości — bez historii dziennej,
-    kontroler zaznacza wykonanie i uwagi na bieżąco."""
-    __tablename__ = 'qa_tasks'
-    id            = db.Column(db.Integer, primary_key=True)
-    order         = db.Column(db.Integer, default=0)
-    title         = db.Column(db.String(256), nullable=False)
-    description   = db.Column(db.Text, nullable=True)
-    is_done       = db.Column(db.Boolean, default=False)
-    notes         = db.Column(db.Text, nullable=True)
-    is_active     = db.Column(db.Boolean, default=True)
-    updated_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    updated_at    = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
-    created_at    = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
-
-    updated_by = db.relationship('User', foreign_keys=[updated_by_id])
-
-    def __repr__(self):
-        return f'<QATask {self.title}>'
 
 
 class QARCategory(db.Model):
@@ -1019,9 +938,9 @@ class ProdRow(db.Model):
     changed   = db.Column(db.Text, nullable=True)                  # [kol,...] zmienione w aplikacji
     zo        = db.Column(db.String(64), nullable=True, index=True)
     search    = db.Column(db.Text, nullable=True)
-    order_id  = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=True)
+    # Czas utworzenia list kontrolnych dla wiersza (znacznik powiązania z Kontrolą Końcową).
+    checklists_at = db.Column(db.DateTime, nullable=True)
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
-    order     = db.relationship('Order')
 
     __table_args__ = (db.Index('ix_prod_rows_sheet_pos', 'sheet_id', 'position'),)
 

@@ -3258,3 +3258,21 @@ body.dark .qa-drawer-item { border-bottom-color: rgba(255,255,255,.04); }
   body.sidebar-hidden .sidebar.hover-expand .sidebar-footer { justify-content: flex-start; padding: 12px 14px; }
   body.sidebar-hidden .sidebar.hover-expand .theme-toggle   { justify-content: flex-start; padding: 10px 16px; }
 }
+
+/* ── Przestawianie pozycji menu (drag and drop) ── */
+.nav-sortable { display: flex; flex-direction: column; }
+.nav-edit-btn {
+  display: flex; align-items: center; gap: 8px; width: calc(100% - 16px); margin: 6px 8px 0; padding: 6px 10px;
+  background: transparent; border: 1px dashed #475569; border-radius: 6px; color: #94a3b8;
+  font-size: 12px; cursor: pointer; font-family: inherit;
+}
+.nav-edit-btn:hover { color: #e2e8f0; border-color: #94a3b8; }
+.nav-edit-bar { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px; }
+.nav-edit-bar[hidden] { display: none; }
+.wk-nav .nav-edit-btn { width: auto; margin: 0; border-style: dashed; }
+body.nav-editing [data-nav-sortable] > [data-nav-key] {
+  cursor: grab; touch-action: none; user-select: none; outline: 1px dashed #64748b; outline-offset: -2px;
+}
+body.nav-editing [data-nav-sortable] > [data-nav-key].nav-dragging {
+  cursor: grabbing; background: rgba(59,130,246,.25) !important; outline-color: #3b82f6;
+}

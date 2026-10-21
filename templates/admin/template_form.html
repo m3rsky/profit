@@ -21,13 +21,7 @@
         <textarea class="form-control" name="description"
                   placeholder="Krótki opis przeznaczenia checklisty">{{ template.description if template else '' }}</textarea>
       </div>
-      <div class="form-group">
-        <label class="form-label" for="template-type">Typ szablonu</label>
-        <select class="form-control" id="template-type" name="template_type">
-          <option value="kontroler" {% if not template or template.template_type == 'kontroler' %}selected{% endif %}>Kontroler (lista kontrolna QA)</option>
-          <option value="monter"    {% if template and template.template_type == 'monter'    %}selected{% endif %}>Monter (lista montażowa)</option>
-        </select>
-      </div>
+      <input type="hidden" name="template_type" value="kontroler">
       {% if template %}
       <div class="form-group">
         <label class="checkbox-label">

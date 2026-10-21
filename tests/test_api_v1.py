@@ -37,57 +37,15 @@ class TestApiKeyAuth:
         assert resp.status_code == 201
 
 
-# ── Zamówienia ─────────────────────────────────────────────────────────────────
-
-class TestOrdersApi:
-    def test_list_orders(self, client):
-        resp = auth(client, 'get', '/api/v1/orders')
-        assert resp.status_code == 200
-        numbers = [o['number'] for o in resp.get_json()]
-        assert 'ZAM-API-001' in numbers
-
-    def test_order_detail(self, client):
-        resp = auth(client, 'get', '/api/v1/orders')
-        order_id = resp.get_json()[0]['id']
-        detail = auth(client, 'get', f'/api/v1/orders/{order_id}')
-        assert detail.status_code == 200
-        assert detail.get_json()['number'] == 'ZAM-API-001'
-
-    def test_create_order_missing_fields(self, client):
-        resp = auth(client, 'post', '/api/v1/orders', json={'number': 'X'})
-        assert resp.status_code == 400
-
-    def test_create_order_success_with_template_match(self, client):
-        resp = auth(client, 'post', '/api/v1/orders', json={
-            'number': 'ZAM-API-002',
-            'product_name': 'Kontrola ZO API',
-            'client': 'ABC Sp. z o.o.',
-            'quantity': 2,
-            'due_date': '2026-08-01',
-            'external_number': 'STR-5001',
-        })
-        assert resp.status_code == 201
-        data = resp.get_json()
-        assert data['ok'] is True
-        assert data['template_matched'] == 'Kontrola ZO API'
-
-        listed = auth(client, 'get', '/api/v1/orders?external_number=STR-5001').get_json()
-        assert len(listed) == 1
-        assert listed[0]['external_number'] == 'STR-5001'
-        assert listed[0]['reports_total'] == 2
-
-    def test_create_order_duplicate_number_rejected(self, client):
-        resp = auth(client, 'post', '/api/v1/orders', json={
-            'number': 'ZAM-API-001', 'product_name': 'X', 'client': 'Y',
-        })
-        assert resp.status_code == 409
-
-
-# ── Checklisty / raporty ───────────────────────────────────────────────────────
+# ── Listy kontrolne ────────────────────────────────────────────────────────────
 
 class TestChecklistsApi:
     def _report_id(self, client):
         items = auth(client, 'get', '/api/v1/checklists').get_json()['items']
+        if not items:
+            templates = auth(client, 'get', '/api/v1/templates').get_json()
+            tmpl_id = next(t['id'] for t in templates if t['name'] == 'Kontrola ZO API')
+            return auth(client, 'post', '/api/v1/checklists', json={'template_id': tmpl_id}).get_json()['id']
         return items[0]['id']
 
     def test_checklist_detail_has_new_fields(self, client):

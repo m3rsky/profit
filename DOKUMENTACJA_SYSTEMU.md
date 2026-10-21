@@ -1,3 +1,5 @@
+> **Uwaga (2026-10-21):** moduł Zamówienia, role Monter i Zamawiający oraz moduł Zadania QA zostały usunięte, a Kosztorysy ukryte w menu. Opisy tych elementów w dokumencie są nieaktualne (archiwum). Aktualny stan opisuje `CLAUDE.md`.
+
 # Dokumentacja systemu PSH QC / Profit
 
 Dokument opisuje architekturę, moduły, API oraz stan integracji z systemem ERP Streamsoft aplikacji znajdującej się w katalogu `profit/`. Uzupełnia (nie duplikuje) istniejące dokumenty:

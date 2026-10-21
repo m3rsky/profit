@@ -1,3 +1,5 @@
+> **Uwaga (2026-10-21):** moduł Zamówienia został usunięty z aplikacji, więc endpointy `/api/v1/orders` (GET i POST), pole `order` w listach kontrolnych oraz parametr `order_number` nie istnieją. Pozostałe endpointy (szablony, listy kontrolne, kosztorysy, QAR) działają. Opis zamówień poniżej jest nieaktualny i zostaje jako archiwum na wypadek powrotu integracji.
+
 # API PSH QC — integracja ze Streamsoft ERP
 
 Dokument techniczny dla integracji zewnętrznej (Streamsoft PCBiznes ↔ PSH QC). Opisuje: jak uwierzytelnić się, co API dziś obsługuje z przykładami żądań/odpowiedzi, oraz dalsze możliwości rozwoju integracji.

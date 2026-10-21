@@ -66,73 +66,63 @@
     </div>
 
     <nav class="sidebar-nav">
-      <a href="{{ url_for('dashboard') }}"
+      <div class="nav-sortable" data-nav-sortable>
+      <a href="{{ url_for('dashboard') }}" data-nav-key="dashboard" style="order:{{ menu_pos('dashboard') }}"
          class="{% if request.endpoint == 'dashboard' %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-speedometer2"></i></span>
         <span>Dashboard</span>
       </a>
-      <a href="{{ url_for('reports_list') }}"
+      <a href="{{ url_for('kontrola.list_records') }}" data-nav-key="kontrola_etapowa" style="order:{{ menu_pos('kontrola_etapowa') }}"
+         class="{% if request.endpoint and request.endpoint.startswith('kontrola.') %}active{% endif %}">
+        <span class="nav-icon"><i class="bi bi-patch-check"></i></span>
+        <span>Kontrola etapowa</span>
+      </a>
+      <a href="{{ url_for('reports_list') }}" data-nav-key="kontrola_koncowa" style="order:{{ menu_pos('kontrola_koncowa') }}"
          class="{% if request.endpoint in ('reports_list','report_detail') %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-clipboard-check"></i></span>
         <span>Kontrola Końcowa</span>
       </a>
-      <a href="{{ url_for('admin_templates') }}"
-         class="{% if request.endpoint and not request.endpoint.startswith('zadania_qa.') and not request.endpoint.startswith('ustawienia.') and ('template' in request.endpoint or 'category' in request.endpoint or 'task' in request.endpoint) %}active{% endif %}">
-        <span class="nav-icon"><i class="bi bi-layout-text-sidebar-reverse"></i></span>
-        <span>Szablony</span>
-      </a>
-      <a href="{{ url_for('orders_list') }}"
-         class="{% if request.endpoint and 'orders' in request.endpoint and request.endpoint != 'orders_import_csv' %}active{% endif %}">
-        <span class="nav-icon"><i class="bi bi-box-seam"></i></span>
-        <span>Zamówienia</span>
-      </a>
-      <a href="{{ url_for('kosztorys.list_quotes') }}"
-         class="{% if request.endpoint and request.endpoint.startswith('kosztorys.') and request.endpoint not in ('kosztorys.admin_prices','kosztorys.admin_rates','kosztorys.admin_cabinets','kosztorys.admin_catalog') %}active{% endif %}">
-        <span class="nav-icon"><i class="bi bi-calculator"></i></span>
-        <span>Kosztorysy</span>
-      </a>
-      <a href="{{ url_for('qar.list_reports') }}"
+      <a href="{{ url_for('qar.list_reports') }}" data-nav-key="qar" style="order:{{ menu_pos('qar') }}"
          class="{% if request.endpoint and request.endpoint.startswith('qar.') %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-clipboard2-pulse"></i></span>
         <span>Raporty QAR</span>
       </a>
-      <a href="{{ url_for('kontrola.list_records') }}"
-         class="{% if request.endpoint and request.endpoint.startswith('kontrola.') %}active{% endif %}">
-        <span class="nav-icon"><i class="bi bi-patch-check"></i></span>
-        <span>Kontrola zamówień</span>
-      </a>
-      <a href="{{ url_for('zadania_qa.list_tasks') }}"
-         class="{% if request.endpoint and request.endpoint.startswith('zadania_qa.') %}active{% endif %}">
-        <span class="nav-icon"><i class="bi bi-card-checklist"></i></span>
-        <span>Zadania QA</span>
-      </a>
-      <a href="{{ url_for('ustawienia.index') }}"
-         class="{% if request.endpoint and request.endpoint.startswith('ustawienia.') %}active{% endif %}">
-        <span class="nav-icon"><i class="bi bi-diagram-3"></i></span>
-        <span>Ustawienia produkcji</span>
-      </a>
-      <a href="{{ url_for('produkcja.index') }}"
-         class="{% if request.endpoint and request.endpoint.startswith('produkcja.') %}active{% endif %}">
+      <a href="{{ url_for('produkcja.index') }}" data-nav-key="lista_produkcyjna" style="order:{{ menu_pos('lista_produkcyjna') }}"
+         class="{% if request.endpoint and request.endpoint.startswith('produkcja.') and request.endpoint != 'produkcja.scan_page' %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-table"></i></span>
         <span>Lista produkcyjna</span>
       </a>
-      <a href="{{ url_for('produkcja.scan_page') }}"
+      <a href="{{ url_for('produkcja.scan_page') }}" data-nav-key="stanowisko" style="order:{{ menu_pos('stanowisko') }}"
          class="{% if request.endpoint in ('produkcja.scan_page',) %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-qr-code-scan"></i></span>
         <span>Stanowisko (skan QR)</span>
       </a>
-      <a href="{{ url_for('dokumentacja.list_entries') }}"
+      <a href="{{ url_for('ustawienia.index') }}" data-nav-key="ustawienia" style="order:{{ menu_pos('ustawienia') }}"
+         class="{% if request.endpoint and request.endpoint.startswith('ustawienia.') %}active{% endif %}">
+        <span class="nav-icon"><i class="bi bi-diagram-3"></i></span>
+        <span>Ustawienia produkcji</span>
+      </a>
+      <a href="{{ url_for('admin_templates') }}" data-nav-key="szablony" style="order:{{ menu_pos('szablony') }}"
+         class="{% if request.endpoint and not request.endpoint.startswith('ustawienia.') and ('template' in request.endpoint or 'category' in request.endpoint or 'task' in request.endpoint) %}active{% endif %}">
+        <span class="nav-icon"><i class="bi bi-layout-text-sidebar-reverse"></i></span>
+        <span>Szablony</span>
+      </a>
+      <a href="{{ url_for('dokumentacja.list_entries') }}" data-nav-key="dokumentacja" style="order:{{ menu_pos('dokumentacja') }}"
          class="{% if request.endpoint and request.endpoint.startswith('dokumentacja.') %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-folder2-open"></i></span>
         <span>Dokumentacja</span>
       </a>
+      </div>
+      <button type="button" class="nav-edit-btn" id="nav-edit-btn" data-nav-edit title="Przeciągnij pozycje menu, aby zmienić kolejność">
+        <i class="bi bi-arrows-move"></i> <span>Zmień kolejność menu</span>
+      </button>
+      <div class="nav-edit-bar" id="nav-edit-bar" hidden>
+        <button type="button" class="btn btn-primary btn-sm" data-nav-save><i class="bi bi-check2"></i> Zapisz</button>
+        <button type="button" class="btn btn-outline btn-sm" data-nav-reset>Domyślne</button>
+        <button type="button" class="btn btn-ghost btn-sm" data-nav-cancel>Anuluj</button>
+      </div>
 
       <div class="sidebar-section">Zarządzanie</div>
-      <a href="{{ url_for('orders_import_csv') }}"
-         class="{% if request.endpoint == 'orders_import_csv' %}active{% endif %}">
-        <span class="nav-icon"><i class="bi bi-filetype-csv"></i></span>
-        <span>Import CSV</span>
-      </a>
       <a href="{{ url_for('admin_users') }}"
          class="{% if request.endpoint and 'user' in request.endpoint %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-person-gear"></i></span>
@@ -149,27 +139,6 @@
         <span>Dziennik zdarzeń</span>
       </a>
 
-      <div class="sidebar-section">Kosztorysy – config</div>
-      <a href="{{ url_for('kosztorys.admin_prices') }}"
-         class="{% if request.endpoint == 'kosztorys.admin_prices' %}active{% endif %}">
-        <span class="nav-icon"><i class="bi bi-tags"></i></span>
-        <span>Ceny materiałów</span>
-      </a>
-      <a href="{{ url_for('kosztorys.admin_rates') }}"
-         class="{% if request.endpoint == 'kosztorys.admin_rates' %}active{% endif %}">
-        <span class="nav-icon"><i class="bi bi-person-workspace"></i></span>
-        <span>Stawki robocizny</span>
-      </a>
-      <a href="{{ url_for('kosztorys.admin_cabinets') }}"
-         class="{% if request.endpoint == 'kosztorys.admin_cabinets' %}active{% endif %}">
-        <span class="nav-icon"><i class="bi bi-box"></i></span>
-        <span>Typy szaf</span>
-      </a>
-      <a href="{{ url_for('kosztorys.admin_catalog') }}"
-         class="{% if request.endpoint == 'kosztorys.admin_catalog' %}active{% endif %}">
-        <span class="nav-icon"><i class="bi bi-list-ul"></i></span>
-        <span>Katalog produktów</span>
-      </a>
     </nav>
 
     <button class="theme-toggle" id="theme-toggle" type="button">
@@ -209,8 +178,8 @@
     </div>
 
     {% if current_user.is_authenticated %}
-    <nav class="wk-nav" aria-label="Nawigacja">
-      <a href="{{ url_for('dashboard') }}"
+    <nav class="wk-nav" aria-label="Nawigacja" {% if current_user.role == 'kontroler' %}data-nav-sortable{% endif %}>
+      <a href="{{ url_for('dashboard') }}" data-nav-key="dashboard" {% if menu_pos('dashboard') %}style="order:{{ menu_pos('dashboard') }}"{% endif %}
          class="wk-nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}"
          title="Menu główne">
         <i class="bi bi-grid-fill"></i>
@@ -218,89 +187,49 @@
       </a>
 
       {% if current_user.role == 'kontroler' %}
-        <a href="{{ url_for('new_checklist') }}"
-           class="wk-nav-link {% if request.endpoint == 'new_checklist' %}active{% endif %}"
-           title="Nowa kontrola">
-          <i class="bi bi-plus-circle-fill"></i>
-          <span class="wk-nav-label">Nowa kontrola</span>
+        <a href="{{ url_for('kontrola.list_records') }}" data-nav-key="kontrola_etapowa" style="order:{{ menu_pos('kontrola_etapowa') }}"
+           class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('kontrola.') %}active{% endif %}"
+           title="Kontrola etapowa">
+          <i class="bi bi-patch-check"></i>
+          <span class="wk-nav-label">Kontrola etapowa</span>
         </a>
-        <a href="{{ url_for('reports_list') }}"
+        <a href="{{ url_for('reports_list') }}" data-nav-key="kontrola_koncowa" style="order:{{ menu_pos('kontrola_koncowa') }}"
            class="wk-nav-link {% if request.endpoint in ('reports_list','report_detail') %}active{% endif %}"
            title="Kontrola Końcowa">
           <i class="bi bi-clipboard-check-fill"></i>
           <span class="wk-nav-label">Kontrola Końcowa</span>
         </a>
+        <a href="{{ url_for('new_checklist') }}" data-nav-key="nowa_kontrola" style="order:{{ menu_pos('nowa_kontrola') }}"
+           class="wk-nav-link {% if request.endpoint == 'new_checklist' %}active{% endif %}"
+           title="Nowa kontrola">
+          <i class="bi bi-plus-circle-fill"></i>
+          <span class="wk-nav-label">Nowa kontrola</span>
+        </a>
         {% if pending_qa_count > 0 %}
-        <button type="button" class="wk-nav-link wk-qa-btn" id="wk-qa-btn"
+        <button type="button" class="wk-nav-link wk-qa-btn" id="wk-qa-btn" data-nav-key="zlecenia_qa" style="order:{{ menu_pos('zlecenia_qa') }}"
                 aria-expanded="false" title="Zlecenia QA do wykonania ({{ pending_qa_count }})">
           <i class="bi bi-clipboard-data-fill"></i>
           <span class="wk-nav-label">Zlecenia QA</span>
           <span class="wk-qa-badge">{{ pending_qa_count }}</span>
         </button>
         {% endif %}
-        <a href="{{ url_for('qar.list_reports') }}"
+        <a href="{{ url_for('qar.list_reports') }}" data-nav-key="qar" style="order:{{ menu_pos('qar') }}"
            class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('qar.') %}active{% endif %}"
            title="Raporty QAR">
           <i class="bi bi-clipboard2-pulse"></i>
           <span class="wk-nav-label">QAR</span>
         </a>
-        <a href="{{ url_for('kontrola.list_records') }}"
-           class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('kontrola.') %}active{% endif %}"
-           title="Kontrola zamówień">
-          <i class="bi bi-patch-check"></i>
-          <span class="wk-nav-label">Kontrola zamówień</span>
-        </a>
-        <a href="{{ url_for('zadania_qa.list_tasks') }}"
-           class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('zadania_qa.') %}active{% endif %}"
-           title="Zadania QA">
-          <i class="bi bi-card-checklist"></i>
-          <span class="wk-nav-label">Zadania QA</span>
-        </a>
-        <a href="{{ url_for('ustawienia.index') }}"
+        <a href="{{ url_for('ustawienia.index') }}" data-nav-key="ustawienia" style="order:{{ menu_pos('ustawienia') }}"
            class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('ustawienia.') %}active{% endif %}"
            title="Ustawienia produkcji">
           <i class="bi bi-diagram-3"></i>
           <span class="wk-nav-label">Ustawienia</span>
         </a>
-        <a href="{{ url_for('admin_templates') }}"
-           class="wk-nav-link {% if request.endpoint and not request.endpoint.startswith('zadania_qa.') and not request.endpoint.startswith('ustawienia.') and ('template' in request.endpoint or 'category' in request.endpoint or 'task' in request.endpoint) %}active{% endif %}"
+        <a href="{{ url_for('admin_templates') }}" data-nav-key="szablony" style="order:{{ menu_pos('szablony') }}"
+           class="wk-nav-link {% if request.endpoint and not request.endpoint.startswith('ustawienia.') and ('template' in request.endpoint or 'category' in request.endpoint or 'task' in request.endpoint) %}active{% endif %}"
            title="Szablony">
           <i class="bi bi-layout-text-sidebar-reverse"></i>
           <span class="wk-nav-label">Szablony</span>
-        </a>
-
-      {% elif current_user.role == 'order' %}
-        <a href="{{ url_for('orders_list') }}"
-           class="wk-nav-link {% if request.endpoint and 'orders' in request.endpoint and request.endpoint not in ('orders_new','orders_import_csv') %}active{% endif %}"
-           title="Zamówienia">
-          <i class="bi bi-box-seam-fill"></i>
-          <span class="wk-nav-label">Zamówienia</span>
-        </a>
-        <a href="{{ url_for('orders_new') }}"
-           class="wk-nav-link {% if request.endpoint == 'orders_new' %}active{% endif %}"
-           title="Nowe zamówienie">
-          <i class="bi bi-plus-circle-fill"></i>
-          <span class="wk-nav-label">Nowe</span>
-        </a>
-        <a href="{{ url_for('orders_import_csv') }}"
-           class="wk-nav-link {% if request.endpoint == 'orders_import_csv' %}active{% endif %}"
-           title="Import CSV">
-          <i class="bi bi-filetype-csv"></i>
-          <span class="wk-nav-label">Import</span>
-        </a>
-        <a href="{{ url_for('kosztorys.list_quotes') }}"
-           class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('kosztorys.') %}active{% endif %}"
-           title="Kosztorysy">
-          <i class="bi bi-calculator-fill"></i>
-          <span class="wk-nav-label">Kosztorysy</span>
-        </a>
-
-      {% elif current_user.role == 'monter' %}
-        <a href="{{ url_for('monter_pool') }}"
-           class="wk-nav-link {% if request.endpoint and 'monter' in request.endpoint %}active{% endif %}"
-           title="Listy montażowe">
-          <i class="bi bi-tools"></i>
-          <span class="wk-nav-label">Pula montaży</span>
         </a>
 
       {% elif current_user.role == 'planowanie' %}
@@ -334,7 +263,7 @@
       {% elif current_user.role == 'operator' %}
         <a href="{{ url_for('kontrola.list_records') }}"
            class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('kontrola.') %}active{% endif %}"
-           title="Kontrola zamówień">
+           title="Kontrola etapowa">
           <i class="bi bi-patch-check"></i>
           <span class="wk-nav-label">Zamówienia po kontroli</span>
         </a>
@@ -354,6 +283,17 @@
         <i class="bi bi-folder2-open"></i>
         <span class="wk-nav-label">Dokumentacja</span>
       </a>
+      {% if current_user.role == 'kontroler' %}
+      <button type="button" class="wk-nav-link nav-edit-btn" data-nav-edit style="order:999" title="Zmień kolejność menu">
+        <i class="bi bi-arrows-move"></i>
+        <span class="wk-nav-label">Kolejność</span>
+      </button>
+      <span class="nav-edit-bar" id="nav-edit-bar" hidden style="order:1000">
+        <button type="button" class="btn btn-primary btn-sm" data-nav-save>Zapisz</button>
+        <button type="button" class="btn btn-outline btn-sm" data-nav-reset>Domyślne</button>
+        <button type="button" class="btn btn-ghost btn-sm" data-nav-cancel>Anuluj</button>
+      </span>
+      {% endif %}
     </nav>
     {% endif %}
 
@@ -387,11 +327,10 @@
     {% for r in pending_qa_reports %}
     <div class="qa-drawer-item">
       <div class="qa-drawer-info">
-        <div class="qa-drawer-name">{{ r.order.product_name if r.order else r.title }}</div>
+        <div class="qa-drawer-name">{{ r.title }}</div>
         <div class="qa-drawer-sub">
-          {{ r.order.number if r.order else (r.author.username if r.author else '—') -}}
+          {{ r.zo or (r.author.username if r.author else '—') -}}
           {%- if r.batch_total and r.batch_total > 1 %} · seria {{ r.batch_total }} szt.{% endif -%}
-          {%- if r.order and r.order.due_date %} · termin {{ r.order.due_date.strftime('%d.%m') }}{% endif %}
         </div>
       </div>
       <a href="{{ url_for('checklist_view', report_id=r.id) }}"
@@ -443,6 +382,7 @@
 </div>
 
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+<script src="{{ url_for('static', filename='js/nav-sort.js') }}"></script>
 {% if current_user.is_authenticated and current_user.is_admin %}
 <script src="https://cdn.jsdelivr.net/npm/gridstack@10/dist/gridstack-all.js"></script>
 {% endif %}
@@ -708,9 +648,7 @@
     var toast = document.getElementById('alert-toast');
     if (!toast) return;
     var msg = items.length === 1 ? items[0].message : 'Masz ' + items.length + ' nowych alertów';
-    var href = (items.length === 1 && items[0].order_id)
-      ? '/orders/' + items[0].order_id
-      : '{{ url_for("alerts_list") }}';
+    var href = '{{ url_for("alerts_list") }}';
     toast.innerHTML = '<a href="' + href + '" class="alert-toast__link">' + msg + '</a>';
     toast.hidden = false;
     clearTimeout(toast._t);

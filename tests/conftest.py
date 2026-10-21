@@ -11,7 +11,7 @@ import pytest
 from sqlalchemy.pool import StaticPool
 from app import app as flask_app, db as _db
 from models import (User, ChecklistTemplate, Category, Task,
-                    Order, CabinetType, MaterialPrice, LaborRate, Quote, QuoteConfig,
+                    CabinetType, MaterialPrice, LaborRate, Quote, QuoteConfig,
                     QARReport, Installer)
 
 API_KEY = 'test-api-key-12345'
@@ -70,10 +70,6 @@ def _seed():
     _db.session.flush()
 
     _db.session.add(Installer(name='Jan Kowalski', is_active=True))
-
-    order = Order(number='ZAM-API-001', product_name='Produkt testowy',
-                  client='Klient testowy', quantity=1, created_by_id=admin.id)
-    _db.session.add(order)
 
     cab = CabinetType(code='PSH_IP65', name='Szafa PSH IP65')
     _db.session.add(cab)

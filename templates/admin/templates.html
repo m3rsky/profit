@@ -29,19 +29,6 @@
   </a>
 </div>
 
-<div class="filter-tabs">
-  <a href="{{ url_for('admin_templates') }}"
-     class="filter-tab {% if not type_filter %}active{% endif %}">Wszystkie</a>
-  <a href="{{ url_for('admin_templates', type='kontroler') }}"
-     class="filter-tab {% if type_filter == 'kontroler' %}active{% endif %}">
-    <span class="badge badge-info">Kontroler</span>
-  </a>
-  <a href="{{ url_for('admin_templates', type='monter') }}"
-     class="filter-tab {% if type_filter == 'monter' %}active{% endif %}">
-    <span class="badge badge-neutral">Monter</span>
-  </a>
-</div>
-
 {% if templates %}
 {% if current_user.is_admin %}
 <form method="post" action="{{ url_for('admin_templates_bulk_delete') }}" id="bulk-form">
@@ -76,11 +63,7 @@
       </label>
       {% endif %}
       <span class="template-card-name">{{ t.name }}</span>
-      {% if t.template_type == 'monter' %}
-        <span class="badge badge-neutral">Monter</span>
-      {% else %}
-        <span class="badge badge-info">Kontroler</span>
-      {% endif %}
+      <span class="badge badge-info">Kontroler</span>
       {% if t.is_active %}
         <span class="badge badge-success">Aktywny</span>
       {% else %}

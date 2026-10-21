@@ -30,9 +30,6 @@
     {% if current_user.is_admin %}
     <a href="{{ url_for('report_edit', report_id=report.id) }}" class="btn btn-ghost">Edytuj raport</a>
     {% endif %}
-    {% if report.order and report.order.pdf_filename %}
-    <a href="{{ url_for('uploaded_pdf', filename=report.order.pdf_filename) }}" target="_blank" class="btn btn-ghost btn-sm"><i class="bi bi-file-earmark-pdf"></i> Dokumentacja</a>
-    {% endif %}
     <a href="{{ url_for('export_pdf', report_id=report.id) }}" class="btn btn-outline"><i class="bi bi-file-earmark-arrow-down"></i> PDF</a>
   </div>
 </div>

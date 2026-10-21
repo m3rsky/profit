@@ -7,7 +7,7 @@ import pytest
 from openpyxl import Workbook, load_workbook
 
 from app import app as flask_app, db
-from models import (User, Order, Report, ReportItem, Alert, ProdFile, ProdSheet, ProdRow,
+from models import (User, Report, ReportItem, Alert, ProdFile, ProdSheet, ProdRow,
                     ProdSheetAccess, ProdEmployee, ProdEmployeeDept, ProdStageColumn,
                     ProdEntry, ProdSetting)
 from test_app import login, logout, _csrf
@@ -40,12 +40,9 @@ def prod_folder(app, tmp_path):
     app.config['PRODUKCJA_FOLDER'] = str(tmp_path / 'produkcja')
     yield
     with app.app_context():
-        for order in Order.query.filter(Order.number.like('ZO-T%')).all():
-            for rep in Report.query.filter_by(order_id=order.id).all():
-                ReportItem.query.filter_by(report_id=rep.id).delete()
-                db.session.delete(rep)
-            Alert.query.filter_by(order_id=order.id).delete()
-            db.session.delete(order)
+        for rep in Report.query.filter(Report.qr_key.like('%|ZO-T%')).all():
+            ReportItem.query.filter_by(report_id=rep.id).delete()
+            db.session.delete(rep)
         ProdEntry.query.delete()
         ProdEmployeeDept.query.delete()
         ProdEmployee.query.delete()
@@ -218,8 +215,8 @@ def test_create_checklists_and_pairing(app, client):
     assert 'utworzono 2 list kontrolnych' in resp.get_data(as_text=True)
     with app.app_context():
         row = db.session.get(ProdRow, rid)
-        assert row.order_id
-        reports = Report.query.filter_by(order_id=row.order_id, report_type='kontroler').all()
+        assert row.checklists_at is not None
+        reports = Report.query.filter_by(qr_key=f'{PRODUCT.upper()}|ELEKTRO TEST|ZO-T1', report_type='kontroler').all()
         assert len(reports) == 2
         assert all(r.qr_key == f'{PRODUCT.upper()}|ELEKTRO TEST|ZO-T1' for r in reports)
     # parowanie widoczne w arkuszu (0/2 zakończonych)
@@ -229,10 +226,10 @@ def test_create_checklists_and_pairing(app, client):
                        data={'row_ids': [rid], '_csrf_token': token}, follow_redirects=True)
     assert 'już istnieją' in resp.get_data(as_text=True)
     with app.app_context():
-        assert Report.query.filter_by(order_id=db.session.get(ProdRow, rid).order_id).count() == 2
+        assert Report.query.filter_by(qr_key=f'{PRODUCT.upper()}|ELEKTRO TEST|ZO-T1').count() == 2
 
 
-def test_checklists_without_template_do_not_create_order(app, client):
+def test_checklists_without_template_do_not_create_lists(app, client):
     _admin(client)
     _import(client)
     sid = _sheet_id(app, 'PSH')
@@ -242,8 +239,8 @@ def test_checklists_without_template_do_not_create_order(app, client):
                        data={'row_ids': [rid], '_csrf_token': token}, follow_redirects=True)
     assert 'brak pasującego szablonu' in resp.get_data(as_text=True)
     with app.app_context():
-        assert db.session.get(ProdRow, rid).order_id is None
-        assert Order.query.filter_by(number='ZO-T2').first() is None
+        assert db.session.get(ProdRow, rid).checklists_at is None
+        assert Report.query.filter(Report.qr_key.like('%|ZO-T2')).count() == 0
 
 
 def test_forms_use_the_csrf_field_name_the_app_expects(app, client, planner):

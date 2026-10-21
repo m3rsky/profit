@@ -10,7 +10,7 @@ from flask import (render_template, redirect, url_for, request, flash,
 from flask_login import login_required, current_user
 from sqlalchemy import func
 
-from models import (db, get_or_404, AuditLog, User, Order, Report,
+from models import (db, get_or_404, AuditLog, User, Report,
                     ProdFile, ProdSheet, ProdRow, ProdSheetAccess, ProdStageColumn, ProdEntry)
 from . import produkcja_bp, helper
 from . import excel_io, sheetcfg
@@ -117,42 +117,29 @@ def _store_row_fields(row, data, mapping):
 
 
 def _pairing(rows):
-    """Powiązane listy kontrolne (Kontrola Końcowa) dla wierszy strony: po zamówieniu
-    (order_id) oraz po kluczu QR (produkt|klient|ZO) listy utworzonej ze skanu."""
+    """Powiązane listy kontrolne (Kontrola Końcowa) dla wierszy strony: po kluczu QR
+    (produkt|klient|ZO), który mają listy utworzone ze skanu albo z tej listy produkcyjnej."""
     qr_key = helper('qr_key')
-    keys, order_ids = {}, set()
+    keys = {}
     for r in rows:
-        if r.order_id:
-            order_ids.add(r.order_id)
         sheet = r.sheet
         f = excel_io.row_fields(json.loads(r.data or '[]'), sheet.mapping)
         k = qr_key(f.get('product') or '', f.get('client') or '', f.get('zo') or '')
         if k:
             keys[r.id] = k
-    by_order, by_key = {}, {}
-    if order_ids or keys:
-        q = Report.query.filter(Report.report_type == 'kontroler')
-        conds = []
-        if order_ids:
-            conds.append(Report.order_id.in_(order_ids))
-        if keys:
-            conds.append(Report.qr_key.in_(set(keys.values())))
-        from sqlalchemy import or_
-        for rep in q.filter(or_(*conds)).all():
+    by_key = {}
+    if keys:
+        for rep in (Report.query.filter(Report.report_type == 'kontroler',
+                                        Report.qr_key.in_(set(keys.values()))).all()):
             st = rep.stats
-            for bucket, kk in ((by_order, rep.order_id), (by_key, rep.qr_key)):
-                if kk is None:
-                    continue
-                b = bucket.setdefault(kk, {'total': 0, 'done': 0, 'ng': 0, 'ids': []})
-                b['total'] += 1
-                b['done'] += 1 if rep.status == 'completed' else 0
-                b['ng'] += 1 if st['ng'] else 0
-                b['ids'].append(rep.id)
+            b = by_key.setdefault(rep.qr_key, {'total': 0, 'done': 0, 'ng': 0, 'ids': []})
+            b['total'] += 1
+            b['done'] += 1 if rep.status == 'completed' else 0
+            b['ng'] += 1 if st['ng'] else 0
+            b['ids'].append(rep.id)
     result = {}
     for r in rows:
-        info = by_order.get(r.order_id) if r.order_id else None
-        if not info and keys.get(r.id):
-            info = by_key.get(keys[r.id])
+        info = by_key.get(keys[r.id]) if keys.get(r.id) else None
         if info:
             result[r.id] = info
     return result
@@ -172,7 +159,7 @@ def index():
     counts = dict(db.session.query(ProdRow.sheet_id, func.count(ProdRow.id))
                   .group_by(ProdRow.sheet_id).all())
     linked = dict(db.session.query(ProdRow.sheet_id, func.count(ProdRow.id))
-                  .filter(ProdRow.order_id.isnot(None)).group_by(ProdRow.sheet_id).all())
+                  .filter(ProdRow.checklists_at.isnot(None)).group_by(ProdRow.sheet_id).all())
     has_data = ProdSheet.query.first() is not None
     has_xlsx = _current_source() is not None
     return render_template('produkcja/index.html', sheets=sheets, counts=counts,
@@ -192,9 +179,9 @@ def sheet_view(sheet_id):
         esc = q.replace('!', '!!').replace('%', '!%').replace('_', '!_')
         query = query.filter(ProdRow.search.like(f'%{esc}%', escape='!'))
     if state == 'linked':
-        query = query.filter(ProdRow.order_id.isnot(None))
+        query = query.filter(ProdRow.checklists_at.isnot(None))
     elif state == 'unlinked':
-        query = query.filter(ProdRow.order_id.is_(None))
+        query = query.filter(ProdRow.checklists_at.is_(None))
     pag = query.order_by(ProdRow.position).paginate(page=page, per_page=PER_PAGE, error_out=False)
     ncols = len(sheet.columns)
     rows = [{'row': r, 'cells': [_display(v) for v in _data(r, ncols)]} for r in pag.items]
@@ -315,7 +302,7 @@ def rows_delete(sheet_id):
 # ── Listy kontrolne z zamówień ────────────────────────────────────────────────
 
 def _create_checklists_for_row(row):
-    """Tworzy zamówienie i listy kontrolne (Kontrola Końcowa) z wiersza listy produkcyjnej.
+    """Tworzy listy kontrolne (Kontrola Końcowa) z wiersza listy produkcyjnej.
     Zwraca (ok, komunikat)."""
     sheet = row.sheet
     f = excel_io.row_fields(_data(row, len(sheet.columns)), sheet.mapping)
@@ -332,33 +319,17 @@ def _create_checklists_for_row(row):
     qr_key = helper('qr_key')
     key = qr_key(product, client, zo)
     existing = helper('find_qr_reports')(product, client, zo) if key else []
-    if row.order_id:
-        existing = existing or Report.query.filter_by(order_id=row.order_id).all()
     if existing:
         return False, f'{product}: listy kontrolne już istnieją ({len(existing)}).'
 
     tpl = helper('find_matching_template')(product, 'kontroler')
     if not tpl:
         return False, f'{product}: brak pasującego szablonu QA.'
-    monter_tpl = helper('find_matching_template')(product, 'monter')
 
-    number = zo or f'PROD-{sheet.id}-{row.id}'
-    order = Order.query.filter_by(number=number).first()
-    if order and (order.product_name != product or order.client != (client or '-')):
-        number = f'{number}-{row.id}'
-        order = None
-    if not order:
-        order = Order(number=number, product_name=product, client=client or '-', quantity=qty,
-                      due_date=due, notes=f'Z listy produkcyjnej: {sheet.name}, wiersz {row.position}',
-                      created_by_id=current_user.id)
-        db.session.add(order)
-        db.session.flush()
-    helper('create_order_reports')(order, tpl, monter_tpl, user_id=current_user.id)
-    if key:
-        for rep in Report.query.filter_by(order_id=order.id, report_type='kontroler').all():
-            rep.qr_key = key
-    row.order_id = order.id
-    return True, f'{product}: utworzono {order.quantity} list kontrolnych (szablon: {tpl.name}).'
+    created = helper('create_checklist_series')(product, client, zo, qty, tpl,
+                                                current_user.id, due=due)
+    row.checklists_at = datetime.now(UTC)
+    return True, f'{product}: utworzono {created} list kontrolnych (szablon: {tpl.name}).'
 
 
 @produkcja_bp.route('/sheet/<int:sheet_id>/checklists', methods=['POST'])
@@ -446,7 +417,7 @@ def _backup_sheets(old_sheets, note):
 def _install_sheets(sheets, rec, replace_all):
     """Zapisuje wczytane arkusze. `replace_all` (plik .xlsx) zastępuje wszystkie arkusze,
     inaczej (CSV) tylko te o tych samych nazwach. Zachowuje dostęp do arkuszy, powiązania
-    z zamówieniami oraz ustawienia kolumn i etapów. Zwraca liczbę wczytanych wierszy."""
+    z listami kontrolnymi oraz ustawienia kolumn i etapów. Zwraca liczbę wczytanych wierszy."""
     names = {sd['name'] for sd in sheets}
     old_sheets = (ProdSheet.query.all() if replace_all
                   else ProdSheet.query.filter(ProdSheet.name.in_(names)).all())
@@ -457,9 +428,9 @@ def _install_sheets(sheets, rec, replace_all):
     if old_ids:
         for acc in ProdSheetAccess.query.filter(ProdSheetAccess.sheet_id.in_(old_ids)).all():
             access_by_name.setdefault(name_by_id[acc.sheet_id], []).append(acc.user_id)
-        for r in ProdRow.query.filter(ProdRow.sheet_id.in_(old_ids), ProdRow.order_id.isnot(None),
+        for r in ProdRow.query.filter(ProdRow.sheet_id.in_(old_ids), ProdRow.checklists_at.isnot(None),
                                       ProdRow.zo.isnot(None)).all():
-            links[(r.sheet.name, r.zo, r.search)] = r.order_id
+            links[(r.sheet.name, r.zo, r.search)] = r.checklists_at
         for st in ProdStageColumn.query.filter(ProdStageColumn.sheet_id.in_(old_ids)).all():
             sh_old = db.session.get(ProdSheet, st.sheet_id)
             cols = sh_old.columns
@@ -505,7 +476,7 @@ def _install_sheets(sheets, rec, replace_all):
                 'data': json.dumps(r['data'], ensure_ascii=False),
                 'formulas': json.dumps(r['formulas']) if r['formulas'] else None,
                 'zo': zo, 'search': search,
-                'order_id': links.get((sd['name'], zo, search)) if zo else None,
+                'checklists_at': links.get((sd['name'], zo, search)) if zo else None,
                 'updated_at': datetime.now(UTC),
             })
         db.session.bulk_insert_mappings(ProdRow, batch)

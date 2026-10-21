@@ -123,22 +123,6 @@
           <small class="form-hint">Podaj 1 dla pojedynczej kontroli lub więcej — system utworzy serię i będzie otwierał kolejne listy automatycznie.</small>
         </div>
 
-        {% if active_orders %}
-        <div class="form-group" id="order-group">
-          <label class="form-label" for="order_id">Zamówienie <span class="form-hint-inline">(opcjonalne)</span></label>
-          <select class="form-control" id="order_id" name="order_id">
-            <option value="">— brak powiązania —</option>
-            {% for o in active_orders %}
-            <option value="{{ o.id }}">{{ o.number }} – {{ o.product_name }} ({{ o.client }})</option>
-            {% endfor %}
-          </select>
-          <small class="form-hint">Wybierz zamówienie, do którego należy ta kontrola.</small>
-        </div>
-        <div id="batch-order-note" class="form-hint batch-mode-note" hidden>
-          <i class="bi bi-info-circle"></i> Tryb seryjny — kontrole nie są powiązane z zamówieniem.
-        </div>
-        {% endif %}
-
         <div class="form-group">
           <label class="form-label" for="title">Opis / oznaczenie <span class="form-hint-inline">(opcjonalne)</span></label>
           <div class="title-input-group">
@@ -279,15 +263,11 @@
   if (suffix) suffix.addEventListener('input', updateTitle);
 
   var qtyInput   = document.getElementById('quantity');
-  var orderGroup = document.getElementById('order-group');
-  var batchNote  = document.getElementById('batch-order-note');
   var btnStart   = document.getElementById('btn-start');
   function onQtyChange() {
     if (!qtyInput) return;
     var qty = parseInt(qtyInput.value, 10) || 1;
     var batch = qty > 1;
-    if (orderGroup) orderGroup.hidden = batch;
-    if (batchNote)  batchNote.hidden  = !batch;
     if (btnStart) {
       btnStart.innerHTML = batch
         ? 'Rozpocznij serię ' + qty + ' kontroli <i class="bi bi-arrow-right"></i>'

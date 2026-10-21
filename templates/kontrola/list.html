@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Kontrola zamówień{% endblock %}
+{% block title %}Kontrola etapowa{% endblock %}
 
 {% block head %}
 <style>
@@ -17,7 +17,7 @@
 {% block content %}
 <div class="page-header">
   <div>
-    <h1 class="page-title">Kontrola zamówień</h1>
+    <h1 class="page-title">Kontrola etapowa</h1>
     <span class="text-muted" style="font-size:0.82rem;">
       {% if is_op %}Zamówienia po kontroli jakości, gotowe do dalszej obróbki{% else %}Lista zleceń z kontrolami po działach{% endif %}
     </span>

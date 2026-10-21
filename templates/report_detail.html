@@ -11,9 +11,6 @@
     <p class="page-subtitle">
       {{ report.created_at | localdt }} · {{ report.author.username }}
       {% if report.completed_at %} · Zamknięto: {{ report.completed_at | localdt }}{% endif %}
-      {% if report.order %}
-       · Zamówienie: <a href="{{ url_for('orders_detail', order_id=report.order.id) }}">{{ report.order.number }}</a>
-      {% endif %}
     </p>
   </div>
   <div class="page-header-actions">
