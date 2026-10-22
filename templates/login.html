@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#0f172a">
+  <meta name="theme-color" content="#eef4fc">
   <title>Logowanie – RP-Sys</title>
   <link rel="manifest" href="/manifest.json">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
@@ -17,16 +17,10 @@
     <div class="login-panel">
 
       <div class="login-brand">
-        <div class="login-logo-mark">RP</div>
-        <div class="login-brand-text">
-          <div class="login-brand-name">System RP</div>
-          <div class="login-brand-sub">RP-Sys — Raportowanie Produkcji</div>
-        </div>
+        <div class="login-logo-mark"><img src="{{ url_for('static', filename='logo-mark.png') }}" alt="Kubiak"></div>
       </div>
 
       <div class="login-box">
-        <div class="login-box-accent"></div>
-
         <h2 class="login-heading">Zaloguj się</h2>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -55,11 +49,6 @@
             <i class="bi bi-box-arrow-in-right"></i> Zaloguj się
           </button>
         </form>
-      </div>
-
-      <div class="login-footer">
-        <img src="{{ url_for('static', filename='k_logo.jpg') }}" alt="Kubiak" class="login-footer-logo">
-        <span class="login-footer-name">Firma Kubiak</span>
       </div>
 
     </div>

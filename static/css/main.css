@@ -2174,18 +2174,34 @@ body.dark .import-row--error     { background: rgba(239,68,68,.06); }
    LOGIN PAGE
    ══════════════════════════════════════════════════════ */
 
-/* ── Login page ── */
-body.login-page { background: #0f172a; }
+/* ── Login page (jasny wygląd jak panel po zalogowaniu) ── */
+body.login-page { background: #eef4fc; }
 
 .login-wrapper {
   min-height: 100vh; display: flex;
   align-items: center; justify-content: center;
   padding: 24px;
-  background: #0f172a;
+  background: #eef4fc;
   background-image:
-    radial-gradient(ellipse at 70% 20%, rgba(29,78,216,.18) 0%, transparent 60%),
-    radial-gradient(ellipse at 20% 80%, rgba(15,23,42,.8) 0%, transparent 50%);
+    radial-gradient(ellipse at 75% 15%, rgba(21,101,192,.10) 0%, transparent 60%),
+    radial-gradient(ellipse at 15% 85%, rgba(21,101,192,.06) 0%, transparent 55%);
+  position: relative; overflow: hidden;
 }
+/* Kolorowe plamy za kartą, żeby efekt szkła miał co rozmywać */
+.login-wrapper::before, .login-wrapper::after {
+  content: ""; position: absolute; border-radius: 50%; pointer-events: none;
+}
+.login-wrapper::before {
+  width: 420px; height: 420px; top: -120px; right: 8%;
+  background: radial-gradient(circle at 30% 30%, #5aa2f0, #1565C0 70%);
+  opacity: .45;
+}
+.login-wrapper::after {
+  width: 360px; height: 360px; bottom: -110px; left: 6%;
+  background: radial-gradient(circle at 60% 40%, #8cc4ff, #1976D2 75%);
+  opacity: .35;
+}
+.login-panel { position: relative; z-index: 1; }
 
 .login-panel {
   width: 100%; max-width: 400px;
@@ -2194,69 +2210,60 @@ body.login-page { background: #0f172a; }
 
 /* Branding nad formularzem */
 .login-brand {
-  display: flex; align-items: center; gap: 14px;
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  text-align: center;
 }
 .login-logo-mark {
-  width: 48px; height: 48px;
-  background: #1d4ed8;
-  border-radius: 12px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 18px; font-weight: 900; color: #fff;
-  letter-spacing: -1px; flex-shrink: 0;
+  width: 256px; max-width: 100%; height: 256px; padding: 10px;
+  background: none;
+  border: none;
+  box-shadow: none;
+  flex-shrink: 0;
 }
-.login-brand-name {
-  font-size: 1rem; font-weight: 800; color: #f1f5f9; line-height: 1.2;
-}
-.login-brand-sub {
-  font-size: 0.72rem; color: #475569; margin-top: 2px;
-}
+.login-logo-mark img { display: block; width: 100%; height: 100%; object-fit: contain; }
 
 /* Karta formularza */
 .login-box {
-  background: #1e293b;
-  border: 1px solid #334155;
+  background: rgba(255,255,255,.55);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+          backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid rgba(255,255,255,.75);
   border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(21,101,192,.18), inset 0 1px 0 rgba(255,255,255,.8);
   padding: 30px 26px;
   position: relative;
   overflow: hidden;
 }
-.login-box-accent {
-  position: absolute; top: 0; left: 0; right: 0;
-  height: 3px; background: linear-gradient(90deg, #1d4ed8 0%, #3b82f6 60%, #1d4ed8 100%);
-}
 .login-heading {
-  font-size: 1rem; font-weight: 700; color: #e2e8f0;
+  font-size: 1rem; font-weight: 700; color: #0f172a;
   margin: 0 0 20px; padding: 0;
 }
 .login-form { display: flex; flex-direction: column; gap: 14px; }
 .login-submit { margin-top: 6px; }
 
 .login-box .form-label {
-  color: #94a3b8; font-size: 0.8rem; margin-bottom: 5px;
+  color: #475569; font-size: 0.8rem; margin-bottom: 5px;
   display: flex; align-items: center; gap: 5px;
 }
-.login-box .form-label .bi { opacity: .6; }
+.login-box .form-label .bi { opacity: .7; }
 .login-box .form-control {
-  background: #0f172a; border-color: #334155; color: #e2e8f0;
-  border-radius: 8px; padding: 9px 12px;
+  border-radius: 8px; padding: 9px 12px !important;
+  background: rgba(255,255,255,.45) !important;
+  border: 1px solid rgba(255,255,255,.8) !important;
+  box-shadow: inset 0 1px 2px rgba(15,23,42,.06);
+  -webkit-backdrop-filter: blur(6px);
+          backdrop-filter: blur(6px);
 }
-.login-box .form-control::placeholder { color: #334155; }
-.login-box .form-control:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.18); }
+.login-box .form-control:focus {
+  background: rgba(255,255,255,.75) !important;
+  border-color: #1976D2 !important;
+}
+.login-box .form-control::placeholder { color: #64748b; }
 .login-box .btn-primary {
-  background: #1d4ed8; border-color: #1d4ed8;
   font-weight: 600; letter-spacing: .3px;
   padding: 11px; font-size: 0.95rem;
 }
-.login-box .btn-primary:hover { background: #2563eb; border-color: #2563eb; }
 .login-box .alert { font-size: 0.82rem; margin-bottom: 12px; }
-
-/* Logo firmy pod formularzem */
-.login-footer {
-  display: flex; align-items: center; justify-content: center; gap: 10px;
-  opacity: .45;
-}
-.login-footer-logo { height: 24px; border-radius: 4px; }
-.login-footer-name { font-size: 0.78rem; color: #64748b; font-weight: 600; }
 
 /* ══════════════════════════════════════════════════════
    MISC UTILITIES

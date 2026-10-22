@@ -695,16 +695,25 @@ textarea.item-notes:focus { border-color: var(--erp-blue) !important; }
 /* Tryb jasny: bardzo jasny niebieski */
 .sidebar { background: #eef4fc !important; border-right: 1px solid #d5e2f3; }
 .sidebar-logo { border-bottom: 1px solid #d5e2f3 !important; }
-.sidebar-logo-mark {
-  width: 40px;
-  height: 40px;
-  padding: 4px;
-  background: #fff !important;
-  border: 1px solid #d5e2f3;
-  border-radius: 10px;
-  box-shadow: 0 1px 2px rgba(15,23,42,.06);
+/* Rozmiar logo: zmień tylko szerokość (wysokość liczy się sama z proporcji obrazka).
+   Sidebar rozwinięty ma 210 px, więc max ok. 170px. */
+.sidebar {
+  --logo-size: 150px;
+  --logo-size-collapsed: 36px;   /* zwinięty sidebar ma 56 px szerokości */
 }
-.sidebar-logo-mark img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.sidebar-logo-mark {
+  width: var(--logo-size);
+  height: auto;
+  padding: 0;
+  background: none !important;
+  border: none;
+  box-shadow: none;
+}
+body.sidebar-collapsed .sidebar-logo-mark {
+  width: var(--logo-size-collapsed);
+  height: auto;
+}
+.sidebar-logo-mark img { display: block; width: 100%; height: auto; }
 .sidebar-title { color: #0f172a !important; }
 .sidebar-subtitle { color: #64748b !important; }
 .sidebar-nav a {
