@@ -1058,6 +1058,49 @@ body.dark .stat-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,.4); }
 
 /* Mini stat cards */
 .stat-card-mini  { display: flex; flex-direction: column; gap: 10px; }
+/* Mały wykres słupkowy: kontrole z ostatnich 5 dni */
+.stat-card-chart { display: flex; flex-direction: column; gap: 8px; }
+.mini-bars { display: flex; align-items: stretch; gap: 8px; height: 84px; }
+.mini-bars-col { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; position: relative; outline: none; }
+.mini-bars-val { height: 14px; font-size: 10px; font-weight: 700; line-height: 14px; color: var(--text); }
+.mini-bars-track { flex: 1; width: 100%; max-width: 22px; display: flex; align-items: flex-end; }
+.mini-bars-fill {
+  width: 100%;
+  background: var(--ring-fill);
+  opacity: .45;
+  border-radius: 4px 4px 0 0;
+  transition: opacity .15s;
+}
+.mini-bars-fill.is-today { opacity: 1; }
+.mini-bars-col:hover .mini-bars-fill,
+.mini-bars-col:focus-visible .mini-bars-fill { opacity: 1; }
+.mini-bars-lbl { height: 14px; margin-top: 3px; font-size: 10px; line-height: 14px; color: var(--text-muted); border-top: 1px solid var(--border); width: 100%; text-align: center; }
+.mini-bars-tip {
+  display: none; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+  background: var(--text); color: var(--card-bg); font-size: 11px; font-weight: 600;
+  padding: 3px 7px; border-radius: 6px; white-space: nowrap; z-index: 5; pointer-events: none;
+}
+.mini-bars-col:hover .mini-bars-tip,
+.mini-bars-col:focus-visible .mini-bars-tip { display: block; }
+
+/* QAR wg działów: lista 5 działów z poziomymi słupkami */
+.dept-bars { list-style: none; margin: 0; padding: 0; height: 84px; display: flex; flex-direction: column; justify-content: space-between; }
+.dept-bars-row { display: grid; grid-template-columns: minmax(0, 5.5em) minmax(0, 1fr) 24px; align-items: center; gap: 8px; }
+.dept-bars-name  { font-size: 11px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dept-bars-track { height: 6px; background: var(--border); border-radius: 0 4px 4px 0; overflow: hidden; }
+.dept-bars-fill  { display: block; height: 100%; background: var(--ring-fill); opacity: .45; border-radius: 0 4px 4px 0; }
+.dept-bars-fill.is-top { opacity: 1; }
+.dept-bars-count { font-size: 11px; font-weight: 700; color: var(--text); text-align: right; }
+
+/* Top 10 NG: ten sam wykres, 10 cieńszych słupków w kolorze błędu */
+.mini-bars--ng { gap: 4px; }
+.mini-bars--ng .mini-bars-track { max-width: 14px; }
+.mini-bars--ng .mini-bars-fill { background: var(--error); }
+.mini-bars--ng .mini-bars-col:nth-child(-n+3) .mini-bars-tip { left: 0; transform: none; }
+.mini-bars--ng .mini-bars-col:nth-last-child(-n+3) .mini-bars-tip { left: auto; right: 0; transform: none; }
+.mini-bars-note { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini-bars-empty { flex: 1; display: flex; align-items: center; font-size: 12px; color: var(--text-muted); min-height: 84px; }
+
 .stat-card--link { cursor: pointer; text-decoration: none !important; transition: transform .15s, box-shadow .15s; }
 .stat-card--link:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,.1); }
 .stat-mini-top   { display: flex; align-items: flex-start; justify-content: space-between; }
@@ -1404,6 +1447,7 @@ body.dark .batch-progress-bar { background: #1e3a5f; }
   width: 28px; height: 28px; border-radius: 50%; border: 2.5px solid; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
 }
+.report-status-icon { font-size: 14px; line-height: 1; display: block; }
 .dot-ok   { border-color: var(--progress-ok); background: var(--ok-bg); }
 .dot-warn { border-color: var(--progress-warn); background: var(--warn-bg); }
 body.dark .dot-ok   { box-shadow: 0 0 8px rgba(52,211,153,.3); }
@@ -1427,6 +1471,16 @@ body.dark .type-badge--monter { background: #451a03; color: #fcd34d; }
 .report-progress .progress-track { height: 5px; margin-bottom: 3px; }
 .report-progress .progress-pct   { font-size: 11px; font-weight: 700; text-align: right; }
 
+/* Stałe szerokości kolumn po prawej, żeby wiersze (pojedyncze i serie) układały się równo */
+@media (min-width: 769px) {
+  .report-row .report-status          { width: 130px; display: flex; justify-content: center; }
+  .report-row .report-progress        { width: 110px; min-width: 110px; }
+  .report-row > .btn:not(.batch-expand-btn) { width: 112px; justify-content: center; }
+  .report-row > .batch-expand-btn     { width: 36px; padding-left: 0; padding-right: 0; justify-content: center; flex-shrink: 0; }
+  /* Wiersze bez przycisku rozwijania rezerwują to samo miejsce */
+  .report-row:not(:has(> .batch-expand-btn))::after { content: ""; width: 36px; flex-shrink: 0; }
+}
+
 .score-bubble {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 28px; height: 22px; border-radius: 6px;
@@ -1442,16 +1496,14 @@ body.dark .type-badge--monter { background: #451a03; color: #fcd34d; }
 
 .dashboard-more-link { text-align: right; }
 
-/* ── Dashboard: Ostatnie raporty + Alerty jakości obok siebie ── */
+/* ── Dashboard: Ostatnie raporty, pod nimi Alerty jakości ── */
 .dash-grid-2col {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--sp-lg, 20px);
   align-items: start;
 }
-@media (max-width: 1000px) {
-  .dash-grid-2col { grid-template-columns: 1fr; }
-}
+.dash-grid-2col > * { min-width: 0; }
 
 .qa-alert-list   { display: flex; flex-direction: column; }
 .qa-alert-item {
@@ -1596,7 +1648,7 @@ body.dark .type-badge--monter { background: #451a03; color: #fcd34d; }
 .tpl-filter-bar   { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: nowrap; }
 .tpl-filter-wrap  { position: relative; flex: 1; min-width: 0; }
 .tpl-filter-icon  { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 13px; pointer-events: none; }
-.tpl-filter-input { padding-left: 32px; }
+.tpl-filter-wrap .tpl-filter-input { padding-left: 36px !important; }
 .tpl-filter-row2  { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .tpl-filter-count { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
 .tpl-filter-empty { padding: 20px; text-align: center; color: var(--text-muted); font-size: 14px; }

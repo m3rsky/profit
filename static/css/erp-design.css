@@ -692,25 +692,108 @@ textarea.item-notes:focus { border-color: var(--erp-blue) !important; }
 /* ════════════════════════════════════════════════════════
    SIDEBAR (admin) — odcienie ERP
    ════════════════════════════════════════════════════════ */
-.sidebar { background: #0D1B2E !important; }
-.sidebar-logo { border-bottom: 1px solid rgba(255,255,255,.08) !important; }
+/* Tryb jasny: bardzo jasny niebieski */
+.sidebar { background: #eef4fc !important; border-right: 1px solid #d5e2f3; }
+.sidebar-logo { border-bottom: 1px solid #d5e2f3 !important; }
+.sidebar-logo-mark {
+  width: 40px;
+  height: 40px;
+  padding: 4px;
+  background: #fff !important;
+  border: 1px solid #d5e2f3;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(15,23,42,.06);
+}
+.sidebar-logo-mark img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.sidebar-title { color: #0f172a !important; }
+.sidebar-subtitle { color: #64748b !important; }
 .sidebar-nav a {
-  color: #9DB4CC !important;
+  color: #334e68 !important;
   border-radius: 4px !important;
   margin: 1px 8px !important;
 }
-.sidebar-nav a:hover { color: #fff !important; background: rgba(255,255,255,.08) !important; }
+.sidebar-nav a:hover { color: #0f172a !important; background: rgba(29,78,216,.08) !important; }
 .sidebar-nav a.active {
   background: var(--erp-blue) !important;
   color: #fff !important;
 }
 .sidebar-section-label {
-  color: rgba(255,255,255,.35) !important;
+  color: #7a90a8 !important;
   font-size: 0.60rem !important;
   letter-spacing: 0.14em !important;
   padding: 14px 16px 4px !important;
 }
-.sidebar-footer { border-top: 1px solid rgba(255,255,255,.08) !important; }
+.sidebar-footer { border-top: 1px solid #d5e2f3 !important; }
+.sidebar-footer .avatar { background: #d5e2f3; color: #334e68; }
+.sidebar-footer .user-name { color: #0f172a; }
+.sidebar-footer .logout-link,
+.sidebar-footer .alert-bell-link { color: #64748b; }
+.sidebar-footer .logout-link:hover,
+.sidebar-footer .alert-bell-link:hover { color: #0f172a; }
+.theme-toggle { border-color: #d5e2f3; color: #475569; }
+.theme-toggle:hover { background: rgba(29,78,216,.08); color: #0f172a; }
+
+.sidebar .sidebar-toggle-btn {
+  width: 24px;
+  height: 24px;
+  background: #fff;
+  border-color: #c5d6ea;
+  border-radius: 50%;
+  color: #475569;
+  box-shadow: 0 1px 2px rgba(15,23,42,.08);
+}
+.sidebar .sidebar-toggle-btn:hover { background: var(--erp-blue); border-color: var(--erp-blue); color: #fff; }
+
+/* Strzałka jako maska SVG (symetryczna w polu 16x16, więc dokładnie na środku) */
+.sidebar .sidebar-toggle-btn i {
+  display: block;
+  width: 14px;
+  height: 14px;
+  font-size: 0;
+  background-color: currentColor;
+  -webkit-mask: var(--chev) center / contain no-repeat;
+          mask: var(--chev) center / contain no-repeat;
+}
+.sidebar .sidebar-toggle-btn i::before { content: none; }
+.sidebar .sidebar-toggle-btn i.bi-chevron-left {
+  --chev: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M10.5 3 5.5 8l5 5' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+.sidebar .sidebar-toggle-btn i.bi-chevron-right {
+  --chev: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M5.5 3 10.5 8l-5 5' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+/* Pasek mobilny w kolorach sidebara */
+.mobile-header { background: #eef4fc; border-bottom: 1px solid #d5e2f3; }
+.mobile-brand { color: #0f172a; }
+.mobile-bell-link { color: #475569; }
+.mobile-bell-link.has-alerts { color: #d97706; }
+.burger span { background: #475569; }
+
+/* Tryb ciemny: jak wcześniej */
+body.dark .mobile-header { background: #0f172a; border-bottom: 1px solid #1e293b; }
+body.dark .mobile-brand { color: #f1f5f9; }
+body.dark .mobile-bell-link { color: #94a3b8; }
+body.dark .mobile-bell-link.has-alerts { color: #fbbf24; }
+body.dark .burger span { background: #94a3b8; }
+body.dark .sidebar .sidebar-toggle-btn { background: #1e293b; border-color: #334155; color: #94a3b8; }
+body.dark .sidebar .sidebar-toggle-btn:hover { background: #334155; color: #e2e8f0; }
+body.dark .sidebar { background: #0f172a !important; border-right: none; }
+body.dark .sidebar-logo { border-bottom: 1px solid rgba(255,255,255,.08) !important; }
+body.dark .sidebar-title { color: #f1f5f9 !important; }
+body.dark .sidebar-subtitle { color: #64748b !important; }
+body.dark .sidebar-nav a { color: #9DB4CC !important; }
+body.dark .sidebar-nav a:hover { color: #fff !important; background: rgba(255,255,255,.08) !important; }
+body.dark .sidebar-nav a.active { color: #fff !important; }
+body.dark .sidebar-section-label { color: rgba(255,255,255,.35) !important; }
+body.dark .sidebar-footer { border-top: 1px solid rgba(255,255,255,.08) !important; }
+body.dark .sidebar-footer .avatar { background: #334155; color: #94a3b8; }
+body.dark .sidebar-footer .user-name { color: #e2e8f0; }
+body.dark .sidebar-footer .logout-link,
+body.dark .sidebar-footer .alert-bell-link { color: #64748b; }
+body.dark .sidebar-footer .logout-link:hover,
+body.dark .sidebar-footer .alert-bell-link:hover { color: #94a3b8; }
+body.dark .theme-toggle { border-color: #1e293b; color: #64748b; }
+body.dark .theme-toggle:hover { background: #1e293b; color: #94a3b8; }
 
 /* ════════════════════════════════════════════════════════
    WORKER TOP-BAR — odcień ERP

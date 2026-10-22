@@ -8,9 +8,10 @@
 .kz-sub { color:var(--text-muted,#64748b); font-size:.82rem; }
 .kz-zo-small { color:var(--text-muted,#64748b); font-size:.78rem; line-height:1.2; margin-top:.1rem; }
 .kz-add { margin:0 0 1rem; }
-.kz-add summary { cursor:pointer; display:inline-flex; }
 .kz-add-form { display:flex; gap:.4rem; flex-wrap:wrap; margin-top:.6rem; }
 .kz-add-form .form-control { flex:1; min-width:8rem; }
+/* Widok mobilny: te same 12 px wcięcia co przyciski w .page-header-actions */
+@media (max-width: 640px) { .kz-add { padding: 0 12px; } }
 </style>
 {% endblock %}
 
@@ -28,14 +29,15 @@
     <a href="{{ url_for('kontrola.elements') }}" class="btn btn-ghost btn-sm" title="Elementy kontroli"><i class="bi bi-boxes"></i> Elementy</a>
     {% endif %}
     {% if current_user.is_kontroler %}
+    <button type="button" class="btn btn-outline" id="kz-add-toggle" title="Dodaj zlecenie ręcznie"
+            aria-controls="kz-add" aria-expanded="{{ 'false' if (pager.total or filters.zo) else 'true' }}"><i class="bi bi-plus-lg"></i> Dodaj zlecenie</button>
     <a href="{{ url_for('kontrola.scan_page') }}" class="btn btn-primary"><i class="bi bi-qr-code-scan"></i> Skanuj QR</a>
     {% endif %}
   </div>
 </div>
 
 {% if current_user.is_kontroler %}
-<details class="kz-add" {% if not pager.total and not filters.zo %}open{% endif %}>
-  <summary class="btn btn-outline btn-sm"><i class="bi bi-plus-lg"></i> Dodaj zlecenie ręcznie</summary>
+<div class="kz-add" id="kz-add" {% if pager.total or filters.zo %}hidden{% endif %}>
   <form method="post" action="{{ url_for('kontrola.order_create') }}" class="kz-add-form" autocomplete="off">
     {{ csrf_input() }}
     <input type="text" name="zo" class="form-control" maxlength="64" placeholder="Numer ZO" required>
@@ -44,7 +46,7 @@
     <input type="number" name="q" class="form-control" min="1" max="99" value="1" style="max-width:6rem;" aria-label="Sztuki">
     <button type="submit" class="btn btn-primary"><i class="bi bi-check2"></i> Dodaj</button>
   </form>
-</details>
+</div>
 {% endif %}
 
 <form method="get" action="{{ url_for('kontrola.list_records') }}" class="filter-bar filter-bar--rows">
@@ -259,6 +261,19 @@
     btn.setAttribute('aria-expanded', String(!expanded));
     var chevron = btn.querySelector('.row-expand-chevron');
     if (chevron) chevron.className = expanded ? 'bi bi-chevron-down row-expand-chevron' : 'bi bi-chevron-up row-expand-chevron';
+  });
+})();
+
+/* Przycisk "Dodaj zlecenie" w nagłówku pokazuje i chowa formularz ręcznego dodawania */
+(function () {
+  var btn = document.getElementById('kz-add-toggle');
+  var box = document.getElementById('kz-add');
+  if (!btn || !box) return;
+  btn.addEventListener('click', function () {
+    var show = box.hidden;
+    box.hidden = !show;
+    btn.setAttribute('aria-expanded', String(show));
+    if (show) { var f = box.querySelector('input'); if (f) f.focus(); }
   });
 })();
 

@@ -2,6 +2,23 @@
 {% block title %}Nowa kontrola{% endblock %}
 {% block head %}
 <style>
+/* Wybór szablonu jako lista (wiersze), nie kafelki */
+#tpl-grid{display:flex;flex-direction:column;gap:0;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--card-bg)}
+#tpl-grid .template-pick-card{border:none!important;border-bottom:1px solid var(--border)!important;border-radius:0!important;box-shadow:none!important;background:transparent!important;transform:none!important}
+#tpl-grid .template-pick-card:last-child{border-bottom:none!important}
+#tpl-grid .template-pick-card:hover{background:var(--hover-row)!important}
+#tpl-grid .template-pick-card:has(input:checked){background:var(--erp-blue-light,#eff6ff)!important}
+#tpl-grid .template-pick-inner{display:flex;align-items:center;justify-content:space-between;gap:1rem;border:none!important;border-radius:0;box-shadow:none!important;background:transparent;padding:.7rem 1rem;height:auto}
+#tpl-grid .template-pick-text{min-width:0;flex:1}
+#tpl-grid .template-pick-name{margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#tpl-grid .template-pick-desc{margin:2px 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#tpl-grid .template-pick-meta{flex-shrink:0;white-space:nowrap}
+#tpl-grid .template-pick-go{flex-shrink:0;color:var(--text-muted)}
+@media (max-width:640px){
+  #tpl-grid .template-pick-inner{flex-wrap:wrap;gap:.2rem .75rem}
+  #tpl-grid .template-pick-name,#tpl-grid .template-pick-desc{white-space:normal}
+  #tpl-grid .template-pick-go{display:none}
+}
 .new-ctrl-tabs{display:flex;gap:.5rem;margin-bottom:1.25rem}
 .new-ctrl-tabs .btn{flex:1;max-width:200px}
 .new-ctrl-tabs .btn.active{font-weight:600}
@@ -85,13 +102,16 @@
                data-tpl-meta="{{ t.categories.filter_by(is_active=True).count() }} kategorii · {{ t.task_count }} zadań"
                data-tpl-desc="{{ t.description or '' }}">
         <div class="template-pick-inner">
-          <div class="template-pick-name">{{ t.name }}</div>
-          {% if t.description %}
-          <div class="template-pick-desc">{{ t.description }}</div>
-          {% endif %}
+          <div class="template-pick-text">
+            <div class="template-pick-name">{{ t.name }}</div>
+            {% if t.description %}
+            <div class="template-pick-desc">{{ t.description }}</div>
+            {% endif %}
+          </div>
           <div class="template-pick-meta">
             {{ t.categories.filter_by(is_active=True).count() }} kategorii &middot; {{ t.task_count }} zadań
           </div>
+          <i class="bi bi-chevron-right template-pick-go"></i>
         </div>
       </label>
       {% endfor %}

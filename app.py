@@ -252,6 +252,20 @@ def _menu_keys_for(user):
     return out + [k for k in NAV_DEFAULT if k not in out]
 
 
+@app.url_defaults
+def _static_cache_bust(endpoint, values):
+    """Dopisuje czas modyfikacji do adresów CSS/JS, żeby przeglądarka nie trzymała starej wersji."""
+    if endpoint != 'static' or 'v' in values:
+        return
+    filename = values.get('filename', '')
+    if not filename.endswith(('.css', '.js')):
+        return
+    try:
+        values['v'] = int(os.path.getmtime(os.path.join(app.static_folder, filename)))
+    except OSError:
+        pass
+
+
 @app.context_processor
 def _inject_menu():
     def menu_pos(key):
@@ -410,7 +424,15 @@ def dashboard():
     completed_count    = (_row.completed or 0) if _row else 0
     in_progress_count  = (_row.in_progress or 0) if _row else 0
     rq = Report.query if current_user.is_admin else Report.query.filter_by(user_id=current_user.id)
-    recent_reports     = rq.order_by(Report.created_at.desc()).limit(5).all()
+    # 10 pozycji na liście, seria (batch_id) liczy się jako jedna pozycja
+    recent_reports, _seen_units = [], set()
+    for _r in rq.order_by(Report.created_at.desc()).limit(500):
+        _unit = _r.batch_id or _r.id
+        if _unit not in _seen_units:
+            if len(_seen_units) >= 10:
+                continue
+            _seen_units.add(_unit)
+        recent_reports.append(_r)
     templates = ChecklistTemplate.query.filter_by(is_active=True).order_by(ChecklistTemplate.name).all()
     if current_user.is_kontroler:
         all_pending_reports = (Report.query
@@ -448,7 +470,54 @@ def dashboard():
                           .limit(5).all())
     else:
         quality_alerts = []
+    # Liczba kontroli (raportów) z ostatnich 5 dni, wg lokalnej daty, do małego wykresu
+    _today = datetime.now(LOCAL_TZ).date()
+    _days = [_today - timedelta(days=i) for i in range(4, -1, -1)]
+    _start_utc = datetime.combine(_days[0], datetime.min.time(), tzinfo=LOCAL_TZ).astimezone(UTC).replace(tzinfo=None)
+    _per_day = dict.fromkeys(_days, 0)
+    for (_created,) in rq.filter(Report.created_at >= _start_utc).with_entities(Report.created_at):
+        _d = _created.replace(tzinfo=UTC).astimezone(LOCAL_TZ).date()
+        if _d in _per_day:
+            _per_day[_d] += 1
+    _wd = ['pon', 'wt', 'śr', 'czw', 'pt', 'sob', 'ndz']
+    daily_checks = [{'label': 'dziś' if d == _today else _wd[d.weekday()],
+                     'date': d.strftime('%d.%m'), 'count': n} for d, n in _per_day.items()]
+    # Top 10 punktów z wynikiem NG z ostatnich 2 tygodni (ukończone raporty), tylko admin.
+    # Grupowanie po znormalizowanym tytule, tak jak w statystykach (kopie szablonów mają różne ID).
+    top_ng = []
+    if current_user.is_admin:
+        _ng_cutoff = (datetime.now(UTC) - timedelta(days=14)).replace(tzinfo=None)
+        _norm_title = func.lower(func.trim(func.rtrim(func.trim(Task.title), '.')))
+        top_ng = [{'title': r.title, 'count': r.cnt} for r in (
+            db.session.query(func.min(Task.title).label('title'),
+                             func.count(ReportItem.id).label('cnt'))
+            .join(ReportItem, ReportItem.task_id == Task.id)
+            .join(Report, Report.id == ReportItem.report_id)
+            .filter(ReportItem.result == 'ng',
+                    Report.status == 'completed',
+                    Report.completed_at >= _ng_cutoff)
+            .group_by(_norm_title)
+            .order_by(func.count(ReportItem.id).desc(), func.min(Task.title))
+            .limit(10).all())]
+    # 5 najaktywniejszych działów wg liczby raportów QAR z ostatnich 14 dni (dział z przypisanego pracownika)
+    qar_by_dept = []
+    if current_user.is_admin:
+        _qar_cutoff = (datetime.now(UTC) - timedelta(days=14)).replace(tzinfo=None)
+        qar_by_dept = [{'name': r.name, 'count': r.cnt} for r in (
+            db.session.query(ProductionDepartment.name.label('name'),
+                             func.count(QARReport.id).label('cnt'))
+            .join(DepartmentEmployee, DepartmentEmployee.department_id == ProductionDepartment.id)
+            .join(QARReport, QARReport.employee_id == DepartmentEmployee.id)
+            .filter(QARReport.created_at >= _qar_cutoff)
+            .group_by(ProductionDepartment.id, ProductionDepartment.name)
+            .order_by(func.count(QARReport.id).desc(), ProductionDepartment.name)
+            .limit(5).all())]
+    qar_date_from = (datetime.now(LOCAL_TZ).date() - timedelta(days=14)).isoformat()
     return render_template('dashboard.html',
+                           qar_by_dept=qar_by_dept,
+                           qar_date_from=qar_date_from,
+                           top_ng=top_ng,
+                           daily_checks=daily_checks,
                            recent_reports=recent_reports,
                            all_reports_count=all_reports_count,
                            completed_count=completed_count,
