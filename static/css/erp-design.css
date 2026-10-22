@@ -714,6 +714,21 @@ body.sidebar-collapsed .sidebar-logo-mark {
   height: auto;
 }
 .sidebar-logo-mark img { display: block; width: 100%; height: auto; }
+
+/* Promień światła po logo (animacja logo-shine z main.css), widoczny tylko na znaku dzięki masce */
+.sidebar-logo-mark { position: relative; }
+.sidebar-logo-mark::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(105deg, transparent 42%, rgba(255,255,255,.95) 50%, transparent 58%);
+  background-size: 250% 100%;
+  background-position: 100% 0;
+  -webkit-mask: url(../logo-mark.png) center / contain no-repeat;
+          mask: url(../logo-mark.png) center / contain no-repeat;
+  animation: logo-shine 6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-logo-mark::after { animation: none; display: none; }
+}
 .sidebar-title { color: #0f172a !important; }
 .sidebar-subtitle { color: #64748b !important; }
 .sidebar-nav a {

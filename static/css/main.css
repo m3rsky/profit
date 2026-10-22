@@ -2195,11 +2195,46 @@ body.login-page { background: #eef4fc; }
   width: 420px; height: 420px; top: -120px; right: 8%;
   background: radial-gradient(circle at 30% 30%, #5aa2f0, #1565C0 70%);
   opacity: .45;
+  animation: bubble-float-a 18s ease-in-out infinite alternate;
 }
 .login-wrapper::after {
   width: 360px; height: 360px; bottom: -110px; left: 6%;
   background: radial-gradient(circle at 60% 40%, #8cc4ff, #1976D2 75%);
   opacity: .35;
+  animation: bubble-float-b 22s ease-in-out infinite alternate;
+}
+/* Mniejsze bańki dryfujące w tle (spany w .login-bubbles) */
+.login-bubbles { position: absolute; inset: 0; pointer-events: none; }
+.login-bubbles span {
+  position: absolute; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.9), rgba(90,162,240,.55) 45%, rgba(21,101,192,.35));
+  box-shadow: inset 0 0 18px rgba(255,255,255,.5);
+  will-change: transform;
+}
+.login-bubbles span:nth-child(1) { width: 90px;  height: 90px;  top: 12%; left: 14%; opacity: .55; animation: bubble-float-c 11s ease-in-out infinite alternate; }
+.login-bubbles span:nth-child(2) { width: 60px;  height: 60px;  top: 68%; left: 78%; opacity: .5;  animation: bubble-float-a 13s ease-in-out infinite alternate-reverse; }
+.login-bubbles span:nth-child(3) { width: 140px; height: 140px; top: 74%; left: 26%; opacity: .35; animation: bubble-float-b 16s ease-in-out infinite alternate; }
+.login-bubbles span:nth-child(4) { width: 44px;  height: 44px;  top: 22%; left: 72%; opacity: .6;  animation: bubble-float-c 9s ease-in-out infinite alternate-reverse; }
+.login-bubbles span:nth-child(5) { width: 70px;  height: 70px;  top: 46%; left: 6%;  opacity: .45; animation: bubble-float-a 14s ease-in-out infinite alternate; }
+.login-wrapper::before, .login-wrapper::after { will-change: transform; }
+
+@keyframes bubble-float-a {
+  0%   { transform: translate(0, 0) scale(1); }
+  50%  { transform: translate(-40px, 50px) scale(1.06); }
+  100% { transform: translate(30px, 100px) scale(.96); }
+}
+@keyframes bubble-float-b {
+  0%   { transform: translate(0, 0) scale(1); }
+  50%  { transform: translate(60px, -40px) scale(.95); }
+  100% { transform: translate(-30px, -90px) scale(1.05); }
+}
+@keyframes bubble-float-c {
+  0%   { transform: translate(0, 0); }
+  50%  { transform: translate(30px, -60px); }
+  100% { transform: translate(-25px, 40px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-wrapper::before, .login-wrapper::after, .login-bubbles span { animation: none; }
 }
 .login-panel { position: relative; z-index: 1; }
 
@@ -2219,15 +2254,36 @@ body.login-page { background: #eef4fc; }
   border: none;
   box-shadow: none;
   flex-shrink: 0;
+  position: relative;
 }
 .login-logo-mark img { display: block; width: 100%; height: 100%; object-fit: contain; }
 
+/* Promień światła przesuwający się po logo co kilka sekund.
+   Maska z samego logo sprawia, że błysk widać wyłącznie na znaku, a nie na tle. */
+.login-logo-mark::after {
+  content: ""; position: absolute; inset: 10px; pointer-events: none;
+  background: linear-gradient(105deg, transparent 42%, rgba(255,255,255,.95) 50%, transparent 58%);
+  background-size: 250% 100%;
+  background-position: 100% 0;
+  -webkit-mask: url(../logo-mark.png) center / contain no-repeat;
+          mask: url(../logo-mark.png) center / contain no-repeat;
+  animation: logo-shine 6s ease-in-out infinite;
+}
+@keyframes logo-shine {
+  0%   { background-position: 100% 0; }      /* start: błysk zaraz po wczytaniu strony */
+  32%  { background-position: 0 0; }         /* przejście promienia z lewej do prawej */
+  100% { background-position: 0 0; }         /* przerwa do kolejnego błysku */
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-logo-mark::after { animation: none; display: none; }
+}
+
 /* Karta formularza */
 .login-box {
-  background: rgba(255,255,255,.55);
+  background: rgba(255,255,255,.28);
   -webkit-backdrop-filter: blur(18px) saturate(160%);
           backdrop-filter: blur(18px) saturate(160%);
-  border: 1px solid rgba(255,255,255,.75);
+  border: 1px solid rgba(255,255,255,.6);
   border-radius: 16px;
   box-shadow: 0 8px 32px rgba(21,101,192,.18), inset 0 1px 0 rgba(255,255,255,.8);
   padding: 30px 26px;
@@ -2249,14 +2305,14 @@ body.login-page { background: #eef4fc; }
 .login-box .form-label .bi { opacity: .7; }
 .login-box .form-control {
   border-radius: 8px; padding: 9px 12px !important;
-  background: rgba(255,255,255,.45) !important;
-  border: 1px solid rgba(255,255,255,.8) !important;
+  background: rgba(255,255,255,.25) !important;
+  border: 1px solid rgba(255,255,255,.6) !important;
   box-shadow: inset 0 1px 2px rgba(15,23,42,.06);
   -webkit-backdrop-filter: blur(6px);
           backdrop-filter: blur(6px);
 }
 .login-box .form-control:focus {
-  background: rgba(255,255,255,.75) !important;
+  background: rgba(255,255,255,.55) !important;
   border-color: #1976D2 !important;
 }
 .login-box .form-control::placeholder { color: #64748b; }
