@@ -929,3 +929,43 @@ body.wizard-mode .btn-result {
   min-width: 0 !important;
   flex: 1 !important;
 }
+
+
+/* ════════════════════════════════════════════════════════
+   WŁASNY PASEK TYTUŁU OKNA (zainstalowana aplikacja, Window Controls Overlay)
+   Poza tym trybem pasek jest ukryty, a --titlebar-h wynosi 0.
+   ════════════════════════════════════════════════════════ */
+:root { --titlebar-h: 0px; }
+.app-titlebar { display: none; }
+
+@media (display-mode: window-controls-overlay) {
+  :root { --titlebar-h: env(titlebar-area-height, 34px); }
+  body { padding-top: var(--titlebar-h); }
+
+  .app-titlebar {
+    display: flex; align-items: center; gap: 8px;
+    position: fixed; top: 0; left: 0; right: 0;
+    height: var(--titlebar-h);
+    /* nie wchodzimy pod przyciski okna (minimalizuj, maksymalizuj, zamknij) */
+    padding: 0 calc(100% - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100%)) 0 12px;
+    background: #eef4fc;
+    border-bottom: 1px solid #d5e2f3;
+    color: #0f172a;
+    -webkit-app-region: drag; app-region: drag;   /* całość to uchwyt do przesuwania okna */
+    user-select: none;
+    z-index: 1000;
+  }
+  body.dark .app-titlebar { background: #0f172a; border-bottom-color: #1e293b; color: #e2e8f0; }
+  body:has(.wk-layout) .app-titlebar { background: #0f172a; border-bottom-color: #1d4ed8; color: #f1f5f9; }
+
+  .app-titlebar-logo { height: calc(var(--titlebar-h) - 12px); width: auto; display: block; }
+  .app-titlebar-title { font-size: 12px; font-weight: 800; letter-spacing: .3px; }
+  .app-titlebar-sub { font-size: 11px; opacity: .65; }
+
+  /* elementy przyklejone do góry schodzą pod pasek tytułu */
+  .sidebar { top: var(--titlebar-h) !important; height: calc(100vh - var(--titlebar-h)) !important; min-height: 0 !important; }
+  .wk-header { top: var(--titlebar-h) !important; }
+  .checklist-sticky-bar { top: var(--titlebar-h) !important; }
+  .app, .wk-layout { min-height: calc(100vh - var(--titlebar-h)); }
+  .login-wrapper { min-height: calc(100vh - var(--titlebar-h)); }
+}

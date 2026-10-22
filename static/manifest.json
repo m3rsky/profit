@@ -6,13 +6,13 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["standalone", "minimal-ui", "browser"],
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui", "browser"],
   "launch_handler": {
     "client_mode": ["navigate-existing", "auto"]
   },
   "orientation": "portrait-primary",
-  "background_color": "#1a5276",
-  "theme_color": "#1a5276",
+  "background_color": "#eef4fc",
+  "theme_color": "#eef4fc",
   "lang": "pl",
   "dir": "ltr",
   "icons": [

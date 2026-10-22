@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'psh-qc-v9';
+const CACHE_VERSION = 'psh-qc-v10';
 const STATIC_CACHE  = `${CACHE_VERSION}-static`;
 const ALL_CACHES    = [STATIC_CACHE];
 

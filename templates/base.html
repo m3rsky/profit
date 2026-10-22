@@ -9,7 +9,7 @@
     })();
   </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#0f172a">
+  <meta name="theme-color" id="meta-theme-color" content="#eef4fc">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="RP-Sys">
@@ -30,6 +30,16 @@
 </head>
 <body class="light">
 <script>(function(){var t=localStorage.getItem('theme');if(t)document.body.className=t;})()</script>
+{% include '_titlebar.html' %}
+<script>
+/* Kolor paska tytułu okna aplikacji (theme-color) podąża za motywem jasny/ciemny */
+(function(){
+  var meta = document.getElementById('meta-theme-color');
+  function sync(){ if (meta) meta.setAttribute('content', document.body.classList.contains('dark') ? '#0f172a' : '#eef4fc'); }
+  sync();
+  new MutationObserver(sync).observe(document.body, {attributes: true, attributeFilter: ['class']});
+})();
+</script>
 
 {# ════════════════════════════════════════════════════════════════
    ADMIN LAYOUT — elementy otwierające (sidebar, mobile-header)
