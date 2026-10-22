@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Ustawienia konta{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title"><i class="bi bi-person-circle"></i> Ustawienia konta</h1>
+</div>
+
+<div class="card card--form-narrow">
+  <div class="card-body">
+    <h2 class="card-title">Dane konta</h2>
+    <dl class="account-data">
+      <dt>Login</dt><dd>{{ user.username }}</dd>
+      <dt>Rola</dt><dd>{{ role_label }}</dd>
+      <dt>Konto od</dt><dd>{{ user.created_at | localdt('%d.%m.%Y') }}</dd>
+    </dl>
+
+    <form method="post" class="account-form">
+      {{ csrf_input() }}
+      <input type="hidden" name="action" value="email">
+      <div class="form-group">
+        <label class="form-label" for="email">Adres e-mail</label>
+        <input class="form-control" type="email" id="email" name="email" required
+               autocomplete="email" value="{{ user.email }}">
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Zapisz e-mail</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card card--form-narrow card--spaced-top">
+  <div class="card-body">
+    <h2 class="card-title">Zmiana hasła</h2>
+    <form method="post" class="account-form">
+      {{ csrf_input() }}
+      <input type="hidden" name="action" value="password">
+      <div class="form-group">
+        <label class="form-label" for="current_password">Obecne hasło</label>
+        <input class="form-control" type="password" id="current_password" name="current_password"
+               autocomplete="current-password" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="new_password">Nowe hasło</label>
+        <input class="form-control" type="password" id="new_password" name="new_password"
+               autocomplete="new-password" minlength="8" placeholder="min. 8 znaków" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="repeat_password">Powtórz nowe hasło</label>
+        <input class="form-control" type="password" id="repeat_password" name="repeat_password"
+               autocomplete="new-password" minlength="8" required>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Zmień hasło</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -46,7 +46,12 @@ class TestMenuOrder:
         for text in ('Zadania QA', 'Kosztorysy', 'Ceny materiałów', 'Stawki robocizny', 'Typy szaf',
                      'Katalog produktów', 'Import CSV'):
             assert text not in html, text
-        assert 'Użytkownicy' in html and 'Statystyki' in html and 'Dziennik zdarzeń' in html
+        # Użytkownicy widzi tylko super admin
+        assert 'Użytkownicy' not in html
+        assert 'Statystyki' in html and 'Dziennik zdarzeń' in html
+        client.get('/logout')
+        login(client, 'super', 'Super1234!')
+        assert 'Użytkownicy' in client.get('/').get_data(as_text=True)
         assert '>Zamówienia<' not in html
         assert client.get('/zadania-qa/').status_code == 404
 

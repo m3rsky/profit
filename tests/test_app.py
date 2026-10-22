@@ -211,7 +211,7 @@ class TestResultAPI:
 
 class TestUserManagement:
     def test_create_user_short_password(self, client):
-        login(client, 'admin', 'Admin1234!')
+        login(client, 'super', 'Super1234!')
         token = _csrf(client)
         resp = client.post('/admin/users/new',
                            data={'username': 'newuser', 'email': 'new@test.pl',
@@ -221,7 +221,7 @@ class TestUserManagement:
         assert b'8 znak' in resp.data
 
     def test_create_user_bad_email(self, client):
-        login(client, 'admin', 'Admin1234!')
+        login(client, 'super', 'Super1234!')
         token = _csrf(client)
         resp = client.post('/admin/users/new',
                            data={'username': 'newuser2', 'email': 'not-an-email',
@@ -231,7 +231,7 @@ class TestUserManagement:
         assert b'e-mail' in resp.data
 
     def test_create_user_duplicate_email(self, client):
-        login(client, 'admin', 'Admin1234!')
+        login(client, 'super', 'Super1234!')
         token = _csrf(client)
         resp = client.post('/admin/users/new',
                            data={'username': 'unique', 'email': 'admin@test.pl',
@@ -248,6 +248,13 @@ class TestAdminAccess:
         login(client, 'oper', 'Oper1234!')
         resp = client.get('/admin/users')
         assert resp.status_code == 403
+
+    def test_users_forbidden_for_regular_admin(self, client):
+        login(client, 'admin', 'Admin1234!')
+        assert client.get('/admin/users').status_code == 403
+        assert client.get('/admin/users/new').status_code == 403
+        assert client.get('/admin/users/1/edit').status_code == 403
+        assert client.post('/admin/users/1/delete').status_code == 403
 
     def test_stats_page_loads(self, client):
         login(client, 'admin', 'Admin1234!')

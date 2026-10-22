@@ -44,7 +44,9 @@ def _seed():
     admin.set_password('Admin1234!')
     user = User(username='oper', email='oper@test.pl', role='kontroler')
     user.set_password('Oper1234!')
-    _db.session.add_all([admin, user])
+    superadmin = User(username='super', email='super@test.pl', role='admin', is_superadmin=True)
+    superadmin.set_password('Super1234!')
+    _db.session.add_all([admin, user, superadmin])
     _db.session.flush()
 
     # Szablon używany przez tests/test_app.py (nazwa ma znaczenie — referencja po name).

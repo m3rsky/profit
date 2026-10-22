@@ -207,6 +207,15 @@ def admin_required(f):
     return decorated
 
 
+def superadmin_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.is_superadmin:
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated
+
+
 def kontroler_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -2266,7 +2275,7 @@ def admin_installers():
 
 @app.route('/admin/users')
 @login_required
-@admin_required
+@superadmin_required
 def admin_users():
     users = User.query.order_by(User.username).all()
     return render_template('admin/users.html', users=users)
@@ -2274,7 +2283,7 @@ def admin_users():
 
 @app.route('/admin/users/new', methods=['GET', 'POST'])
 @login_required
-@admin_required
+@superadmin_required
 def admin_user_new():
     if request.method == 'POST':
         username = request.form['username'].strip()
@@ -2306,7 +2315,7 @@ def admin_user_new():
 
 @app.route('/admin/users/<int:user_id>/edit', methods=['GET', 'POST'])
 @login_required
-@admin_required
+@superadmin_required
 def admin_user_edit(user_id):
     user = get_or_404(User, user_id)
     if request.method == 'POST':
@@ -2323,7 +2332,8 @@ def admin_user_edit(user_id):
             flash('Użytkownik z tym adresem e-mail już istnieje.', 'error')
             return render_template('admin/user_form.html', user=user)
         user.email = new_email
-        user.role = request.form.get('role', 'kontroler')
+        # Rola super admina jest stała, nie da się jej zdegradować z panelu
+        user.role = 'admin' if user.is_superadmin else request.form.get('role', 'kontroler')
         if new_password:
             user.set_password(new_password)
         try:
@@ -2339,11 +2349,13 @@ def admin_user_edit(user_id):
 
 @app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
 @login_required
-@admin_required
+@superadmin_required
 def admin_user_delete(user_id):
     user = get_or_404(User, user_id)
     if user.id == current_user.id:
         flash('Nie możesz usunąć własnego konta.', 'error')
+    elif user.is_superadmin:
+        flash('Konta super admina nie można usunąć.', 'error')
     else:
         uname = user.username
         # Reassign reports to current admin before deleting — user_id is NOT NULL
@@ -2355,6 +2367,60 @@ def admin_user_delete(user_id):
         _audit('user_delete', 'user', user_id, f'username={uname}')
         flash('Użytkownik usunięty.', 'success')
     return redirect(url_for('admin_users'))
+
+
+# ── Ustawienia konta (każdy zalogowany, tylko własne dane) ───────────────────
+
+ROLE_LABELS = {
+    'admin': 'Administrator', 'kontroler': 'Kontroler', 'produkcja': 'Stanowisko produkcji',
+    'planowanie': 'Planowanie', 'operator': 'Operator', 'konstruktor': 'Konstruktor',
+}
+
+
+@app.route('/konto', methods=['GET', 'POST'])
+@login_required
+def account_settings():
+    user = current_user._get_current_object()
+    if request.method == 'POST':
+        action = request.form.get('action', '')
+        if action == 'email':
+            new_email = request.form.get('email', '').strip()
+            conflict = User.query.filter(func.lower(User.email) == new_email.lower()).first()
+            if not _valid_email(new_email):
+                flash('Nieprawidłowy format adresu e-mail.', 'error')
+            elif conflict and conflict.id != user.id:
+                flash('Użytkownik z tym adresem e-mail już istnieje.', 'error')
+            else:
+                user.email = new_email
+                try:
+                    db.session.commit()
+                    _audit('account_email', 'user', user.id, f'email={new_email}')
+                    flash('Adres e-mail został zapisany.', 'success')
+                    return redirect(url_for('account_settings'))
+                except IntegrityError:
+                    db.session.rollback()
+                    flash('Adres e-mail jest już zajęty.', 'error')
+        elif action == 'password':
+            current_pw = request.form.get('current_password', '')
+            new_pw = request.form.get('new_password', '')
+            repeat_pw = request.form.get('repeat_password', '')
+            if not user.check_password(current_pw):
+                flash('Obecne hasło jest nieprawidłowe.', 'error')
+            elif len(new_pw) < 8:
+                flash('Nowe hasło musi mieć co najmniej 8 znaków.', 'error')
+            elif new_pw != repeat_pw:
+                flash('Nowe hasła nie są takie same.', 'error')
+            elif new_pw == current_pw:
+                flash('Nowe hasło musi się różnić od obecnego.', 'error')
+            else:
+                user.set_password(new_pw)
+                db.session.commit()
+                _audit('account_password', 'user', user.id)
+                flash('Hasło zostało zmienione.', 'success')
+                return redirect(url_for('account_settings'))
+    return render_template('account.html', user=user,
+                           role_label='Super admin' if user.is_superadmin
+                           else ROLE_LABELS.get(user.role, user.role))
 
 
 # ── Helpers: szablony i serie list ───────────────────────────────────────────────────────
@@ -2663,6 +2729,19 @@ def internal_error(e):
 
 # ── Init DB ───────────────────────────────────────────────────────────────────
 
+SUPERADMIN_EMAIL = 'palczowski@gmail.com'
+
+
+def _mark_superadmin():
+    """Oznacza konto właściciela jako super admina (tylko ono tworzy i edytuje konta).
+    Flagi nie da się nadać z aplikacji, wyłącznie tutaj, przy starcie."""
+    u = User.query.filter(func.lower(User.email) == SUPERADMIN_EMAIL).first()
+    if u and not u.is_superadmin:
+        u.is_superadmin = True
+        u.role = 'admin'
+        db.session.commit()
+
+
 def init_db():
     os.makedirs('instance', exist_ok=True)
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -2674,6 +2753,7 @@ def init_db():
         db.create_all()
         _migrate_installer_data()
         _drop_orders_and_monter()
+        _mark_superadmin()
         if not User.query.filter_by(username='admin').first():
             admin = User(username='admin', email='admin@psh.pl', role='admin')
             admin.set_password('admin123')
@@ -2893,6 +2973,10 @@ def _migrate_schema():
         if 'users' in insp.get_table_names() and 'menu_order' not in [
                 c['name'] for c in insp.get_columns('users')]:
             conn.execute(text('ALTER TABLE users ADD COLUMN menu_order TEXT'))
+            conn.commit()
+        if 'users' in insp.get_table_names() and 'is_superadmin' not in [
+                c['name'] for c in insp.get_columns('users')]:
+            conn.execute(text('ALTER TABLE users ADD COLUMN is_superadmin BOOLEAN NOT NULL DEFAULT 0'))
             conn.commit()
         # Lista produkcyjna: znacznik utworzenia list kontrolnych zastępuje powiązanie z zamówieniem.
         if 'prod_rows' in insp.get_table_names():

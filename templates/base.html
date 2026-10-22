@@ -123,11 +123,13 @@
       </div>
 
       <div class="sidebar-section">Zarządzanie</div>
+      {% if current_user.is_superadmin %}
       <a href="{{ url_for('admin_users') }}"
-         class="{% if request.endpoint and 'user' in request.endpoint %}active{% endif %}">
+         class="{% if request.endpoint and request.endpoint.startswith('admin_user') %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-person-gear"></i></span>
         <span>Użytkownicy</span>
       </a>
+      {% endif %}
       <a href="{{ url_for('admin_stats') }}"
          class="{% if request.endpoint == 'admin_stats' %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-bar-chart-line"></i></span>
@@ -147,8 +149,8 @@
     </button>
 
     <div class="sidebar-footer">
-      <div class="avatar"><i class="bi bi-person-fill"></i></div>
-      <span class="user-name" title="{{ current_user.username }}">{{ current_user.username }}</span>
+      <a href="{{ url_for('account_settings') }}" class="avatar" title="Ustawienia konta"><i class="bi bi-person-fill"></i></a>
+      <a href="{{ url_for('account_settings') }}" class="user-name" title="Ustawienia konta: {{ current_user.username }}">{{ current_user.username }}</a>
       <a href="{{ url_for('alerts_list') }}"
          class="alert-bell-link {% if unread_alerts > 0 %}has-alerts{% endif %}"
          title="Alerty{% if unread_alerts > 0 %} ({{ unread_alerts }} nowych){% endif %}">
@@ -308,7 +310,7 @@
       <button type="button" class="wk-theme-btn" id="wk-theme-btn" title="Zmień motyw">
         <i class="bi bi-moon-fill" id="wk-theme-icon"></i>
       </button>
-      <span class="wk-username" title="{{ current_user.username }}">{{ current_user.username }}</span>
+      <a href="{{ url_for('account_settings') }}" class="wk-username" title="Ustawienia konta: {{ current_user.username }}">{{ current_user.username }}</a>
       <a href="{{ url_for('logout') }}" class="wk-logout-link">Wyloguj</a>
       {% endif %}
     </div>

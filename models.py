@@ -25,6 +25,8 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
     role = db.Column(db.String(16), nullable=False, default='kontroler')
+    # Super admin: jedyny, kto tworzy i edytuje konta (rola nadal 'admin'). Flaga ustawiana tylko w migracji.
+    is_superadmin = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
     # Własna kolejność pozycji menu (JSON z listą kluczy), puste: kolejność domyślna.
     menu_order = db.Column(db.Text, nullable=True)

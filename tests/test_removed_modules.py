@@ -36,7 +36,7 @@ class TestRoutesGone:
 
 class TestUiWithoutRemovedRoles:
     def test_user_form_has_no_monter_or_order_role(self, client):
-        login(client, 'admin', 'Admin1234!')
+        login(client, 'super', 'Super1234!')
         page = client.get('/admin/users/new').get_data(as_text=True)
         assert 'value="kontroler"' in page and 'value="admin"' in page
         assert 'value="monter"' not in page and 'value="order"' not in page
