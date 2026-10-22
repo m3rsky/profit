@@ -310,7 +310,11 @@
       <button type="button" class="wk-theme-btn" id="wk-theme-btn" title="Zmień motyw">
         <i class="bi bi-moon-fill" id="wk-theme-icon"></i>
       </button>
+      {% if current_user.role == 'produkcja' %}
+      <span class="wk-username" title="{{ current_user.username }}">{{ current_user.username }}</span>
+      {% else %}
       <a href="{{ url_for('account_settings') }}" class="wk-username" title="Ustawienia konta: {{ current_user.username }}">{{ current_user.username }}</a>
+      {% endif %}
       <a href="{{ url_for('logout') }}" class="wk-logout-link">Wyloguj</a>
       {% endif %}
     </div>

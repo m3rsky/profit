@@ -2380,6 +2380,9 @@ ROLE_LABELS = {
 @app.route('/konto', methods=['GET', 'POST'])
 @login_required
 def account_settings():
+    # Wspólne konto stanowiska produkcji nie ma ustawień konta
+    if current_user.role == 'produkcja':
+        abort(403)
     user = current_user._get_current_object()
     if request.method == 'POST':
         action = request.form.get('action', '')

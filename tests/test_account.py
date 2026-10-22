@@ -55,6 +55,23 @@ class TestAccountPage:
         _post(client, action='email', email='oper@test.pl')
 
 
+class TestProductionStationAccount:
+    def test_station_account_has_no_account_settings(self, client, app):
+        with app.app_context():
+            u = User(username='stanowisko', email='stanowisko@test.pl', role='produkcja')
+            u.set_password('Stan12345!')
+            db.session.add(u)
+            db.session.commit()
+        login(client, 'stanowisko', 'Stan12345!')
+        assert client.get('/konto').status_code == 403
+        assert client.post('/konto', data={'action': 'password', '_csrf_token': _csrf(client)}).status_code == 403
+        page = client.get('/produkcja/skan').get_data(as_text=True)
+        assert '/konto' not in page
+        with app.app_context():
+            db.session.delete(User.query.filter_by(username='stanowisko').first())
+            db.session.commit()
+
+
 class TestSuperadmin:
     def test_only_superadmin_sees_users_menu(self, client):
         login(client, 'admin', 'Admin1234!')
