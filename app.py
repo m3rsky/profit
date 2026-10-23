@@ -29,8 +29,10 @@ from models import (db, get_or_404, User, ChecklistTemplate, Category, Task, Rep
                     CatalogProduct,
                     ChecklistSession, Installer, ReportItemInstaller,
                     QARReport, QARPhoto, QARCategory,
-                    ProductionDepartment, DepartmentEmployee, ProductionStage, Machine,
-                    DailyBriefing, DocEntry, DocFile, DocNote)
+                    ProductionDepartment, DepartmentEmployee,
+                    DailyBriefing, DocEntry, DocFile, DocNote,
+                    RolePermission, MODULES, DEFAULT_PERMISSIONS, ROLES, ROLE_LABELS, ADMIN_ROLE_NAMES, LEGACY_ROLES,
+                    roles_matching)
 import anthropic
 import briefing_service
 
@@ -249,6 +251,58 @@ NAV_DEFAULT = ['dashboard', 'kontrola_etapowa', 'kontrola_koncowa', 'nowa_kontro
                'lista_produkcyjna', 'stanowisko', 'ustawienia', 'szablony', 'dokumentacja']
 
 
+# Moduł -> endpoint startowy (do przekierowania z Dashboardu, gdy rola go nie ma)
+MODULE_HOME = {
+    'dashboard': 'dashboard', 'kontrola_etapowa': 'kontrola.list_records', 'kontrola_koncowa': 'reports_list',
+    'qar': 'qar.list_reports', 'lista_produkcyjna': 'produkcja.index', 'stanowisko': 'produkcja.scan_page',
+    'ustawienia': 'ustawienia.index', 'szablony': 'admin_templates', 'dokumentacja': 'dokumentacja.list_entries',
+}
+
+# Endpointy z app.py przypisane do modułów w macierzy uprawnień (blueprinty mapuje _module_for_endpoint)
+_KONTROLA_KONCOWA_ENDPOINTS = {
+    'checklist_view', 'complete_checklist', 'new_checklist', 'checklist_from_qr', 'checklist_qr_lookup',
+    'delete_photo', 'export_pdf', 'report_batch_delete', 'report_delete', 'report_detail', 'report_edit',
+    'report_force_unlock', 'report_heartbeat', 'report_reopen', 'report_unlock', 'reports_bulk_delete',
+    'reports_export_csv', 'reports_list', 'save_item_notes', 'set_item_installers', 'set_item_result',
+    'set_item_value', 'upload_photo',
+}
+_STATYSTYKI_ENDPOINTS = {
+    'admin_stats', 'admin_stats_debug', 'admin_briefing_detail', 'admin_briefing_generate',
+    'admin_briefing_pdf', 'api_ng_task_reports', 'api_template_duration_reports',
+}
+_BLUEPRINT_MODULES = {'kontrola': 'kontrola_etapowa', 'qar': 'qar', 'dokumentacja': 'dokumentacja',
+                      'ustawienia': 'ustawienia'}
+_STANOWISKO_ENDPOINTS = {'scan_employee', 'scan_entry', 'scan_logout', 'scan_order', 'scan_page'}
+
+
+def _module_for_endpoint(endpoint):
+    """Moduł z macierzy uprawnień dla endpointu albo None (endpoint dostępny dla każdego zalogowanego)."""
+    if '.' in endpoint:
+        bp, name = endpoint.split('.', 1)
+        if bp == 'produkcja':
+            return 'stanowisko' if name in _STANOWISKO_ENDPOINTS else 'lista_produkcyjna'
+        return _BLUEPRINT_MODULES.get(bp)
+    if endpoint in _KONTROLA_KONCOWA_ENDPOINTS:
+        return 'kontrola_koncowa'
+    if endpoint in _STATYSTYKI_ENDPOINTS:
+        return 'statystyki'
+    if endpoint == 'admin_audit_log':
+        return 'dziennik'
+    if endpoint.startswith(('admin_template', 'admin_category', 'admin_task', 'admin_installers')) \
+            or endpoint in ('api_categories_reorder', 'api_tasks_reorder'):
+        return 'szablony'
+    return None
+
+
+def _first_allowed_url(user):
+    """Adres pierwszego modułu dostępnego dla użytkownika (wg jego kolejności menu) albo None."""
+    for key in _menu_keys_for(user):
+        endpoint = MODULE_HOME.get(key)
+        if endpoint and user.can(key):
+            return url_for(endpoint)
+    return None
+
+
 def _menu_keys_for(user):
     """Klucze w kolejności użytkownika: zapisana lista (tylko znane klucze), potem reszta w kolejności domyślnej."""
     import json
@@ -275,15 +329,29 @@ def _static_cache_bust(endpoint, values):
         pass
 
 
+@app.before_request
+def _enforce_module_access():
+    """Moduł niedostępny dla roli jest niewidoczny w menu, a wejście z adresu kończy się odmową."""
+    endpoint = request.endpoint
+    if not endpoint or not current_user.is_authenticated:
+        return None
+    module = _module_for_endpoint(endpoint)
+    if module and not current_user.can(module):
+        abort(403)
+    return None
+
+
 @app.context_processor
 def _inject_menu():
     def menu_pos(key):
-        """Pozycja pozycji menu (CSS order) dla admina i kontrolera, dla innych ról None (bez przestawiania)."""
-        if not current_user.is_authenticated or current_user.role not in ('admin', 'kontroler'):
+        """Pozycja pozycji menu (CSS order) wg kolejności zapisanej na koncie, None dla niezalogowanych."""
+        if not current_user.is_authenticated:
             return None
         keys = _menu_keys_for(current_user)
         return keys.index(key) + 1 if key in keys else len(keys) + 1
-    return dict(menu_pos=menu_pos)
+    def can(module):
+        return current_user.is_authenticated and current_user.can(module)
+    return dict(menu_pos=menu_pos, can=can)
 
 
 @app.route('/menu/kolejnosc', methods=['POST'])
@@ -312,9 +380,9 @@ def _inject_globals():
     pending_qa_count = 0
     if current_user.is_authenticated:
         unread = Alert.query.filter_by(recipient_id=current_user.id, is_read=False).count()
-        if current_user.role == 'kontroler':
+        if current_user.role_key == 'kontroler':
             cutoff_naive = (datetime.now(UTC).replace(tzinfo=None) - timedelta(minutes=30))
-            admin_ids_sq = db.session.query(User.id).filter(User.role == 'admin')
+            admin_ids_sq = db.session.query(User.id).filter(User.role.in_(ADMIN_ROLE_NAMES))
             all_pending = (Report.query
                           .filter(
                               Report.status == 'in_progress',
@@ -401,18 +469,15 @@ def theme_preview():
 @app.route('/')
 @login_required
 def dashboard():
-    if current_user.role == 'konstruktor':
-        return redirect(url_for('qar.list_reports'))
-    if current_user.role == 'planowanie':
-        return redirect(url_for('produkcja.index'))
-    if current_user.role == 'produkcja':
-        return redirect(url_for('produkcja.scan_page'))
-    if current_user.role == 'operator':
-        return redirect(url_for('kontrola.list_records'))
+    if not current_user.can('dashboard'):
+        target = _first_allowed_url(current_user)
+        if target:
+            return redirect(target)
+        abort(403)
 
     date_from = request.args.get('date_from', '')
     date_to   = request.args.get('date_to', '')
-    q = Report.query if current_user.is_admin else Report.query.filter_by(user_id=current_user.id)
+    q = Report.query
     if date_from:
         try:
             q = q.filter(Report.created_at >= datetime.strptime(date_from, '%Y-%m-%d'))
@@ -432,7 +497,7 @@ def dashboard():
     all_reports_count  = (_row.total or 0) if _row else 0
     completed_count    = (_row.completed or 0) if _row else 0
     in_progress_count  = (_row.in_progress or 0) if _row else 0
-    rq = Report.query if current_user.is_admin else Report.query.filter_by(user_id=current_user.id)
+    rq = Report.query
     # 10 pozycji na liście, seria (batch_id) liczy się jako jedna pozycja
     recent_reports, _seen_units = [], set()
     for _r in rq.order_by(Report.created_at.desc()).limit(500):
@@ -472,13 +537,10 @@ def dashboard():
                 pending_order_reports.append(r)
     else:
         pending_order_reports = []
-    if current_user.is_admin:
-        quality_alerts = (Alert.query
-                          .filter_by(recipient_id=current_user.id, alert_type='ng')
-                          .order_by(Alert.created_at.desc())
-                          .limit(5).all())
-    else:
-        quality_alerts = []
+    quality_alerts = (Alert.query
+                      .filter_by(recipient_id=current_user.id, alert_type='ng')
+                      .order_by(Alert.created_at.desc())
+                      .limit(5).all())
     # Liczba kontroli (raportów) z ostatnich 5 dni, wg lokalnej daty, do małego wykresu
     _today = datetime.now(LOCAL_TZ).date()
     _days = [_today - timedelta(days=i) for i in range(4, -1, -1)]
@@ -494,7 +556,7 @@ def dashboard():
     # Top 10 punktów z wynikiem NG z ostatnich 2 tygodni (ukończone raporty), tylko admin.
     # Grupowanie po znormalizowanym tytule, tak jak w statystykach (kopie szablonów mają różne ID).
     top_ng = []
-    if current_user.is_admin:
+    if current_user.can('kontrola_koncowa'):
         _ng_cutoff = (datetime.now(UTC) - timedelta(days=14)).replace(tzinfo=None)
         _norm_title = func.lower(func.trim(func.rtrim(func.trim(Task.title), '.')))
         top_ng = [{'title': r.title, 'count': r.cnt} for r in (
@@ -510,7 +572,7 @@ def dashboard():
             .limit(10).all())]
     # 5 najaktywniejszych działów wg liczby raportów QAR z ostatnich 14 dni (dział z przypisanego pracownika)
     qar_by_dept = []
-    if current_user.is_admin:
+    if current_user.can('qar'):
         _qar_cutoff = (datetime.now(UTC) - timedelta(days=14)).replace(tzinfo=None)
         qar_by_dept = [{'name': r.name, 'count': r.cnt} for r in (
             db.session.query(ProductionDepartment.name.label('name'),
@@ -868,7 +930,7 @@ def reports_list():
         # Kontroler widzi:
         # 1) swoje raporty (wszystkie statusy)
         # 2) cudze in-progress raporty kontrolne, po 30 min bezczynności
-        admin_ids_sq = db.session.query(User.id).filter(User.role == 'admin')
+        admin_ids_sq = db.session.query(User.id).filter(User.role.in_(ADMIN_ROLE_NAMES))
         cutoff_naive = datetime.now(UTC).replace(tzinfo=None) - timedelta(minutes=30)
         q = Report.query.filter(
             or_(
@@ -1164,7 +1226,7 @@ def _create_ng_alerts_on_complete(report):
     msg = f'Niezgodności ({len(ng_items)}): {report.title} — {", ".join(titles)}'
     if len(msg) > 512:
         msg = msg[:511] + '…'
-    for u in User.query.filter(User.role.in_(['admin', 'kontroler'])).all():
+    for u in User.query.filter(User.role.in_(roles_matching('administrator', 'kontroler'))).all():
         db.session.add(Alert(recipient_id=u.id, message=msg,
                              alert_type='ng'))
 
@@ -2289,8 +2351,10 @@ def admin_user_new():
         username = request.form['username'].strip()
         email = request.form['email'].strip()
         password = request.form['password']
-        role = request.form.get('role', 'user')
-        if len(password) < 8:
+        role = request.form.get('role', 'kontroler')
+        if role not in ROLES:
+            flash('Wybierz poprawną rolę.', 'error')
+        elif len(password) < 8:
             flash('Hasło musi mieć co najmniej 8 znaków.', 'error')
         elif not _valid_email(email):
             flash('Nieprawidłowy format adresu e-mail.', 'error')
@@ -2333,7 +2397,8 @@ def admin_user_edit(user_id):
             return render_template('admin/user_form.html', user=user)
         user.email = new_email
         # Rola super admina jest stała, nie da się jej zdegradować z panelu
-        user.role = 'admin' if user.is_superadmin else request.form.get('role', 'kontroler')
+        new_role = request.form.get('role', 'kontroler')
+        user.role = 'administrator' if user.is_superadmin else (new_role if new_role in ROLES else user.role_key)
         if new_password:
             user.set_password(new_password)
         try:
@@ -2345,6 +2410,32 @@ def admin_user_edit(user_id):
             db.session.rollback()
             flash('Adres e-mail jest już zajęty przez innego użytkownika.', 'error')
     return render_template('admin/user_form.html', user=user)
+
+
+@app.route('/admin/users/uprawnienia', methods=['GET', 'POST'])
+@login_required
+@superadmin_required
+def admin_permissions():
+    """Macierz rola x moduł: superuser ustawia, które moduły widzi dana rola."""
+    if request.method == 'POST':
+        granted = set(request.form.getlist('perm'))
+        for role in ROLES:
+            for module in MODULES:
+                row = RolePermission.query.filter_by(role=role, module=module).first()
+                allowed = f'{role}:{module}' in granted
+                if row is None:
+                    db.session.add(RolePermission(role=role, module=module, allowed=allowed))
+                else:
+                    row.allowed = allowed
+        db.session.commit()
+        _audit('permissions_update', 'role_permissions', None, f'{len(granted)} uprawnień')
+        flash('Uprawnienia ról zapisane.', 'success')
+        return redirect(url_for('admin_permissions'))
+    rows = {(r.role, r.module): r.allowed for r in RolePermission.query.all()}
+    matrix = {role: {m: rows.get((role, m), m in DEFAULT_PERMISSIONS.get(role, ())) for m in MODULES}
+              for role in ROLES}
+    return render_template('admin/permissions.html', roles=ROLES, role_labels=ROLE_LABELS,
+                           modules=MODULES, matrix=matrix)
 
 
 @app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
@@ -2371,12 +2462,6 @@ def admin_user_delete(user_id):
 
 # ── Ustawienia konta (każdy zalogowany, tylko własne dane) ───────────────────
 
-ROLE_LABELS = {
-    'admin': 'Administrator', 'kontroler': 'Kontroler', 'produkcja': 'Stanowisko produkcji',
-    'planowanie': 'Planowanie', 'operator': 'Operator', 'konstruktor': 'Konstruktor',
-}
-
-
 @app.route('/konto/motyw', methods=['POST'])
 @login_required
 def account_theme():
@@ -2392,9 +2477,6 @@ def account_theme():
 @app.route('/konto', methods=['GET', 'POST'])
 @login_required
 def account_settings():
-    # Wspólne konto stanowiska produkcji nie ma ustawień konta
-    if current_user.role == 'produkcja':
-        abort(403)
     user = current_user._get_current_object()
     if request.method == 'POST':
         action = request.form.get('action', '')
@@ -2443,9 +2525,8 @@ def account_settings():
                 flash('Hasło zostało zmienione.', 'success')
                 return redirect(url_for('account_settings'))
     return render_template('account.html', user=user,
-                           can_reorder_menu=user.role in ('admin', 'kontroler'),
-                           role_label='Super admin' if user.is_superadmin
-                           else ROLE_LABELS.get(user.role, user.role))
+                           can_reorder_menu=True,
+                           role_label=user.role_label)
 
 
 # ── Helpers: szablony i serie list ───────────────────────────────────────────────────────
@@ -2754,6 +2835,24 @@ def internal_error(e):
 
 # ── Init DB ───────────────────────────────────────────────────────────────────
 
+def _migrate_roles():
+    """Zamienia stare nazwy ról na nowe (admin -> administrator, planowanie -> technolog itd.)."""
+    for old, new in dict(LEGACY_ROLES, admin='administrator').items():
+        User.query.filter_by(role=old).update({'role': new})
+    db.session.commit()
+
+
+def _seed_role_permissions():
+    """Dopisuje brakujące wpisy macierzy rola x moduł wartościami domyślnymi (nie zmienia istniejących)."""
+    existing = {(r.role, r.module) for r in RolePermission.query.all()}
+    for role in ROLES:
+        for module in MODULES:
+            if (role, module) not in existing:
+                db.session.add(RolePermission(role=role, module=module,
+                                              allowed=module in DEFAULT_PERMISSIONS.get(role, ())))
+    db.session.commit()
+
+
 SUPERADMIN_EMAIL = 'palczowski@gmail.com'
 
 
@@ -2763,7 +2862,7 @@ def _mark_superadmin():
     u = User.query.filter(func.lower(User.email) == SUPERADMIN_EMAIL).first()
     if u and not u.is_superadmin:
         u.is_superadmin = True
-        u.role = 'admin'
+        u.role = 'administrator'
         db.session.commit()
 
 
@@ -2778,17 +2877,17 @@ def init_db():
         db.create_all()
         _migrate_installer_data()
         _drop_orders_and_monter()
+        _migrate_roles()
         _mark_superadmin()
+        _seed_role_permissions()
         if not User.query.filter_by(username='admin').first():
-            admin = User(username='admin', email='admin@psh.pl', role='admin')
+            admin = User(username='admin', email='admin@psh.pl', role='administrator')
             admin.set_password('admin123')
             db.session.add(admin)
         if not ChecklistTemplate.query.first():
             _seed_demo_data()
         _seed_kosztorys()
         _seed_departments()
-        _seed_stages()
-        _seed_stage_control_points()
         _backfill_department_tokens()
         _seed_qar_categories()
         db.session.commit()
@@ -3171,7 +3270,7 @@ def _resolve_operator(data):
     elif operator_name:
         user = User.query.filter(User.username.ilike(operator_name)).first()
     else:
-        user = User.query.filter_by(role='admin').first()
+        user = User.query.filter(User.role.in_(ADMIN_ROLE_NAMES)).first()
         if not user:
             return None, 'Brak użytkownika systemowego'
         return user, None
@@ -3329,7 +3428,7 @@ def api_v1_create_checklist():
 @api_key_required
 def api_v1_users():
     """Lista kontrolerów/adminów — do wyboru operatora w zewnętrznych narzędziach."""
-    users = User.query.filter(User.role.in_(('admin', 'kontroler'))).order_by(User.username).all()
+    users = User.query.filter(User.role.in_(roles_matching('administrator', 'kontroler'))).order_by(User.username).all()
     return jsonify([{'id': u.id, 'username': u.username, 'role': u.role} for u in users])
 
 
@@ -3484,7 +3583,7 @@ def api_v1_qar_create():
     description = (data.get('description') or '').strip()
     if not title or not description:
         return jsonify({'error': 'title i description są wymagane'}), 400
-    admin_user = User.query.filter_by(role='admin').first()
+    admin_user = User.query.filter(User.role.in_(ADMIN_ROLE_NAMES)).first()
     if not admin_user:
         return jsonify({'error': 'Brak użytkownika systemowego (admin)'}), 500
     report = QARReport(
@@ -3647,64 +3746,6 @@ def _seed_departments():
     ]
     for i, name in enumerate(default_departments):
         db.session.add(ProductionDepartment(name=name, order=i))
-
-
-# Etapy produkcji: (nazwa, dział wg nazwy, poziom, czy tworzyć dział, gdy go nie ma).
-# Zgrzewanie i spawanie to osobne etapy. Od składania zlecenie jest liczone w sztukach produktu.
-_STAGE_DEFAULTS = [
-    ('Wycinanie (laser, wykrawarki)', 'Wycinanie',     'element', True),
-    ('Gięcie',                       'Gięcie',        'element', False),
-    ('Przygotowanie (pemowanie)',    'Przygotowanie', 'element', True),
-    ('Zgrzewanie',                   'Zgrzewanie',    'element', False),
-    ('Spawanie',                     'Spawanie',      'element', False),
-    ('Szlifowanie i czyszczenie',    'Czyszczenie',   'element', False),
-    ('Mycie',                        'Mycie',         'element', False),
-    ('Malowanie',                    'Malarnia',      'element', False),
-    ('Kompletacja',                  'Kompletacja',   'element', True),
-    ('Składanie',                    'Składanie',     'produkt', False),
-    ('Kontrola końcowa',             'Kontrola Jakości', 'produkt', False),
-    ('Pakowanie',                    'Pakowanie',     'produkt', True),
-]
-_DEFAULT_MACHINES = ['Laser 1', 'Laser 2', 'Wykrawarka 1', 'Wykrawarka 2']
-
-
-def _seed_stages():
-    """Jednorazowo zakłada 12 etapów produkcji, maszyny wycinania i brakujące działy. Gdy etapy
-    już istnieją, nic nie robi (nie nadpisuje zmian wprowadzonych w ustawieniach)."""
-    if ProductionStage.query.first():
-        return
-    depts = {d.name.lower(): d for d in ProductionDepartment.query.all()}
-    next_order = (db.session.query(func.max(ProductionDepartment.order)).scalar() or 0) + 1
-    for i, (name, dept_name, level, create) in enumerate(_STAGE_DEFAULTS, 1):
-        dept = depts.get(dept_name.lower())
-        if dept is None and create:
-            dept = ProductionDepartment(name=dept_name, order=next_order)
-            next_order += 1
-            db.session.add(dept)
-            db.session.flush()
-            depts[dept_name.lower()] = dept
-        stage = ProductionStage(name=name, order=i, level=level,
-                                department_id=dept.id if dept else None)
-        db.session.add(stage)
-        db.session.flush()
-        if i == 1:
-            for m in _DEFAULT_MACHINES:
-                db.session.add(Machine(stage_id=stage.id, name=m))
-
-
-def _seed_stage_control_points():
-    """Jednorazowo kopiuje punkty kontrolne ze starego modułu Kontrola zamówień do etapu Kontrola
-    końcowa (etap 5 planu). Gdy punkty etapów już istnieją albo brak etapu, nic nie robi."""
-    from models import ControlPoint, StageControlPoint
-    if StageControlPoint.query.first():
-        return
-    stage = ProductionStage.query.filter(func.lower(ProductionStage.name) == 'kontrola końcowa').first()
-    if stage is None:
-        return
-    for i, cp in enumerate(ControlPoint.query.filter_by(is_active=True)
-                           .order_by(ControlPoint.order, ControlPoint.id).all(), 1):
-        db.session.add(StageControlPoint(stage_id=stage.id, order=i, title=cp.title,
-                                         description=cp.description))
 
 
 def _backfill_department_tokens():

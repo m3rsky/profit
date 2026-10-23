@@ -55,23 +55,6 @@ class TestAccountPage:
         _post(client, action='email', email='oper@test.pl')
 
 
-class TestProductionStationAccount:
-    def test_station_account_has_no_account_settings(self, client, app):
-        with app.app_context():
-            u = User(username='stanowisko', email='stanowisko@test.pl', role='produkcja')
-            u.set_password('Stan12345!')
-            db.session.add(u)
-            db.session.commit()
-        login(client, 'stanowisko', 'Stan12345!')
-        assert client.get('/konto').status_code == 403
-        assert client.post('/konto', data={'action': 'password', '_csrf_token': _csrf(client)}).status_code == 403
-        page = client.get('/produkcja/skan').get_data(as_text=True)
-        assert 'href="/konto"' not in page
-        with app.app_context():
-            db.session.delete(User.query.filter_by(username='stanowisko').first())
-            db.session.commit()
-
-
 class TestSuperadmin:
     def test_only_superadmin_sees_users_menu(self, client):
         login(client, 'admin', 'Admin1234!')
@@ -91,7 +74,7 @@ class TestSuperadmin:
                            follow_redirects=True)
         assert resp.status_code == 200
         with app.app_context():
-            assert User.query.get(sid).role == 'admin'
+            assert User.query.get(sid).role == 'administrator'
 
     def test_mark_superadmin_by_email(self, app):
         with app.app_context():
@@ -101,7 +84,7 @@ class TestSuperadmin:
             db.session.commit()
             _mark_superadmin()
             u = User.query.filter_by(username='owner').first()
-            assert u.is_superadmin and u.role == 'admin'
+            assert u.is_superadmin and u.role == 'administrator'
             db.session.delete(u)
             db.session.commit()
 
@@ -152,14 +135,14 @@ class TestThemeAndMenuOrder:
         login(client, 'oper', 'Oper1234!')
         assert 'edytuj-menu=1' in client.get('/konto').get_data(as_text=True)  # oper ma rolę kontroler
 
-    def test_menu_order_hidden_for_other_roles(self, client, app):
+    def test_menu_order_available_for_every_role(self, client, app):
         with app.app_context():
-            u = User(username='planista', email='planista@test.pl', role='planowanie')
+            u = User(username='planista', email='planista@test.pl', role='technolog')
             u.set_password('Plan12345!')
             db.session.add(u)
             db.session.commit()
         login(client, 'planista', 'Plan12345!')
-        assert 'edytuj-menu=1' not in client.get('/konto').get_data(as_text=True)
+        assert 'edytuj-menu=1' in client.get('/konto').get_data(as_text=True)
         with app.app_context():
             db.session.delete(User.query.filter_by(username='planista').first())
             db.session.commit()

@@ -1,21 +1,7 @@
-"""Rozpoznawanie kodów skanowanych na stanowisku: bufory i plakietki pracowników działów."""
-from models import Buffer, DepartmentEmployee
+"""Rozpoznawanie plakietek pracowników działów skanowanych na stanowisku."""
+from models import DepartmentEmployee
 
 BADGE_PREFIX = 'PSH-DEP:'
-
-
-def norm_code(code):
-    """Kod bufora do porównań: bez spacji, wielkimi literami ("a 001" = "A001")."""
-    return ''.join(str(code or '').split()).upper()[:64]
-
-
-def find_buffer(code):
-    """Bufor po kodzie z etykiety (QR, kod kreskowy albo wpisany ręcznie). Zwraca też bufory
-    nieaktywne, decyzję podejmuje wołający."""
-    code = norm_code(code)
-    if not code:
-        return None
-    return Buffer.query.filter_by(code=code).first()
 
 
 def parse_badge(text):

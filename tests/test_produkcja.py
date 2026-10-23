@@ -9,7 +9,7 @@ from openpyxl import Workbook, load_workbook
 from app import app as flask_app, db
 from models import (User, Report, ReportItem, Alert, ProdFile, ProdSheet, ProdRow,
                     ProdSheetAccess, ProdEmployee, ProdEmployeeDept, ProdStageColumn,
-                    ProdEntry, ProdSetting)
+                    ProdEntry, ProdSetting, RolePermission)
 from test_app import login, logout, _csrf
 
 PRODUCT = 'Kontrola ZO API'   # pasuje do szablonu z conftest (dopasowanie po tokenach)
@@ -59,11 +59,16 @@ def prod_folder(app, tmp_path):
 @pytest.fixture
 def planner(app):
     with app.app_context():
-        u = User(username='planista', email='planista@test.pl', role='planowanie')
+        u = User(username='planista', email='planista@test.pl', role='technolog')
         u.set_password('Plan1234!')
         db.session.add(u)
+        # technolog dostaje w macierzy dostęp do Listy produkcyjnej (domyślnie ma tylko Dashboard)
+        db.session.add(RolePermission(role='technolog', module='lista_produkcyjna', allowed=True))
         db.session.commit()
-    return 'planista'
+    yield 'planista'
+    with app.app_context():
+        RolePermission.query.filter_by(role='technolog').delete()
+        db.session.commit()
 
 
 def _import(client, buf=None):

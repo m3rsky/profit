@@ -2,89 +2,6 @@
 {% block title %}Dashboard{% endblock %}
 {% block content %}
 
-{% if not current_user.is_admin %}
-{# ════════════════════════════════════════════════════
-   WORKER DASHBOARD — kafelki nawigacyjne
-   ════════════════════════════════════════════════════ #}
-
-<div class="wk-welcome">
-  <h1 class="wk-welcome-title">Witaj, {{ current_user.username }}</h1>
-  <p class="wk-welcome-sub">{{ current_user.role_label }} — wybierz akcję</p>
-</div>
-
-{% if current_user.role == 'kontroler' %}
-
-  {% if pending_order_reports %}
-  <div class="qa-dashboard-desktop">
-    <div class="wk-section-label">Zlecenia do wykonania</div>
-    <div class="card" style="border-left:4px solid #f59e0b;">
-      <div class="card-body--sm">
-        {% for r in pending_order_reports %}
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;{% if not loop.last %}border-bottom:1px solid var(--border){% endif %}">
-          <div>
-            <div style="font-weight:600;font-size:0.85rem;">{{ r.title }}</div>
-            <div style="font-size:0.75rem;color:var(--text-muted);">
-              {{ r.zo or '—' }}
-            </div>
-          </div>
-          <a href="{{ url_for('checklist_view', report_id=r.id) }}" class="btn btn-primary btn-sm" style="flex-shrink:0;">
-            <i class="bi bi-pencil-fill"></i> Wypełnij
-          </a>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  <div class="wk-section-label">Akcje</div>
-  <div class="wk-tiles">
-    <a href="{{ url_for('new_checklist') }}" class="wk-tile wk-tile--blue">
-      <div class="wk-tile-icon"><i class="bi bi-plus-circle-fill"></i></div>
-      <div class="wk-tile-label">Nowa<br>kontrola</div>
-    </a>
-    <a href="{{ url_for('new_checklist', tab='qr') }}" class="wk-tile wk-tile--green">
-      <div class="wk-tile-icon"><i class="bi bi-qr-code-scan"></i></div>
-      <div class="wk-tile-label">Skanuj<br>QR</div>
-    </a>
-    <a href="{{ url_for('reports_list') }}" class="wk-tile wk-tile--teal">
-      <div class="wk-tile-icon"><i class="bi bi-clipboard-check-fill"></i></div>
-      <div class="wk-tile-label">Kontrola<br>Końcowa</div>
-      {% if in_progress_count > 0 %}
-      <div class="wk-tile-count">{{ in_progress_count }} w trakcie</div>
-      {% endif %}
-    </a>
-    {% if pending_qa_count > 0 %}
-    <button type="button" class="wk-tile wk-tile--amber"
-            onclick="var b=document.getElementById('wk-qa-btn');if(b)b.click();">
-      <div class="wk-tile-icon"><i class="bi bi-clipboard-data-fill"></i></div>
-      <div class="wk-tile-label">Zlecenia<br>QA</div>
-      <div class="wk-tile-count">{{ pending_qa_count }} do zrobienia</div>
-    </button>
-    {% endif %}
-    <a href="{{ url_for('kontrola.list_records') }}" class="wk-tile wk-tile--amber">
-      <div class="wk-tile-icon"><i class="bi bi-patch-check"></i></div>
-      <div class="wk-tile-label">Kontrola<br>zamówień</div>
-    </a>
-    <a href="{{ url_for('admin_templates') }}" class="wk-tile wk-tile--purple">
-      <div class="wk-tile-icon"><i class="bi bi-layout-text-sidebar-reverse"></i></div>
-      <div class="wk-tile-label">Szablony</div>
-    </a>
-    <a href="{{ url_for('alerts_list') }}" class="wk-tile wk-tile--rose">
-      <div class="wk-tile-icon"><i class="bi bi-bell-fill"></i></div>
-      <div class="wk-tile-label">Alerty</div>
-      {% if unread_alerts > 0 %}
-      <div class="wk-tile-count">{{ unread_alerts }} nowych</div>
-      {% endif %}
-    </a>
-  </div>
-
-{% endif %}
-
-{% else %}
-{# ════════════════════════════════════════════════════
-   ADMIN DASHBOARD — pełne statystyki (bez zmian)
-   ════════════════════════════════════════════════════ #}
 
 <div class="page-header">
   <h1 class="page-title">Witaj, {{ current_user.username }}</h1>
@@ -97,6 +14,7 @@
 <div class="stats-grid">
 
   {# In progress #}
+  {% if can('kontrola_koncowa') %}
   <a href="{{ url_for('reports_list', status='in_progress') }}" class="stat-card stat-card-mini accent-orange stat-card--link">
     <div class="stat-mini-top">
       <div>
@@ -109,9 +27,10 @@
       <div class="stat-mini-bar-fill" data-pct="{{ '%.1f' | format(pct_prog * 100) }}"></div>
     </div>
   </a>
+  {% endif %}
 
-  {# QAR z ostatnich 14 dni, 5 najaktywniejszych działów (tylko admin) #}
-  {% if current_user.is_admin %}
+  {# QAR z ostatnich 14 dni, 5 najaktywniejszych działów (rola z modułem QAR) #}
+  {% if can('qar') %}
   <a href="{{ url_for('qar.list_reports', date_from=qar_date_from) }}" class="stat-card stat-card-chart stat-card--link">
     <div class="stat-mini-label">QAR wg działów, ostatnie 14 dni</div>
     {% if qar_by_dept %}
@@ -132,6 +51,7 @@
   {% endif %}
 
   {# Kontrole z ostatnich 5 dni #}
+  {% if can('kontrola_koncowa') %}
   {% set max_daily = (daily_checks | map(attribute='count') | max) or 1 %}
   <div class="stat-card stat-card-chart">
     <div class="stat-mini-label">Kontrole, ostatnie 5 dni</div>
@@ -151,8 +71,9 @@
     </div>
   </div>
 
-  {# Top 10 NG z ostatnich 2 tygodni (tylko admin) #}
-  {% if current_user.is_admin %}
+  {# Top 10 NG z ostatnich 2 tygodni #}
+  {% endif %}
+  {% if can('kontrola_koncowa') %}
   <div class="stat-card stat-card-chart">
     <div class="stat-mini-label">Top 10 NG, ostatnie 2 tyg.</div>
     {% if top_ng %}
@@ -180,10 +101,11 @@
 
 </div>
 
-{# ── Recent reports (+ quality alerts obok, tylko admin) ── #}
+{# ── Ostatnie raporty i alerty jakości (rola z modułem Kontrola Końcowa) ── #}
+{% if can('kontrola_koncowa') %}
 <div class="dash-grid-2col">
   <div class="dash-col-main">
-  <div class="section-title">{% if current_user.is_admin %}Ostatnie raporty (wszyscy){% else %}Ostatnie raporty{% endif %}</div>
+  <div class="section-title">Ostatnie raporty</div>
   <div class="card">
     {% if recent_reports %}
       {% for r in recent_reports %}
@@ -226,7 +148,7 @@
   </div>
   </div>
 
-  {% if current_user.is_admin %}
+  {% if can('kontrola_koncowa') %}
   <div class="dash-col-side">
     <div class="section-title">Alerty jakości</div>
     <div class="card">
@@ -249,6 +171,7 @@
   </div>
   {% endif %}
 </div>
+{% endif %}
 
 {# ── Pending QA orders ── #}
 {% if pending_order_reports %}
@@ -294,8 +217,6 @@
   </div>
 </div>
 {% endif %}
-
-{% endif %}{# end worker/admin split #}
 
 {% endblock %}
 

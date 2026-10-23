@@ -1,0 +1,51 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Uprawnienia ról{% endblock %}
+{% block admin_content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-shield-lock"></i> Uprawnienia ról</h1>
+    <span class="text-muted" style="font-size:0.82rem;">Zaznacz, które moduły widzi dana rola. Moduły bez zaznaczenia są dla tej roli niewidoczne. Superuser ma zawsze dostęp do wszystkiego.</span>
+  </div>
+  <div class="page-header-actions">
+    <a href="{{ url_for('admin_users') }}" class="btn btn-outline"><i class="bi bi-arrow-left"></i> Użytkownicy</a>
+  </div>
+</div>
+
+<form method="post">
+  {{ csrf_input() }}
+  <div class="card">
+    <div class="card-body card-body--flush">
+      <table class="data-table perm-table">
+        <thead>
+          <tr>
+            <th>Moduł</th>
+            {% for role in roles %}<th class="perm-col">{{ role_labels[role] }}</th>{% endfor %}
+            <th class="perm-col">Superuser</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for key, label in modules.items() %}
+          <tr>
+            <td><strong>{{ label }}</strong></td>
+            {% for role in roles %}
+            <td class="perm-col">
+              <input type="checkbox" name="perm" value="{{ role }}:{{ key }}" {% if matrix[role][key] %}checked{% endif %}
+                     aria-label="{{ role_labels[role] }}: {{ label }}">
+            </td>
+            {% endfor %}
+            <td class="perm-col"><i class="bi bi-check2 text-muted" title="Zawsze"></i></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="form-actions" style="margin-top:14px;">
+    <button type="submit" class="btn btn-primary">Zapisz uprawnienia</button>
+  </div>
+</form>
+<style>
+.perm-table .perm-col { text-align: center; width: 110px; }
+.perm-table input[type=checkbox] { width: 18px; height: 18px; cursor: pointer; }
+</style>
+{% endblock %}

@@ -6,7 +6,6 @@
 {% endblock %}
 
 {% block content %}
-{% include 'ustawienia/_tabs.html' %}
 <div class="page-header">
   <h1 class="page-title"><i class="bi bi-people"></i> Działy i pracownicy</h1>
   <div class="page-header-actions">
@@ -116,7 +115,7 @@ table.dept-list-table .badge-ok {
   border: none !important;
 }
 
-/* ── Lista działów – kompaktowy widok mobilny (jak Ścieżki produkcyjne) ── */
+/* ── Lista działów – kompaktowy widok mobilny ── */
 @media (max-width: 640px), (hover: none) and (pointer: coarse) and (min-width: 769px) {
   table.dept-list-table tr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
   table.dept-list-table td.tpl-cell { padding: 2px 0 !important; }

@@ -3,7 +3,10 @@
 {% block admin_content %}
 <div class="page-header">
   <h1 class="page-title">Użytkownicy</h1>
-  <a href="{{ url_for('admin_user_new') }}" class="btn btn-primary"><i class="bi bi-person-plus-fill"></i> Dodaj użytkownika</a>
+  <div class="page-header-actions">
+    <a href="{{ url_for('admin_permissions') }}" class="btn btn-outline"><i class="bi bi-shield-lock"></i> Uprawnienia ról</a>
+    <a href="{{ url_for('admin_user_new') }}" class="btn btn-primary"><i class="bi bi-person-plus-fill"></i> Dodaj użytkownika</a>
+  </div>
 </div>
 
 <div class="card">
@@ -18,20 +21,10 @@
           <td data-label="Login"><strong>{{ u.username }}</strong></td>
           <td data-label="Email">{{ u.email }}</td>
           <td data-label="Rola">
-            {% if u.role == 'admin' %}
-              <span class="badge badge-secondary">Administrator</span>
-            {% elif u.role == 'kontroler' %}
-              <span class="badge badge-info">Kontroler</span>
-            {% elif u.role == 'produkcja' %}
-              <span class="badge badge-neutral">Stanowisko produkcji</span>
-            {% elif u.role == 'planowanie' %}
-              <span class="badge badge-warning">Planowanie</span>
-            {% elif u.role == 'operator' %}
-              <span class="badge badge-success">Operator</span>
-            {% elif u.role == 'konstruktor' %}
-              <span class="badge badge-info">Konstruktor</span>
+            {% if u.is_superadmin %}
+              <span class="badge badge-secondary">Superuser</span>
             {% else %}
-              <span class="badge badge-neutral">{{ u.role }}</span>
+              <span class="badge badge-neutral">{{ u.role_label }}</span>
             {% endif %}
           </td>
           <td data-label="Od">{{ u.created_at | localdt('%d.%m.%Y') }}</td>

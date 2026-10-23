@@ -38,7 +38,7 @@ class TestUiWithoutRemovedRoles:
     def test_user_form_has_no_monter_or_order_role(self, client):
         login(client, 'super', 'Super1234!')
         page = client.get('/admin/users/new').get_data(as_text=True)
-        assert 'value="kontroler"' in page and 'value="admin"' in page
+        assert 'value="kontroler"' in page and 'value="administrator"' in page
         assert 'value="monter"' not in page and 'value="order"' not in page
 
     def test_template_form_has_no_monter_type_or_filter(self, client):

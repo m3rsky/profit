@@ -5,8 +5,7 @@ from flask import (render_template, redirect, url_for, request, flash,
 from flask_login import login_required, current_user
 from sqlalchemy import func
 
-from models import (db, get_or_404, AuditLog, ProductionDepartment, DepartmentEmployee,
-                    RoutingTemplate, RoutingTemplateStage)
+from models import db, get_or_404, AuditLog, ProductionDepartment, DepartmentEmployee
 from . import ustawienia_bp
 
 
@@ -97,14 +96,11 @@ def admin_departments():
 
         elif action == 'delete':
             dept = get_or_404(ProductionDepartment, request.form.get('dept_id', type=int))
-            if RoutingTemplateStage.query.filter_by(department_id=dept.id).first():
-                flash(f'Nie można usunąć „{dept.name}" — jest użyty w ścieżce produkcyjnej.', 'warning')
-            else:
-                name = dept.name
-                db.session.delete(dept)
-                db.session.commit()
-                _audit('ustawienia_dept_delete', 'ProductionDepartment', dept.id, name)
-                flash(f'Dział „{name}" usunięty.', 'success')
+            name = dept.name
+            db.session.delete(dept)
+            db.session.commit()
+            _audit('ustawienia_dept_delete', 'ProductionDepartment', dept.id, name)
+            flash(f'Dział „{name}" usunięty.', 'success')
 
         return redirect(url_for('ustawienia.admin_departments'))
 
@@ -177,91 +173,3 @@ def admin_employees(dept_id):
                                                       ProductionDepartment.name).all()
     return render_template('ustawienia/admin_employees.html', department=dept, employees=employees,
                            departments=departments)
-
-
-# ── Admin: ścieżki produkcyjne ────────────────────────────────────────────────
-
-@ustawienia_bp.route('/admin/routing-templates')
-@login_required
-@settings_required
-def admin_routing_templates():
-    templates = RoutingTemplate.query.order_by(RoutingTemplate.name).all()
-    return render_template('ustawienia/admin_routing_templates.html', templates=templates)
-
-
-@ustawienia_bp.route('/admin/routing-templates/new', methods=['GET', 'POST'])
-@login_required
-@settings_required
-def new_routing_template():
-    departments = _departments()
-
-    if request.method == 'POST':
-        name = request.form.get('name', '').strip()
-        dept_ids = set(request.form.getlist('department_ids', type=int))
-        if not name:
-            flash('Nazwa ścieżki jest wymagana.', 'warning')
-        elif not dept_ids:
-            flash('Wybierz przynajmniej jeden dział.', 'warning')
-        else:
-            tmpl = RoutingTemplate(name=name)
-            db.session.add(tmpl)
-            db.session.flush()
-            for dept in departments:
-                if dept.id in dept_ids:
-                    db.session.add(RoutingTemplateStage(
-                        template_id=tmpl.id, department_id=dept.id, order=dept.order,
-                    ))
-            db.session.commit()
-            _audit('ustawienia_template_create', 'RoutingTemplate', tmpl.id, name)
-            flash(f'Ścieżka produkcyjna „{name}" utworzona.', 'success')
-            return redirect(url_for('ustawienia.admin_routing_templates'))
-
-    return render_template('ustawienia/routing_template_form.html',
-                           departments=departments, template=None, selected_ids=set())
-
-
-@ustawienia_bp.route('/admin/routing-templates/<int:tpl_id>/edit', methods=['GET', 'POST'])
-@login_required
-@settings_required
-def edit_routing_template(tpl_id):
-    tmpl = get_or_404(RoutingTemplate, tpl_id)
-    departments = _departments()
-
-    if request.method == 'POST':
-        name = request.form.get('name', '').strip()
-        dept_ids = set(request.form.getlist('department_ids', type=int))
-        is_active = request.form.get('is_active') == 'on'
-        if not name:
-            flash('Nazwa ścieżki jest wymagana.', 'warning')
-        elif not dept_ids:
-            flash('Wybierz przynajmniej jeden dział.', 'warning')
-        else:
-            tmpl.name = name
-            tmpl.is_active = is_active
-            RoutingTemplateStage.query.filter_by(template_id=tmpl.id).delete()
-            for dept in departments:
-                if dept.id in dept_ids:
-                    db.session.add(RoutingTemplateStage(
-                        template_id=tmpl.id, department_id=dept.id, order=dept.order,
-                    ))
-            db.session.commit()
-            _audit('ustawienia_template_edit', 'RoutingTemplate', tmpl.id, name)
-            flash(f'Ścieżka produkcyjna „{name}" zapisana.', 'success')
-            return redirect(url_for('ustawienia.admin_routing_templates'))
-
-    selected_ids = {s.department_id for s in tmpl.stages}
-    return render_template('ustawienia/routing_template_form.html',
-                           departments=departments, template=tmpl, selected_ids=selected_ids)
-
-
-@ustawienia_bp.route('/admin/routing-templates/<int:tpl_id>/delete', methods=['POST'])
-@login_required
-@settings_required
-def delete_routing_template(tpl_id):
-    tmpl = get_or_404(RoutingTemplate, tpl_id)
-    name = tmpl.name
-    db.session.delete(tmpl)
-    db.session.commit()
-    _audit('ustawienia_template_delete', 'RoutingTemplate', tpl_id, name)
-    flash(f'Ścieżka produkcyjna „{name}" usunięta.', 'success')
-    return redirect(url_for('ustawienia.admin_routing_templates'))

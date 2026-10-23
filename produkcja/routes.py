@@ -648,7 +648,9 @@ def file_download(file_id):
 @login_required
 @admin_only
 def access():
-    users = User.query.filter_by(role='planowanie').order_by(User.username).all()
+    from models import roles_matching
+    users = (User.query.filter(User.role.in_(roles_matching('technolog')))
+             .order_by(User.username).all())
     sheets = ProdSheet.query.order_by(ProdSheet.position).all()
     if request.method == 'POST':
         wanted = {(int(u), int(s)) for u, s in

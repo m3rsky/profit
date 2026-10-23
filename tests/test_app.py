@@ -215,7 +215,7 @@ class TestUserManagement:
         token = _csrf(client)
         resp = client.post('/admin/users/new',
                            data={'username': 'newuser', 'email': 'new@test.pl',
-                                 'password': 'short', 'role': 'user',
+                                 'password': 'short', 'role': 'kontroler',
                                  '_csrf_token': token},
                            follow_redirects=True)
         assert b'8 znak' in resp.data
@@ -225,7 +225,7 @@ class TestUserManagement:
         token = _csrf(client)
         resp = client.post('/admin/users/new',
                            data={'username': 'newuser2', 'email': 'not-an-email',
-                                 'password': 'Validpass1!', 'role': 'user',
+                                 'password': 'Validpass1!', 'role': 'kontroler',
                                  '_csrf_token': token},
                            follow_redirects=True)
         assert b'e-mail' in resp.data
@@ -235,7 +235,7 @@ class TestUserManagement:
         token = _csrf(client)
         resp = client.post('/admin/users/new',
                            data={'username': 'unique', 'email': 'admin@test.pl',
-                                 'password': 'Validpass1!', 'role': 'user',
+                                 'password': 'Validpass1!', 'role': 'kontroler',
                                  '_csrf_token': token},
                            follow_redirects=True)
         assert b'e-mail' in resp.data

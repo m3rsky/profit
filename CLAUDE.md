@@ -109,7 +109,7 @@ gdzie `price_bonus` = cena po rabacie powiększona o bonus procentowy.
 
 Zmiana 2026-10-16. Moduły "Kontrola międzyetapowa" (Kontrola etapów, `/spawalnia`) i karty "Marszruty produkcji" (`/marszruta`) zostały usunięte, zastąpiła je Kontrola zamówień. Ich tabele (`spawalnia_records`, `interstage_checks`, `spawalnia_operators`, `giecie_operators`, `ciecie_operators`, `routing_cards`, `routing_card_stages`, `routing_card_photos`) kasuje `_migrate_schema()` przy starcie (nieodwracalnie), konta z rolą `spawacz` przechodzą na `operator`, API `/api/v1/spawalnia` nie istnieje. Zdjęcia kart zostały w `static/marszruta_uploads/` na serwerze (do ręcznego usunięcia).
 
-Z Marszruty zostały dwie części, przeniesione do pakietu `ustawienia/` (blueprint `ustawienia_bp`, szablony `templates/ustawienia/`, dostęp admin + kontroler):
+Z Marszruty zostały dwie części, przeniesione do pakietu `ustawienia/` (od 2026-10-23 zostały tylko Działy i pracownicy: zakładki Ścieżki produkcyjne, Szablony produktów oraz Etapy i bufory wraz z punktami kontrolnymi etapów i etykietami buforów zostały wyłączone jako nieużywane, kod do odzyskania z historii gita, a tabele `production_stages`, `machines`, `buffers`, `routing_templates`, `product_templates` i pokrewne zostają w bazie nietknięte) (blueprint `ustawienia_bp`, szablony `templates/ustawienia/`, dostęp admin + kontroler):
 - **Działy i pracownicy** (`ProductionDepartment`, `DepartmentEmployee`): używane też w QAR (osoba odpowiedzialna), Liście produkcyjnej (działy pracowników) i Porannym Briefingu. Pracownika z raportami QAR nie da się usunąć, tylko dezaktywować.
 - **Ścieżki produkcyjne** (`RoutingTemplate`, `RoutingTemplateStage`): edytowalne, ale na razie nigdzie nieużywane po usunięciu kart.
 - Testy: `tests/test_ustawienia.py` (w tym test migracji usuwającej stare tabele).
@@ -138,6 +138,17 @@ Nowy, prostszy moduł (szkic): skan QR zlecenia albo ręczne utworzenie jak w Ko
 - **Przestawianie przeciąganiem** (admin i kontroler): przycisk "Zmień kolejność menu", przeciąganie myszą i dotykiem (pointer events, `static/js/nav-sort.js`), "Zapisz", "Domyślne", "Anuluj". Kolejność zapisuje się na koncie (`User.menu_order`, JSON z kluczami `NAV_DEFAULT` w `app.py`, `POST /menu/kolejnosc`), wizualnie działa przez CSS `order` (`menu_pos(klucz)` w szablonie). Inne role nie mają przestawiania.
 - **Usunięte:** moduł **Zadania QA** (pakiet `zadania_qa`, szablony, `QATask`, tabela `qa_tasks` kasowana przy starcie, testy). **Kosztorysy** i sekcja "Kosztorysy - config" (Ceny materiałów, Stawki robocizny, Typy szaf, Katalog produktów) są ukryte w menu wszystkich ról, strony i dane zostają dostępne po adresie. Moduł **Zamówienia** (strony `/orders`, Import CSV, model `Order`, tabela `orders`, `Report.order_id`, `Alert.order_id`, `/api/v1/orders`, alerty o postępie zamówienia, kafle zamówień na Dashboardzie) oraz role **Monter** (pula i listy montażowe, szablony typu monter) i **Zamawiający** (`order`) zostały usunięte w całości. Przy starcie (`_drop_orders_and_monter` w `init_db`) konta o tych rolach dostają rolę `operator` (odczyt), kasowane są szablony i listy montażowe, kolumny `order_id` (tam gdzie SQLite pozwala) i tabela `orders`. `prod_rows.order_id` zastąpiło `ProdRow.checklists_at` (znacznik utworzenia list z Listy produkcyjnej). Model `Installer` (montażysta wybierany w punktach typu `installer`) i statystyka "Błędy NG wg montera" zostają. `tools/bulk_checklist_entry.py` korzysta z usuniętego `/api/v1/orders` i wymaga przeróbki (odłożone). Testy: `tests/test_removed_modules.py`.
 - Testy: `tests/test_menu.py`.
+
+---
+
+## Role i uprawnienia (od 2026-10-23)
+
+- **Role:** Superuser (flaga `User.is_superadmin`, jedno konto Marek, rola w bazie `administrator`), Administrator, Operator, Konstruktor, Kontroler, Technolog (`models.ROLES`). Stare nazwy (`admin`, `planowanie`, `produkcja`, `order`) migrują przy starcie (`_migrate_roles`) i są rozpoznawane przez `LEGACY_ROLES`.
+- **Macierz rola x moduł:** tabela `role_permissions`, edytuje ją tylko superuser w `/admin/users/uprawnienia`. Moduły w `models.MODULES`, domyślne uprawnienia w `DEFAULT_PERMISSIONS` (odpowiadają dawnemu dostępowi, Technolog ma tylko Dashboard, Operator Kontrolę etapową i Stanowisko). Superuser ma zawsze wszystko.
+- **Egzekwowanie:** `before_request` `_enforce_module_access` mapuje endpointy na moduły (`_module_for_endpoint`), brak dostępu to 403. Menu (jeden wspólny sidebar dla wszystkich ról) pokazuje pozycje wg `can('moduł')`. Dashboard bez dostępu przekierowuje na pierwszy dozwolony moduł (`_first_allowed_url`).
+- **Akcje wewnątrz modułów** (usuwanie, edycja cudzych rekordów) nadal wynikają z `is_admin`, `is_kontroler`, `is_konstruktor` (modele `User`). `is_admin` to Administrator i Superuser.
+- Nowy moduł trzeba dopisać do `MODULES`, `DEFAULT_PERMISSIONS`, mapowania endpointów i menu w `base.html`.
+- Testy: `tests/test_roles.py`.
 
 ---
 

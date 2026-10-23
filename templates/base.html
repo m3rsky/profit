@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/erp-design.css') }}">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  {% if current_user.is_authenticated and current_user.is_admin %}
+  {% if current_user.is_authenticated %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/gridstack.min.css') }}">
   {% endif %}
   <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -60,7 +60,7 @@
 {# ════════════════════════════════════════════════════════════════
    ADMIN LAYOUT — elementy otwierające (sidebar, mobile-header)
    ════════════════════════════════════════════════════════════════ #}
-{% if current_user.is_authenticated and current_user.is_admin %}
+{% if current_user.is_authenticated %}
 
 <header class="mobile-header" id="mobile-header">
   <span class="mobile-brand">RP-Sys</span>
@@ -93,51 +93,69 @@
 
     <nav class="sidebar-nav">
       <div class="nav-sortable" data-nav-sortable>
+{% if can('dashboard') %}
       <a href="{{ url_for('dashboard') }}" data-nav-key="dashboard" style="order:{{ menu_pos('dashboard') }}"
          class="{% if request.endpoint == 'dashboard' %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-speedometer2"></i></span>
         <span>Dashboard</span>
       </a>
+{% endif %}
+{% if can('kontrola_etapowa') %}
       <a href="{{ url_for('kontrola.list_records') }}" data-nav-key="kontrola_etapowa" style="order:{{ menu_pos('kontrola_etapowa') }}"
          class="{% if request.endpoint and request.endpoint.startswith('kontrola.') %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-patch-check"></i></span>
         <span>Kontrola etapowa</span>
       </a>
+{% endif %}
+{% if can('kontrola_koncowa') %}
       <a href="{{ url_for('reports_list') }}" data-nav-key="kontrola_koncowa" style="order:{{ menu_pos('kontrola_koncowa') }}"
          class="{% if request.endpoint in ('reports_list','report_detail') %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-clipboard-check"></i></span>
         <span>Kontrola Końcowa</span>
       </a>
+{% endif %}
+{% if can('qar') %}
       <a href="{{ url_for('qar.list_reports') }}" data-nav-key="qar" style="order:{{ menu_pos('qar') }}"
          class="{% if request.endpoint and request.endpoint.startswith('qar.') %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-clipboard2-pulse"></i></span>
         <span>Raporty QAR</span>
       </a>
+{% endif %}
+{% if can('lista_produkcyjna') %}
       <a href="{{ url_for('produkcja.index') }}" data-nav-key="lista_produkcyjna" style="order:{{ menu_pos('lista_produkcyjna') }}"
          class="{% if request.endpoint and request.endpoint.startswith('produkcja.') and request.endpoint != 'produkcja.scan_page' %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-table"></i></span>
         <span>Lista produkcyjna</span>
       </a>
+{% endif %}
+{% if can('stanowisko') %}
       <a href="{{ url_for('produkcja.scan_page') }}" data-nav-key="stanowisko" style="order:{{ menu_pos('stanowisko') }}"
          class="{% if request.endpoint in ('produkcja.scan_page',) %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-qr-code-scan"></i></span>
         <span>Stanowisko (skan QR)</span>
       </a>
+{% endif %}
+{% if can('ustawienia') %}
       <a href="{{ url_for('ustawienia.index') }}" data-nav-key="ustawienia" style="order:{{ menu_pos('ustawienia') }}"
          class="{% if request.endpoint and request.endpoint.startswith('ustawienia.') %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-diagram-3"></i></span>
         <span>Ustawienia produkcji</span>
       </a>
+{% endif %}
+{% if can('szablony') %}
       <a href="{{ url_for('admin_templates') }}" data-nav-key="szablony" style="order:{{ menu_pos('szablony') }}"
          class="{% if request.endpoint and not request.endpoint.startswith('ustawienia.') and ('template' in request.endpoint or 'category' in request.endpoint or 'task' in request.endpoint) %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-layout-text-sidebar-reverse"></i></span>
         <span>Szablony</span>
       </a>
+{% endif %}
+{% if can('dokumentacja') %}
       <a href="{{ url_for('dokumentacja.list_entries') }}" data-nav-key="dokumentacja" style="order:{{ menu_pos('dokumentacja') }}"
          class="{% if request.endpoint and request.endpoint.startswith('dokumentacja.') %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-folder2-open"></i></span>
         <span>Dokumentacja</span>
       </a>
+{% endif %}
       </div>
       <div class="nav-edit-bar" id="nav-edit-bar" hidden>
         <button type="button" class="btn btn-primary btn-sm" data-nav-save><i class="bi bi-check2"></i> Zapisz</button>
@@ -145,7 +163,9 @@
         <button type="button" class="btn btn-ghost btn-sm" data-nav-cancel>Anuluj</button>
       </div>
 
+      {% if current_user.is_superadmin or can('statystyki') or can('dziennik') %}
       <div class="sidebar-section">Zarządzanie</div>
+      {% endif %}
       {% if current_user.is_superadmin %}
       <a href="{{ url_for('admin_users') }}"
          class="{% if request.endpoint and request.endpoint.startswith('admin_user') %}active{% endif %}">
@@ -153,16 +173,20 @@
         <span>Użytkownicy</span>
       </a>
       {% endif %}
+      {% if can('statystyki') %}
       <a href="{{ url_for('admin_stats') }}"
          class="{% if request.endpoint == 'admin_stats' %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-bar-chart-line"></i></span>
         <span>Statystyki</span>
       </a>
+      {% endif %}
+      {% if can('dziennik') %}
       <a href="{{ url_for('admin_audit_log') }}"
          class="{% if request.endpoint == 'admin_audit_log' %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-journal-text"></i></span>
         <span>Dziennik zdarzeń</span>
       </a>
+      {% endif %}
 
     </nav>
 
@@ -184,191 +208,13 @@
 {# ════════════════════════════════════════════════════════════════
    WORKER LAYOUT — elementy otwierające (wk-header)
    ════════════════════════════════════════════════════════════════ #}
-{% else %}
-
-<div class="wk-layout">
-  <header class="wk-header">
-
-    <div class="wk-header-brand">
-      <div class="wk-logo-mark">RP</div>
-      <div class="wk-logo-text">
-        <div class="wk-app-name">RP-Sys</div>
-        <div class="wk-role-badge">{{ current_user.role_label if current_user.is_authenticated else '' }}</div>
-      </div>
-    </div>
-
-    {% if current_user.is_authenticated %}
-    <nav class="wk-nav" aria-label="Nawigacja" {% if current_user.role == 'kontroler' %}data-nav-sortable{% endif %}>
-      <a href="{{ url_for('dashboard') }}" data-nav-key="dashboard" {% if menu_pos('dashboard') %}style="order:{{ menu_pos('dashboard') }}"{% endif %}
-         class="wk-nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}"
-         title="Menu główne">
-        <i class="bi bi-grid-fill"></i>
-        <span class="wk-nav-label">Menu</span>
-      </a>
-
-      {% if current_user.role == 'kontroler' %}
-        <a href="{{ url_for('kontrola.list_records') }}" data-nav-key="kontrola_etapowa" style="order:{{ menu_pos('kontrola_etapowa') }}"
-           class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('kontrola.') %}active{% endif %}"
-           title="Kontrola etapowa">
-          <i class="bi bi-patch-check"></i>
-          <span class="wk-nav-label">Kontrola etapowa</span>
-        </a>
-        <a href="{{ url_for('reports_list') }}" data-nav-key="kontrola_koncowa" style="order:{{ menu_pos('kontrola_koncowa') }}"
-           class="wk-nav-link {% if request.endpoint in ('reports_list','report_detail') %}active{% endif %}"
-           title="Kontrola Końcowa">
-          <i class="bi bi-clipboard-check-fill"></i>
-          <span class="wk-nav-label">Kontrola Końcowa</span>
-        </a>
-        <a href="{{ url_for('new_checklist') }}" data-nav-key="nowa_kontrola" style="order:{{ menu_pos('nowa_kontrola') }}"
-           class="wk-nav-link {% if request.endpoint == 'new_checklist' %}active{% endif %}"
-           title="Nowa kontrola">
-          <i class="bi bi-plus-circle-fill"></i>
-          <span class="wk-nav-label">Nowa kontrola</span>
-        </a>
-        {% if pending_qa_count > 0 %}
-        <button type="button" class="wk-nav-link wk-qa-btn" id="wk-qa-btn" data-nav-key="zlecenia_qa" style="order:{{ menu_pos('zlecenia_qa') }}"
-                aria-expanded="false" title="Zlecenia QA do wykonania ({{ pending_qa_count }})">
-          <i class="bi bi-clipboard-data-fill"></i>
-          <span class="wk-nav-label">Zlecenia QA</span>
-          <span class="wk-qa-badge">{{ pending_qa_count }}</span>
-        </button>
-        {% endif %}
-        <a href="{{ url_for('qar.list_reports') }}" data-nav-key="qar" style="order:{{ menu_pos('qar') }}"
-           class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('qar.') %}active{% endif %}"
-           title="Raporty QAR">
-          <i class="bi bi-clipboard2-pulse"></i>
-          <span class="wk-nav-label">QAR</span>
-        </a>
-        <a href="{{ url_for('ustawienia.index') }}" data-nav-key="ustawienia" style="order:{{ menu_pos('ustawienia') }}"
-           class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('ustawienia.') %}active{% endif %}"
-           title="Ustawienia produkcji">
-          <i class="bi bi-diagram-3"></i>
-          <span class="wk-nav-label">Ustawienia</span>
-        </a>
-        <a href="{{ url_for('admin_templates') }}" data-nav-key="szablony" style="order:{{ menu_pos('szablony') }}"
-           class="wk-nav-link {% if request.endpoint and not request.endpoint.startswith('ustawienia.') and ('template' in request.endpoint or 'category' in request.endpoint or 'task' in request.endpoint) %}active{% endif %}"
-           title="Szablony">
-          <i class="bi bi-layout-text-sidebar-reverse"></i>
-          <span class="wk-nav-label">Szablony</span>
-        </a>
-
-      {% elif current_user.role == 'planowanie' %}
-        <a href="{{ url_for('produkcja.index') }}"
-           class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('produkcja.') %}active{% endif %}"
-           title="Lista produkcyjna">
-          <i class="bi bi-table"></i>
-          <span class="wk-nav-label">Lista produkcyjna</span>
-        </a>
-        <a href="{{ url_for('produkcja.employees') }}"
-           class="wk-nav-link {% if request.endpoint in ('produkcja.employees','produkcja.employee_new','produkcja.employee_edit') %}active{% endif %}"
-           title="Pracownicy">
-          <i class="bi bi-person-badge"></i>
-          <span class="wk-nav-label">Pracownicy</span>
-        </a>
-        <a href="{{ url_for('produkcja.history') }}"
-           class="wk-nav-link {% if request.endpoint == 'produkcja.history' %}active{% endif %}"
-           title="Historia wpisów">
-          <i class="bi bi-clock-history"></i>
-          <span class="wk-nav-label">Historia</span>
-        </a>
-
-      {% elif current_user.role == 'produkcja' %}
-        <a href="{{ url_for('produkcja.scan_page') }}"
-           class="wk-nav-link {% if request.endpoint == 'produkcja.scan_page' %}active{% endif %}"
-           title="Skanuj QR">
-          <i class="bi bi-qr-code-scan"></i>
-          <span class="wk-nav-label">Skanuj QR</span>
-        </a>
-
-      {% elif current_user.role == 'operator' %}
-        <a href="{{ url_for('kontrola.list_records') }}"
-           class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('kontrola.') %}active{% endif %}"
-           title="Kontrola etapowa">
-          <i class="bi bi-patch-check"></i>
-          <span class="wk-nav-label">Zamówienia po kontroli</span>
-        </a>
-
-      {% elif current_user.role == 'konstruktor' %}
-        <a href="{{ url_for('qar.list_reports') }}"
-           class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('qar.') %}active{% endif %}"
-           title="Raporty QAR">
-          <i class="bi bi-clipboard2-pulse"></i>
-          <span class="wk-nav-label">QAR</span>
-        </a>
-      {% endif %}
-
-      <a href="{{ url_for('dokumentacja.list_entries') }}"
-         class="wk-nav-link {% if request.endpoint and request.endpoint.startswith('dokumentacja.') %}active{% endif %}"
-         title="Dokumentacja">
-        <i class="bi bi-folder2-open"></i>
-        <span class="wk-nav-label">Dokumentacja</span>
-      </a>
-      {% if current_user.role == 'kontroler' %}
-      <span class="nav-edit-bar" id="nav-edit-bar" hidden style="order:1000">
-        <button type="button" class="btn btn-primary btn-sm" data-nav-save>Zapisz</button>
-        <button type="button" class="btn btn-outline btn-sm" data-nav-reset>Domyślne</button>
-        <button type="button" class="btn btn-ghost btn-sm" data-nav-cancel>Anuluj</button>
-      </span>
-      {% endif %}
-    </nav>
-    {% endif %}
-
-    <div class="wk-header-end">
-      {% if current_user.is_authenticated %}
-      <a href="{{ url_for('alerts_list') }}"
-         class="wk-bell-link {% if unread_alerts > 0 %}has-alerts{% endif %}"
-         title="Alerty{% if unread_alerts > 0 %} ({{ unread_alerts }} nowych){% endif %}">
-        <i class="bi bi-bell-fill"></i>
-        {% if unread_alerts > 0 %}<span class="alert-count">{{ unread_alerts }}</span>{% endif %}
-      </a>
-      {% if current_user.role == 'produkcja' %}
-      <span class="wk-username" title="{{ current_user.username }}">{{ current_user.username }}</span>
-      {% else %}
-      <a href="{{ url_for('account_settings') }}" class="wk-username" title="Ustawienia konta: {{ current_user.username }}">{{ current_user.username }}</a>
-      {% endif %}
-      <a href="{{ url_for('logout') }}" class="wk-logout-link">Wyloguj</a>
-      {% endif %}
-    </div>
-
-  </header>
-
-  {# ── Zlecenia QA — rozwijany panel pod headerem ── #}
-  {% if current_user.role == 'kontroler' and pending_qa_count > 0 %}
-  <div class="qa-drawer" id="qa-drawer" role="region" aria-label="Zlecenia QA do wykonania">
-    <div class="qa-drawer-hdr">
-      <span><i class="bi bi-clipboard-data-fill"></i> Zlecenia QA do wykonania ({{ pending_qa_count }})</span>
-      <button type="button" class="qa-drawer-close" id="qa-drawer-close" aria-label="Zamknij panel">
-        <i class="bi bi-x-lg"></i>
-      </button>
-    </div>
-    {% for r in pending_qa_reports %}
-    <div class="qa-drawer-item">
-      <div class="qa-drawer-info">
-        <div class="qa-drawer-name">{{ r.title }}</div>
-        <div class="qa-drawer-sub">
-          {{ r.zo or (r.author.username if r.author else '—') -}}
-          {%- if r.batch_total and r.batch_total > 1 %} · seria {{ r.batch_total }} szt.{% endif -%}
-        </div>
-      </div>
-      <a href="{{ url_for('checklist_view', report_id=r.id) }}"
-         class="btn btn-primary btn-sm" style="flex-shrink:0;">
-        <i class="bi bi-pencil-fill"></i>
-        {{ 'Seria' if r.batch_total and r.batch_total > 1 else 'Wypełnij' }}
-      </a>
-    </div>
-    {% endfor %}
-  </div>
-  {% endif %}
-
-  {# WORKER main otwiera się poniżej #}
-
 {% endif %}{# koniec wyboru layoutu — JEDEN {% block content %} poniżej #}
 
 {# ════════════════════════════════════════════════════════════════
    WSPÓLNY PUNKT WSTAWIANIA TREŚCI
    Dla admin: <main class="main-content">, dla worker: <main class="wk-main">
    ════════════════════════════════════════════════════════════════ #}
-<main class="{% if current_user.is_authenticated and current_user.is_admin %}main-content{% else %}wk-main{% endif %}">
+<main class="{% if current_user.is_authenticated %}main-content{% else %}wk-main{% endif %}">
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% for cat, msg in messages %}
       <div class="alert alert-{{ cat }}" data-autodismiss>{{ msg }}</div>
@@ -378,12 +224,10 @@
 </main>
 
 {# Zamknięcie zewnętrznych wrapperów #}
-{% if current_user.is_authenticated and current_user.is_admin %}
+{% if current_user.is_authenticated %}
 </div><!-- /.app -->
 <div class="sidebar-trigger" id="sidebar-trigger" title="Pokaż menu"></div>
 <div class="sidebar-overlay" id="sidebar-overlay"></div>
-{% else %}
-</div><!-- /.wk-layout -->
 {% endif %}
 
 <div id="install-banner" hidden>
@@ -400,11 +244,11 @@
 
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 <script src="{{ url_for('static', filename='js/nav-sort.js') }}"></script>
-{% if current_user.is_authenticated and current_user.is_admin %}
+{% if current_user.is_authenticated %}
 <script src="https://cdn.jsdelivr.net/npm/gridstack@10/dist/gridstack-all.js"></script>
 {% endif %}
 
-{% if current_user.is_authenticated and current_user.is_admin %}
+{% if current_user.is_authenticated %}
 <script>
 (function () {
   // ── Theme ──
@@ -537,61 +381,6 @@
     link.addEventListener('mouseenter', function () { showTip(link); });
     link.addEventListener('mouseleave', hideTip);
     link.addEventListener('click', hideTip);
-  });
-})();
-</script>
-{% else %}
-<script>
-(function () {
-  var themeBtn = document.getElementById('wk-theme-btn');
-  var themeIcon = document.getElementById('wk-theme-icon');
-
-  function applyTheme(t) {
-    document.body.className = t;
-    localStorage.setItem('theme', t);
-    if (themeIcon) {
-      themeIcon.className = (t === 'dark') ? 'bi bi-sun-fill' : 'bi bi-moon-fill';
-    }
-  }
-
-  var saved = localStorage.getItem('theme') || 'light';
-  applyTheme(saved);
-
-  if (themeBtn) {
-    themeBtn.addEventListener('click', function () {
-      var next = document.body.className === 'dark' ? 'light' : 'dark';
-      applyTheme(next);
-      if (window.saveUserTheme) window.saveUserTheme(next);
-    });
-  }
-
-  /* ── Zlecenia QA drawer ── */
-  var qaBtn    = document.getElementById('wk-qa-btn');
-  var qaDrawer = document.getElementById('qa-drawer');
-  var qaClose  = document.getElementById('qa-drawer-close');
-
-  function setDrawer(open) {
-    if (!qaDrawer) return;
-    qaDrawer.classList.toggle('open', open);
-    if (qaBtn) {
-      qaBtn.setAttribute('aria-expanded', String(open));
-      qaBtn.classList.toggle('active', open);
-    }
-  }
-
-  if (qaBtn) {
-    qaBtn.addEventListener('click', function () {
-      setDrawer(!qaDrawer.classList.contains('open'));
-    });
-  }
-  if (qaClose) {
-    qaClose.addEventListener('click', function () { setDrawer(false); });
-  }
-  document.addEventListener('click', function (e) {
-    if (!qaDrawer || !qaDrawer.classList.contains('open')) return;
-    if (qaDrawer.contains(e.target)) return;
-    if (qaBtn && qaBtn.contains(e.target)) return;
-    setDrawer(false);
   });
 })();
 </script>

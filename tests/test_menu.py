@@ -95,16 +95,18 @@ class TestMenuOrder:
         keys = _order_of(client.get('/').get_data(as_text=True))
         assert keys[:2] == ['qar', 'kontrola_koncowa']
 
-    def test_other_roles_have_no_reordering(self, client, app):
+    def test_every_role_gets_the_same_sidebar_filtered_by_permissions(self, client, app):
         with app.app_context():
-            if not User.query.filter_by(username='menu_planowanie').first():
-                u = User(username='menu_planowanie', email='menu_planowanie@test.pl', role='planowanie')
+            if not User.query.filter_by(username='menu_technolog').first():
+                u = User(username='menu_technolog', email='menu_technolog@test.pl', role='technolog')
                 u.set_password('Rola1234!')
                 db.session.add(u)
                 db.session.commit()
-        login(client, 'menu_planowanie', 'Rola1234!')
-        html = client.get('/produkcja/', follow_redirects=True).get_data(as_text=True)
-        assert 'data-nav-sortable' not in html and 'data-nav-edit' not in html
+        login(client, 'menu_technolog', 'Rola1234!')
+        html = client.get('/').get_data(as_text=True)
+        assert 'data-nav-sortable' in html and 'data-nav-key="dashboard"' in html
+        assert 'data-nav-key="qar"' not in html and 'data-nav-key="kontrola_etapowa"' not in html
+        assert 'wk-header' not in html
 
     def test_assets_present(self, client):
         login(client, 'admin', 'Admin1234!')

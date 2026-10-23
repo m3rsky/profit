@@ -9,6 +9,47 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 db = SQLAlchemy()
 
+# ── Role i uprawnienia (macierz rola x moduł, zob. /admin/users/uprawnienia) ──
+ROLES = ('administrator', 'operator', 'konstruktor', 'kontroler', 'technolog')
+ROLE_LABELS = {
+    'administrator': 'Administrator', 'operator': 'Operator', 'konstruktor': 'Konstruktor',
+    'kontroler': 'Kontroler', 'technolog': 'Technolog',
+}
+# Stare nazwy ról traktujemy jak nowe (migracja zamienia je w bazie, tu zgodność wsteczna)
+LEGACY_ROLES = {'admin': 'administrator', 'planowanie': 'technolog', 'produkcja': 'operator',
+                'order': 'operator', 'monter': 'operator', 'spawacz': 'operator', 'user': 'kontroler'}
+ADMIN_ROLE_NAMES = ('admin', 'administrator')
+
+
+def roles_matching(*roles):
+    """Nazwy ról w bazie odpowiadające podanym (z aliasami starych nazw), do zapytań `User.role.in_(...)`."""
+    wanted = {LEGACY_ROLES.get(r, r) for r in roles}
+    return sorted({name for name in set(LEGACY_ROLES) | set(ROLES) | {'admin'}
+                   if LEGACY_ROLES.get(name, name) in wanted})
+
+# Moduły widoczne w menu i zarządzane w macierzy uprawnień: klucz -> nazwa
+MODULES = {
+    'dashboard': 'Dashboard',
+    'kontrola_etapowa': 'Kontrola etapowa',
+    'kontrola_koncowa': 'Kontrola Końcowa',
+    'qar': 'Raporty QAR',
+    'lista_produkcyjna': 'Lista produkcyjna',
+    'stanowisko': 'Stanowisko (skan QR)',
+    'ustawienia': 'Ustawienia produkcji',
+    'szablony': 'Szablony',
+    'dokumentacja': 'Dokumentacja',
+    'statystyki': 'Statystyki',
+    'dziennik': 'Dziennik zdarzeń',
+}
+# Domyślne uprawnienia ról (odpowiadają dotychczasowemu dostępowi); później zmienia je superuser
+DEFAULT_PERMISSIONS = {
+    'administrator': set(MODULES),
+    'kontroler': {'dashboard', 'kontrola_etapowa', 'kontrola_koncowa', 'qar', 'ustawienia', 'dokumentacja'},
+    'operator': {'kontrola_etapowa', 'stanowisko'},
+    'konstruktor': {'qar', 'dokumentacja'},
+    'technolog': {'dashboard'},
+}
+
 
 def get_or_404(model, ident, description=None):
     """Session.get()-based replacement for the legacy Query.get_or_404()."""
@@ -42,28 +83,57 @@ class User(UserMixin, db.Model):
         return check_password_hash(self.password_hash, password)
 
     @property
-    def is_admin(self): return self.role == 'admin'
+    def role_key(self):
+        """Rola po normalizacji starych nazw (admin -> administrator itd.)."""
+        return LEGACY_ROLES.get(self.role, self.role)
+
+    def can(self, module):
+        """Czy rola użytkownika ma dostęp do modułu (superuser zawsze). Wynik jest liczony raz na żądanie."""
+        if self.is_superadmin:
+            return True
+        from flask import g
+        cache = g.__dict__.setdefault('_role_perms', {})
+        perms = cache.get(self.role_key)
+        if perms is None:
+            rows = RolePermission.query.filter_by(role=self.role_key).all()
+            if rows:
+                perms = {r.module for r in rows if r.allowed}
+            else:  # baza bez zapisanej macierzy: domyślne uprawnienia roli
+                perms = set(DEFAULT_PERMISSIONS.get(self.role_key, ()))
+            cache[self.role_key] = perms
+        return module in perms
+
     @property
-    def is_kontroler(self): return self.role in ('admin', 'kontroler')
+    def is_admin(self): return bool(self.is_superadmin) or self.role_key == 'administrator'
     @property
-    def is_planning(self): return self.role in ('admin', 'planowanie')
+    def is_kontroler(self): return self.is_admin or self.role_key == 'kontroler'
     @property
-    def is_production_station(self): return self.role in ('admin', 'planowanie', 'produkcja')
+    def is_planning(self): return self.can('lista_produkcyjna')
     @property
-    def is_konstruktor(self): return self.role == 'konstruktor'
+    def is_production_station(self): return self.can('stanowisko') or self.can('lista_produkcyjna')
     @property
-    def is_operator(self): return self.role == 'operator'
+    def is_konstruktor(self): return self.role_key == 'konstruktor'
     @property
-    def can_view_control(self): return self.role in ('admin', 'kontroler', 'operator')
+    def is_operator(self): return self.role_key == 'operator'
     @property
-    def can_enter_stock(self): return self.role in ('admin', 'kontroler', 'operator', 'produkcja')
+    def can_view_control(self): return self.can('kontrola_etapowa')
+    @property
+    def can_enter_stock(self): return self.is_admin or self.role_key in ('kontroler', 'operator')
     @property
     def role_label(self):
-        return {'admin': 'Administrator',
-                'kontroler': 'Kontroler',
-                'konstruktor': 'Konstruktor',
-                'planowanie': 'Planowanie', 'produkcja': 'Stanowisko produkcji',
-                'operator': 'Operator'}.get(self.role, self.role)
+        if self.is_superadmin:
+            return 'Superuser'
+        return ROLE_LABELS.get(self.role_key, self.role)
+
+
+class RolePermission(db.Model):
+    """Uprawnienie roli do modułu (macierz rola x moduł edytowana przez superusera)."""
+    __tablename__ = 'role_permissions'
+    id = db.Column(db.Integer, primary_key=True)
+    role = db.Column(db.String(16), nullable=False)
+    module = db.Column(db.String(32), nullable=False)
+    allowed = db.Column(db.Boolean, nullable=False, default=False)
+    __table_args__ = (db.UniqueConstraint('role', 'module', name='uq_role_permissions'),)
 
 
 class ChecklistTemplate(db.Model):

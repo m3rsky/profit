@@ -148,7 +148,8 @@ def _add_results(rec, rows):
 
 
 def _notify(roles, message, alert_type='info'):
-    for u in User.query.filter(User.role.in_(roles)).all():
+    from models import roles_matching
+    for u in User.query.filter(User.role.in_(roles_matching(*roles))).all():
         db.session.add(Alert(recipient_id=u.id, message=message[:512], alert_type=alert_type))
 
 

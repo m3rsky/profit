@@ -1,9 +1,8 @@
-"""Testy modulu Ustawienia produkcji (dzialy, pracownicy, sciezki produkcyjne)."""
+"""Testy modulu Ustawienia produkcji (dzialy i pracownicy)."""
 import pytest
 
 from app import app as flask_app, db
-from models import (User, ProductionDepartment, DepartmentEmployee,
-                    RoutingTemplate, RoutingTemplateStage)
+from models import User, ProductionDepartment, DepartmentEmployee
 from test_app import login, logout, _csrf
 
 
@@ -28,24 +27,10 @@ def departments(app):
         ids = (cutting.id, welding.id)
     yield ids
     with app.app_context():
-        RoutingTemplateStage.query.delete()
-        RoutingTemplate.query.delete()
         DepartmentEmployee.query.delete()
         ProductionDepartment.query.filter(ProductionDepartment.id.in_(ids)).delete(synchronize_session=False)
         db.session.commit()
 
-
-@pytest.fixture
-def routing_template(app, departments):
-    cutting_id, welding_id = departments
-    with app.app_context():
-        tmpl = RoutingTemplate(name='MRS-100', is_active=True)
-        db.session.add(tmpl)
-        db.session.flush()
-        db.session.add(RoutingTemplateStage(template_id=tmpl.id, department_id=cutting_id, order=0))
-        db.session.add(RoutingTemplateStage(template_id=tmpl.id, department_id=welding_id, order=1))
-        db.session.commit()
-        return tmpl.id
 
 
 class TestAccess:
@@ -63,12 +48,6 @@ class TestAccess:
         resp = client.get('/ustawienia-produkcji/', follow_redirects=True)
         assert resp.status_code == 200
         assert 'Działy i pracownicy'.encode('utf-8') in resp.data
-
-    def test_routing_templates_page_loads(self, client):
-        login(client, 'oper', 'Oper1234!')
-        resp = client.get('/ustawienia-produkcji/admin/routing-templates')
-        assert resp.status_code == 200
-        assert 'Ścieżki produkcyjne'.encode('utf-8') in resp.data
 
     def test_old_marszruta_urls_are_gone(self, client):
         login(client, 'oper', 'Oper1234!')
@@ -102,16 +81,6 @@ class TestDepartmentsAdmin:
         with flask_app.app_context():
             assert db.session.get(ProductionDepartment, cutting_id).is_active is False
 
-    def test_delete_department_blocked_when_used_in_template(self, client, routing_template, departments):
-        cutting_id, _ = departments
-        login(client, 'oper', 'Oper1234!')
-        token = _csrf(client)
-        resp = client.post('/ustawienia-produkcji/admin/departments', data={
-            'action': 'delete', 'dept_id': cutting_id, '_csrf_token': token,
-        }, follow_redirects=True)
-        assert resp.status_code == 200
-        with flask_app.app_context():
-            assert db.session.get(ProductionDepartment, cutting_id) is not None
 
 
 class TestEmployeesAdmin:
@@ -138,35 +107,6 @@ class TestEmployeesAdmin:
             assert db.session.get(DepartmentEmployee, emp_id).is_active is False
 
 
-class TestRoutingTemplateCrud:
-    def test_create_routing_template(self, client, departments):
-        cutting_id, welding_id = departments
-        login(client, 'oper', 'Oper1234!')
-        token = _csrf(client)
-        resp = client.post('/ustawienia-produkcji/admin/routing-templates/new', data={
-            'name': 'MRS-200', 'department_ids': [str(cutting_id), str(welding_id)],
-            '_csrf_token': token,
-        }, follow_redirects=True)
-        assert resp.status_code == 200
-        with flask_app.app_context():
-            tmpl = RoutingTemplate.query.filter_by(name='MRS-200').first()
-            assert tmpl is not None
-            assert tmpl.stages.count() == 2
-
-    def test_edit_routing_template_updates_departments(self, client, routing_template, departments):
-        cutting_id, welding_id = departments
-        login(client, 'oper', 'Oper1234!')
-        token = _csrf(client)
-        resp = client.post(f'/ustawienia-produkcji/admin/routing-templates/{routing_template}/edit', data={
-            'name': 'MRS-100', 'is_active': 'on',
-            'department_ids': [str(cutting_id)], '_csrf_token': token,
-        }, follow_redirects=True)
-        assert resp.status_code == 200
-        with flask_app.app_context():
-            tmpl = db.session.get(RoutingTemplate, routing_template)
-            assert tmpl.stages.count() == 1
-
-
 class TestLegacyMigration:
     def test_old_tables_dropped_and_spawacz_becomes_operator(self, app):
         from sqlalchemy import inspect, text
@@ -191,3 +131,21 @@ class TestLegacyMigration:
             assert User.query.filter_by(username='spawacz_old').one().role == 'operator'
             db.session.delete(User.query.filter_by(username='spawacz_old').one())
             db.session.commit()
+
+
+class TestRemovedSettingsPages:
+    """Ścieżki produkcyjne, Szablony produktów i Etapy i bufory zostały wyłączone (dane w bazie zostają)."""
+
+    def test_removed_pages_return_404(self, client):
+        login(client, 'oper', 'Oper1234!')
+        for url in ('/ustawienia-produkcji/admin/routing-templates',
+                    '/ustawienia-produkcji/produkty',
+                    '/ustawienia-produkcji/etapy'):
+            assert client.get(url).status_code == 404, url
+
+    def test_departments_page_has_no_removed_tabs(self, client):
+        login(client, 'oper', 'Oper1234!')
+        html = client.get('/ustawienia-produkcji/admin/departments').get_data(as_text=True)
+        assert 'Ścieżki produkcyjne' not in html
+        assert 'Szablony produktów' not in html
+        assert 'Etapy i bufory' not in html

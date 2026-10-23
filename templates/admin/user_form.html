@@ -40,12 +40,12 @@
       <div class="form-group">
         <label class="form-label" for="role">Rola</label>
         <select class="form-control" id="role" name="role">
-          <option value="kontroler" {% if not user or user.role == 'kontroler' %}selected{% endif %}>Kontroler</option>
-          <option value="produkcja" {% if user and user.role == 'produkcja' %}selected{% endif %}>Stanowisko produkcji (wspólne konto)</option>
-          <option value="planowanie" {% if user and user.role == 'planowanie' %}selected{% endif %}>Planowanie</option>
-          <option value="operator" {% if user and user.role == 'operator' %}selected{% endif %}>Operator (linia produkcyjna)</option>
-          <option value="konstruktor" {% if user and user.role == 'konstruktor' %}selected{% endif %}>Konstruktor</option>
-          <option value="admin"     {% if user and user.role == 'admin'     %}selected{% endif %}>Administrator</option>
+          {% set cur = user.role_key if user else 'kontroler' %}
+          <option value="administrator" {% if cur == 'administrator' %}selected{% endif %}>Administrator</option>
+          <option value="operator" {% if cur == 'operator' %}selected{% endif %}>Operator</option>
+          <option value="konstruktor" {% if cur == 'konstruktor' %}selected{% endif %}>Konstruktor</option>
+          <option value="kontroler" {% if cur == 'kontroler' %}selected{% endif %}>Kontroler</option>
+          <option value="technolog" {% if cur == 'technolog' %}selected{% endif %}>Technolog</option>
         </select>
       </div>
       <div class="form-actions">
