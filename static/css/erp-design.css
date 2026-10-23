@@ -1033,3 +1033,37 @@ body.dark .bulk-bar .btn-danger:hover, body.dark .data-table .btn-danger:hover, 
 .kz-ctl-badges .badge-danger::before  { background: var(--erp-ng); }
 .kz-ctl-badges a.badge:hover { border-color: var(--erp-blue) !important; }
 body.dark .kz-ctl-badges .badge { color: var(--erp-text) !important; }
+
+
+/* ════════════════════════════════════════════════════════
+   WYSZUKIWANIE LIST: wspólny wzór (zob. STANDARD_LIST.md, makro _list_search.html)
+   Komputer: pole, Skanuj QR, Szukaj w jednym rzędzie, filtry widoczne.
+   Telefon: pole na całą szerokość, pod nim Filtry, Skanuj QR, Szukaj; filtry wysuwane.
+   ════════════════════════════════════════════════════════ */
+.ls-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.ls-input { flex: 1 1 0; min-width: 0; max-width: 100%; }
+.ls-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.ls-toggle { display: none !important; }
+.ls-count { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px;
+  padding: 0 5px; border-radius: 9px; background: var(--erp-blue, #1565C0); color: #fff; font-size: 11px; font-weight: 700; }
+.ls-more { display: block; }
+@media (max-width: 640px) {
+  .ls-row { flex-wrap: wrap; }
+  .ls-input { flex: 1 1 100%; }
+  .ls-actions { flex: 1 1 100%; }
+  .ls-actions .btn { flex: 1 1 0; justify-content: center; }
+  .ls-toggle { display: inline-flex !important; }
+  .ls-more { display: none; margin-top: 8px; }
+  .ls-more.open { display: block; }
+}
+/* okno skanera QR (tworzone przez list-search.js) */
+.ls-qr-modal { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center;
+  background: rgba(15,23,42,.6); padding: 16px; }
+.ls-qr-modal[hidden] { display: none; }
+.ls-qr-box { background: var(--card-bg, #fff); border-radius: 12px; width: min(100%, 420px); padding: 14px 16px 16px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.3); }
+.ls-qr-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; font-weight: 700; }
+#ls-qr-reader { width: 100%; border-radius: 8px; overflow: hidden; background: #000; min-height: 200px; }
+#ls-qr-reader video { width: 100% !important; height: auto !important; }
+.ls-qr-msg { margin-top: 10px; font-size: 0.85rem; color: var(--text-muted, #64748b); }
+.ls-qr-msg.error { color: var(--erp-ng, #C62828); }

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_list_search.html" import list_search %}
 {% block title %}Kontrola etapowa{% endblock %}
 
 {% block head %}
@@ -49,11 +50,9 @@
 </div>
 {% endif %}
 
+{% set active_filters = [filters.s, filters.dzial, filters.element, filters.date_from, filters.date_to] | select | list | length %}
 <form method="get" action="{{ url_for('kontrola.list_records') }}" class="filter-bar filter-bar--rows">
-  <div class="filter-row">
-    <input class="form-control filter-search" type="search" name="zo"
-           placeholder="Szukaj: ZO, produkt, klient, pracownik…" value="{{ filters.zo }}">
-  </div>
+{% call list_search('zo', filters.zo, 'Szukaj: ZO, produkt, klient, pracownik…', qr=True, active=active_filters, uid='kz-filter-more') %}
   <div class="filter-row">
     <select class="form-control filter-select" name="s" title="Filtruj po statusie">
       <option value="">Wszystkie statusy</option>
@@ -91,9 +90,9 @@
       <label class="filter-label" for="k_date_to">Do:</label>
       <input class="form-control filter-date" type="date" id="k_date_to" name="date_to" value="{{ filters.date_to }}">
     </div>
-    <button type="submit" class="btn btn-secondary btn-sm"><i class="bi bi-funnel"></i> Filtruj</button>
     <a href="{{ url_for('kontrola.list_records', s='') }}" class="btn btn-ghost btn-sm"><i class="bi bi-x-lg"></i> Wyczyść</a>
   </div>
+{% endcall %}
 </form>
 
 {% if current_user.is_admin and pager.items %}

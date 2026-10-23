@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_list_search.html" import list_search %}
 {% block title %}Raporty QAR{% endblock %}
 
 {% macro qar_status(r) -%}
@@ -11,9 +12,7 @@
 <style>
 /* ── QAR list – mobile ── */
 @media (max-width: 640px) {
-  .qar-filters { flex-direction: column; padding-left: 12px; padding-right: 12px; }
-  .qar-filters input, .qar-filters select { width: 100% !important; }
-  .qar-filters .btn { width: 100%; }
+  .qar-filters { padding-left: 12px; padding-right: 12px; }
   .qar-table-wrap { display: none; }
   .qar-cards { display: flex !important; }
   .qar-card { background: var(--card-bg, #fff); border: 1px solid var(--border, #ddd);
@@ -55,22 +54,23 @@
 </div>
 
 {# ── Filtry ── #}
-<form method="get" class="qar-filters" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;align-items:flex-end;">
-  <input type="text" name="q" value="{{ filters.q }}" placeholder="Szukaj numeru, tytułu…"
-         class="form-control" style="width:200px;">
-  <select name="status" class="form-control" style="width:130px;">
+{% set active_filters = [filters.status, filters.category, filters.employee, filters.date_from, filters.date_to] | select | list | length %}
+<form method="get" class="qar-filters filter-bar filter-bar--rows">
+{% call list_search('q', filters.q, 'Szukaj numeru, tytułu, ZO…', qr=True, active=active_filters, uid='qar-filter-more') %}
+<div class="filter-row">
+  <select name="status" class="form-control filter-select">
     <option value="">Wszystkie statusy</option>
     <option value="open"        {% if filters.status == 'open' %}selected{% endif %}>Otwarty</option>
     <option value="in_progress" {% if filters.status == 'in_progress' %}selected{% endif %}>W toku</option>
     <option value="closed"      {% if filters.status == 'closed' %}selected{% endif %}>Zamknięty</option>
   </select>
-  <select name="category" class="form-control" style="width:140px;">
+  <select name="category" class="form-control filter-select">
     <option value="">Wszystkie kategorie</option>
     {% for cat in categories %}
       <option value="{{ cat }}" {% if filters.category == cat %}selected{% endif %}>{{ cat }}</option>
     {% endfor %}
   </select>
-  <select name="employee" class="form-control" style="width:170px;">
+  <select name="employee" class="form-control filter-select">
     <option value="">Wszyscy pracownicy</option>
     {% for dept in departments %}
       {% set emps = dept.employees.all() | sort(attribute='name') %}
@@ -83,14 +83,15 @@
       {% endif %}
     {% endfor %}
   </select>
-  <input type="date" name="date_from" value="{{ filters.date_from }}" class="form-control" style="width:140px;" title="Data od">
-  <input type="date" name="date_to"   value="{{ filters.date_to }}"   class="form-control" style="width:140px;" title="Data do">
-  <button type="submit" class="btn btn-secondary"><i class="bi bi-search"></i></button>
-  {% if filters.q or filters.status or filters.category or filters.employee or filters.date_from or filters.date_to %}
-    <a href="{{ url_for('qar.list_reports') }}" class="btn btn-outline" title="Wyczyść filtry">
-      <i class="bi bi-x-lg"></i>
+  <input type="date" name="date_from" value="{{ filters.date_from }}" class="form-control filter-date" title="Data od">
+  <input type="date" name="date_to"   value="{{ filters.date_to }}"   class="form-control filter-date" title="Data do">
+  {% if active_filters or filters.q %}
+    <a href="{{ url_for('qar.list_reports') }}" class="btn btn-ghost btn-sm" title="Wyczyść filtry">
+      <i class="bi bi-x-lg"></i> Wyczyść
     </a>
   {% endif %}
+</div>
+{% endcall %}
 </form>
 
 {% if reports.items %}

@@ -1,0 +1,35 @@
+{# Wspólne wyszukiwanie list (STANDARD_LIST.md, sekcja "Wyszukiwanie").
+   Użycie: {% from "_list_search.html" import list_search %}
+   - bez filtrów dodatkowych:  {{ list_search('q', q, 'Szukaj…', clear_url=url) }}
+   - z filtrami (wysuwane na telefonie):  {% call list_search('q', q, 'Szukaj…', qr=True, active=3) %} ...pola filtrów... {% endcall %}
+   Wywołuje się wewnątrz <form method="get">. Kolejność przycisków (telefon, pod polem): Filtry, Skanuj QR, Szukaj. #}
+{% macro list_search(name, value='', placeholder='Szukaj…', qr=False, active=0, uid='ls-more', clear_url=None) %}
+<div class="ls-row">
+  <input class="form-control ls-input" type="search" name="{{ name }}" value="{{ value or '' }}"
+         placeholder="{{ placeholder }}" autocomplete="off" enterkeyhint="search">
+  <div class="ls-actions">
+    {% if caller is defined %}
+    <button type="button" class="btn btn-outline btn-sm ls-toggle" data-ls-toggle="{{ uid }}"
+            aria-expanded="false" aria-controls="{{ uid }}">
+      <i class="bi bi-sliders"></i> Filtry{% if active %} <span class="ls-count">{{ active }}</span>{% endif %}
+    </button>
+    {% endif %}
+    {% if qr %}
+    <button type="button" class="btn btn-outline btn-sm ls-qr" data-ls-qr title="Szukaj skanem kodu QR">
+      <i class="bi bi-qr-code-scan"></i> Skanuj QR
+    </button>
+    {% endif %}
+    <button type="submit" class="btn btn-primary btn-sm ls-submit" title="Szukaj">
+      <i class="bi bi-search"></i> Szukaj
+    </button>
+    {% if clear_url and value %}
+    <a href="{{ clear_url }}" class="btn btn-ghost btn-sm ls-clear">Wyczyść</a>
+    {% endif %}
+  </div>
+</div>
+{% if caller is defined %}
+<div class="ls-more" id="{{ uid }}">
+  {{ caller() }}
+</div>
+{% endif %}
+{% endmacro %}

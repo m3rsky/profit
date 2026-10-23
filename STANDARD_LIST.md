@@ -61,11 +61,24 @@ Chip to neutralny kapsułkowy znacznik z kolorową kropką wyniku zamiast pełne
 zielona kropka (zgodny), bursztynowa (w toku), czerwona (niezgodny), szara (brak).
 Dotyczy `.kz-ctl-badges .badge`, bez zmian w szablonach.
 
-## 8. Tryb ciemny
+## 8. Wyszukiwanie list
+
+Każda lista używa tego samego wzoru, makra `list_search` z `templates/_list_search.html` (skrypt `static/js/list-search.js`, style `.ls-*` w `erp-design.css`):
+
+- **Komputer:** pole szukania, obok przyciski "Skanuj QR" (tam, gdzie lista ma numery ZO) i "Szukaj". Dodatkowe filtry są widoczne od razu pod polem.
+- **Telefon:** pole na całą szerokość, pod nim w jednym rzędzie **Filtry**, **Skanuj QR**, **Szukaj**. Filtry wysuwają się po kliknięciu "Filtry" (z licznikiem aktywnych). Lista bez dodatkowych filtrów ma tylko Szukaj (i Skanuj QR).
+- **Skanuj QR:** kod zlecenia (pole `o`, a gdy go brak `p`) trafia do pola szukania i lista się filtruje.
+- **Wyczyść:** link w panelu filtrów albo przy polu (`clear_url`), pokazuje się tylko przy aktywnym szukaniu.
+- Przycisk "Filtruj" w panelu nie jest potrzebny, bo "Szukaj" wysyła cały formularz.
+
+Użycie: `{% from "_list_search.html" import list_search %}`, a w formularzu `{% call list_search('q', q, 'Szukaj…', qr=True, active=N, uid='moja-lista') %}...pola filtrów...{% endcall %}` (bez `call`, gdy nie ma filtrów).
+Listy ze wzorem: Kontrola etapowa, Kontrola Końcowa, Raporty QAR, Dokumentacja, Lista produkcyjna (arkusz i historia).
+
+## 9. Tryb ciemny
 
 Warianty kolorów są w `main.css` (`body.dark .rs-*`). Nie dodajemy osobnych stylów w szablonach.
 
-## 9. Zasady przy nowej liście
+## 10. Zasady przy nowej liście
 
 1. Użyj klas `.rs*` zamiast `.badge` do statusu.
 2. Nie dubluj statusu (ikona + plakietka + pasek).
@@ -81,3 +94,7 @@ Warianty kolorów są w `main.css` (`body.dark .rs-*`). Nie dodajemy osobnych st
 | 23.10.2026 | Kontrola Końcowa (`/reports`) | Status na `.rs*`, kolumna Postęp zastąpiona kolumną Ocena (`.rs` z wynikiem x/6), licznik sztuk serii po `.rs-ok`. | `templates/reports_list.html`, `static/css/main.css` |
 | 23.10.2026 | Wszystkie listy | Przyciski bez wersalików (nagłówek, pasek zaznaczania, akcje w wierszach), usuwanie jako obrys zamiast pełnej czerwieni, chipy w kolumnie Kontrole z kropką wyniku. | `static/css/erp-design.css` |
 | 23.10.2026 | Raporty QAR (`/qar`) | Status (Otwarty, W toku, Zamknięty) na znacznikach `.rs*` w tabeli i na kartach mobilnych, usuwanie jako obrys (`btn-danger`) zamiast czerwonych stylów w wierszu, przyciski bez wersalików. | `templates/qar/list.html`, `static/css/erp-design.css` |
+| 23.10.2026 | Kontrola etapowa (`/kontrola`) | Filtry na telefonie: pole szukania, przycisk Szukaj i przycisk Filtry, reszta opcji wysuwana. | `templates/kontrola/list.html` |
+| 23.10.2026 | Kontrola etapowa (`/kontrola`) | Szukanie skanem QR: przycisk przy polu szukania otwiera kamerę, odczytany numer ZO filtruje listę. | `templates/kontrola/list.html` |
+| 23.10.2026 | Kontrola etapowa (`/kontrola`) | Telefon: pole szukania na całą szerokość, przyciski Szukaj, Skanuj QR i Filtry w rzędzie pod polem. | `templates/kontrola/list.html` |
+| 23.10.2026 | Wszystkie listy z wyszukiwaniem | Wspólny wzór wyszukiwania (makro `list_search`): pole, Skanuj QR, Szukaj; na telefonie pole na całą szerokość, pod nim Filtry, Skanuj QR, Szukaj, filtry wysuwane. Usunięty przycisk Filtruj. | `templates/_list_search.html`, `static/js/list-search.js`, `static/css/erp-design.css`, szablony list |

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_list_search.html" import list_search %}
 {% block title %}{{ sheet.name }} – Lista produkcyjna{% endblock %}
 
 {% block head %}
@@ -39,14 +40,16 @@ table.prod-table tr.saved td.pc.flash { background: var(--success-bg, #f0fdf4); 
   </div>
 </div>
 
-<form method="get" class="filter-bar" style="margin-top:.75rem;">
-  <input type="search" name="q" class="form-control filter-input" value="{{ q }}" placeholder="Szukaj: towar, odbiorca, ZO…" style="max-width:320px;">
-  <select name="state" class="form-control" style="max-width:220px;">
-    <option value="" {% if not state %}selected{% endif %}>Wszystkie</option>
-    <option value="linked" {% if state == 'linked' %}selected{% endif %}>Z listami kontrolnymi</option>
-    <option value="unlinked" {% if state == 'unlinked' %}selected{% endif %}>Bez list kontrolnych</option>
-  </select>
-  <button type="submit" class="btn btn-outline"><i class="bi bi-search"></i> Filtruj</button>
+<form method="get" class="filter-bar filter-bar--rows" style="margin-top:.75rem;">
+{% call list_search('q', q, 'Szukaj: towar, odbiorca, ZO…', qr=True, active=(1 if state else 0), uid='ps-filter-more') %}
+  <div class="filter-row">
+    <select name="state" class="form-control filter-select">
+      <option value="" {% if not state %}selected{% endif %}>Wszystkie</option>
+      <option value="linked" {% if state == 'linked' %}selected{% endif %}>Z listami kontrolnymi</option>
+      <option value="unlinked" {% if state == 'unlinked' %}selected{% endif %}>Bez list kontrolnych</option>
+    </select>
+  </div>
+{% endcall %}
 </form>
 
 <form method="post" id="rows-form">

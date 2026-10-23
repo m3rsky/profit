@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_list_search.html" import list_search %}
 {% block title %}Historia wpisów – Lista produkcyjna{% endblock %}
 
 {% block content %}
@@ -12,9 +13,8 @@
   </div>
 </div>
 
-<form method="get" class="filter-bar" style="margin-top:.75rem;">
-  <input type="search" name="q" class="form-control filter-input" value="{{ q }}" placeholder="Szukaj: ZO, towar, pracownik, arkusz…" style="max-width:320px;">
-  <button type="submit" class="btn btn-outline"><i class="bi bi-search"></i> Szukaj</button>
+<form method="get" class="filter-bar filter-bar--rows" style="margin-top:.75rem;">
+  {{ list_search('q', q, 'Szukaj: ZO, towar, pracownik, arkusz…', qr=True, clear_url=url_for('produkcja.history')) }}
 </form>
 
 <div class="card card--spaced-top">
