@@ -762,6 +762,8 @@ a.wk-username:hover { text-decoration: underline; }
 .account-data dd { margin: 0; font-weight: 600; color: var(--text); }
 .account-form { border-top: 1px solid var(--border); padding-top: 16px; }
 .card-title { margin: 0 0 14px; font-size: 1rem; font-weight: 700; }
+.account-hint { margin: -6px 0 14px; font-size: 0.82rem; color: var(--text-muted); }
+.account-theme { display: flex; gap: 8px; border-top: 0; padding-top: 0; }
 .sidebar-footer .logout-link,
 .sidebar-footer .alert-bell-link { color: #64748b; }
 .sidebar-footer .logout-link:hover,

@@ -2377,6 +2377,18 @@ ROLE_LABELS = {
 }
 
 
+@app.route('/konto/motyw', methods=['POST'])
+@login_required
+def account_theme():
+    """Zapis motywu (jasny/ciemny) na koncie, wywoływany przełącznikiem motywu w menu."""
+    theme = (request.get_json(silent=True) or {}).get('theme')
+    if theme not in ('light', 'dark'):
+        return jsonify({'ok': False, 'error': 'Nieprawidłowy motyw.'}), 400
+    current_user.theme = theme
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
 @app.route('/konto', methods=['GET', 'POST'])
 @login_required
 def account_settings():
@@ -2403,6 +2415,15 @@ def account_settings():
                 except IntegrityError:
                     db.session.rollback()
                     flash('Adres e-mail jest już zajęty.', 'error')
+        elif action == 'theme':
+            theme = request.form.get('theme', '')
+            if theme in ('light', 'dark'):
+                user.theme = theme
+                db.session.commit()
+                _audit('account_theme', 'user', user.id, f'theme={theme}')
+                flash('Wygląd zapisany.', 'success')
+                return redirect(url_for('account_settings'))
+            flash('Nieprawidłowy motyw.', 'error')
         elif action == 'password':
             current_pw = request.form.get('current_password', '')
             new_pw = request.form.get('new_password', '')
@@ -2422,6 +2443,7 @@ def account_settings():
                 flash('Hasło zostało zmienione.', 'success')
                 return redirect(url_for('account_settings'))
     return render_template('account.html', user=user,
+                           can_reorder_menu=user.role in ('admin', 'kontroler'),
                            role_label='Super admin' if user.is_superadmin
                            else ROLE_LABELS.get(user.role, user.role))
 
@@ -2976,6 +2998,10 @@ def _migrate_schema():
         if 'users' in insp.get_table_names() and 'menu_order' not in [
                 c['name'] for c in insp.get_columns('users')]:
             conn.execute(text('ALTER TABLE users ADD COLUMN menu_order TEXT'))
+            conn.commit()
+        if 'users' in insp.get_table_names() and 'theme' not in [
+                c['name'] for c in insp.get_columns('users')]:
+            conn.execute(text('ALTER TABLE users ADD COLUMN theme VARCHAR(8)'))
             conn.commit()
         if 'users' in insp.get_table_names() and 'is_superadmin' not in [
                 c['name'] for c in insp.get_columns('users')]:

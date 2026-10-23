@@ -30,6 +30,8 @@ class User(UserMixin, db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
     # Własna kolejność pozycji menu (JSON z listą kluczy), puste: kolejność domyślna.
     menu_order = db.Column(db.Text, nullable=True)
+    # Wybrany motyw wyglądu ('light' lub 'dark'), puste: bez wyboru (decyduje przeglądarka).
+    theme = db.Column(db.String(8), nullable=True)
     reports = db.relationship('Report', backref='author', lazy='dynamic',
                              foreign_keys='[Report.user_id]')
 

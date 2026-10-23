@@ -66,7 +66,7 @@ class TestProductionStationAccount:
         assert client.get('/konto').status_code == 403
         assert client.post('/konto', data={'action': 'password', '_csrf_token': _csrf(client)}).status_code == 403
         page = client.get('/produkcja/skan').get_data(as_text=True)
-        assert '/konto' not in page
+        assert 'href="/konto"' not in page
         with app.app_context():
             db.session.delete(User.query.filter_by(username='stanowisko').first())
             db.session.commit()
@@ -103,4 +103,63 @@ class TestSuperadmin:
             u = User.query.filter_by(username='owner').first()
             assert u.is_superadmin and u.role == 'admin'
             db.session.delete(u)
+            db.session.commit()
+
+
+class TestThemeAndMenuOrder:
+    def _theme(self, app, username):
+        with app.app_context():
+            return User.query.filter_by(username=username).first().theme
+
+    def test_theme_saved_on_account_and_applied(self, client, app):
+        login(client, 'oper', 'Oper1234!')
+        resp = _post(client, action='theme', theme='dark')
+        assert 'Wygląd zapisany' in resp.get_data(as_text=True)
+        assert self._theme(app, 'oper') == 'dark'
+        page = client.get('/konto').get_data(as_text=True)
+        assert 'data-user-theme="dark"' in page
+        _post(client, action='theme', theme='light')
+        assert self._theme(app, 'oper') == 'light'
+
+    def test_theme_invalid_rejected(self, client, app):
+        login(client, 'oper', 'Oper1234!')
+        resp = _post(client, action='theme', theme='neon')
+        assert 'Nieprawidłowy motyw' in resp.get_data(as_text=True)
+
+    def test_theme_endpoint_for_toggle(self, client, app):
+        login(client, 'oper', 'Oper1234!')
+        h = {'X-CSRF-Token': _csrf(client), 'Content-Type': 'application/json'}
+        assert client.post('/konto/motyw', json={'theme': 'dark'}, headers=h).get_json() == {'ok': True}
+        assert self._theme(app, 'oper') == 'dark'
+        assert client.post('/konto/motyw', json={'theme': 'bad'}, headers=h).status_code == 400
+        client.post('/konto/motyw', json={'theme': 'light'}, headers=h)
+
+    def test_theme_is_per_account(self, client, app):
+        login(client, 'admin', 'Admin1234!')
+        _post(client, action='theme', theme='dark')
+        client.get('/logout')
+        login(client, 'oper', 'Oper1234!')
+        assert 'data-user-theme="dark"' not in client.get('/konto').get_data(as_text=True)
+        client.get('/logout')
+        login(client, 'admin', 'Admin1234!')
+        _post(client, action='theme', theme='light')
+
+    def test_menu_order_link_only_for_admin_and_kontroler(self, client):
+        login(client, 'admin', 'Admin1234!')
+        page = client.get('/konto').get_data(as_text=True)
+        assert 'edytuj-menu=1' in page
+        client.get('/logout')
+        login(client, 'oper', 'Oper1234!')
+        assert 'edytuj-menu=1' in client.get('/konto').get_data(as_text=True)  # oper ma rolę kontroler
+
+    def test_menu_order_hidden_for_other_roles(self, client, app):
+        with app.app_context():
+            u = User(username='planista', email='planista@test.pl', role='planowanie')
+            u.set_password('Plan12345!')
+            db.session.add(u)
+            db.session.commit()
+        login(client, 'planista', 'Plan12345!')
+        assert 'edytuj-menu=1' not in client.get('/konto').get_data(as_text=True)
+        with app.app_context():
+            db.session.delete(User.query.filter_by(username='planista').first())
             db.session.commit()

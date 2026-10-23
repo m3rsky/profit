@@ -31,6 +31,31 @@
 
 <div class="card card--form-narrow card--spaced-top">
   <div class="card-body">
+    <h2 class="card-title">Wygląd</h2>
+    <p class="account-hint">Motyw jest zapisany na koncie i działa tak samo na każdym urządzeniu.</p>
+    <form method="post" class="account-form account-theme">
+      {{ csrf_input() }}
+      <input type="hidden" name="action" value="theme">
+      <button type="submit" name="theme" value="light" class="btn {{ 'btn-primary' if user.theme != 'dark' else 'btn-outline' }}"
+              aria-pressed="{{ 'true' if user.theme != 'dark' else 'false' }}"><i class="bi bi-sun"></i> Jasny</button>
+      <button type="submit" name="theme" value="dark" class="btn {{ 'btn-primary' if user.theme == 'dark' else 'btn-outline' }}"
+              aria-pressed="{{ 'true' if user.theme == 'dark' else 'false' }}"><i class="bi bi-moon"></i> Ciemny</button>
+    </form>
+  </div>
+</div>
+
+{% if can_reorder_menu %}
+<div class="card card--form-narrow card--spaced-top">
+  <div class="card-body">
+    <h2 class="card-title">Kolejność menu</h2>
+    <p class="account-hint">Otworzy się menu w trybie przestawiania. Przeciągnij pozycje i zapisz, a kolejność zostanie zapamiętana na koncie.</p>
+    <a href="{{ url_for('dashboard', **{'edytuj-menu': 1}) }}" class="btn btn-outline"><i class="bi bi-arrows-move"></i> Zmień kolejność menu</a>
+  </div>
+</div>
+{% endif %}
+
+<div class="card card--form-narrow card--spaced-top">
+  <div class="card-body">
     <h2 class="card-title">Zmiana hasła</h2>
     <form method="post" class="account-form">
       {{ csrf_input() }}

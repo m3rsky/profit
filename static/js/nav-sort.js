@@ -4,7 +4,7 @@
   var container = document.querySelector('[data-nav-sortable]');
   var editBtns = document.querySelectorAll('[data-nav-edit]');
   var bar = document.getElementById('nav-edit-bar');
-  if (!container || !editBtns.length) return;
+  if (!container) return;
 
   var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
   var editing = false;
@@ -121,4 +121,15 @@
   }
   container.addEventListener('pointerup', endDrag);
   container.addEventListener('pointercancel', endDrag);
+
+  // Wejście z ustawień konta (?edytuj-menu=1): od razu otwórz menu w trybie przestawiania.
+  var params = new URLSearchParams(window.location.search);
+  if (params.get('edytuj-menu') === '1') {
+    var burger = document.getElementById('burger');
+    if (burger && window.getComputedStyle(burger).display !== 'none') { burger.click(); }  // telefon: rozwiń menu
+    start();
+    params.delete('edytuj-menu');
+    var q = params.toString();
+    window.history.replaceState(null, '', window.location.pathname + (q ? '?' + q : '') + window.location.hash);
+  }
 })();

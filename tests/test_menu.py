@@ -87,7 +87,9 @@ class TestMenuOrder:
     def test_controller_nav_sortable_and_renamed(self, client):
         login(client, 'oper', 'Oper1234!')
         html = client.get('/').get_data(as_text=True)
-        assert 'data-nav-sortable' in html and 'data-nav-edit' in html and 'Kontrola etapowa' in html
+        # Przycisk przestawiania jest w ustawieniach konta (/konto), w menu zostaje tylko pasek zapisu
+        assert 'data-nav-sortable' in html and 'data-nav-save' in html and 'Kontrola etapowa' in html
+        assert 'data-nav-edit' not in html and 'id="theme-toggle"' not in html and 'id="wk-theme-btn"' not in html
         assert 'Zadania QA' not in html and 'Kosztorysy' not in html
         _save(client, {'order': ['qar', 'kontrola_koncowa']})
         keys = _order_of(client.get('/').get_data(as_text=True))

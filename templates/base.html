@@ -28,8 +28,24 @@
   <meta name="csrf-token" content="{{ csrf_token() }}">
   {% block head %}{% endblock %}
 </head>
-<body class="light">
-<script>(function(){var t=localStorage.getItem('theme');if(t)document.body.className=t;})()</script>
+<body class="light" data-user-theme="{{ current_user.theme if current_user.is_authenticated and current_user.theme else '' }}">
+<script>
+/* Motyw przypisany do konta ma pierwszeństwo przed zapisem w przeglądarce */
+(function(){
+  var u = document.body.dataset.userTheme;
+  if (u) { try { localStorage.setItem('theme', u); } catch (e) {} }
+  var t = u || localStorage.getItem('theme');
+  if (t) document.body.className = t;
+  window.saveUserTheme = function (theme) {
+    var meta = document.querySelector('meta[name="csrf-token"]');
+    fetch('/konto/motyw', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRF-Token': meta ? meta.content : ''},
+      body: JSON.stringify({theme: theme})
+    }).catch(function () {});
+  };
+})();
+</script>
 {% include '_titlebar.html' %}
 <script>
 /* Kolor paska tytułu okna aplikacji (theme-color) podąża za motywem jasny/ciemny */
@@ -123,9 +139,6 @@
         <span>Dokumentacja</span>
       </a>
       </div>
-      <button type="button" class="nav-edit-btn" id="nav-edit-btn" data-nav-edit title="Przeciągnij pozycje menu, aby zmienić kolejność">
-        <i class="bi bi-arrows-move"></i> <span>Zmień kolejność menu</span>
-      </button>
       <div class="nav-edit-bar" id="nav-edit-bar" hidden>
         <button type="button" class="btn btn-primary btn-sm" data-nav-save><i class="bi bi-check2"></i> Zapisz</button>
         <button type="button" class="btn btn-outline btn-sm" data-nav-reset>Domyślne</button>
@@ -152,11 +165,6 @@
       </a>
 
     </nav>
-
-    <button class="theme-toggle" id="theme-toggle" type="button">
-      <i class="bi bi-moon-fill" id="theme-icon"></i>
-      <span id="theme-label">Dark mode</span>
-    </button>
 
     <div class="sidebar-footer">
       <a href="{{ url_for('account_settings') }}" class="avatar" title="Ustawienia konta"><i class="bi bi-person-fill"></i></a>
@@ -296,10 +304,6 @@
         <span class="wk-nav-label">Dokumentacja</span>
       </a>
       {% if current_user.role == 'kontroler' %}
-      <button type="button" class="wk-nav-link nav-edit-btn" data-nav-edit style="order:999" title="Zmień kolejność menu">
-        <i class="bi bi-arrows-move"></i>
-        <span class="wk-nav-label">Kolejność</span>
-      </button>
       <span class="nav-edit-bar" id="nav-edit-bar" hidden style="order:1000">
         <button type="button" class="btn btn-primary btn-sm" data-nav-save>Zapisz</button>
         <button type="button" class="btn btn-outline btn-sm" data-nav-reset>Domyślne</button>
@@ -317,9 +321,6 @@
         <i class="bi bi-bell-fill"></i>
         {% if unread_alerts > 0 %}<span class="alert-count">{{ unread_alerts }}</span>{% endif %}
       </a>
-      <button type="button" class="wk-theme-btn" id="wk-theme-btn" title="Zmień motyw">
-        <i class="bi bi-moon-fill" id="wk-theme-icon"></i>
-      </button>
       {% if current_user.role == 'produkcja' %}
       <span class="wk-username" title="{{ current_user.username }}">{{ current_user.username }}</span>
       {% else %}
@@ -423,7 +424,9 @@
 
   if (themeBtn) {
     themeBtn.addEventListener('click', function () {
-      applyTheme(document.body.classList.contains('dark') ? 'light' : 'dark');
+      var next = document.body.classList.contains('dark') ? 'light' : 'dark';
+      applyTheme(next);
+      if (window.saveUserTheme) window.saveUserTheme(next);
     });
   }
 
@@ -556,7 +559,9 @@
 
   if (themeBtn) {
     themeBtn.addEventListener('click', function () {
-      applyTheme(document.body.className === 'dark' ? 'light' : 'dark');
+      var next = document.body.className === 'dark' ? 'light' : 'dark';
+      applyTheme(next);
+      if (window.saveUserTheme) window.saveUserTheme(next);
     });
   }
 
