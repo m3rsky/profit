@@ -168,11 +168,21 @@
   // Wejście z ustawień konta (?edytuj-menu=1): od razu otwórz menu w trybie przestawiania.
   var params = new URLSearchParams(window.location.search);
   if (params.get('edytuj-menu') === '1') {
-    var burger = document.getElementById('burger');
-    if (burger && window.getComputedStyle(burger).display !== 'none') { burger.click(); }  // telefon: rozwiń menu
-    start();
-    params.delete('edytuj-menu');
-    var q = params.toString();
-    window.history.replaceState(null, '', window.location.pathname + (q ? '?' + q : '') + window.location.hash);
+    // Uruchamiamy po załadowaniu strony, bo przycisk menu (burger) dostaje obsługę dopiero w skrypcie na końcu strony.
+    var openEditor = function () {
+      var burger = document.getElementById('burger');
+      var sidebar = document.getElementById('sidebar');
+      var overlay = document.getElementById('sidebar-overlay');
+      if (burger && sidebar && window.getComputedStyle(burger).display !== 'none') {   // telefon: wysuń menu samo
+        sidebar.classList.add('open');
+        if (overlay) { overlay.classList.add('show'); }
+        burger.setAttribute('aria-expanded', 'true');
+      }
+      start();
+      params.delete('edytuj-menu');
+      var q = params.toString();
+      window.history.replaceState(null, '', window.location.pathname + (q ? '?' + q : '') + window.location.hash);
+    };
+    if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', openEditor); } else { openEditor(); }
   }
 })();
