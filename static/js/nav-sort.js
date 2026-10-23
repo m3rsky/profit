@@ -27,8 +27,36 @@
     return cs.display.indexOf('flex') >= 0 && cs.flexDirection.indexOf('row') === 0;
   }
 
+  /* Strzałki w górę i w dół przy każdej pozycji: pewna alternatywa dla przeciągania na telefonie */
+  function addControls() {
+    items.forEach(function (el) {
+      el.setAttribute('draggable', 'false');   // linki są domyślnie przeciągalne, co na dotyku przerywa nasze przeciąganie
+      if (el.querySelector('.nav-move')) return;
+      var box = document.createElement('span');
+      box.className = 'nav-move';
+      box.innerHTML = '<button type="button" data-nav-move="up" aria-label="Przesuń w górę"><i class="bi bi-chevron-up"></i></button>' +
+                      '<button type="button" data-nav-move="down" aria-label="Przesuń w dół"><i class="bi bi-chevron-down"></i></button>';
+      el.appendChild(box);
+    });
+  }
+
+  function removeControls() {
+    container.querySelectorAll('.nav-move').forEach(function (n) { n.remove(); });
+    items.forEach(function (el) { el.removeAttribute('draggable'); });
+  }
+
+  function move(el, dir) {
+    var from = items.indexOf(el);
+    var to = dir === 'up' ? from - 1 : from + 1;
+    if (from < 0 || to < 0 || to >= items.length) return;
+    items.splice(from, 1);
+    items.splice(to, 0, el);
+    applyOrder();
+  }
+
   function setEditing(on) {
     editing = on;
+    if (on) { addControls(); } else { removeControls(); }
     document.body.classList.toggle('nav-editing', on);
     if (bar) bar.hidden = !on;
     editBtns.forEach(function (b) { b.hidden = on; });
@@ -77,13 +105,28 @@
   if (btnReset) btnReset.addEventListener('click', reset);
   if (btnCancel) btnCancel.addEventListener('click', cancel);
 
-  // W trybie edycji kliknięcie pozycji nie nawiguje.
+  // W trybie edycji kliknięcie pozycji nie nawiguje, a strzałki przesuwają pozycję.
   container.addEventListener('click', function (e) {
-    if (editing && e.target.closest('[data-nav-key]')) { e.preventDefault(); e.stopPropagation(); }
+    if (!editing) return;
+    var mv = e.target.closest('[data-nav-move]');
+    if (mv) {
+      var host = mv.closest('[data-nav-key]');
+      if (host) { move(host, mv.getAttribute('data-nav-move')); }
+      e.preventDefault(); e.stopPropagation();
+      return;
+    }
+    if (e.target.closest('[data-nav-key]')) { e.preventDefault(); e.stopPropagation(); }
   }, true);
+
+  // Na dotyku długie przytrzymanie linku otwiera menu kontekstowe albo zaczyna natywne przeciąganie, co kasuje gest.
+  container.addEventListener('contextmenu', function (e) { if (editing) e.preventDefault(); });
+  container.addEventListener('dragstart', function (e) { if (editing) e.preventDefault(); });
+  // Starsze przeglądarki mobilne: nie przewijaj strony, gdy trwa przeciąganie pozycji.
+  document.addEventListener('touchmove', function (e) { if (drag) e.preventDefault(); }, { passive: false });
 
   container.addEventListener('pointerdown', function (e) {
     if (!editing) return;
+    if (e.target.closest('[data-nav-move]')) return;   // strzałki mają własną obsługę
     var el = e.target.closest('[data-nav-key]');
     if (!el || e.button > 0) return;
     drag = { el: el, id: e.pointerId };

@@ -3401,8 +3401,17 @@ body.dark .qa-drawer-item { border-bottom-color: rgba(255,255,255,.04); }
 .nav-edit-bar[hidden] { display: none; }
 .wk-nav .nav-edit-btn { width: auto; margin: 0; border-style: dashed; }
 body.nav-editing [data-nav-sortable] > [data-nav-key] {
-  cursor: grab; touch-action: none; user-select: none; outline: 1px dashed #64748b; outline-offset: -2px;
+  cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
+  -webkit-touch-callout: none; -webkit-user-drag: none; outline: 1px dashed #64748b; outline-offset: -2px;
 }
+/* strzałki przesuwania przy pozycjach menu w trybie edycji */
+.nav-move { margin-left: auto; display: inline-flex; gap: 4px; flex-shrink: 0; }
+.nav-move button {
+  width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; padding: 0;
+  border: 1px solid currentColor; border-radius: 6px; background: transparent; color: inherit; opacity: .75; cursor: pointer;
+  touch-action: manipulation;
+}
+.nav-move button:active { opacity: 1; background: rgba(59,130,246,.25); }
 body.nav-editing [data-nav-sortable] > [data-nav-key].nav-dragging {
   cursor: grabbing; background: rgba(59,130,246,.25) !important; outline-color: #3b82f6;
 }
