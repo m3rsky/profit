@@ -992,23 +992,24 @@ body.wizard-mode .btn-result {
    LISTY: stonowane przyciski i znaczniki (zob. STANDARD_LIST.md)
    Zwykła wielkość liter, bez pełnej czerwieni, wynik jako kropka w chipie.
    ════════════════════════════════════════════════════════ */
-.page-header .btn, .bulk-bar .btn, .data-table .btn, .all-reports-bar .btn, .filter-bar .btn {
+.page-header .btn, .bulk-bar .btn, .data-table .btn, .all-reports-bar .btn, .filter-bar .btn,
+.qar-table-wrap .btn, .qar-cards .btn, .qar-filters .btn {
   text-transform: none !important;
   letter-spacing: 0 !important;
   font-weight: 600 !important;
 }
 /* Usuwanie na listach: obrys i czerwony tekst, pełny kolor dopiero po najechaniu */
-.bulk-bar .btn-danger, .data-table .btn-danger {
+.bulk-bar .btn-danger, .data-table .btn-danger, .qar-table-wrap .btn-danger, .qar-cards .btn-danger {
   background: transparent !important;
   color: var(--erp-ng) !important;
   border: 1px solid var(--erp-ng-border) !important;
 }
-.bulk-bar .btn-danger:hover, .data-table .btn-danger:hover {
+.bulk-bar .btn-danger:hover, .data-table .btn-danger:hover, .qar-table-wrap .btn-danger:hover, .qar-cards .btn-danger:hover {
   background: var(--erp-ng-bg) !important;
   border-color: var(--erp-ng) !important;
 }
-body.dark .bulk-bar .btn-danger, body.dark .data-table .btn-danger { color: #fca5a5 !important; border-color: rgba(252,165,165,.35) !important; }
-body.dark .bulk-bar .btn-danger:hover, body.dark .data-table .btn-danger:hover { background: rgba(239,68,68,.12) !important; border-color: #fca5a5 !important; }
+body.dark .bulk-bar .btn-danger, body.dark .data-table .btn-danger, body.dark .qar-table-wrap .btn-danger, body.dark .qar-cards .btn-danger { color: #fca5a5 !important; border-color: rgba(252,165,165,.35) !important; }
+body.dark .bulk-bar .btn-danger:hover, body.dark .data-table .btn-danger:hover, body.dark .qar-table-wrap .btn-danger:hover, body.dark .qar-cards .btn-danger:hover { background: rgba(239,68,68,.12) !important; border-color: #fca5a5 !important; }
 
 /* Chipy z wynikiem kontroli (kolumna Kontrole): neutralny chip z kolorową kropką */
 .kz-ctl-badges .badge {

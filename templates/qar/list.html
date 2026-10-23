@@ -1,6 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Raporty QAR{% endblock %}
 
+{% macro qar_status(r) -%}
+  {%- set m = {'open': ('rs-warn', 'bi-exclamation-circle'), 'in_progress': ('rs-info', 'bi-hourglass-split'), 'closed': ('rs-ok', 'bi-check2-circle')} -%}
+  {%- set c = m.get(r.status, ('rs-muted', 'bi-circle')) -%}
+  <span class="rs {{ c[0] }}"><i class="bi {{ c[1] }}"></i> {{ r.status_label }}</span>
+{%- endmacro %}
+
 {% block head %}
 <style>
 /* ── QAR list – mobile ── */
@@ -122,7 +128,7 @@
         <td>{{ r.category or '—' }}</td>
         <td style="color:#555;">{{ r.employee.name if r.employee else '—' }}</td>
         <td style="color:#555;">{{ r.location or '—' }}</td>
-        <td><span class="badge {{ r.status_css }}">{{ r.status_label }}</span></td>
+        <td>{{ qar_status(r) }}</td>
         <td>{{ r.author.username }}</td>
         <td style="color:#666;">{{ r.created_at | localdt('%d.%m.%Y') }}</td>
         <td style="text-align:right;white-space:nowrap;">
@@ -134,7 +140,7 @@
           <form method="post" action="{{ url_for('qar.delete_report', report_id=r.id) }}"
                 style="display:inline;" onsubmit="return confirm('Usunąć raport {{ r.number }}? Tej operacji nie można cofnąć.');">
             {{ csrf_input() }}
-            <button type="submit" class="btn btn-outline btn-xs" title="Usuń" style="color:#c0392b;border-color:#c0392b;">
+            <button type="submit" class="btn btn-danger btn-xs" title="Usuń">
               <i class="bi bi-trash"></i>
             </button>
           </form>
@@ -153,7 +159,7 @@
     <a href="{{ url_for('qar.detail_report', report_id=r.id) }}" style="text-decoration:none;color:inherit;">
       <div class="qar-card-row">
         <span class="font-mono" style="font-size:0.8rem;color:var(--accent,#1a6e8a);">{{ r.number }}</span>
-        <span class="badge {{ r.status_css }}">{{ r.status_label }}</span>
+        {{ qar_status(r) }}
       </div>
       <div class="qar-card-title">{{ r.title }}</div>
       {% if r.zo_number or r.drawing_number %}
@@ -179,7 +185,7 @@
     <form method="post" action="{{ url_for('qar.delete_report', report_id=r.id) }}"
           onsubmit="return confirm('Usunąć raport {{ r.number }}? Tej operacji nie można cofnąć.');">
       {{ csrf_input() }}
-      <button type="submit" class="btn btn-outline btn-xs" style="width:100%;color:#c0392b;border-color:#c0392b;">
+      <button type="submit" class="btn btn-danger btn-xs" style="width:100%;">
         <i class="bi bi-trash"></i> Usuń
       </button>
     </form>
