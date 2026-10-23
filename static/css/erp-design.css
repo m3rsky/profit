@@ -984,3 +984,49 @@ body.wizard-mode .btn-result {
   .app, .wk-layout { min-height: calc(100vh - var(--titlebar-h)); }
   .login-wrapper { min-height: calc(100vh - var(--titlebar-h)); }
 }
+
+
+/* ════════════════════════════════════════════════════════
+   LISTY: stonowane przyciski i znaczniki (zob. STANDARD_LIST.md)
+   Zwykła wielkość liter, bez pełnej czerwieni, wynik jako kropka w chipie.
+   ════════════════════════════════════════════════════════ */
+.page-header .btn, .bulk-bar .btn, .data-table .btn, .all-reports-bar .btn, .filter-bar .btn {
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  font-weight: 600 !important;
+}
+/* Usuwanie na listach: obrys i czerwony tekst, pełny kolor dopiero po najechaniu */
+.bulk-bar .btn-danger, .data-table .btn-danger {
+  background: transparent !important;
+  color: var(--erp-ng) !important;
+  border: 1px solid var(--erp-ng-border) !important;
+}
+.bulk-bar .btn-danger:hover, .data-table .btn-danger:hover {
+  background: var(--erp-ng-bg) !important;
+  border-color: var(--erp-ng) !important;
+}
+body.dark .bulk-bar .btn-danger, body.dark .data-table .btn-danger { color: #fca5a5 !important; border-color: rgba(252,165,165,.35) !important; }
+body.dark .bulk-bar .btn-danger:hover, body.dark .data-table .btn-danger:hover { background: rgba(239,68,68,.12) !important; border-color: #fca5a5 !important; }
+
+/* Chipy z wynikiem kontroli (kolumna Kontrole): neutralny chip z kolorową kropką */
+.kz-ctl-badges .badge {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: transparent !important;
+  color: var(--erp-text) !important;
+  border: 1px solid var(--erp-border-lt) !important;
+  border-radius: 999px !important;
+  padding: 3px 11px 3px 9px !important;
+  font-size: 0.78rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+.kz-ctl-badges .badge::before {
+  content: ""; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+  background: var(--erp-na);
+}
+.kz-ctl-badges .badge-success::before { background: var(--erp-ok); }
+.kz-ctl-badges .badge-warning::before { background: var(--erp-dw); }
+.kz-ctl-badges .badge-danger::before  { background: var(--erp-ng); }
+.kz-ctl-badges a.badge:hover { border-color: var(--erp-blue) !important; }
+body.dark .kz-ctl-badges .badge { color: var(--erp-text) !important; }

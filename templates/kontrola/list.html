@@ -180,16 +180,17 @@
             <td data-label="Data" class="td-collapse-sm">{{ o.created_at | localdt('%d.%m.%Y') }}</td>
             <td data-label="Status">
               {% if row.kind == 'order' %}
-                {% if row.status == 'in_progress' %}<span class="badge badge-warning">W trakcie</span>
-                {% elif row.status == 'completed' %}<span class="badge badge-success">Zakończone</span>
-                {% else %}<span class="badge badge-info">Do skontrolowania</span>{% endif %}
+                {% if row.status == 'in_progress' %}<span class="rs rs-warn"><i class="bi bi-hourglass-split"></i> W trakcie</span>
+                {% elif row.status == 'completed' %}<span class="rs rs-ok"><i class="bi bi-check2-circle"></i> Zakończone</span>
+                {% else %}<span class="rs rs-info"><i class="bi bi-circle"></i> Do skontrolowania</span>{% endif %}
               {% else %}
                 {% set fu = o.followup %}
-                {% if o.state == 'to_do' %}<span class="badge badge-warning">Do wykonania</span>
-                {% elif o.state == 'recheck' %}<span class="badge badge-info">Do kontroli sprawdzającej</span>
+                {% if o.state == 'to_do' %}<span class="rs rs-warn"><i class="bi bi-tools"></i> Do wykonania</span>
+                {% elif o.state == 'recheck' %}<span class="rs rs-info"><i class="bi bi-arrow-repeat"></i> Do kontroli sprawdzającej</span>
                 {% elif o.state == 'closed' %}
-                  <span class="badge {{ 'badge-success' if fu.result == 'OK' else 'badge-danger' }}">Zamknięte: {{ 'zgodny' if fu.result == 'OK' else 'niezgodny' }}</span>
-                {% else %}<span class="badge badge-neutral">W trakcie kontroli</span>{% endif %}
+                  {% if fu.result == 'OK' %}<span class="rs rs-ok"><i class="bi bi-check2-circle"></i> Zamknięte: zgodny</span>
+                  {% else %}<span class="rs rs-ng"><i class="bi bi-x-circle"></i> Zamknięte: niezgodny</span>{% endif %}
+                {% else %}<span class="rs rs-muted"><i class="bi bi-hourglass-split"></i> W trakcie kontroli</span>{% endif %}
               {% endif %}
             </td>
             <td class="td-actions td-collapse-sm" data-label="">

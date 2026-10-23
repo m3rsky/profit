@@ -191,13 +191,6 @@
            data-batch-id="{{ r.batch_id or '' }}"
            data-batch-index="{{ r.batch_index or '' }}"
            data-batch-total="{{ r.batch_total or '' }}">
-        <div class="report-status-dot {% if r.status == 'completed' %}dot-ok{% else %}dot-warn{% endif %}">
-          {% if r.status == 'completed' %}
-            <i class="bi bi-check-lg report-status-icon" style="color: var(--progress-ok)" title="Ukończony"></i>
-          {% else %}
-            <i class="bi bi-hourglass-split report-status-icon" style="color: var(--progress-warn)" title="W trakcie"></i>
-          {% endif %}
-        </div>
         <div class="report-info">
           <div class="report-title-row">
             <a href="{{ url_for('report_detail', report_id=r.id) }}" class="report-title link-inherit">{{ r.title }}</a>
@@ -206,17 +199,11 @@
         </div>
         <div class="report-status">
           {% if r.status == 'completed' %}
-            <span class="badge badge-success">Ukończony</span>
+            <span class="rs rs-ok"><i class="bi bi-check2-circle"></i> Ukończony{% if r.completion_percent < 100 %} <span class="rs-pct">{{ r.completion_percent }}%</span>{% endif %}</span>
           {% else %}
-            <span class="badge badge-warning">W trakcie</span>
+            <span class="rs rs-warn"><i class="bi bi-hourglass-split"></i> W trakcie <span class="rs-pct">{{ r.completion_percent }}%</span></span>
+            <span class="rs-bar"><span style="width: {{ r.completion_percent }}%"></span></span>
           {% endif %}
-        </div>
-        <div class="report-progress">
-          <div class="progress-track">
-            <div class="progress-fill {% if r.status == 'completed' %}progress-fill-ok{% else %}progress-fill-warn{% endif %}"
-                 data-pct="{{ r.completion_percent }}"></div>
-          </div>
-          <div class="progress-pct">{{ r.completion_percent }}%</div>
         </div>
         {% if r.status == 'in_progress' %}
         <a href="{{ url_for('checklist_view', report_id=r.id) }}" class="btn btn-primary btn-sm">Kontynuuj</a>
@@ -377,24 +364,13 @@ document.querySelectorAll('.progress-fill[data-pct]').forEach(function(el) {
 
     /* Podsumowanie statusu serii */
     var done = batchRows.filter(function (r) {
-      return r.querySelector('.badge-success');
+      return r.querySelector('.rs-ok');
     }).length;
     var statusEl = leadRow.querySelector('.report-status');
     if (statusEl) {
       statusEl.innerHTML = done === total
-        ? '<span class="badge badge-success">Ukończona</span>'
-        : '<span class="badge badge-warning">' + done + '/' + total + ' ukończone</span>';
-    }
-
-    /* Ikona statusu wiersza serii: klepsydra, dopóki nie wszystkie sztuki są ukończone */
-    var dotEl = leadRow.querySelector('.report-status-dot');
-    if (dotEl) {
-      var finished = done === total;
-      dotEl.classList.toggle('dot-ok', finished);
-      dotEl.classList.toggle('dot-warn', !finished);
-      dotEl.innerHTML = finished
-        ? '<i class="bi bi-check-lg report-status-icon" style="color: var(--progress-ok)" title="Ukończona"></i>'
-        : '<i class="bi bi-hourglass-split report-status-icon" style="color: var(--progress-warn)" title="W trakcie"></i>';
+        ? '<span class="rs rs-ok"><i class="bi bi-check2-circle"></i> Ukończona</span>'
+        : '<span class="rs rs-warn"><i class="bi bi-hourglass-split"></i> ' + done + '/' + total + ' ukończone</span>';
     }
 
     /* Przycisk rozwijania */

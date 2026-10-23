@@ -62,6 +62,7 @@ Przykład formatu:
 ## Informacje o projekcie
 
 - **Stack:** Python 3.14 (lokalnie, `venv`), Flask 3.0.3, Flask-SQLAlchemy 3.1.1, Flask-Login, Flask-WTF, SQLite. Pełna lista w `requirements.txt`.
+- **Standard wyglądu list:** `STANDARD_LIST.md`. Każda nowa lista i każda zmiana wyglądu listy (pulpit, Kontrola Końcowa, Kontrola etapowa i kolejne) ma trzymać się tego standardu (znaczniki `.rs*`, bez powielania statusu), a zmianę trzeba dopisać do sekcji "Historia zmian" w tym pliku.
 - **Testy:** `.\venv\Scripts\python.exe -m pytest tests/ -v` - 303 testy w `tests/` (m.in. `test_app.py`, `test_kontrola.py`, `test_api_v1.py`, `test_briefing.py`, `test_dokumentacja.py`, `test_installer_stats.py`, `test_marszruta.py`, `test_produkcja.py`, `test_produkcja_stanowisko.py`, `test_qar_employee.py`, `test_qar_from_checklist.py`, `test_zadania_qa.py`), wszystkie muszą przejść. Współdzielone fixture'y są w `tests/conftest.py`.
 - **Uruchomienie lokalne:** `.\venv\Scripts\python.exe app.py` → http://127.0.0.1:5000
 - **Pre-commit hook:** automatycznie uruchamia testy przed każdym commitem

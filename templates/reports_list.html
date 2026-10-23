@@ -105,7 +105,7 @@
             <th>Data</th>
             <th>Status</th>
             <th>Czas</th>
-            <th>Postęp</th>
+            <th>Ocena</th>
             <th scope="col"><span class="sr-only">Akcje</span></th>
           </tr>
         </thead>
@@ -131,9 +131,10 @@
             <td data-label="Data" class="td-collapse-sm">{{ r.created_at | localdt('%d.%m.%Y') }}</td>
             <td data-label="Status">
               {% if r.status == 'completed' %}
-                <span class="badge badge-success">Ukończony</span>
+                <span class="rs rs-ok"><i class="bi bi-check2-circle"></i> Ukończony{% if r.completion_percent < 100 %} <span class="rs-pct">{{ r.completion_percent }}%</span>{% endif %}</span>
               {% else %}
-                <span class="badge badge-warning">W trakcie</span>
+                <span class="rs rs-warn"><i class="bi bi-hourglass-split"></i> W trakcie <span class="rs-pct">{{ r.completion_percent }}%</span></span>
+                <span class="rs-bar"><span style="width: {{ r.completion_percent }}%"></span></span>
               {% endif %}
             </td>
             <td data-label="Czas" class="td-collapse-sm">
@@ -143,15 +144,12 @@
               <span class="text-muted">—</span>
               {% endif %}
             </td>
-            <td data-label="Postęp" class="td-collapse-sm">
-              {{ r.completion_percent }}%
-              {% if r.status == 'completed' %}
-                {% set sc = r.score %}
-                {% if sc %}
-                <span class="badge {% if sc.grade >= 5 %}badge-success{% elif sc.grade >= 3 %}badge-warning{% else %}badge-error{% endif %}">
-                  {{ sc.grade }}/6
-                </span>
-                {% endif %}
+            <td data-label="Ocena" class="td-collapse-sm">
+              {% set sc = r.score if r.status == 'completed' else None %}
+              {% if sc %}
+              <span class="rs {% if sc.grade >= 5 %}rs-ok{% elif sc.grade >= 3 %}rs-warn{% else %}rs-ng{% endif %}">{{ sc.grade }}/6</span>
+              {% else %}
+              <span class="text-muted">—</span>
               {% endif %}
             </td>
             <td class="td-actions td-collapse-sm" data-label="">
@@ -260,13 +258,13 @@
 
     /* Podsumowanie statusu w kolumnie Status */
     const done = batchRows.filter(function (r) {
-      return r.querySelector('.badge-success');
+      return r.querySelector('td[data-label="Status"] .rs-ok');
     }).length;
     const statusCell = leadRow.querySelector('td[data-label="Status"]');
     if (statusCell) {
       statusCell.innerHTML = done === total
-        ? '<span class="badge badge-success">Ukończona</span>'
-        : '<span class="badge badge-warning">' + done + '/' + total + ' ukończone</span>';
+        ? '<span class="rs rs-ok"><i class="bi bi-check2-circle"></i> Ukończona</span>'
+        : '<span class="rs rs-warn"><i class="bi bi-hourglass-split"></i> ' + done + '/' + total + ' ukończone</span>';
     }
 
     /* Schowaj wiersze potomne */
