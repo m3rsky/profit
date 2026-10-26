@@ -12,6 +12,7 @@ wczytanie pliku). Dopóki nikt ich nie zapisał, działają podpowiedzi z nazw k
 import json
 import re
 import unicodedata
+from collections import Counter
 
 from sqlalchemy import or_
 
@@ -31,16 +32,71 @@ def _numbers(text):
     return re.findall(r'\d+', re.sub(r'\bIP\s*\d+\b', ' ', plain(text)))
 
 
+def _type_key(text):
+    """Typ produktu (litery przed pierwszą liczbą, bez myślników, kropek i spacji):
+    `RU-L-1150...` i `RUL 1900X1150...` dają `RUL`, `SP-D` i `SPD` dają `SPD`."""
+    m = re.match(r'^[A-Z][A-Z\s\-./]*', plain(text))
+    return re.sub(r'[^A-Z]', '', m.group(0)) if m else ''
+
+
+def product_score(a, b):
+    """Jak dobrze zgadzają się dwa zapisy tego samego produktu (0 = to nie ten produkt):
+    100 identyczny tekst, 50+ te same wymiary w dowolnej kolejności (np. 1900X1150X250 i
+    1150-1900-250), niżej zgodność większości wymiarów (literówka w jednym wymiarze).
+    Typy muszą być zgodne (RU-L = RUL, SP-D = SPD, RZ-M = RZM)."""
+    if plain(a) and plain(a) == plain(b):
+        return 100
+    ta, tb = _type_key(a), _type_key(b)
+    if ta and tb and not (ta.startswith(tb) or tb.startswith(ta)):
+        return 0
+    na, nb = Counter(_numbers(a)), Counter(_numbers(b))
+    la, lb = sum(na.values()), sum(nb.values())
+    if not la or not lb:
+        return 0
+    common = sum((na & nb).values())
+    if common == la == lb:
+        return 50 + common
+    n = min(la, lb)
+    if n >= 2 and common == n:                 # krótszy zapis w całości zawarty w dłuższym
+        return 20 + common
+    if n >= 3 and common == n - 1:             # jeden wymiar inaczej (literówka)
+        return common
+    return 0
+
+
 def same_product(a, b):
-    """Ten sam produkt mimo innego zapisu: równy tekst albo zgodne wymiary (jedna lista
-    liczb jest początkiem drugiej, np. 600X800X300 i 600-800-300 IP65)."""
-    if plain(a) == plain(b):
-        return True
-    xa, xb = _numbers(a), _numbers(b)
-    n = min(len(xa), len(xb))
-    if n == 0 or (n == 1 and (len(xa) != 1 or len(xb) != 1)):
-        return False
-    return xa[:n] == xb[:n]
+    """Czy dwa zapisy mogą oznaczać ten sam produkt (patrz product_score)."""
+    return product_score(a, b) > 0
+
+
+def _assign(items, zo_rows, name_of):
+    """Które wiersze listy odpowiadają pozycjom (zlecenia kontroli, listy kontrolne) jednego ZO.
+    Pozycja trafia do wierszy, z którymi zgadza się najlepiej; gdy nic się nie zgadza, a pod
+    ZO jest jedna pozycja i jeden wiersz, to produkt nie rozstrzyga i łączymy je po samym ZO.
+    Zwraca {id wiersza: [pozycje]}."""
+    out = {}
+    for it in items:
+        scores = {rid: product_score(p, name_of(it)) for rid, p in zo_rows}
+        best = max(scores.values(), default=0)
+        if best > 0:
+            for rid, sc in scores.items():
+                if sc == best:
+                    out.setdefault(rid, []).append(it)
+        elif len(items) == 1 and len(zo_rows) == 1:
+            out.setdefault(zo_rows[0][0], []).append(it)
+    return out
+
+
+def _zo_rows(zos):
+    """{ZO: [(id wiersza, produkt)]} dla wszystkich wierszy listy z tymi numerami ZO (z każdego
+    arkusza), bo dopasowanie ma brać pod uwagę także wiersze spoza wyświetlanej strony."""
+    from models import ProdSheet
+    mappings = {sh.id: sh.mapping for sh in ProdSheet.query.all()}
+    out = {}
+    for rid, sid, zo, data in db.session.query(ProdRow.id, ProdRow.sheet_id, ProdRow.zo, ProdRow.data)             .filter(ProdRow.zo.in_(zos)):
+        f = excel_io.row_fields(json.loads(data or '[]'), mappings.get(sid, {}))
+        out.setdefault(zo, []).append((rid, f.get('product') or ''))
+    return out
 
 
 # ── Podpowiedzi powiązań z nazw kolumn ─────────────────────────────────────────
@@ -66,6 +122,8 @@ def suggest(label, dept_ids, element_names):
         if ' OB' in L:
             return {'depts': dept('GIECIE'), 'elements': els('Korpus', 'G/D', 'Boki'), 'final': False}
         return {'depts': dept('GIECIE'), 'elements': [], 'final': False}
+    if L.startswith('LASER'):
+        return {'depts': dept('LASER'), 'elements': [], 'final': False}
     if L.startswith('CZYSZ'):
         return {'depts': dept('CZYSZCZ'), 'elements': [], 'final': False}
     if L.startswith('MYJ'):
@@ -158,13 +216,11 @@ def control_info(rows):
     if not rows:
         return result
     links_by_sheet = {}
-    prod = {}
     for r in rows:
         if r.sheet_id not in links_by_sheet:
             links_by_sheet[r.sheet_id] = sheet_links(r.sheet)
-        f = excel_io.row_fields(json.loads(r.data or '[]'), r.sheet.mapping)
-        prod[r.id] = f.get('product') or ''
     zos = sorted({r.zo for r in rows})
+    zo_rows = _zo_rows(zos)
 
     # Kontrola etapowa
     orders_by_zo = {}
@@ -186,14 +242,13 @@ def control_info(rows):
                 rec_elements.setdefault(rid, set()).add(plain(name))
             ng_records |= {rid for (rid,) in db.session.query(ControlResult.record_id)
                            .filter(ControlResult.record_id.in_(chunk), ControlResult.result == 'NG')}
-    rows_per_zo = dict(db.session.query(ProdRow.zo, db.func.count(ProdRow.id))
-                       .filter(ProdRow.zo.in_(zos)).group_by(ProdRow.zo).all())
+    order_claims = {}
+    for zo, orders in orders_by_zo.items():
+        for rid, items in _assign(orders, zo_rows.get(zo, []), lambda o: o.product_name).items():
+            order_claims.setdefault(rid, []).extend(items)
 
     for r in rows:
-        cands = orders_by_zo.get(r.zo, [])
-        matched = [o for o in cands if same_product(prod[r.id], o.product_name)]
-        if not matched and len(cands) == 1 and rows_per_zo.get(r.zo, 0) == 1:
-            matched = cands   # jedno zlecenie i jeden wiersz pod tym ZO: produkt nie rozstrzyga
+        matched = order_claims.get(r.id, [])
         recs = sorted((rec for o in matched for rec in records_by_order.get(o.id, [])),
                       key=lambda x: -x.id)
         if not recs:
@@ -226,12 +281,15 @@ def control_info(rows):
                                     escape='\\') for z in zos[i:i + 100]]
         for rep in Report.query.filter(Report.report_type == 'kontroler', or_(*likes)).all():
             reports_by_zo.setdefault(rep.qr_key.rsplit('|', 1)[-1], []).append(rep)
+    report_claims = {}
+    for zo in zos:
+        by_key = {}
+        for rep in reports_by_zo.get(plain(zo), []):
+            by_key.setdefault(rep.qr_key, []).append(rep)
+        for rid, keys in _assign(list(by_key), zo_rows.get(zo, []), lambda k: k.split('|', 1)[0]).items():
+            report_claims.setdefault(rid, []).extend(rep for k in keys for rep in by_key[k])
     for r in rows:
-        cands = reports_by_zo.get(plain(r.zo), [])
-        hits = [rep for rep in cands if same_product(prod[r.id], rep.qr_key.split('|', 1)[0])]
-        if not hits and cands and rows_per_zo.get(r.zo, 0) == 1 \
-                and len({rep.qr_key for rep in cands}) == 1:
-            hits = cands
+        hits = report_claims.get(r.id, [])
         if hits:
             ng = sum(1 for rep in hits if rep.stats['ng'])
             done = sum(1 for rep in hits if rep.status == 'completed')

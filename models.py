@@ -1104,6 +1104,7 @@ class ProdUserView(db.Model):
     user_id     = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
     sheet_name  = db.Column(db.String(64), nullable=False)
     hidden_json = db.Column(db.Text, nullable=True)   # {indeks: oryginalny nagłówek}
+    widths_json = db.Column(db.Text, nullable=True)   # {indeks: [oryginalny nagłówek, szerokość w px]}
 
 
 class ProdSetting(db.Model):

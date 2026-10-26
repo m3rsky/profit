@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 
 import pytest
 from openpyxl import Workbook, load_workbook
+from openpyxl.utils import get_column_letter
 
 from app import app as flask_app, db
 from models import (User, Report, ReportItem, Alert, ProdFile, ProdSheet, ProdRow,
@@ -288,8 +289,8 @@ def test_headerless_sheet_gets_default_names_and_user_can_rename(app, client):
     sid = _sheet_id(app, 'PROFIT')
     with app.app_context():
         sh = db.session.get(ProdSheet, sid)
-        assert sh.columns[:9] == ['ZAM', 'ROZP.', 'CZAS REALIZACJI', 'TERMIN REALIZACJI',
-                                  'NAZWA TOW.', 'ILOŚĆ', 'Z', 'ODBIORCA', 'NUMER ZO']
+        assert sh.columns[:9] == ['ZAM', 'DATA', 'CZAS REALIZACJI', 'TERMIN REALIZACJI',
+                                  'NAZWA TOW.', 'ILOŚĆ', 'Z', 'NAZWA ODBIORCY', 'NUMER ZO']   # nazwy wzorca PSH
         assert sh.columns[10] == 'K'                      # dalej litery kolumn
     html = client.get(f'/produkcja/sheet/{sid}/etapy').get_data(as_text=True)
     assert 'nie ma wiersza nagłówków' in html and 'RAL 7035' in html     # przykłady wartości
@@ -387,10 +388,10 @@ def test_empty_columns_hidden_automatically(app, client):
     sid = _sheet_id(app, 'PSH')
     html = client.get(f'/produkcja/sheet/{sid}').get_data(as_text=True)
     assert 'Puste kolumny ukryte (1)' in html
-    assert '>UWAGI</th>' not in html          # pusta, ukryta automatycznie
-    assert '>KJ</th>' in html                 # pusta, ale to etap (wpisuje się w aplikacji)
-    assert '>NOTATKA</th>' in html            # ma wartość
-    assert '>UWAGI</th>' in client.get(f'/produkcja/sheet/{sid}?puste=1').get_data(as_text=True)
+    assert '>UWAGI<span class="col-rs"' not in html          # pusta, ukryta automatycznie
+    assert '>KJ<span class="col-rs"' in html                 # pusta, ale to etap (wpisuje się w aplikacji)
+    assert '>NOTATKA<span class="col-rs"' in html            # ma wartość
+    assert '>UWAGI<span class="col-rs"' in client.get(f'/produkcja/sheet/{sid}?puste=1').get_data(as_text=True)
 
 
 def test_controllink_suggestions_and_product_matching():
@@ -409,7 +410,15 @@ def test_controllink_suggestions_and_product_matching():
     assert s('KJ')['final'] and s('PAK.') is None and s('MASKI') is None
     assert cl.same_product('PSH 600X800X300 (P)', 'PSH-600-800-300 IP65')
     assert cl.same_product('PSH 700X1000X175/250(P)', 'PSH-700-1000-175/250 IP65')
-    assert not cl.same_product('PSH 600X800X300', 'PSH-600-800-400 IP65')
+    # różnice w zapisie typu: myślniki i kolejność wymiarów nie mają znaczenia
+    assert cl.same_product('RUL 1900X1150X250', 'RU-L-1150-1900-250 IP30')
+    assert cl.same_product('SPD 545X345', 'SP-D-545-345 IP30 DRZWI REWIZYJNE')
+    assert cl.same_product('RZM 1000X600X200', 'RZ-M-1000-600-200 IP40')
+    assert not cl.same_product('RUL 1900X1150X250', 'RZ-L-1900-1150-250 IP30')     # inny typ
+    # literówka w jednym wymiarze nadal paruje, ale słabiej niż dokładne dopasowanie
+    exact = cl.product_score('PSH 600X800X300', 'PSH-600-800-300 IP65')
+    typo = cl.product_score('PSH 600X800X300', 'PSH-600-800-400 IP65')
+    assert typo > 0 and exact > typo
     assert not cl.same_product('SPD 845X395', 'SP-D-545-345 IP30')
 
 
@@ -527,3 +536,182 @@ def test_reimport_works_when_source_file_is_missing_on_disk(app, client):
     with app.app_context():
         backups = ProdFile.query.filter_by(kind='backup').all()
         assert {b.original_name for b in backups} == {'PSH_backup.csv', 'SP_backup.csv'}   # CSV z bazy
+
+
+def test_column_rename_from_header_persists_and_can_be_reset(app, client):
+    _admin(client)
+    _import(client)
+    sid = _sheet_id(app, 'PSH')
+    hdr = {'X-CSRF-Token': _csrf(client)}
+    url = f'/produkcja/sheet/{sid}/kolumna/nazwa'
+    assert client.post(url, json={'col': 8, 'name': '  Kolor   RAL '}, headers=hdr).get_json()['name'] == 'Kolor RAL'
+    html = client.get(f'/produkcja/sheet/{sid}').get_data(as_text=True)
+    assert '>Kolor RAL<span class="col-rs"' in html and '>KOLOR<span class="col-rs"' not in html
+    assert client.post(url, json={'col': 99, 'name': 'x'}, headers=hdr).status_code == 400
+    _import(client)   # nazwa przeżywa ponowne wczytanie pliku
+    sid = _sheet_id(app, 'PSH')
+    assert '>Kolor RAL<span class="col-rs"' in client.get(f'/produkcja/sheet/{sid}').get_data(as_text=True)
+    hdr = {'X-CSRF-Token': _csrf(client)}
+    client.post(f'/produkcja/sheet/{sid}/kolumna/nazwa', json={'col': 8, 'name': ''}, headers=hdr)   # reset
+    assert '>KOLOR<span class="col-rs"' in client.get(f'/produkcja/sheet/{sid}').get_data(as_text=True)
+    with app.app_context():
+        assert db.session.get(ProdSheet, sid).columns[8] == 'KOLOR'
+
+
+def test_layout_matches_columns_to_psh_pattern():
+    from produkcja import layout
+    spd = ['ZAM', 'ROZP.', 'CZAS REALIZACJI', 'TERMIN REALIZACJI', 'NAZWA TOW.', 'ILOŚĆ', 'Z', 'ODBIORCA',
+           'NUMER ZO', 'KOLOR', 'GIĘCIE', 'SPAW.', 'DRZW.', 'SZYK', 'CZYSZ.', 'MYJ', 'MAL', 'ZŁOŻONE', 'KJ', 'PAK']
+    names = layout.canon_names(spd)
+    assert [names[i] for i in (10, 11, 12, 13, 14, 17)] == [
+        'GIĘCIE OB.', 'SPAW. OB.', 'SPAW DRZW.', 'SZYKOWANIE', 'CZYSZ. OB.', 'SKŁADANIE']
+    rz = ['ZAM.', 'ROZ.', 'CZAS REALIZACJI', 'TERMIN REALIZACJI', 'NAZWA', 'SZT', 'Z', ' ODBIORCA', 'NUMER ZO',
+          'KOLOR', 'K', 'GIĘCIE', 'GRZ/SP', 'DRZWI', 'O', 'MASKI', 'CZYSZ.', 'MYJ', 'MAL.', 'SKŁAD.', 'U', 'PAK', 'KJ']
+    n = layout.canon_names(rz)
+    assert n[12] == 'SPAW. OB.' and n[13] == 'SPAW DRZW.' and n[5] == 'ILOŚĆ' and n[19] == 'SKŁADANIE'
+    assert 10 not in n and 14 not in n and 20 not in n        # kolumny nazwane tylko literą
+    inox = ['ZAM', 'ROZ.', 'czas realizacji', 'termin realizacji', 'NAZWA TOW.', 'ILOŚĆ', 'ODBIORCA', 'NUMER ZO',
+            'StreamSoft', 'WYPAL.', 'GIĘCIE', 'GIĘCIE DRZ', 'SPAW.', 'DRZWI', 'MASKI', 'D.zaw', 'D.dost',
+            'WYCZYSZCZONE', 'Złożone', 'KJ', 'PAK.', 'MAL.']
+    n = layout.canon_names(inox)
+    assert n[9] == 'WYPALANIE' and n[11] == 'GIĘCIE DR' and n[16] == 'D. PRZYW.' and n[17] == 'CZYSZ. OB.'
+    order = layout.display_order(inox)
+    assert [inox[i] for i in order][:12] == ['ZAM', 'ROZ.', 'czas realizacji', 'termin realizacji', 'NAZWA TOW.',
+                                              'ILOŚĆ', 'ODBIORCA', 'NUMER ZO', 'StreamSoft', 'WYPAL.', 'GIĘCIE',
+                                              'GIĘCIE DRZ']
+    assert order.index(21) < order.index(15)   # MAL. (indeks 21) przed D.zaw (indeks 15)
+    assert layout.default_enabled('SPD', False) and layout.default_enabled('BRAKI', False)
+    # PROFIT nie ma nagłówków: etapy wynikają z pozycji kolumn (jak w RZ RW IF)
+    profit = ['ZAM', 'ROZP.', 'CZAS REALIZACJI', 'TERMIN REALIZACJI', 'NAZWA TOW.', 'ILOŚĆ', 'Z', 'ODBIORCA',
+              'NUMER ZO', 'KOLOR', 'Kolor', 'GIĘCIE'] + [get_column_letter(i + 1) for i in range(12, 40)]
+    n = layout.canon_names(profit, 'PROFIT')
+    assert n[11] == 'GIĘCIE OB.' and n[12] == 'SPAW. OB.' and n[13] == 'SPAW DRZW.' and n[19] == 'SKŁADANIE'
+    assert n[22] == 'KJ' and 14 not in n
+    assert layout.stage_indexes(profit, 'PROFIT') >= {11, 12, 13, 16, 17, 19, 21, 22}
+
+
+def test_import_applies_psh_layout_to_other_sheets(app, client):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'SPD'
+    ws.append(['ZAM', 'ROZP.', 'CZAS REALIZACJI', 'TERMIN REALIZACJI', 'NAZWA TOW.', 'ILOŚĆ', 'ODBIORCA',
+               'NUMER ZO', 'KOLOR', 'LANTEK', 'MAL', 'SZYK', 'WYPAL.', 'GIĘCIE', 'ZŁOŻONE', 'KJ'])
+    ws.append([TODAY, TODAY, 3, TODAY, PRODUCT, 1, 'K', 'ZO-L1', 'RAL', 'x', 'AB', 'CD', 'EF', 'GH', 'IJ', 'KL'])
+    ws2 = wb.create_sheet('BRAKI')
+    ws2.append(['ZAM', 'NAZWA TOW.', 'ILOŚĆ', 'ODBIORCA', 'NUMER ZO', 'SPAW.', 'GIĘCIE'])
+    ws2.append([TODAY, PRODUCT, 1, 'K', 'ZO-L2', 'a', 'b'])
+    raw = io.BytesIO()
+    wb.save(raw)
+    _admin(client)
+    _import(client, io.BytesIO(raw.getvalue()))
+    sid = _sheet_id(app, 'SPD')
+    with app.app_context():
+        sh = db.session.get(ProdSheet, sid)
+        assert sh.columns[11] == 'SZYKOWANIE' and sh.columns[12] == 'WYPALANIE' and sh.columns[13] == 'GIĘCIE OB.'
+        assert sh.columns[14] == 'SKŁADANIE' and sh.columns[9] == 'LANTEK'
+        stages = {s.label for s in ProdStageColumn.query.filter_by(sheet_id=sid)}
+        assert {'WYPALANIE', 'GIĘCIE OB.', 'SZYKOWANIE', 'SKŁADANIE', 'KJ', 'MAL'} <= stages
+        assert db.session.get(ProdSheet, _sheet_id(app, 'BRAKI')).columns == [
+            'ZAM', 'NAZWA TOW.', 'ILOŚĆ', 'NAZWA ODBIORCY', 'NUMER ZO', 'SPAW. OB.', 'GIĘCIE OB.']   # układ obejmuje wszystkie arkusze
+    import re
+    html = client.get(f'/produkcja/sheet/{sid}').get_data(as_text=True)
+    heads = re.findall(r'<th class="colhead"[^>]*>([^<]+)<span class="col-rs"', html)
+    assert heads.index('WYPALANIE') < heads.index('GIĘCIE OB.') < heads.index('MAL') < heads.index('SZYKOWANIE') \
+        < heads.index('SKŁADANIE') < heads.index('KJ') < heads.index('LANTEK')      # LANTEK (bez wzorca) na końcu
+    # własna nazwa nie jest nadpisywana przy ponownym wczytaniu
+    client.post(f'/produkcja/sheet/{sid}/kolumna/nazwa', json={'col': 12, 'name': 'Wypał laser'},
+                headers={'X-CSRF-Token': _csrf(client)})
+    _import(client, io.BytesIO(raw.getvalue()))
+    sid = _sheet_id(app, 'SPD')
+    with app.app_context():
+        assert db.session.get(ProdSheet, sid).columns[12] == 'Wypał laser'
+    # wyłączenie układu przywraca kolejność z pliku
+    client.post(f'/produkcja/sheet/{sid}/uklad', data={'action': 'off', '_csrf_token': _csrf(client)})
+    heads = re.findall(r'<th class="colhead"[^>]*>([^<]+)<span class="col-rs"', client.get(f'/produkcja/sheet/{sid}').get_data(as_text=True))
+    assert heads.index('LANTEK') < heads.index('MAL')
+
+
+def test_control_pairing_prefers_best_product_match_and_ignores_type_separators(app, client):
+    from models import ControlOrder, ControlRecord, ProductionDepartment
+    from produkcja import controllink
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'PROFIT2'
+    ws.append(['ZAM', 'CZAS REALIZACJI', 'TERMIN REALIZACJI', 'NAZWA TOW.', 'ILOŚĆ', 'ODBIORCA', 'NUMER ZO', 'GIĘCIE'])
+    ws.append([TODAY, 3, TODAY, 'RUL 1900X1150X250', 1, 'K', 'ZO-P1', 'AB'])
+    ws.append([TODAY, 3, TODAY, 'RUL 1900X1150X300', 1, 'K', 'ZO-P1', 'CD'])
+    ws.append([TODAY, 3, TODAY, 'RUM 1250X840X250', 1, 'K', 'ZO-P1', None])
+    raw = io.BytesIO()
+    wb.save(raw)
+    _admin(client)
+    _import(client, io.BytesIO(raw.getvalue()))
+    sid = _sheet_id(app, 'PROFIT2')
+    with app.app_context():
+        uid = User.query.filter_by(username='admin').first().id
+        dept = ProductionDepartment(name='T9 Gięcie', order=950)
+        db.session.add(dept)
+        db.session.flush()
+        o = ControlOrder(zo_number='ZO-P1', product_name='RU-L-1150-1900-250 IP30')
+        db.session.add(o)
+        db.session.flush()
+        db.session.add(ControlRecord(zo_number='ZO-P1', user_id=uid, department_id=dept.id,
+                                     control_order_id=o.id, status='completed'))
+        db.session.commit()
+        dept_id = dept.id
+    try:
+        client.post(f'/produkcja/sheet/{sid}/etapy', data={
+            '_csrf_token': _csrf(client), 'ctl_form': '1', 'ctl_dept_7': [str(dept_id)],
+            **{f'role_{i}': r for r, i in _mapping(app, sid).items()}})
+        with app.app_context():
+            rows = {json.loads(r.data)[3]: r for r in ProdRow.query.filter_by(sheet_id=sid)}
+            info = controllink.control_info(list(rows.values()))
+            paired = {name: bool(info[r.id]['stages']) for name, r in rows.items()}
+        # dokładny wymiar (250) dostaje kontrolę; ten sam typ z innym wymiarem (300) i inny typ (RUM) nie
+        assert paired == {'RUL 1900X1150X250': True, 'RUL 1900X1150X300': False, 'RUM 1250X840X250': False}
+    finally:
+        with app.app_context():
+            for rec in ControlRecord.query.filter_by(zo_number='ZO-P1').all():
+                db.session.delete(rec)
+            ControlOrder.query.filter_by(zo_number='ZO-P1').delete()
+            ProductionDepartment.query.filter(ProductionDepartment.name.like('T9 %')).delete(synchronize_session=False)
+            db.session.commit()
+
+
+def _mapping(app, sid):
+    with app.app_context():
+        return dict(db.session.get(ProdSheet, sid).mapping)
+
+
+def test_column_width_is_per_user_validated_and_resettable(app, client, planner):
+    _admin(client)
+    _import(client)
+    sid = _sheet_id(app, 'PSH')
+    with app.app_context():
+        uid = User.query.filter_by(username='planista').first().id
+    client.post('/produkcja/access', data={'access': [f'{uid}:{sid}'], '_csrf_token': _csrf(client)})
+    hdr = {'X-CSRF-Token': _csrf(client)}
+    url = f'/produkcja/sheet/{sid}/kolumna/szerokosc'
+    assert client.post(url, json={'col': 4, 'width': 321}, headers=hdr).get_json()['ok']
+    html = client.get(f'/produkcja/sheet/{sid}').get_data(as_text=True)
+    assert 'td[data-c="4"] { width: 321px; min-width: 321px; max-width: 321px; }' in html
+    assert 'class="col-rs" data-c="4"' in html
+    # granice i błędne dane
+    assert client.post(url, json={'col': 99, 'width': 100}, headers=hdr).status_code == 400
+    assert client.post(url, json={'col': 'x', 'width': 100}, headers=hdr).status_code == 400
+    client.post(url, json={'col': 5, 'width': 5}, headers=hdr)           # za wąska: min 30
+    client.post(url, json={'col': 6, 'width': 99999}, headers=hdr)       # za szeroka: max 1000
+    html = client.get(f'/produkcja/sheet/{sid}').get_data(as_text=True)
+    assert 'td[data-c="5"] { width: 30px;' in html and 'td[data-c="6"] { width: 1000px;' in html
+    # planista ma własne szerokości
+    logout(client)
+    login(client, planner, 'Plan1234!')
+    assert 'width: 321px' not in client.get(f'/produkcja/sheet/{sid}').get_data(as_text=True)
+    # szerokość administratora przeżywa ponowne wczytanie, a width=0 przywraca automatyczną
+    logout(client)
+    _admin(client)
+    _import(client)
+    sid = _sheet_id(app, 'PSH')
+    assert 'width: 321px' in client.get(f'/produkcja/sheet/{sid}').get_data(as_text=True)
+    client.post(f'/produkcja/sheet/{sid}/kolumna/szerokosc', json={'col': 4, 'width': 0},
+                headers={'X-CSRF-Token': _csrf(client)})
+    assert 'width: 321px' not in client.get(f'/produkcja/sheet/{sid}').get_data(as_text=True)

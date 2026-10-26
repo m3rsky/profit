@@ -3134,6 +3134,10 @@ def _migrate_schema():
                     conn.execute(text('UPDATE prod_rows SET checklists_at = CURRENT_TIMESTAMP '
                                       'WHERE order_id IS NOT NULL'))
                 conn.commit()
+            if 'prod_user_views' in insp.get_table_names() and 'widths_json' not in [
+                    c['name'] for c in insp.get_columns('prod_user_views')]:   # szerokości kolumn użytkownika
+                conn.execute(text('ALTER TABLE prod_user_views ADD COLUMN widths_json TEXT'))
+                conn.commit()
             if 'row_date' not in prod_cols:   # zakres dat widoku listy produkcyjnej
                 conn.execute(text('ALTER TABLE prod_rows ADD COLUMN row_date DATE'))
                 conn.execute(text('CREATE INDEX IF NOT EXISTS ix_prod_rows_row_date ON prod_rows (row_date)'))

@@ -59,7 +59,7 @@ def test_stage_columns_detected_on_import(app, client):
     _import(client)
     with app.app_context():
         labels = {s.label for s in ProdStageColumn.query.filter_by(sheet_id=_sheet_id(app, 'PSH'))}
-    assert labels == {'SPAW.', 'KJ'}
+    assert labels == {'SPAW. OB.', 'KJ'}
 
 
 def test_employee_crud_and_duplicate_initials_only_warn(app, client, planner):
@@ -112,10 +112,10 @@ def test_station_flow_writes_initials_and_history(app, client, station):
     r = client.post('/produkcja/skan/zlecenie', json={'o': 'zo-t1', 'p': 'kontrola zo api'},
                     headers={'X-CSRF-Token': _csrf(client)})
     order = r.get_json()['orders'][0]
-    assert order['sheet'] == 'PSH' and {s['label'] for s in order['stages']} == {'SPAW.', 'KJ'}
+    assert order['sheet'] == 'PSH' and {s['label'] for s in order['stages']} == {'SPAW. OB.', 'KJ'}
     rid = order['row_id']
     kj = _stage_id(app, 'PSH', 'KJ')
-    spaw = _stage_id(app, 'PSH', 'SPAW.')
+    spaw = _stage_id(app, 'PSH', 'SPAW. OB.')
 
     assert _entry(client, rid, kj).get_json()['value'] == 'JK'           # pusta komórka
     again = _entry(client, rid, kj).get_json()                            # ten sam pracownik
@@ -165,7 +165,7 @@ def test_assignments_enforced_when_enabled(app, client, station):
         dept_id, other_id = dept.id, other.id
     _add_employee(client, 'Jan Spawacz', 'JS', departments=[dept_id])
     _add_employee(client, 'Ola Malarka', 'OM', departments=[other_id])
-    spaw = _stage_id(app, 'PSH', 'SPAW.')
+    spaw = _stage_id(app, 'PSH', 'SPAW. OB.')
     with app.app_context():
         db.session.get(ProdStageColumn, spaw).department_id = dept_id
         db.session.commit()

@@ -13,7 +13,7 @@ from sqlalchemy import func
 from models import (db, get_or_404, AuditLog, User, Report,
                     ProdFile, ProdSheet, ProdRow, ProdSheetAccess, ProdStageColumn, ProdEntry)
 from . import produkcja_bp, helper
-from . import excel_io, sheetcfg, controllink
+from . import excel_io, sheetcfg, controllink, layout
 
 UTC = timezone.utc
 PER_PAGE = 100
@@ -207,6 +207,10 @@ def sheet_view(sheet_id):
     links = controllink.sheet_links(sheet)
     pairing = {rid: i['final'] for rid, i in ctl.items() if i['final']}
     hidden, hidden_fixed = sheetcfg.hidden_view(current_user.id, sheet.name, sheet.columns)
+    view_order = list(range(ncols))
+    cfg = sheetcfg.load(sheet.name)
+    if sheetcfg.layout_enabled(cfg, sheet.name, sheet.header_row is None):   # układ wzorcowy PSH
+        view_order = layout.display_order([sheetcfg.orig_name(cfg, sheet.columns, i) for i in range(ncols)], sheet.name)
     show_empty = request.args.get('puste') == '1'
     all_empty = _empty_columns(sheet, date_clauses) - hidden
     empty_count = len(all_empty)
@@ -223,9 +227,10 @@ def sheet_view(sheet_id):
                                                        ('puste', '1' if show_empty else '')) if v},
                                   **({'od': date_from.isoformat() if date_from else '',
                                       'do': date_to.isoformat() if date_to else ''} if has_dates else {})},
-                           visible=[i for i in range(ncols) if i not in hidden_all],
+                           visible=[i for i in view_order if i not in hidden_all],
                            show_empty=show_empty, empty_count=empty_count,
                            hidden=sorted(hidden), hidden_fixed=hidden_fixed,
+                           widths=sheetcfg.column_widths(current_user.id, sheet.name, sheet.columns),
                            fixed_names=sheetcfg.FIXED_COLUMNS,
                            formula_cols=set(sheet.formula_cols),
                            mapping=sheet.mapping)
@@ -259,6 +264,62 @@ def column_visibility(sheet_id):
     sheetcfg.save_hidden(current_user.id, sheet.name, columns, hidden, fixed)
     db.session.commit()
     return jsonify({'ok': True})
+
+
+@produkcja_bp.route('/sheet/<int:sheet_id>/kolumna/szerokosc', methods=['POST'])
+@login_required
+@planning_required
+def column_width(sheet_id):
+    """Szerokość kolumny ustawiona przeciągnięciem krawędzi nagłówka (własna dla użytkownika).
+    Pusta szerokość przywraca automatyczną."""
+    sheet = _sheet_or_403(sheet_id)
+    payload = request.get_json(silent=True) or {}
+    columns = sheet.columns
+    try:
+        col = int(payload.get('col'))
+        width = int(payload.get('width') or 0)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Nieprawidłowe dane'}), 400
+    if col < 0 or col >= len(columns) or width < 0:
+        return jsonify({'error': 'Nieprawidłowa kolumna'}), 400
+    sheetcfg.save_width(current_user.id, sheet.name, columns, col, width)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@produkcja_bp.route('/sheet/<int:sheet_id>/kolumna/nazwa', methods=['POST'])
+@login_required
+@planning_required
+def column_rename(sheet_id):
+    """Zmiana nazwy kolumny (wspólna dla arkusza, zapamiętana po oryginalnym nagłówku, więc
+    przeżywa ponowne wczytanie pliku). Pusta nazwa przywraca oryginalną."""
+    sheet = _sheet_or_403(sheet_id)
+    payload = request.get_json(silent=True) or {}
+    columns = list(sheet.columns)
+    try:
+        col = int(payload.get('col'))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Nieprawidłowa kolumna'}), 400
+    if col < 0 or col >= len(columns):
+        return jsonify({'error': 'Nieprawidłowa kolumna'}), 400
+    cfg = sheetcfg.load(sheet.name)
+    orig = sheetcfg.orig_name(cfg, columns, col)
+    new = ' '.join(str(payload.get('name') or '').split())[:64] or orig
+    old = columns[col]
+    if new != old:
+        columns[col] = new
+        if new != orig:
+            cfg['names'][str(col)] = {'orig': orig, 'name': new}
+        else:
+            cfg['names'].pop(str(col), None)
+        sheet.columns_json = json.dumps(columns, ensure_ascii=False)
+        sheetcfg.save(sheet.name, cfg)
+        for st in ProdStageColumn.query.filter_by(sheet_id=sheet.id, col_index=col):
+            if st.label == old:   # etap z domyślną nazwą podąża za nazwą kolumny
+                st.label = new[:64]
+        db.session.commit()
+        _audit('prod_column_rename', 'ProdSheet', sheet.id, f'sheet={sheet.name} col={col} {old} -> {new}')
+    return jsonify({'ok': True, 'name': new})
 
 
 @produkcja_bp.route('/row/<int:row_id>/cell', methods=['POST'])
@@ -521,7 +582,8 @@ def _install_sheets(sheets, rec, replace_all):
 
     total = 0
     for sd in sheets:
-        names_cols, mapping = sheetcfg.apply_to_import(sd['name'], sd['columns'], sd['mapping'])
+        names_cols, mapping = sheetcfg.apply_to_import(sd['name'], sd['columns'], sd['mapping'],
+                                                       headerless=sd['header_row'] is None)
         sd['mapping'] = mapping
         old = old_by_name.get(sd['name'])
         if old is not None:
@@ -558,6 +620,8 @@ def _install_sheets(sheets, rec, replace_all):
             idxs = [i for i, c in enumerate(sd['columns']) if (sd['name'], c) in stage_cfg]
         else:
             idxs = excel_io.detect_stage_columns(sd['columns'], sd['header_row'] is None)
+            if sheetcfg.layout_enabled(sheetcfg.load(sd['name']), sd['name'], sd['header_row'] is None):
+                idxs = sorted(set(idxs) | layout.stage_indexes(sd['columns'], sd['name']))
         for i in idxs:
             label, dept, active = stage_cfg.get((sd['name'], sd['columns'][i]),
                                                 (names_cols[i], None, True))

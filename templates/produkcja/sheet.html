@@ -19,6 +19,9 @@ table.prod-table tr.saved td.pc.flash { background: var(--success-bg, #f0fdf4); 
 .prod-bar { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin: .75rem 0; }
 .prod-qa a, .prod-qa span { text-decoration: none; }
 table.prod-table thead th.colhead { cursor: pointer; }
+.col-rs { position: absolute; top: 0; right: -3px; width: 8px; height: 100%; cursor: col-resize; z-index: 5; touch-action: none; }
+.col-rs:hover, .col-rs.active { background: var(--primary, #2563eb); opacity: .35; }
+body.col-resizing { cursor: col-resize; user-select: none; }
 .ctl-sq { float: right; display: inline-flex; align-items: center; gap: 3px; margin-left: 8px; text-decoration: none; color: inherit; font-size: .68rem; }
 .ctl-sq i { display: inline-block; width: 11px; height: 11px; border-radius: 2px; background: #f59e0b; border: 1px solid rgba(0,0,0,.25); }
 .ctl-sq.ctl-done i { background: #16a34a; }
@@ -29,7 +32,10 @@ table.prod-table thead th.colhead:hover { background: var(--info-bg, #eff6ff); }
 .prod-hidden summary { list-style: none; cursor: pointer; }
 .prod-hidden-menu { position: absolute; z-index: 10; margin-top: 4px; display: flex; flex-direction: column; gap: 2px; min-width: 200px; max-height: 320px; overflow: auto; padding: 6px; background: var(--card-bg, #fff); border: 1px solid var(--border, #e2e8f0); border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,.12); }
 .prod-hidden-menu .btn { justify-content: flex-start; text-align: left; }
-.col-pop { position: fixed; z-index: 20; padding: 4px; background: var(--card-bg, #fff); border: 1px solid var(--border, #e2e8f0); border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,.15); }
+.col-pop { display: flex; flex-direction: column; gap: 4px; min-width: 200px; position: fixed; z-index: 20; padding: 4px; background: var(--card-bg, #fff); border: 1px solid var(--border, #e2e8f0); border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,.15); }
+</style>
+<style id="col-widths">{% for c, w in widths.items() %}
+table.prod-table th[data-c="{{ c }}"], table.prod-table td[data-c="{{ c }}"] { width: {{ w }}px; min-width: {{ w }}px; max-width: {{ w }}px; }{% endfor %}
 </style>
 {% endblock %}
 
@@ -37,7 +43,7 @@ table.prod-table thead th.colhead:hover { background: var(--info-bg, #eff6ff); }
 <div class="page-header">
   <div>
     <h1 class="page-title"><i class="bi bi-table"></i> {{ sheet.name }}</h1>
-    <span class="text-muted" style="font-size:0.82rem;">{{ pag.total }} zleceń{% if q %} dla „{{ q }}”{% endif %}{% if has_dates %} (termin {% if date_from or date_to %}{{ date_from or '...' }} do {{ date_to or '...' }}{% else %}z wszystkich dat{% endif %}){% endif %}. Kliknij komórkę, aby ją edytować (Enter zapisuje, Esc anuluje). Szare kolumny liczy Excel. Kliknij nagłówek kolumny, aby ją ukryć (widok jest Twój, inni użytkownicy mają własny).</span>
+    <span class="text-muted" style="font-size:0.82rem;">{{ pag.total }} zleceń{% if q %} dla „{{ q }}”{% endif %}{% if has_dates %} (termin {% if date_from or date_to %}{{ date_from or '...' }} do {{ date_to or '...' }}{% else %}z wszystkich dat{% endif %}){% endif %}. Kliknij komórkę, aby ją edytować (Enter zapisuje, Esc anuluje). Szare kolumny liczy Excel. Kliknij nagłówek kolumny, aby zmienić jej nazwę (dla wszystkich) lub ukryć ją (tylko u Ciebie).</span>
   </div>
   <div class="page-header-actions">
     <a href="{{ url_for('produkcja.index') }}" class="btn btn-ghost"><i class="bi bi-arrow-left"></i> Arkusze</a>
@@ -122,7 +128,7 @@ table.prod-table thead th.colhead:hover { background: var(--info-bg, #eff6ff); }
           <th class="sel"><input type="checkbox" id="chk-all" aria-label="Zaznacz wszystkie"></th>
           {% if 'row' not in hidden_fixed %}<th class="colhead" data-c="row" title="Kliknij, aby ukryć kolumnę">Wiersz</th>{% endif %}
           {% if 'qa' not in hidden_fixed %}<th class="colhead" data-c="qa" title="Kliknij, aby ukryć kolumnę">Listy QA</th>{% endif %}
-          {% for i in visible %}<th class="colhead" data-c="{{ i }}" title="Kliknij, aby ukryć kolumnę">{{ sheet.columns[i] }}</th>{% endfor %}
+          {% for i in visible %}<th class="colhead" data-c="{{ i }}" title="Kliknij, aby zmienić nazwę lub ukryć kolumnę">{{ sheet.columns[i] }}<span class="col-rs" data-c="{{ i }}" title="Przeciągnij, aby zmienić szerokość (dwuklik: automatyczna)"></span></th>{% endfor %}
         </tr>
       </thead>
       <tbody>
@@ -180,11 +186,24 @@ table.prod-table thead th.colhead:hover { background: var(--info-bg, #eff6ff); }
       location.reload();
     }).catch(function () { alert('Nie udało się zapisać widoku kolumn.'); });
   }
+  var nameUrl = "{{ url_for('produkcja.column_rename', sheet_id=sheet.id) }}";
+  function saveName(col, name) {
+    return fetch(nameUrl, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrf},
+      body: JSON.stringify({col: col, name: name})
+    }).then(function (r) { return r.json().then(function (d) { return {ok: r.ok, d: d}; }); })
+      .then(function (res) {
+        if (!res.ok || !res.d.ok) { alert(res.d.error || 'Nie udało się zmienić nazwy.'); return; }
+        location.reload();
+      })
+      .catch(function () { alert('Błąd sieci, nazwa nie została zmieniona.'); });
+  }
   var pop = null;
   function closePop() { if (pop) { pop.remove(); pop = null; } }
   table.querySelector('thead').addEventListener('click', function (e) {
     var th = e.target.closest('th.colhead');
-    if (!th) return;
+    if (!th || e.target.closest('.col-rs')) return;
     e.stopPropagation();
     closePop();
     var rect = th.getBoundingClientRect();
@@ -192,13 +211,45 @@ table.prod-table thead th.colhead:hover { background: var(--info-bg, #eff6ff); }
     pop.className = 'col-pop';
     pop.style.top = (rect.bottom + 4) + 'px';
     pop.style.left = Math.min(rect.left, window.innerWidth - 220) + 'px';
-    var btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'btn btn-ghost btn-sm';
-    btn.innerHTML = '<i class="bi bi-eye-slash"></i> ';
-    btn.appendChild(document.createTextNode('Ukryj kolumnę „' + th.textContent + '”'));
-    btn.addEventListener('click', function () { saveCol({col: /^\d+$/.test(th.dataset.c) ? parseInt(th.dataset.c, 10) : th.dataset.c, visible: false}); });
-    pop.appendChild(btn);
+    var isData = /^\d+$/.test(th.dataset.c);
+    var colKey = isData ? parseInt(th.dataset.c, 10) : th.dataset.c;
+    pop.addEventListener('click', function (ev) { ev.stopPropagation(); });
+    function action(icon, text, fn) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn btn-ghost btn-sm';
+      b.innerHTML = '<i class="bi ' + icon + '"></i> ';
+      b.appendChild(document.createTextNode(text));
+      b.addEventListener('click', fn);
+      pop.appendChild(b);
+    }
+    if (isData) {
+      action('bi-pencil', 'Zmień nazwę kolumny', function () {
+        pop.textContent = '';
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'form-control';
+        input.maxLength = 64;
+        input.value = th.textContent;
+        input.setAttribute('aria-label', 'Nowa nazwa kolumny');
+        var ok = document.createElement('button');
+        ok.type = 'button';
+        ok.className = 'btn btn-primary btn-sm';
+        ok.textContent = 'Zapisz';
+        function save() { saveName(colKey, input.value); }
+        ok.addEventListener('click', save);
+        input.addEventListener('keydown', function (ev) {
+          if (ev.key === 'Enter') { ev.preventDefault(); save(); }
+        });
+        pop.appendChild(input);
+        pop.appendChild(ok);
+        input.focus();
+        input.select();
+      });
+    }
+    action('bi-eye-slash', 'Ukryj kolumnę „' + th.textContent + '”', function () {
+      saveCol({col: colKey, visible: false});
+    });
     document.body.appendChild(pop);
   });
   document.addEventListener('click', closePop);
@@ -206,6 +257,64 @@ table.prod-table thead th.colhead:hover { background: var(--info-bg, #eff6ff); }
   document.querySelectorAll('[data-show]').forEach(function (b) {
     b.addEventListener('click', function () {
       saveCol(b.dataset.show === 'all' ? {all: true} : {col: /^\d+$/.test(b.dataset.show) ? parseInt(b.dataset.show, 10) : b.dataset.show, visible: true});
+    });
+  });
+
+  // Zmiana szerokości kolumny przeciągnięciem krawędzi nagłówka (jak w Excelu), własna dla użytkownika.
+  var widthUrl = "{{ url_for('produkcja.column_width', sheet_id=sheet.id) }}";
+  var widthStyle = document.getElementById('col-widths');
+  var liveWidths = {};
+  function applyWidths() {
+    var css = '';
+    Object.keys(liveWidths).forEach(function (c) {
+      var w = liveWidths[c];
+      css += 'table.prod-table th[data-c="' + c + '"], table.prod-table td[data-c="' + c + '"] ' +
+             '{ width:' + w + 'px; min-width:' + w + 'px; max-width:' + w + 'px; }
+';
+    });
+    widthStyle.textContent = css;
+  }
+  {% for c, w in widths.items() %}liveWidths[{{ c }}] = {{ w }};
+  {% endfor %}
+  function saveWidth(col, width) {
+    return fetch(widthUrl, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrf},
+      body: JSON.stringify({col: col, width: width})
+    }).catch(function () { alert('Błąd sieci, szerokość kolumny nie została zapisana.'); });
+  }
+  table.querySelectorAll('.col-rs').forEach(function (h) {
+    var col = h.dataset.c, th = h.parentNode;
+    h.addEventListener('click', function (e) { e.stopPropagation(); });
+    h.addEventListener('dblclick', function (e) {   // automatyczna szerokość
+      e.stopPropagation();
+      delete liveWidths[col];
+      applyWidths();
+      saveWidth(parseInt(col, 10), 0);
+    });
+    h.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var startX = e.clientX, startW = th.getBoundingClientRect().width, w = startW;
+      h.setPointerCapture(e.pointerId);
+      h.classList.add('active');
+      document.body.classList.add('col-resizing');
+      function move(ev) {
+        w = Math.max(30, Math.min(1000, Math.round(startW + ev.clientX - startX)));
+        liveWidths[col] = w;
+        applyWidths();
+      }
+      function up() {
+        h.removeEventListener('pointermove', move);
+        h.removeEventListener('pointerup', up);
+        h.removeEventListener('pointercancel', up);
+        h.classList.remove('active');
+        document.body.classList.remove('col-resizing');
+        if (w !== Math.round(startW)) saveWidth(parseInt(col, 10), w);
+      }
+      h.addEventListener('pointermove', move);
+      h.addEventListener('pointerup', up);
+      h.addEventListener('pointercancel', up);
     });
   });
 

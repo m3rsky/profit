@@ -379,8 +379,44 @@ def sheet_stages(sheet_id):
                            existing=existing, departments=_departments(),
                            examples=_column_examples(sheet), roles=eio.ROLE_LABELS,
                            role_of=role_of, headerless=sheet.header_row is None,
+                           layout_on=sheetcfg.layout_enabled(cfg, sheet.name, sheet.header_row is None),
                            links=controllink.sheet_links(sheet), ctl_depts=ctl_depts,
                            ctl_elements=ctl_elements)
+
+
+@produkcja_bp.route('/sheet/<int:sheet_id>/uklad', methods=['POST'])
+@login_required
+@planning_required
+def sheet_layout(sheet_id):
+    """Układ wzorcowy PSH dla arkusza: `apply` nadaje nazwy wzorca i zaznacza etapy, `off` go wyłącza."""
+    import json
+    from . import layout, sheetcfg
+    sheet = _sheet_or_403(sheet_id)
+    cfg = sheetcfg.load(sheet.name)
+    columns = list(sheet.columns)
+    if request.form.get('action') == 'off':
+        cfg['layout'] = False
+        sheetcfg.save(sheet.name, cfg)
+        db.session.commit()
+        flash('Wyłączono układ wzorcowy PSH dla tego arkusza.', 'success')
+        return redirect(url_for('produkcja.sheet_stages', sheet_id=sheet.id))
+    origs = [sheetcfg.orig_name(cfg, columns, i) for i in range(len(columns))]
+    cfg['layout'] = True
+    for i, canon in layout.canon_names(origs, sheet.name).items():
+        columns[i] = canon
+        if canon != origs[i]:
+            cfg['names'][str(i)] = {'orig': origs[i], 'name': canon}
+        else:
+            cfg['names'].pop(str(i), None)
+    existing = {s.col_index for s in ProdStageColumn.query.filter_by(sheet_id=sheet.id)}
+    for i in sorted(layout.stage_indexes(origs, sheet.name) - existing):
+        db.session.add(ProdStageColumn(sheet_id=sheet.id, col_index=i, label=columns[i][:64], is_active=True))
+    sheet.columns_json = json.dumps(columns, ensure_ascii=False)
+    sheetcfg.save(sheet.name, cfg)
+    db.session.commit()
+    _audit('prod_layout_apply', 'ProdSheet', sheet.id, f'sheet={sheet.name}')
+    flash('Zastosowano układ wzorcowy PSH: nazwy i kolejność kolumn jak w arkuszu PSH.', 'success')
+    return redirect(url_for('produkcja.sheet_stages', sheet_id=sheet.id))
 
 
 # ── Historia wpisów ───────────────────────────────────────────────────────────

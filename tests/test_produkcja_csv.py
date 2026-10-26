@@ -10,6 +10,8 @@ from test_app import login, logout, _csrf
 from test_produkcja import (prod_folder, planner, _import, _admin, _sheet_id,  # noqa: F401
                             _row_id, PRODUCT)
 
+# po zastosowaniu układu wzorcowego PSH (ROZP. = DATA, ODBIORCA = NAZWA ODBIORCY, SPAW. = SPAW. OB.)
+HEADER_LAYOUT = 'ZAM;DATA;CZAS REALIZACJI;TERMIN REALIZACJI;NAZWA TOW.;ILOŚĆ;NAZWA ODBIORCY;NUMER ZO;KOLOR;SPAW. OB.;KJ'
 HEADER = 'ZAM;ROZP.;CZAS REALIZACJI;TERMIN REALIZACJI;NAZWA TOW.;ILOŚĆ;ODBIORCA;NUMER ZO;KOLOR;SPAW.;KJ'
 
 
@@ -41,7 +43,7 @@ def test_csv_creates_new_sheet_with_headers_and_types(app, client):
         d = json.loads(rows[0].data)
         assert d[0] == '2026-09-07' and d[1] == '2026-09-08' and d[5] == 2 and d[7] == '007/25'
         assert json.loads(rows[1].data)[5] == 1.5               # przecinek dziesiętny
-        assert sh.formula_cols == [] and {s.label for s in ProdStageColumn.query.filter_by(sheet_id=sh.id)} == {'SPAW.', 'KJ'}
+        assert sh.formula_cols == [] and {s.label for s in ProdStageColumn.query.filter_by(sheet_id=sh.id)} == {'SPAW. OB.', 'KJ'}
 
 
 def test_csv_semicolon_comma_and_cp1250(app, client):
@@ -85,7 +87,7 @@ def test_csv_sheet_blocks_xlsx_export_but_downloads_csv(app, client):
     out = client.get(f'/produkcja/sheet/{sid}/csv')
     assert out.status_code == 200 and out.data.startswith(b'\xef\xbb\xbf')       # UTF-8 z BOM
     lines = out.data.decode('utf-8-sig').splitlines()
-    assert lines[0] == HEADER and lines[1].startswith('2026-09-07;;3;;' + PRODUCT)
+    assert lines[0] == HEADER_LAYOUT and lines[1].startswith('2026-09-07;;3;;' + PRODUCT)
     # pobrany CSV można wczytać z powrotem bez zmian
     again = _post_csv(client, [('x.csv', out.data)], ['SAMCSV'])
     assert 'Wczytano z CSV: SAMCSV (1)' in again.get_data(as_text=True)

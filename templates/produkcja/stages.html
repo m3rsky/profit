@@ -32,6 +32,22 @@
 </div></div>
 {% endif %}
 
+<div class="card card--spaced-top"><div class="card-body" style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;">
+  <span><strong>Układ wzorcowy PSH:</strong> {% if layout_on %}włączony (nazwy i kolejność kolumn jak w arkuszu PSH){% else %}wyłączony{% endif %}</span>
+  <form method="post" action="{{ url_for('produkcja.sheet_layout', sheet_id=sheet.id) }}" style="display:inline;">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="apply">
+    <button type="submit" class="btn btn-outline btn-sm" onclick="return confirm('Nadać kolumnom nazwy wzorca PSH i zaznaczyć etapy?');">Zastosuj układ PSH</button>
+  </form>
+  {% if layout_on %}
+  <form method="post" action="{{ url_for('produkcja.sheet_layout', sheet_id=sheet.id) }}" style="display:inline;">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="off">
+    <button type="submit" class="btn btn-ghost btn-sm">Wyłącz układ</button>
+  </form>
+  {% endif %}
+</div></div>
+
 <div class="card card--spaced-top">
   <form method="post">
     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
