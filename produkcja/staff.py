@@ -343,6 +343,9 @@ def sheet_stages(sheet_id):
         sheet.columns_json = json.dumps(new_names, ensure_ascii=False)
         sheet.mapping_json = json.dumps(mapping)
         sheetcfg.save(sheet.name, cfg)
+        if request.form.get('ctl_form'):   # powiązania kolumn z kontrolami
+            from . import controllink
+            controllink.save_links(sheet, request.form, columns)
         # etapy
         chosen = {int(x) for x in request.form.getlist('stage') if x.isdigit() and int(x) < n}
         for idx in list(existing):
@@ -369,12 +372,15 @@ def sheet_stages(sheet_id):
                f'sheet={sheet.name} stages={len(chosen)} roles={len(mapping)}')
         flash('Zapisano ustawienia kolumn.', 'success')
         return redirect(url_for('produkcja.sheet_stages', sheet_id=sheet.id))
-    from . import excel_io as eio
+    from . import excel_io as eio, controllink
     role_of = {idx: role for role, idx in sheet.mapping.items()}
+    ctl_depts, ctl_elements = controllink.catalog_for_form()
     return render_template('produkcja/stages.html', sheet=sheet, columns=columns,
                            existing=existing, departments=_departments(),
                            examples=_column_examples(sheet), roles=eio.ROLE_LABELS,
-                           role_of=role_of, headerless=sheet.header_row is None)
+                           role_of=role_of, headerless=sheet.header_row is None,
+                           links=controllink.sheet_links(sheet), ctl_depts=ctl_depts,
+                           ctl_elements=ctl_elements)
 
 
 # ── Historia wpisów ───────────────────────────────────────────────────────────

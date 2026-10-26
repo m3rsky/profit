@@ -13,7 +13,7 @@ from sqlalchemy import func
 from models import (db, get_or_404, AuditLog, User, Report,
                     ProdFile, ProdSheet, ProdRow, ProdSheetAccess, ProdStageColumn, ProdEntry)
 from . import produkcja_bp, helper
-from . import excel_io, sheetcfg
+from . import excel_io, sheetcfg, controllink
 
 UTC = timezone.utc
 PER_PAGE = 100
@@ -113,36 +113,8 @@ def _store_row_fields(row, data, mapping):
     row.zo = str(zo).strip()[:64] if zo not in (None, '') else None
     row.data = json.dumps(excel_io._trim(list(data)), ensure_ascii=False)
     row.search = excel_io.build_search(data)
+    row.row_date = excel_io.row_date(data, mapping)
     row.updated_at = datetime.now(UTC)
-
-
-def _pairing(rows):
-    """Powiązane listy kontrolne (Kontrola Końcowa) dla wierszy strony: po kluczu QR
-    (produkt|klient|ZO), który mają listy utworzone ze skanu albo z tej listy produkcyjnej."""
-    qr_key = helper('qr_key')
-    keys = {}
-    for r in rows:
-        sheet = r.sheet
-        f = excel_io.row_fields(json.loads(r.data or '[]'), sheet.mapping)
-        k = qr_key(f.get('product') or '', f.get('client') or '', f.get('zo') or '')
-        if k:
-            keys[r.id] = k
-    by_key = {}
-    if keys:
-        for rep in (Report.query.filter(Report.report_type == 'kontroler',
-                                        Report.qr_key.in_(set(keys.values()))).all()):
-            st = rep.stats
-            b = by_key.setdefault(rep.qr_key, {'total': 0, 'done': 0, 'ng': 0, 'ids': []})
-            b['total'] += 1
-            b['done'] += 1 if rep.status == 'completed' else 0
-            b['ng'] += 1 if st['ng'] else 0
-            b['ids'].append(rep.id)
-    result = {}
-    for r in rows:
-        info = by_key.get(keys[r.id]) if keys.get(r.id) else None
-        if info:
-            result[r.id] = info
-    return result
 
 
 # ── Widoki ────────────────────────────────────────────────────────────────────
@@ -166,6 +138,30 @@ def index():
                            linked=linked, has_data=has_data, has_xlsx=has_xlsx)
 
 
+def _parse_day(text):
+    try:
+        return datetime.strptime((text or '').strip(), '%Y-%m-%d').date()
+    except ValueError:
+        return None
+
+
+def _empty_columns(sheet, date_clauses=()):
+    """Indeksy kolumn bez ani jednej wartości w wierszach widocznego zakresu dat. Kolumny etapów, powiązane
+    z kontrolami i pola zlecenia (towar, ZO...) zostają, bo do etapów wpisuje się w aplikacji."""
+    ncols = len(sheet.columns)
+    used = set()
+    for (raw,) in db.session.query(ProdRow.data).filter(ProdRow.sheet_id == sheet.id, *date_clauses):
+        for j, v in enumerate(json.loads(raw or '[]')[:ncols]):
+            if v is not None:
+                used.add(j)
+        if len(used) == ncols:
+            break
+    keep = set(sheet.mapping.values())
+    keep |= {st.col_index for st in ProdStageColumn.query.filter_by(sheet_id=sheet.id)}
+    keep |= set(controllink.sheet_links(sheet))   # kolumny powiązane z kontrolami (kwadraty)
+    return set(range(ncols)) - used - keep
+
+
 @produkcja_bp.route('/sheet/<int:sheet_id>')
 @login_required
 @planning_required
@@ -175,6 +171,18 @@ def sheet_view(sheet_id):
     state = request.args.get('state', '')
     page = request.args.get('page', 1, type=int)
     query = ProdRow.query.filter_by(sheet_id=sheet.id)
+    date_from, date_to, date_clauses = None, None, ()
+    has_dates = bool({'due', 'order_date'} & set(sheet.mapping))
+    if has_dates:   # zakres dat (termin realizacji, a bez niego data zamówienia); bez parametrów domyślny
+        if 'od' in request.args or 'do' in request.args:
+            date_from, date_to = _parse_day(request.args.get('od')), _parse_day(request.args.get('do'))
+        else:
+            date_from, date_to = excel_io.default_range()
+        if date_from:
+            date_clauses += (ProdRow.row_date >= date_from,)
+        if date_to:
+            date_clauses += (ProdRow.row_date <= date_to,)
+        query = query.filter(*date_clauses)
     if q:
         esc = q.replace('!', '!!').replace('%', '!%').replace('_', '!_')
         query = query.filter(ProdRow.search.like(f'%{esc}%', escape='!'))
@@ -182,14 +190,75 @@ def sheet_view(sheet_id):
         query = query.filter(ProdRow.checklists_at.isnot(None))
     elif state == 'unlinked':
         query = query.filter(ProdRow.checklists_at.is_(None))
+    kind = 'koncowa' if request.args.get('typ') == 'koncowa' else 'etapowa'
+    ctl_state = request.args.get('kontrola', '')
+    if ctl_state not in ('brak', 'otwarta', 'zakonczona', 'ng'):
+        ctl_state = ''
+    if ctl_state:   # filtr po kontrolach: stan liczymy dla wszystkich pasujących wierszy
+        all_rows = query.all()
+        infos = controllink.control_info(all_rows)
+        keep = [r.id for r in all_rows
+                if controllink.summary(infos.get(r.id, {}), kind) == ctl_state]
+        query = ProdRow.query.filter(ProdRow.id.in_(keep or [0]))
     pag = query.order_by(ProdRow.position).paginate(page=page, per_page=PER_PAGE, error_out=False)
     ncols = len(sheet.columns)
     rows = [{'row': r, 'cells': [_display(v) for v in _data(r, ncols)]} for r in pag.items]
-    pairing = _pairing(pag.items)
+    ctl = controllink.control_info(pag.items)
+    links = controllink.sheet_links(sheet)
+    pairing = {rid: i['final'] for rid, i in ctl.items() if i['final']}
+    hidden, hidden_fixed = sheetcfg.hidden_view(current_user.id, sheet.name, sheet.columns)
+    show_empty = request.args.get('puste') == '1'
+    all_empty = _empty_columns(sheet, date_clauses) - hidden
+    empty_count = len(all_empty)
+    hidden_all = hidden | (set() if show_empty else all_empty)
     return render_template('produkcja/sheet.html', sheet=sheet, rows=rows, pag=pag,
-                           q=q, state=state, pairing=pairing,
+                           q=q, state=state, pairing=pairing, ctl=ctl, links=links,
+                           kind=kind, ctl_state=ctl_state,
+                           has_dates=has_dates,
+                           date_from=date_from.isoformat() if date_from else '',
+                           date_to=date_to.isoformat() if date_to else '',
+                           qargs={**{k: v for k, v in (('q', q), ('state', state),
+                                                       ('typ', kind if ctl_state else ''),
+                                                       ('kontrola', ctl_state),
+                                                       ('puste', '1' if show_empty else '')) if v},
+                                  **({'od': date_from.isoformat() if date_from else '',
+                                      'do': date_to.isoformat() if date_to else ''} if has_dates else {})},
+                           visible=[i for i in range(ncols) if i not in hidden_all],
+                           show_empty=show_empty, empty_count=empty_count,
+                           hidden=sorted(hidden), hidden_fixed=hidden_fixed,
+                           fixed_names=sheetcfg.FIXED_COLUMNS,
                            formula_cols=set(sheet.formula_cols),
                            mapping=sheet.mapping)
+
+
+@produkcja_bp.route('/sheet/<int:sheet_id>/kolumna', methods=['POST'])
+@login_required
+@planning_required
+def column_visibility(sheet_id):
+    """Własny widok użytkownika: ukrycie / pokazanie jednej kolumny albo wszystkich."""
+    sheet = _sheet_or_403(sheet_id)
+    payload = request.get_json(silent=True) or {}
+    columns = sheet.columns
+    hidden, fixed = sheetcfg.hidden_view(current_user.id, sheet.name, columns)
+    if payload.get('all'):
+        hidden, fixed = set(), set()
+    else:
+        col = payload.get('col')
+        target = fixed if col in sheetcfg.FIXED_COLUMNS else hidden
+        if col not in sheetcfg.FIXED_COLUMNS:
+            try:
+                col = int(col)
+            except (TypeError, ValueError):
+                return jsonify({'error': 'Nieprawidłowa kolumna'}), 400
+            if col < 0 or col >= len(columns):
+                return jsonify({'error': 'Nieprawidłowa kolumna'}), 400
+        if payload.get('visible'):
+            target.discard(col)
+        else:
+            target.add(col)
+    sheetcfg.save_hidden(current_user.id, sheet.name, columns, hidden, fixed)
+    db.session.commit()
+    return jsonify({'ok': True})
 
 
 @produkcja_bp.route('/row/<int:row_id>/cell', methods=['POST'])
@@ -402,6 +471,9 @@ def _backup_sheets(old_sheets, note):
     """Kopia zapasowa arkuszy, które zaraz zostaną zastąpione: .xlsx dla arkuszy z pliku
     Excel i osobne CSV dla arkuszy wczytanych z CSV."""
     src = _current_source()
+    if src and not os.path.exists(os.path.join(_folder(), src.stored_name)):
+        current_app.logger.warning('Produkcja backup: brak pliku źródłowego %s, kopia zapasowa w CSV', src.stored_name)
+        src = None   # plik źródłowy zniknął z dysku: wszystkie arkusze zapisujemy jako CSV z bazy
     if src and any(s.file_id == src.id for s in old_sheets):
         _export(kind='backup', note=note)
     for sh in old_sheets:
@@ -476,6 +548,7 @@ def _install_sheets(sheets, rec, replace_all):
                 'data': json.dumps(r['data'], ensure_ascii=False),
                 'formulas': json.dumps(r['formulas']) if r['formulas'] else None,
                 'zo': zo, 'search': search,
+                'row_date': excel_io.row_date(r['data'], sd['mapping']),
                 'checklists_at': links.get((sd['name'], zo, search)) if zo else None,
                 'updated_at': datetime.now(UTC),
             })
@@ -532,9 +605,10 @@ def import_file():
         total = _install_sheets(sheets, rec, replace_all=True)
         rec.size = os.path.getsize(path)
         rec.note = f'{len(sheets)} arkuszy, {total} wierszy'
+        msg = f'Wczytano {len(sheets)} arkuszy ({total} wierszy).'
         db.session.commit()
         _audit('prod_import', 'ProdFile', rec.id, rec.note)
-        flash(f'Wczytano {len(sheets)} arkuszy ({total} wierszy).', 'success')
+        flash(msg, 'success')
         return redirect(url_for('produkcja.index'))
     return render_template('produkcja/import.html', has_data=ProdSheet.query.first() is not None,
                            sheet_names=[s.name for s in ProdSheet.query.order_by(ProdSheet.position)])

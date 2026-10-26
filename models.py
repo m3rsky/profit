@@ -1012,6 +1012,8 @@ class ProdRow(db.Model):
     changed   = db.Column(db.Text, nullable=True)                  # [kol,...] zmienione w aplikacji
     zo        = db.Column(db.String(64), nullable=True, index=True)
     search    = db.Column(db.Text, nullable=True)
+    # Data wiersza (termin realizacji, a bez niego data zamówienia): do filtra zakresu dat w widoku.
+    row_date  = db.Column(db.Date, nullable=True, index=True)
     # Czas utworzenia list kontrolnych dla wiersza (znacznik powiązania z Kontrolą Końcową).
     checklists_at = db.Column(db.DateTime, nullable=True)
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
@@ -1092,6 +1094,16 @@ class ProdEntry(db.Model):
     value_after  = db.Column(db.String(128), nullable=True)
     created_at   = db.Column(db.DateTime, default=lambda: datetime.now(UTC), index=True)
     employee     = db.relationship('ProdEmployee')
+
+
+class ProdUserView(db.Model):
+    """Własny widok arkusza listy produkcyjnej: kolumny ukryte przez danego użytkownika."""
+    __tablename__ = 'prod_user_views'
+    __table_args__ = (db.UniqueConstraint('user_id', 'sheet_name', name='uq_prod_user_view'),)
+    id          = db.Column(db.Integer, primary_key=True)
+    user_id     = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    sheet_name  = db.Column(db.String(64), nullable=False)
+    hidden_json = db.Column(db.Text, nullable=True)   # {indeks: oryginalny nagłówek}
 
 
 class ProdSetting(db.Model):

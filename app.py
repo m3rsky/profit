@@ -2953,6 +2953,25 @@ def _migrate_installer_data():
         db.session.commit()
 
 
+def _backfill_prod_row_dates(conn):
+    """Jednorazowo uzupełnia ProdRow.row_date w wierszach wczytanych przed dodaniem kolumny."""
+    from produkcja import excel_io
+    from sqlalchemy import text
+    for sid, mapping_json in conn.execute(text('SELECT id, mapping_json FROM prod_sheets')).fetchall():
+        mapping = json.loads(mapping_json or '{}')
+        if not ({'due', 'order_date'} & set(mapping)):
+            continue
+        updates = []
+        for rid, data in conn.execute(text('SELECT id, data FROM prod_rows WHERE sheet_id = :s'),
+                                      {'s': sid}).fetchall():
+            d = excel_io.row_date(json.loads(data or '[]'), mapping)
+            if d:
+                updates.append({'d': d.isoformat(), 'i': rid})
+        if updates:
+            conn.execute(text('UPDATE prod_rows SET row_date = :d WHERE id = :i'), updates)
+    conn.commit()
+
+
 def _migrate_schema():
     """Add new columns to existing SQLite DB without dropping data."""
     from sqlalchemy import inspect, text
@@ -3114,6 +3133,15 @@ def _migrate_schema():
                 if 'order_id' in prod_cols:
                     conn.execute(text('UPDATE prod_rows SET checklists_at = CURRENT_TIMESTAMP '
                                       'WHERE order_id IS NOT NULL'))
+                conn.commit()
+            if 'row_date' not in prod_cols:   # zakres dat widoku listy produkcyjnej
+                conn.execute(text('ALTER TABLE prod_rows ADD COLUMN row_date DATE'))
+                conn.execute(text('CREATE INDEX IF NOT EXISTS ix_prod_rows_row_date ON prod_rows (row_date)'))
+                conn.commit()
+            if 'prod_settings' in insp.get_table_names() and not conn.execute(text(
+                    "SELECT 1 FROM prod_settings WHERE key = 'row_date_backfilled'")).fetchone():
+                _backfill_prod_row_dates(conn)
+                conn.execute(text("INSERT INTO prod_settings (key, value) VALUES ('row_date_backfilled', '1')"))
                 conn.commit()
         # Moduł Zadania QA został usunięty (2026-10-21), kasujemy jego tabelę.
         if 'qa_tasks' in insp.get_table_names():

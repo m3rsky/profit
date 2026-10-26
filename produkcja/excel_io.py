@@ -126,6 +126,28 @@ def _trim(lst):
     return lst
 
 
+DEFAULT_DAYS_BACK, DEFAULT_DAYS_FWD = 14, 14   # domyślny zakres dat widoku listy
+
+
+def default_range(today=None):
+    """Domyślny zakres dat widoku: od `DEFAULT_DAYS_BACK` dni wstecz do `DEFAULT_DAYS_FWD` naprzód."""
+    today = today or date.today()
+    return today - timedelta(days=DEFAULT_DAYS_BACK), today + timedelta(days=DEFAULT_DAYS_FWD)
+
+
+def row_date(vals, mapping):
+    """Data wiersza: termin realizacji, a gdy go brak, data zamówienia. None gdy bez daty."""
+    for key in ('due', 'order_date'):
+        idx = mapping.get(key)
+        v = vals[idx] if idx is not None and idx < len(vals) else None
+        if isinstance(v, str) and ISO_DATE.match(v[:10]):
+            try:
+                return datetime.strptime(v[:10], '%Y-%m-%d').date()
+            except ValueError:
+                continue
+    return None
+
+
 def build_sheet(name, position, hidden, raw_v, raw_f=None):
     """Arkusz z surowych wierszy: nagłówki, mapowanie pól, wiersze danych i kolumny z formułami.
     `raw_f` (formuły) jest opcjonalne, dla CSV go nie ma."""
@@ -308,6 +330,7 @@ def export_workbook(src_path, dest_path, sheets, only_sheet_ids=None):
             for c in range(1, ncols + 1):
                 ws.cell(row=r, column=c).value = None
         template_formulas = {}
+        next_new = ws.max_row + 1   # wczytano tylko okno dat, więc nowe wiersze za końcem arkusza w pliku
         for row in sorted(sh.rows.all(), key=lambda x: x.position):
             data = json.loads(row.data or '[]')
             changed = json.loads(row.changed) if row.changed else []
@@ -319,7 +342,8 @@ def export_workbook(src_path, dest_path, sheets, only_sheet_ids=None):
                     v = data[j] if j < len(data) else None
                     ws.cell(row=row.src_row, column=j + 1).value = to_excel_value(v)
             else:
-                new_r = row.position
+                new_r = next_new
+                next_new += 1
                 for j, v in enumerate(data):
                     if v is not None:
                         ws.cell(row=new_r, column=j + 1).value = to_excel_value(v)

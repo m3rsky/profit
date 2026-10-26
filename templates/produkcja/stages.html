@@ -15,6 +15,9 @@
     <span class="text-muted" style="font-size:0.82rem;">
       Nadaj kolumnom nazwy, wskaż pola zlecenia (towar, odbiorca, ZO…) i zaznacz kolumny etapów, w które pracownik wpisuje się skanem QR.
       Przykłady po prawej pokazują, co faktycznie jest w kolumnie.
+      W kolumnach „Kontrola etapowa” wskaż działy (i elementy), których kontrole dotyczą danego etapu, a przy kolumnie KJ zaznacz „KJ”:
+      w arkuszu przy komórce pojawi się kwadrat ze stanem kontroli (utworzona, zakończona, NG). Kilka działów lub elementów
+      (np. DRZWI: Spawanie + Zgrzewanie) pokazuje licznik zakończone/wszystkie. Ustawienia zaczynają od podpowiedzi z nazw kolumn.
     </span>
   </div>
   <div class="page-header-actions">
@@ -32,9 +35,10 @@
 <div class="card card--spaced-top">
   <form method="post">
     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="ctl_form" value="1">
     <div class="table-wrap">
       <table class="data-table">
-        <thead><tr><th>Etap</th><th>Nr</th><th>Nazwa kolumny</th><th>Pole zlecenia</th><th>Przykładowe wartości</th><th>Dział (etap)</th></tr></thead>
+        <thead><tr><th>Etap</th><th>Nr</th><th>Nazwa kolumny</th><th>Pole zlecenia</th><th>Przykładowe wartości</th><th>Dział (etap)</th><th>Kontrola etapowa: działy</th><th>Elementy</th><th>KJ</th></tr></thead>
         <tbody>
           {% for c in columns %}
           {% set i = loop.index0 %}
@@ -57,6 +61,18 @@
                 {% for d in departments %}<option value="{{ d.id }}" {% if st and st.department_id == d.id %}selected{% endif %}>{{ d.name }}</option>{% endfor %}
               </select>
             </td>
+            {% set lk = links.get(i) %}
+            <td data-label="Kontrola działy">
+              <select class="form-control" name="ctl_dept_{{ i }}" multiple size="3" aria-label="Działy kontroli: {{ c }}">
+                {% for d in ctl_depts %}<option value="{{ d.id }}" {% if lk and d.id in lk.depts %}selected{% endif %}>{{ d.name }}</option>{% endfor %}
+              </select>
+            </td>
+            <td data-label="Elementy">
+              <select class="form-control" name="ctl_el_{{ i }}" multiple size="3" aria-label="Elementy kontroli: {{ c }}">
+                {% for e in ctl_elements %}<option value="{{ e.name }}" {% if lk and e.name in lk.elements %}selected{% endif %}>{{ e.name }}</option>{% endfor %}
+              </select>
+            </td>
+            <td data-label="KJ"><input type="checkbox" name="ctl_final" value="{{ i }}" {% if lk and lk.final %}checked{% endif %} aria-label="Kontrola Końcowa: {{ c }}"></td>
           </tr>
           {% endfor %}
         </tbody>

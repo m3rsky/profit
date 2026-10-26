@@ -18,6 +18,18 @@ table.prod-table tr.saved td.pc.flash { background: var(--success-bg, #f0fdf4); 
 .prod-rownum { color: var(--text-muted, #64748b); font-size: .72rem; }
 .prod-bar { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin: .75rem 0; }
 .prod-qa a, .prod-qa span { text-decoration: none; }
+table.prod-table thead th.colhead { cursor: pointer; }
+.ctl-sq { float: right; display: inline-flex; align-items: center; gap: 3px; margin-left: 8px; text-decoration: none; color: inherit; font-size: .68rem; }
+.ctl-sq i { display: inline-block; width: 11px; height: 11px; border-radius: 2px; background: #f59e0b; border: 1px solid rgba(0,0,0,.25); }
+.ctl-sq.ctl-done i { background: #16a34a; }
+.ctl-sq.ctl-ng i { background: #dc2626; }
+.ctl-sq b { font-weight: 600; color: var(--text-muted, #64748b); }
+table.prod-table thead th.colhead:hover { background: var(--info-bg, #eff6ff); }
+.prod-hidden { position: relative; }
+.prod-hidden summary { list-style: none; cursor: pointer; }
+.prod-hidden-menu { position: absolute; z-index: 10; margin-top: 4px; display: flex; flex-direction: column; gap: 2px; min-width: 200px; max-height: 320px; overflow: auto; padding: 6px; background: var(--card-bg, #fff); border: 1px solid var(--border, #e2e8f0); border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,.12); }
+.prod-hidden-menu .btn { justify-content: flex-start; text-align: left; }
+.col-pop { position: fixed; z-index: 20; padding: 4px; background: var(--card-bg, #fff); border: 1px solid var(--border, #e2e8f0); border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,.15); }
 </style>
 {% endblock %}
 
@@ -25,7 +37,7 @@ table.prod-table tr.saved td.pc.flash { background: var(--success-bg, #f0fdf4); 
 <div class="page-header">
   <div>
     <h1 class="page-title"><i class="bi bi-table"></i> {{ sheet.name }}</h1>
-    <span class="text-muted" style="font-size:0.82rem;">{{ pag.total }} zleceń{% if q %} dla „{{ q }}”{% endif %}. Kliknij komórkę, aby ją edytować (Enter zapisuje, Esc anuluje). Szare kolumny liczy Excel.</span>
+    <span class="text-muted" style="font-size:0.82rem;">{{ pag.total }} zleceń{% if q %} dla „{{ q }}”{% endif %}{% if has_dates %} (termin {% if date_from or date_to %}{{ date_from or '...' }} do {{ date_to or '...' }}{% else %}z wszystkich dat{% endif %}){% endif %}. Kliknij komórkę, aby ją edytować (Enter zapisuje, Esc anuluje). Szare kolumny liczy Excel. Kliknij nagłówek kolumny, aby ją ukryć (widok jest Twój, inni użytkownicy mają własny).</span>
   </div>
   <div class="page-header-actions">
     <a href="{{ url_for('produkcja.index') }}" class="btn btn-ghost"><i class="bi bi-arrow-left"></i> Arkusze</a>
@@ -41,12 +53,34 @@ table.prod-table tr.saved td.pc.flash { background: var(--success-bg, #f0fdf4); 
 </div>
 
 <form method="get" class="filter-bar filter-bar--rows" style="margin-top:.75rem;">
-{% call list_search('q', q, 'Szukaj: towar, odbiorca, ZO…', qr=True, active=(1 if state else 0), uid='ps-filter-more') %}
+{% if has_dates %}
+  <div class="filter-row" style="gap:.5rem;align-items:center;flex-wrap:wrap;">
+    <label class="text-muted" style="font-size:.82rem;">Termin od
+      <input type="date" name="od" value="{{ date_from }}" class="form-control" style="width:auto;display:inline-block;"></label>
+    <label class="text-muted" style="font-size:.82rem;">do
+      <input type="date" name="do" value="{{ date_to }}" class="form-control" style="width:auto;display:inline-block;"></label>
+    <button type="submit" class="btn btn-outline btn-sm">Pokaż</button>
+    <a class="btn btn-ghost btn-sm" href="{{ url_for('produkcja.sheet_view', sheet_id=sheet.id) }}" title="Od 14 dni wstecz do 14 dni naprzód">Domyślny zakres</a>
+    <a class="btn btn-ghost btn-sm" href="{{ url_for('produkcja.sheet_view', sheet_id=sheet.id, od='', do='') }}">Wszystkie daty</a>
+  </div>
+{% endif %}
+{% call list_search('q', q, 'Szukaj: towar, odbiorca, ZO…', qr=True, active=(1 if (state or ctl_state) else 0), uid='ps-filter-more') %}
   <div class="filter-row">
     <select name="state" class="form-control filter-select">
       <option value="" {% if not state %}selected{% endif %}>Wszystkie</option>
       <option value="linked" {% if state == 'linked' %}selected{% endif %}>Z listami kontrolnymi</option>
       <option value="unlinked" {% if state == 'unlinked' %}selected{% endif %}>Bez list kontrolnych</option>
+    </select>
+    <select name="typ" class="form-control filter-select" aria-label="Rodzaj kontroli">
+      <option value="etapowa" {% if kind == 'etapowa' %}selected{% endif %}>Kontrola etapowa</option>
+      <option value="koncowa" {% if kind == 'koncowa' %}selected{% endif %}>Kontrola Końcowa (KJ)</option>
+    </select>
+    <select name="kontrola" class="form-control filter-select" aria-label="Stan kontroli">
+      <option value="" {% if not ctl_state %}selected{% endif %}>Dowolny stan kontroli</option>
+      <option value="brak" {% if ctl_state == 'brak' %}selected{% endif %}>Bez kontroli</option>
+      <option value="otwarta" {% if ctl_state == 'otwarta' %}selected{% endif %}>Utworzona, niezakończona</option>
+      <option value="zakonczona" {% if ctl_state == 'zakonczona' %}selected{% endif %}>Zakończona</option>
+      <option value="ng" {% if ctl_state == 'ng' %}selected{% endif %}>Z niezgodnością (NG)</option>
     </select>
   </div>
 {% endcall %}
@@ -64,6 +98,21 @@ table.prod-table tr.saved td.pc.flash { background: var(--success-bg, #f0fdf4); 
       <i class="bi bi-trash"></i> Usuń zaznaczone
     </button>
     <span class="text-muted" style="font-size:.8rem;">Operacje dotyczą zaznaczonych wierszy.</span>
+    {% if empty_count %}
+    <a class="btn btn-outline btn-sm" href="{{ url_for('produkcja.sheet_view', sheet_id=sheet.id, **dict(qargs, puste=(0 if show_empty else 1))) }}">
+      <i class="bi bi-layout-three-columns"></i> {% if show_empty %}Ukryj puste kolumny ({{ empty_count }}){% else %}Puste kolumny ukryte ({{ empty_count }}), pokaż{% endif %}
+    </a>
+    {% endif %}
+    {% if hidden or hidden_fixed %}
+    <details class="prod-hidden">
+      <summary class="btn btn-outline btn-sm"><i class="bi bi-eye-slash"></i> Ukryte kolumny ({{ hidden|length + hidden_fixed|length }})</summary>
+      <div class="prod-hidden-menu">
+        {% for k in ['row', 'qa'] if k in hidden_fixed %}<button type="button" class="btn btn-ghost btn-sm" data-show="{{ k }}"><i class="bi bi-eye"></i> {{ fixed_names[k] }}</button>{% endfor %}
+        {% for i in hidden %}<button type="button" class="btn btn-ghost btn-sm" data-show="{{ i }}"><i class="bi bi-eye"></i> {{ sheet.columns[i] }}</button>{% endfor %}
+        <button type="button" class="btn btn-primary btn-sm" data-show="all">Pokaż wszystkie</button>
+      </div>
+    </details>
+    {% endif %}
   </div>
 
   <div class="prod-wrap">
@@ -71,9 +120,9 @@ table.prod-table tr.saved td.pc.flash { background: var(--success-bg, #f0fdf4); 
       <thead>
         <tr>
           <th class="sel"><input type="checkbox" id="chk-all" aria-label="Zaznacz wszystkie"></th>
-          <th>Wiersz</th>
-          <th>Listy QA</th>
-          {% for c in sheet.columns %}<th title="Kolumna {{ loop.index }}">{{ c }}</th>{% endfor %}
+          {% if 'row' not in hidden_fixed %}<th class="colhead" data-c="row" title="Kliknij, aby ukryć kolumnę">Wiersz</th>{% endif %}
+          {% if 'qa' not in hidden_fixed %}<th class="colhead" data-c="qa" title="Kliknij, aby ukryć kolumnę">Listy QA</th>{% endif %}
+          {% for i in visible %}<th class="colhead" data-c="{{ i }}" title="Kliknij, aby ukryć kolumnę">{{ sheet.columns[i] }}</th>{% endfor %}
         </tr>
       </thead>
       <tbody>
@@ -82,21 +131,24 @@ table.prod-table tr.saved td.pc.flash { background: var(--success-bg, #f0fdf4); 
         {% set p = pairing.get(r.id) %}
         <tr id="row-{{ r.id }}" data-row="{{ r.id }}">
           <td class="sel"><input type="checkbox" name="row_ids" value="{{ r.id }}" class="chk-row"></td>
-          <td class="prod-rownum">{{ r.position }}</td>
-          <td class="prod-qa">
+          {% if 'row' not in hidden_fixed %}<td class="prod-rownum">{{ r.position }}</td>{% endif %}
+          {% if 'qa' not in hidden_fixed %}<td class="prod-qa">
             {% if p %}
               <span class="badge {% if p.ng %}badge-danger{% elif p.done == p.total %}badge-success{% else %}badge-warning{% endif %}"
                     title="Zakończone: {{ p.done }} z {{ p.total }}{% if p.ng %}, z niezgodnościami{% endif %}">
                 {% if current_user.is_kontroler %}<a href="{{ url_for('report_detail', report_id=p.ids[0]) }}">{{ p.done }}/{{ p.total }}</a>{% else %}{{ p.done }}/{{ p.total }}{% endif %}
               </span>
             {% else %}<span class="text-muted">-</span>{% endif %}
-          </td>
-          {% for v in item.cells %}
-          <td class="{% if loop.index0 in formula_cols %}pf{% else %}pc{% endif %}" data-c="{{ loop.index0 }}">{{ v }}</td>
+          </td>{% endif %}
+          {% for i in visible %}
+          {% set link = links.get(i) %}
+          {% set st = ctl.get(r.id, {}).get('stages', {}).get(i) if link and not link.final else None %}
+          {% set fin = ctl.get(r.id, {}).get('final') if link and link.final else None %}
+          <td class="{% if i in formula_cols %}pf{% else %}pc{% endif %}" data-c="{{ i }}">{{ item.cells[i] }}{% if st %}{% set tip = 'Kontrola etapowa: utworzone ' ~ st.created ~ ' z ' ~ st.total ~ ', zakończone ' ~ st.done ~ (', z niezgodnością' if st.ng else '') %}{% if can('kontrola_etapowa') and st.order_id %}<a class="ctl-sq ctl-{{ st.state }}" href="{{ url_for('kontrola.order_page', order_id=st.order_id) }}" title="{{ tip }}"><i></i>{% if st.total > 1 %}<b>{{ st.done }}/{{ st.total }}</b>{% endif %}</a>{% else %}<span class="ctl-sq ctl-{{ st.state }}" title="{{ tip }}"><i></i>{% if st.total > 1 %}<b>{{ st.done }}/{{ st.total }}</b>{% endif %}</span>{% endif %}{% elif fin %}{% set tip = 'Kontrola Końcowa: utworzone listy ' ~ fin.total ~ ', zakończone ' ~ fin.done ~ (', z niezgodnością: ' ~ fin.ng if fin.ng else '') %}{% if can('kontrola_koncowa') %}<a class="ctl-sq ctl-{{ fin.state }}" href="{{ url_for('report_detail', report_id=fin.ids[0]) }}" title="{{ tip }}"><i></i>{% if fin.total > 1 %}<b>{{ fin.done }}/{{ fin.total }}</b>{% endif %}</a>{% else %}<span class="ctl-sq ctl-{{ fin.state }}" title="{{ tip }}"><i></i>{% if fin.total > 1 %}<b>{{ fin.done }}/{{ fin.total }}</b>{% endif %}</span>{% endif %}{% endif %}</td>
           {% endfor %}
         </tr>
         {% else %}
-        <tr><td colspan="{{ sheet.columns|length + 3 }}" class="text-muted" style="padding:1rem;">Brak zleceń.</td></tr>
+        <tr><td colspan="{{ visible|length + 3 - hidden_fixed|length }}" class="text-muted" style="padding:1rem;">Brak zleceń.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -105,9 +157,9 @@ table.prod-table tr.saved td.pc.flash { background: var(--success-bg, #f0fdf4); 
 
 {% if pag.pages > 1 %}
 <div class="pagination-bar" style="display:flex;gap:6px;justify-content:center;margin-top:12px;flex-wrap:wrap;align-items:center;">
-  {% if pag.has_prev %}<a class="btn btn-outline btn-sm" href="{{ url_for('produkcja.sheet_view', sheet_id=sheet.id, page=pag.prev_num, q=q, state=state) }}">&laquo; Poprzednia</a>{% endif %}
+  {% if pag.has_prev %}<a class="btn btn-outline btn-sm" href="{{ url_for('produkcja.sheet_view', sheet_id=sheet.id, page=pag.prev_num, **qargs) }}">&laquo; Poprzednia</a>{% endif %}
   <span class="pagination-info">Strona {{ pag.page }} / {{ pag.pages }}</span>
-  {% if pag.has_next %}<a class="btn btn-outline btn-sm" href="{{ url_for('produkcja.sheet_view', sheet_id=sheet.id, page=pag.next_num, q=q, state=state) }}">Następna &raquo;</a>{% endif %}
+  {% if pag.has_next %}<a class="btn btn-outline btn-sm" href="{{ url_for('produkcja.sheet_view', sheet_id=sheet.id, page=pag.next_num, **qargs) }}">Następna &raquo;</a>{% endif %}
 </div>
 {% endif %}
 
@@ -117,14 +169,57 @@ table.prod-table tr.saved td.pc.flash { background: var(--success-bg, #f0fdf4); 
   var cellUrl = "{{ url_for('produkcja.cell_update', row_id=0) }}".replace(/0$/, '');
   var table = document.getElementById('prod-table');
 
+  var colUrl = "{{ url_for('produkcja.column_visibility', sheet_id=sheet.id) }}";
+  function saveCol(body) {
+    return fetch(colUrl, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrf},
+      body: JSON.stringify(body)
+    }).then(function (r) {
+      if (!r.ok) throw new Error();
+      location.reload();
+    }).catch(function () { alert('Nie udało się zapisać widoku kolumn.'); });
+  }
+  var pop = null;
+  function closePop() { if (pop) { pop.remove(); pop = null; } }
+  table.querySelector('thead').addEventListener('click', function (e) {
+    var th = e.target.closest('th.colhead');
+    if (!th) return;
+    e.stopPropagation();
+    closePop();
+    var rect = th.getBoundingClientRect();
+    pop = document.createElement('div');
+    pop.className = 'col-pop';
+    pop.style.top = (rect.bottom + 4) + 'px';
+    pop.style.left = Math.min(rect.left, window.innerWidth - 220) + 'px';
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-ghost btn-sm';
+    btn.innerHTML = '<i class="bi bi-eye-slash"></i> ';
+    btn.appendChild(document.createTextNode('Ukryj kolumnę „' + th.textContent + '”'));
+    btn.addEventListener('click', function () { saveCol({col: /^\d+$/.test(th.dataset.c) ? parseInt(th.dataset.c, 10) : th.dataset.c, visible: false}); });
+    pop.appendChild(btn);
+    document.body.appendChild(pop);
+  });
+  document.addEventListener('click', closePop);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closePop(); });
+  document.querySelectorAll('[data-show]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      saveCol(b.dataset.show === 'all' ? {all: true} : {col: /^\d+$/.test(b.dataset.show) ? parseInt(b.dataset.show, 10) : b.dataset.show, visible: true});
+    });
+  });
+
   document.getElementById('chk-all').addEventListener('change', function (e) {
     document.querySelectorAll('.chk-row').forEach(function (c) { c.checked = e.target.checked; });
   });
 
   table.addEventListener('click', function (e) {
     var td = e.target.closest('td.pc');
-    if (!td || td.querySelector('input')) return;
+    if (!td || td.querySelector('input') || e.target.closest('.ctl-sq')) return;
+    var sq = td.querySelector('.ctl-sq');
+    if (sq) sq.remove();
     var old = td.textContent;
+    function put(v) { td.textContent = v; if (sq) td.appendChild(sq); }
     var input = document.createElement('input');
     input.type = 'text';
     input.value = old;
@@ -138,9 +233,9 @@ table.prod-table tr.saved td.pc.flash { background: var(--success-bg, #f0fdf4); 
       if (done) return;
       done = true;
       var val = input.value;
-      td.textContent = old;
+      put(old);
       if (!save || val === old) return;
-      td.textContent = val;
+      put(val);
       var tr = td.closest('tr');
       fetch(cellUrl + tr.dataset.row + '/cell', {
         method: 'POST',
@@ -149,13 +244,18 @@ table.prod-table tr.saved td.pc.flash { background: var(--success-bg, #f0fdf4); 
       }).then(function (r) { return r.json().then(function (d) { return {ok: r.ok, d: d}; }); })
         .then(function (res) {
           if (!res.ok || !res.d.ok) {
-            td.textContent = old;
+            put(old);
             alert(res.d.error || 'Nie udało się zapisać zmiany.');
             return;
           }
           Object.keys(res.d.cells).forEach(function (c) {
             var t = tr.querySelector('td[data-c="' + c + '"]');
-            if (t) { t.textContent = res.d.cells[c]; t.classList.add('flash'); }
+            if (t) {
+              var tsq = t.querySelector('.ctl-sq');
+              t.textContent = res.d.cells[c];
+              if (tsq) t.appendChild(tsq);
+              t.classList.add('flash');
+            }
           });
           tr.classList.add('saved');
           setTimeout(function () {
@@ -163,7 +263,7 @@ table.prod-table tr.saved td.pc.flash { background: var(--success-bg, #f0fdf4); 
             tr.querySelectorAll('.flash').forEach(function (x) { x.classList.remove('flash'); });
           }, 1200);
         })
-        .catch(function () { td.textContent = old; alert('Błąd sieci, zmiana nie została zapisana.'); });
+        .catch(function () { put(old); alert('Błąd sieci, zmiana nie została zapisana.'); });
     }
 
     input.addEventListener('keydown', function (ev) {
