@@ -269,8 +269,7 @@ table.prod-table th[data-c="{{ c }}"], table.prod-table td[data-c="{{ c }}"] { w
     Object.keys(liveWidths).forEach(function (c) {
       var w = liveWidths[c];
       css += 'table.prod-table th[data-c="' + c + '"], table.prod-table td[data-c="' + c + '"] ' +
-             '{ width:' + w + 'px; min-width:' + w + 'px; max-width:' + w + 'px; }
-';
+             '{ width:' + w + 'px; min-width:' + w + 'px; max-width:' + w + 'px; } ';
     });
     widthStyle.textContent = css;
   }
