@@ -2953,20 +2953,27 @@ def _migrate_installer_data():
         db.session.commit()
 
 
-def _backfill_prod_row_dates(conn):
-    """Jednorazowo uzupełnia ProdRow.row_date w wierszach wczytanych przed dodaniem kolumny."""
+def _recompute_prod_row_dates_v2(conn):
+    """Jednorazowo: filtr zakresu dat liczy po kolumnie DATA (rola `start`), a nie po terminie realizacji.
+    Dopisuje rolę do istniejących arkuszy (po nazwach kolumn) i przelicza ProdRow.row_date."""
     from produkcja import excel_io
     from sqlalchemy import text
-    for sid, mapping_json in conn.execute(text('SELECT id, mapping_json FROM prod_sheets')).fetchall():
+    for sid, cols_json, header_row, mapping_json in conn.execute(text(
+            'SELECT id, columns_json, header_row, mapping_json FROM prod_sheets')).fetchall():
         mapping = json.loads(mapping_json or '{}')
-        if not ({'due', 'order_date'} & set(mapping)):
+        if 'start' not in mapping:
+            found = excel_io.detect_mapping(json.loads(cols_json or '[]'), header_row is None).get('start')
+            if found is not None:
+                mapping['start'] = found
+                conn.execute(text('UPDATE prod_sheets SET mapping_json = :m WHERE id = :i'),
+                             {'m': json.dumps(mapping), 'i': sid})
+        if not ({'start', 'order_date', 'due'} & set(mapping)):
             continue
         updates = []
         for rid, data in conn.execute(text('SELECT id, data FROM prod_rows WHERE sheet_id = :s'),
                                       {'s': sid}).fetchall():
             d = excel_io.row_date(json.loads(data or '[]'), mapping)
-            if d:
-                updates.append({'d': d.isoformat(), 'i': rid})
+            updates.append({'d': d.isoformat() if d else None, 'i': rid})
         if updates:
             conn.execute(text('UPDATE prod_rows SET row_date = :d WHERE id = :i'), updates)
     conn.commit()
@@ -3143,9 +3150,16 @@ def _migrate_schema():
                 conn.execute(text('CREATE INDEX IF NOT EXISTS ix_prod_rows_row_date ON prod_rows (row_date)'))
                 conn.commit()
             if 'prod_settings' in insp.get_table_names() and not conn.execute(text(
+                    "SELECT 1 FROM prod_settings WHERE key = 'row_date_v2'")).fetchone() and conn.execute(text(
                     "SELECT 1 FROM prod_settings WHERE key = 'row_date_backfilled'")).fetchone():
-                _backfill_prod_row_dates(conn)
+                _recompute_prod_row_dates_v2(conn)    # bazy z pierwszą wersją dat: przelicz po kolumnie DATA
+                conn.execute(text("INSERT INTO prod_settings (key, value) VALUES ('row_date_v2', '1')"))
+                conn.commit()
+            if 'prod_settings' in insp.get_table_names() and not conn.execute(text(
+                    "SELECT 1 FROM prod_settings WHERE key = 'row_date_backfilled'")).fetchone():
+                _recompute_prod_row_dates_v2(conn)    # świeża baza: od razu wg kolumny DATA
                 conn.execute(text("INSERT INTO prod_settings (key, value) VALUES ('row_date_backfilled', '1')"))
+                conn.execute(text("INSERT OR IGNORE INTO prod_settings (key, value) VALUES ('row_date_v2', '1')"))
                 conn.commit()
         # Moduł Zadania QA został usunięty (2026-10-21), kasujemy jego tabelę.
         if 'qa_tasks' in insp.get_table_names():

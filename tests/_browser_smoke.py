@@ -72,6 +72,16 @@ with sync_playwright() as p:
     def header(c):
         return pg.locator(f'th.colhead[data-c="{c}"]')
 
+    # wyszukiwanie po ZO zachowuje ustawiony zakres dat (pola Data od/do są w tym samym formularzu)
+    pg.fill('input[name="od"]', '2020-01-01')
+    pg.fill('input[name="do"]', '2099-01-01')
+    pg.fill('input[name="q"]', 'ZO-3')
+    with pg.expect_navigation():
+        pg.click('.ls-submit')
+    out['search_url'] = pg.url
+    out['search_keeps_dates'] = 'od=2020-01-01' in pg.url and 'do=2099-01-01' in pg.url
+    pg.goto(sheet_url)
+    pg.wait_for_selector('#prod-table')
     # ukrywanie: klik w nagłówek, "Ukryj kolumnę"
     header(8).click(position={'x': 10, 'y': 10})
     with pg.expect_navigation():

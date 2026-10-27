@@ -156,8 +156,11 @@ def apply_to_import(sheet_name, columns, mapping, headerless=False):
             cols[i] = ent['name']
             applied.add(i)
     if cfg['mapping'] is not None:
+        auto = mapping
         mapping = {role: ent['idx'] for role, ent in cfg['mapping'].items()
                    if ent['idx'] < len(columns) and columns[ent['idx']] == ent['orig']}
+        if 'start' not in mapping and 'start' in auto:      # rola dodana po zapisaniu ustawień arkusza
+            mapping['start'] = auto['start']
     if layout_enabled(cfg, sheet_name, headerless):
         from . import layout
         changed = False

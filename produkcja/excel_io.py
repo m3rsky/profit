@@ -75,7 +75,7 @@ HEADERLESS_NAMES = ['ZAM', 'ROZP.', 'CZAS REALIZACJI', 'TERMIN REALIZACJI', 'NAZ
                     'ILOŚĆ', 'Z', 'ODBIORCA', 'NUMER ZO']
 
 ROLE_LABELS = {
-    'order_date': 'Data zamówienia', 'lead_days': 'Czas realizacji (dni)', 'due': 'Termin realizacji',
+    'start': 'Data (rozpoczęcie, kolumna DATA)', 'order_date': 'Data zamówienia', 'lead_days': 'Czas realizacji (dni)', 'due': 'Termin realizacji',
     'product': 'Nazwa towaru', 'qty': 'Ilość', 'client': 'Odbiorca', 'zo': 'Numer ZO', 'color': 'Kolor',
 }
 
@@ -83,7 +83,7 @@ ROLE_LABELS = {
 def detect_mapping(columns, headerless):
     """Pola logiczne arkusza -> indeks kolumny, wg nagłówków (a bez nagłówków wg stałego układu)."""
     if headerless:
-        return {'order_date': 0, 'lead_days': 2, 'due': 3, 'product': 4, 'qty': 5, 'client': 7, 'zo': 8}
+        return {'start': 1, 'order_date': 0, 'lead_days': 2, 'due': 3, 'product': 4, 'qty': 5, 'client': 7, 'zo': 8}
     heads = [_norm_header(c) for c in columns]
     m = {}
 
@@ -96,6 +96,7 @@ def detect_mapping(columns, headerless):
     spec = {
         'order_date': lambda h: h in ('ZAM', 'ZAM.', 'DATA', 'DATA PRODUKCJI'),
         'lead_days':  lambda h: h.startswith('CZAS REA'),
+        'start':      lambda h: h in ('DATA', 'ROZP.', 'ROZP', 'ROZ.', 'ROZ'),
         'due':        lambda h: h.startswith('TERMIN REAL'),
         'product':    lambda h: h.startswith('NAZWA') and 'ODBIORC' not in h,
         'qty':        lambda h: h in ('ILOŚĆ', 'ILOSC', 'SZT'),
@@ -136,8 +137,9 @@ def default_range(today=None):
 
 
 def row_date(vals, mapping):
-    """Data wiersza: termin realizacji, a gdy go brak, data zamówienia. None gdy bez daty."""
-    for key in ('due', 'order_date'):
+    """Data wiersza do filtra zakresu dat: kolumna DATA (rozpoczęcie, to widać w widoku), a gdy jej
+    brak data zamówienia, potem termin realizacji. None gdy wiersz nie ma daty."""
+    for key in ('start', 'order_date', 'due'):
         idx = mapping.get(key)
         v = vals[idx] if idx is not None and idx < len(vals) else None
         if isinstance(v, str) and ISO_DATE.match(v[:10]):

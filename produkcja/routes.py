@@ -214,8 +214,8 @@ def sheet_view(sheet_id):
     page = request.args.get('page', 1, type=int)
     query = ProdRow.query.filter_by(sheet_id=sheet.id)
     date_from, date_to, date_clauses = None, None, ()
-    has_dates = bool({'due', 'order_date'} & set(sheet.mapping))
-    if has_dates:   # zakres dat (termin realizacji, a bez niego data zamówienia); bez parametrów domyślny
+    has_dates = bool({'start', 'order_date', 'due'} & set(sheet.mapping))
+    if has_dates:   # zakres dat wg kolumny DATA (a bez niej daty zamówienia, terminu); bez parametrów domyślny
         if 'od' in request.args or 'do' in request.args:
             date_from, date_to = _parse_day(request.args.get('od')), _parse_day(request.args.get('do'))
         else:

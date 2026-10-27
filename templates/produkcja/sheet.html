@@ -57,7 +57,7 @@ table.prod-table th[data-c="{{ c }}"], table.prod-table td[data-c="{{ c }}"] { w
       {% if pos >= 0 and pos < sheet_nav|length - 1 %}<a class="btn btn-ghost btn-sm" href="{{ nav_urls[sheet_nav[pos + 1][0]] }}" title="Następny arkusz: {{ sheet_nav[pos + 1][1] }}"><i class="bi bi-chevron-right"></i></a>{% endif %}
     </div>
     {% endif %}
-    <span class="text-muted" style="font-size:0.82rem;">{{ pag.total }} zleceń{% if q %} dla „{{ q }}”{% endif %}{% if has_dates %} (termin {% if date_from or date_to %}{{ date_from or '...' }} do {{ date_to or '...' }}{% else %}z wszystkich dat{% endif %}){% endif %}. Kliknij komórkę, aby ją edytować (Enter zapisuje, Esc anuluje). Szare kolumny liczy Excel. Kliknij nagłówek kolumny, aby zmienić jej nazwę (dla wszystkich) lub ukryć ją (tylko u Ciebie).</span>
+    <span class="text-muted" style="font-size:0.82rem;">{{ pag.total }} zleceń{% if q %} dla „{{ q }}”{% endif %}{% if has_dates %} (data {% if date_from or date_to %}{{ date_from or '...' }} do {{ date_to or '...' }}{% else %}z wszystkich dat{% endif %}){% endif %}. Kliknij komórkę, aby ją edytować (Enter zapisuje, Esc anuluje). Szare kolumny liczy Excel. Kliknij nagłówek kolumny, aby zmienić jej nazwę (dla wszystkich) lub ukryć ją (tylko u Ciebie).</span>
   </div>
   <div class="page-header-actions">
     <a href="{{ url_for('produkcja.index', lista=1) }}" class="btn btn-ghost"><i class="bi bi-arrow-left"></i> Arkusze</a>
@@ -75,7 +75,7 @@ table.prod-table th[data-c="{{ c }}"], table.prod-table td[data-c="{{ c }}"] { w
 <form method="get" class="filter-bar filter-bar--rows" style="margin-top:.75rem;">
 {% if has_dates %}
   <div class="filter-row" style="gap:.5rem;align-items:center;flex-wrap:wrap;">
-    <label class="text-muted" style="font-size:.82rem;">Termin od
+    <label class="text-muted" style="font-size:.82rem;">Data od
       <input type="date" name="od" value="{{ date_from }}" class="form-control" style="width:auto;display:inline-block;"></label>
     <label class="text-muted" style="font-size:.82rem;">do
       <input type="date" name="do" value="{{ date_to }}" class="form-control" style="width:auto;display:inline-block;"></label>

@@ -321,17 +321,23 @@ def test_headerless_sheet_gets_default_names_and_user_can_rename(app, client):
         sid2 = _sheet_id(app, 'PROFIT')
         sh = db.session.get(ProdSheet, sid2)
         assert sh.columns[10] == 'KOLOR' and sh.columns[11] == 'GIĘCIE'
-        assert sh.mapping == {'zo': 8, 'product': 4, 'color': 10}
+        assert sh.mapping == {'zo': 8, 'product': 4, 'color': 10, 'start': 1}   # rola DATA dopisana automatycznie
         assert [(s.label, s.col_index) for s in ProdStageColumn.query.filter_by(sheet_id=sid2)] == [('GIĘCIE', 11)]
 
 
-def test_row_date_uses_due_then_order_date():
+def test_row_date_uses_data_column_then_order_date_then_due():
     from produkcja import excel_io
-    m = {'order_date': 0, 'due': 1}
-    assert str(excel_io.row_date(['2026-10-01', '2026-10-09'], m)) == '2026-10-09'
-    assert str(excel_io.row_date(['2026-10-01 08:00', None], m)) == '2026-10-01'
-    assert excel_io.row_date(['23-06', None], m) is None
+    m = {'start': 0, 'order_date': 1, 'due': 2}
+    assert str(excel_io.row_date(['2026-10-26', '2026-10-21', '2026-11-10'], m)) == '2026-10-26'   # kolumna DATA
+    assert str(excel_io.row_date([None, '2026-10-21', '2026-11-10'], m)) == '2026-10-21'            # brak DATA
+    assert str(excel_io.row_date([None, None, '2026-11-10'], m)) == '2026-11-10'                    # tylko termin
+    assert str(excel_io.row_date(['2026-10-01 08:00'], {'order_date': 0})) == '2026-10-01'
+    assert excel_io.row_date(['23-06', None], {'order_date': 0, 'due': 1}) is None
     assert excel_io.row_date([], {}) is None
+    # kolumna DATA (ROZP.) jest rozpoznawana po nagłówku, także w arkuszu bez nagłówków
+    cols = ['ZAM', 'ROZP.', 'CZAS REALIZACJI', 'TERMIN REALIZACJI', 'NAZWA TOW.']
+    assert excel_io.detect_mapping(cols, False)['start'] == 1
+    assert excel_io.detect_mapping([], True)['start'] == 1
 
 
 def test_hidden_columns_are_per_user_and_kept(app, client, planner):
@@ -384,8 +390,8 @@ def test_empty_columns_hidden_automatically(app, client):
     wb = Workbook()
     ws = wb.active
     ws.title = 'PSH'
-    ws.append(['ZAM', 'ROZP.', 'CZAS REALIZACJI', 'NAZWA TOW.', 'ILOŚĆ', 'ODBIORCA', 'NUMER ZO', 'KJ', 'UWAGI'])
-    ws.append([TODAY, None, 3, PRODUCT, 2, 'ELEKTRO TEST', 'ZO-T1', None, 'jest'])
+    ws.append(['ZAM', 'ROZP.', 'CZAS REALIZACJI', 'NAZWA TOW.', 'ILOŚĆ', 'ODBIORCA', 'NUMER ZO', 'KJ', 'D.zaw', 'UWAGI'])
+    ws.append([TODAY, TODAY, 3, PRODUCT, 2, 'ELEKTRO TEST', 'ZO-T1', None, None, 'jest'])
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
@@ -394,11 +400,11 @@ def test_empty_columns_hidden_automatically(app, client):
     sid = _sheet_id(app, 'PSH')
     html = client.get(f'/produkcja/sheet/{sid}').get_data(as_text=True)
     assert 'Puste kolumny ukryte (1)' in html
-    assert '>DATA<span class="col-rs"' not in html                   # domyślnie widoczna, ale pusta: ukryta
+    assert '>Drzwi.ZAW.<span class="col-rs"' not in html            # domyślnie widoczna, ale pusta: ukryta
     assert '>KONTROLA KOŃCOWA<span class="col-rs"' in html          # pusta, ale to etap (wpisuje się w aplikacji)
-    assert '>UWAGI<span class="col-rs"' not in html and 'data-show="8"' in html   # spoza wzorca: ukryta, w menu
-    assert '>DATA<span class="col-rs"' in client.get(f'/produkcja/sheet/{sid}?puste=1').get_data(as_text=True)
-
+    assert '>DATA<span class="col-rs"' in html                       # pusta nie jest, a kolumna DATA ma wartość
+    assert '>UWAGI<span class="col-rs"' not in html and 'data-show="9"' in html   # spoza wzorca: ukryta, w menu
+    assert '>Drzwi.ZAW.<span class="col-rs"' in client.get(f'/produkcja/sheet/{sid}?puste=1').get_data(as_text=True)
 
 def test_controllink_suggestions_and_product_matching():
     from produkcja import controllink as cl
@@ -523,9 +529,9 @@ def test_whole_file_is_loaded_and_view_filters_by_date_range(app, client):
     assert all(f'PROD{n}<' in html for n in (-40, 60)) and 'BEZ DATY' in html
     html = client.get(f'{url}?od={day(20)}&do=').get_data(as_text=True)  # tylko dolna granica
     assert 'PROD60<' in html and 'PROD15<' not in html
-    # edycja terminu przelicza datę wiersza
+    # edycja daty (tu ZAM, bo arkusz nie ma kolumny DATA) przelicza datę wiersza
     rid = _row_id(app, 'PSH', 'ZO0')
-    client.post(f'/produkcja/row/{rid}/cell', json={'col': 2, 'value': day(100)},
+    client.post(f'/produkcja/row/{rid}/cell', json={'col': 0, 'value': day(100)},
                 headers={'X-CSRF-Token': _csrf(client)})
     assert 'PROD0<' not in client.get(url).get_data(as_text=True)
 
@@ -821,3 +827,23 @@ def test_sheet_switcher_and_last_opened_sheet(app, client):
     resp = client.get('/produkcja/')
     assert resp.status_code == 302 and resp.headers['Location'].endswith(f'/produkcja/sheet/{sp}')
     assert client.get('/produkcja/?lista=1').status_code == 200
+
+
+def test_date_filter_uses_the_data_column_shown_in_the_view(app, client):
+    """Wiersz z DATA 26.10 i terminem 10.11 ma być w zakresie do 01.11 (liczy się DATA, nie termin)."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'PROFIT2'
+    ws.append(['ZAM', 'ROZP.', 'CZAS REALIZACJI', 'TERMIN REALIZACJI', 'NAZWA TOW.', 'ILOŚĆ', 'ODBIORCA', 'NUMER ZO'])
+    d = lambda n: TODAY + timedelta(days=n)
+    ws.append([d(-20), d(-2), 14, d(12), 'WCZESNY', 1, 'K', 'ZO-D1'])      # DATA w zakresie, termin poza
+    ws.append([d(-20), d(40), 14, d(54), 'PÓŹNY', 1, 'K', 'ZO-D2'])        # DATA poza zakresem
+    raw = io.BytesIO()
+    wb.save(raw)
+    _admin(client)
+    _import(client, io.BytesIO(raw.getvalue()))
+    sid = _sheet_id(app, 'PROFIT2')
+    day = lambda n: d(n).strftime('%Y-%m-%d')
+    html = client.get(f'/produkcja/sheet/{sid}?od={day(-5)}&do={day(5)}').get_data(as_text=True)
+    assert 'ZO-D1' in html and 'ZO-D2' not in html
+    assert 'Data od' in html

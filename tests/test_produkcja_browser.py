@@ -22,6 +22,7 @@ def test_header_actions_work_in_real_browser():
         pytest.fail('test przeglądarkowy nie zwrócił wyniku:\n' + proc.stdout[-1500:] + proc.stderr[-1500:])
     out = json.loads(line[len('SMOKE_RESULT '):])
     assert out['errors'] == [], f"błędy JavaScript na stronie: {out['errors']}"
+    assert out['search_keeps_dates'], f"wyszukiwanie gubi zakres dat: {out['search_url']}"
     assert out['hidden'], 'kolumna nie została ukryta po kliknięciu w nagłówek'
     assert out['renamed'], 'nazwa kolumny nie zmieniła się po kliknięciu w nagłówek'
     assert out['move_popup'], f"kolumna nie przesunęła się przyciskiem w okienku nagłówka: {out['keys']}"
