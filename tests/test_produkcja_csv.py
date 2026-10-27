@@ -11,7 +11,7 @@ from test_produkcja import (prod_folder, planner, _import, _admin, _sheet_id,  #
                             _row_id, PRODUCT)
 
 # po zastosowaniu układu wzorcowego PSH (ROZP. = DATA, ODBIORCA = NAZWA ODBIORCY, SPAW. = SPAW. OB.)
-HEADER_LAYOUT = 'ZAM;DATA;CZAS REALIZACJI;TERMIN REALIZACJI;NAZWA TOW.;ILOŚĆ;NAZWA ODBIORCY;NUMER ZO;KOLOR;SPAW. OB.;KJ'
+HEADER_LAYOUT = 'ZAM;DATA;CZAS REALIZACJI;TERMIN REALIZACJI;NAZWA TOW.;ILOŚĆ;NAZWA ODBIORCY;NUMER ZO;KOLOR;SPAW. OB.;KONTROLA KOŃCOWA'
 HEADER = 'ZAM;ROZP.;CZAS REALIZACJI;TERMIN REALIZACJI;NAZWA TOW.;ILOŚĆ;ODBIORCA;NUMER ZO;KOLOR;SPAW.;KJ'
 
 
@@ -43,7 +43,7 @@ def test_csv_creates_new_sheet_with_headers_and_types(app, client):
         d = json.loads(rows[0].data)
         assert d[0] == '2026-09-07' and d[1] == '2026-09-08' and d[5] == 2 and d[7] == '007/25'
         assert json.loads(rows[1].data)[5] == 1.5               # przecinek dziesiętny
-        assert sh.formula_cols == [] and {s.label for s in ProdStageColumn.query.filter_by(sheet_id=sh.id)} == {'SPAW. OB.', 'KJ'}
+        assert sh.formula_cols == [] and {s.label for s in ProdStageColumn.query.filter_by(sheet_id=sh.id)} == {'SPAW. OB.', 'KONTROLA KOŃCOWA'}
 
 
 def test_csv_semicolon_comma_and_cp1250(app, client):

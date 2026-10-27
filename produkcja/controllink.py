@@ -114,7 +114,7 @@ def suggest(label, dept_ids, element_names):
     def els(*names):
         return [element_names[plain(n)] for n in names if plain(n) in element_names]
 
-    if L.startswith('KJ'):
+    if L.startswith(('KJ', 'KONTROLA KONC')):
         return {'depts': [], 'elements': [], 'final': True}
     if L.startswith('GIECIE'):
         if ' DR' in L:
@@ -212,7 +212,7 @@ def control_info(rows):
     """Stan kontroli dla wierszy: {id wiersza: {'stages': {kol: dict}, 'final': dict | None}}.
     stages[kol] = created, done, total, ng, state, order_id; final = total, done, ng, ids, state."""
     rows = [r for r in rows if r.zo]
-    result = {r.id: {'stages': {}, 'final': None} for r in rows}
+    result = {r.id: {'stages': {}, 'final': None, 'elements': []} for r in rows}
     if not rows:
         return result
     links_by_sheet = {}
@@ -228,6 +228,7 @@ def control_info(rows):
         orders_by_zo.setdefault(o.zo_number, []).append(o)
     order_ids = [o.id for os_ in orders_by_zo.values() for o in os_]
     records_by_order, rec_elements, ng_records = {}, {}, set()
+    rec_element_names = {}
     if order_ids:
         recs = (ControlRecord.query.filter(ControlRecord.control_order_id.in_(order_ids),
                                            ControlRecord.department_id.isnot(None))
@@ -240,8 +241,10 @@ def control_info(rows):
             for rid, name in db.session.query(ControlRecordElement.record_id, ControlRecordElement.name) \
                     .filter(ControlRecordElement.record_id.in_(chunk)):
                 rec_elements.setdefault(rid, set()).add(plain(name))
+                rec_element_names.setdefault(rid, {})[plain(name)] = name
             ng_records |= {rid for (rid,) in db.session.query(ControlResult.record_id)
                            .filter(ControlResult.record_id.in_(chunk), ControlResult.result == 'NG')}
+    order_of = {plain(e.name): e.order or 0 for e in ControlElement.query.all()}
     order_claims = {}
     for zo, orders in orders_by_zo.items():
         for rid, items in _assign(orders, zo_rows.get(zo, []), lambda o: o.product_name).items():
@@ -253,6 +256,10 @@ def control_info(rows):
                       key=lambda x: -x.id)
         if not recs:
             continue
+        names = {}
+        for rec in recs:
+            names.update(rec_element_names.get(rec.id, {}))
+        result[r.id]['elements'] = sorted(names.values(), key=lambda n: (order_of.get(plain(n), 999), n))
         for col, link in links_by_sheet[r.sheet_id].items():
             if link['final']:
                 continue

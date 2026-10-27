@@ -21,26 +21,70 @@ def load(sheet_name):
     return cfg
 
 
-FIXED_COLUMNS = {'row': 'Wiersz', 'qa': 'Listy QA'}   # kolumny aplikacji obok kolumn pliku
+FIXED_COLUMNS = {'row': 'Wiersz', 'qa': 'Listy QA', 'el': 'Elementy'}   # kolumny aplikacji (nie z pliku)
+MOVABLE_FIXED = {'el'}          # kolumny aplikacji, które można przesuwać (Wiersz i Listy QA są na stałe z lewej)
 
 
 def _user_view(user_id, sheet_name):
-    view = ProdUserView.query.filter_by(user_id=user_id, sheet_name=sheet_name).first()
+    return ProdUserView.query.filter_by(user_id=user_id, sheet_name=sheet_name).first()
+
+
+def col_keys(origs):
+    """Stabilne klucze kolumn pliku do zapisu kolejności: oryginalny nagłówek (kolejne powtórzenia
+    tego samego nagłówka dostają numer), więc kolejność przeżywa ponowne wczytanie pliku."""
+    seen, keys = {}, []
+    for o in origs:
+        n = seen.get(o, 0)
+        seen[o] = n + 1
+        keys.append(o if n == 0 else f'{o}#{n}')
+    return keys
+
+
+def get_prefs(user_id, sheet_name, columns):
+    """Własny widok użytkownika: {'hidden': indeksy ukryte, 'shown': indeksy pokazane mimo domyślnego
+    ukrycia, 'fixed': ukryte kolumny aplikacji, 'order': klucze w wybranej kolejności}. Kolumna pliku
+    liczy się tylko gdy oryginalny nagłówek się zgadza (ustawienia przeżywają ponowne wczytanie pliku)."""
+    view = _user_view(user_id, sheet_name)
     try:
-        return view, (json.loads(view.hidden_json) if view and view.hidden_json else {})
+        raw = json.loads(view.hidden_json) if view and view.hidden_json else {}
     except ValueError:
-        return view, {}
-
-
-def hidden_view(user_id, sheet_name, columns):
-    """Co użytkownik ukrył w widoku arkusza: (indeksy kolumn pliku, klucze kolumn aplikacji).
-    Kolumna pliku liczy się tylko gdy oryginalny nagłówek się zgadza, więc ukrycie
-    przeżywa ponowne wczytanie pliku."""
-    _view, hidden = _user_view(user_id, sheet_name)
+        raw = {}
+    if 'v' not in raw:      # starszy zapis: {indeks: nagłówek, 'row': ..., 'qa': ...}
+        raw = {'v': 2, 'hidden': {k: v for k, v in raw.items() if k.isdigit()},
+               'fixed': [k for k in raw if k in FIXED_COLUMNS]}
     cfg = load(sheet_name)
-    idx = {int(i) for i, orig in hidden.items()
-           if i.isdigit() and int(i) < len(columns) and orig == orig_name(cfg, columns, int(i))}
-    return idx, {k for k in hidden if k in FIXED_COLUMNS}
+
+    def valid(d):
+        return {int(i) for i, orig in (d or {}).items()
+                if str(i).isdigit() and int(i) < len(columns) and orig == orig_name(cfg, columns, int(i))}
+
+    return {'hidden': valid(raw.get('hidden')), 'shown': valid(raw.get('shown')),
+            'fixed': {k for k in raw.get('fixed', []) if k in FIXED_COLUMNS},
+            'order': [k for k in raw.get('order', []) if isinstance(k, str)]}
+
+
+def save_prefs(user_id, sheet_name, columns, prefs):
+    """Zapisuje własny widok użytkownika (patrz get_prefs)."""
+    cfg = load(sheet_name)
+    names = lambda idxs: {str(i): orig_name(cfg, columns, i) for i in sorted(idxs) if i < len(columns)}
+    view = _user_view(user_id, sheet_name)
+    if view is None:
+        view = ProdUserView(user_id=user_id, sheet_name=sheet_name)
+        db.session.add(view)
+    view.hidden_json = json.dumps({
+        'v': 2, 'hidden': names(prefs['hidden']), 'shown': names(prefs['shown']),
+        'fixed': sorted(k for k in prefs['fixed'] if k in FIXED_COLUMNS), 'order': list(prefs['order'])},
+        ensure_ascii=False)
+
+
+def apply_order(items, keys_of, user_order):
+    """Nakłada kolejność użytkownika na kolejność bazową `items`: elementy z listy użytkownika zajmują
+    te same miejsca co dotąd, ale w jego kolejności, pozostałe zostają tam, gdzie były."""
+    pos = {k: n for n, k in enumerate(user_order)}
+    listed = [x for x in items if keys_of(x) in pos]
+    listed.sort(key=lambda x: pos[keys_of(x)])
+    it = iter(listed)
+    return [next(it) if keys_of(x) in pos else x for x in items]
 
 
 MIN_WIDTH, MAX_WIDTH = 30, 1000
@@ -82,18 +126,6 @@ def save_width(user_id, sheet_name, columns, idx, px):
                                   ensure_ascii=False)
 
 
-def save_hidden(user_id, sheet_name, columns, hidden_idx, hidden_fixed):
-    """Zapisuje widok użytkownika (ukryte kolumny pliku i kolumny aplikacji)."""
-    cfg = load(sheet_name)
-    hidden = {str(i): orig_name(cfg, columns, i) for i in sorted(hidden_idx) if i < len(columns)}
-    hidden.update({k: FIXED_COLUMNS[k] for k in hidden_fixed if k in FIXED_COLUMNS})
-    view, _old = _user_view(user_id, sheet_name)
-    if view is None:
-        view = ProdUserView(user_id=user_id, sheet_name=sheet_name)
-        db.session.add(view)
-    view.hidden_json = json.dumps(hidden, ensure_ascii=False)
-
-
 def save(sheet_name, cfg):
     ProdSetting.set(_key(sheet_name), json.dumps(cfg, ensure_ascii=False))
 
@@ -130,8 +162,13 @@ def apply_to_import(sheet_name, columns, mapping, headerless=False):
         from . import layout
         changed = False
         for i, canon in layout.canon_names(columns, sheet_name).items():
-            if i not in applied and str(i) not in cfg['names'] and cols[i] != canon:
+            ent = cfg['names'].get(str(i))
+            if ent is None and cols[i] != canon:
                 cfg['names'][str(i)] = {'orig': columns[i], 'name': canon}
+                cols[i] = canon
+                changed = True
+            elif ent is not None and i in applied and ent['name'] in layout.LEGACY_NAMES and ent['name'] != canon:
+                ent['name'] = canon           # nazwa nadana przez dawną wersję układu
                 cols[i] = canon
                 changed = True
         if changed:

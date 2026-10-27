@@ -11,7 +11,7 @@ from flask_login import login_required, current_user
 from sqlalchemy import func
 
 from models import (db, get_or_404, AuditLog, User, Report,
-                    ProdFile, ProdSheet, ProdRow, ProdSheetAccess, ProdStageColumn, ProdEntry)
+                    ProdFile, ProdSheet, ProdRow, ProdSheetAccess, ProdStageColumn, ProdEntry, ProdSetting)
 from . import produkcja_bp, helper
 from . import excel_io, sheetcfg, controllink, layout
 
@@ -124,6 +124,10 @@ def _store_row_fields(row, data, mapping):
 @planning_required
 def index():
     ids = _accessible_sheet_ids()
+    last = ProdSetting.get(f'last_sheet:{current_user.id}')
+    if not request.args.get('lista') and last and last.isdigit() and (ids is None or int(last) in ids) \
+            and db.session.get(ProdSheet, int(last)) is not None:
+        return redirect(url_for('produkcja.sheet_view', sheet_id=int(last)))   # lista arkuszy: ?lista=1
     q = ProdSheet.query.order_by(ProdSheet.position)
     if ids is not None:
         q = q.filter(ProdSheet.id.in_(ids)) if ids else q.filter(db.false())
@@ -136,6 +140,44 @@ def index():
     has_xlsx = _current_source() is not None
     return render_template('produkcja/index.html', sheets=sheets, counts=counts,
                            linked=linked, has_data=has_data, has_xlsx=has_xlsx)
+
+
+def _view_model(sheet, user_id):
+    """Układ kolumn arkusza dla użytkownika: kolejność (układ wzorcowy + własna), co jest ukryte
+    (domyślnie albo przez użytkownika). Elementy kolejności to indeksy kolumn pliku albo 'el'."""
+    cfg = sheetcfg.load(sheet.name)
+    columns = sheet.columns
+    n = len(columns)
+    origs = [sheetcfg.orig_name(cfg, columns, i) for i in range(n)]
+    keys = sheetcfg.col_keys(origs)
+    on = sheetcfg.layout_enabled(cfg, sheet.name, sheet.header_row is None)
+    base = layout.display_order(origs, sheet.name) if on else list(range(n))
+    default_hidden = (set(range(n)) - layout.default_visible(origs, sheet.name)) if on else set()
+    prefs = sheetcfg.get_prefs(user_id, sheet.name, columns)
+    key_of = lambda x: '@el' if x == layout.VIRTUAL_ELEMENTS else keys[x]
+    return {'layout_on': on, 'key_of': key_of, 'base': base, 'default_hidden': default_hidden,
+            'prefs': prefs, 'order': sheetcfg.apply_order(base, key_of, prefs['order']),
+            'hidden': prefs['hidden'] | (default_hidden - prefs['shown'])}
+
+
+def _sheet_nav(sheet, args):
+    """Arkusze dostępne dla użytkownika do listy wyboru arkusza: ([(id, nazwa, zleceń)], {id: adres})."""
+    ids = _accessible_sheet_ids()
+    q = ProdSheet.query.order_by(ProdSheet.position)
+    if ids is not None:
+        q = q.filter(ProdSheet.id.in_(ids)) if ids else q.filter(db.false())
+    sheets = q.all()
+    counts = dict(db.session.query(ProdRow.sheet_id, func.count(ProdRow.id)).group_by(ProdRow.sheet_id).all())
+    return ([(s.id, s.name, counts.get(s.id, 0)) for s in sheets],
+            {s.id: url_for('produkcja.sheet_view', sheet_id=s.id, **args) for s in sheets})
+
+
+def _remember_sheet(sheet):
+    """Ostatnio otwarty arkusz użytkownika (wejście z menu otwiera go od razu)."""
+    key = f'last_sheet:{current_user.id}'
+    if ProdSetting.get(key) != str(sheet.id):
+        ProdSetting.set(key, str(sheet.id))
+        db.session.commit()
 
 
 def _parse_day(text):
@@ -201,20 +243,27 @@ def sheet_view(sheet_id):
                 if controllink.summary(infos.get(r.id, {}), kind) == ctl_state]
         query = ProdRow.query.filter(ProdRow.id.in_(keep or [0]))
     pag = query.order_by(ProdRow.position).paginate(page=page, per_page=PER_PAGE, error_out=False)
+    if sheetcfg.layout_enabled(sheetcfg.load(sheet.name), sheet.name, sheet.header_row is None) \
+            and layout.sync_names(sheet):
+        db.session.commit()      # nazwy kolumn wg układu wzorcowego (bez nadpisywania własnych nazw)
     ncols = len(sheet.columns)
     rows = [{'row': r, 'cells': [_display(v) for v in _data(r, ncols)]} for r in pag.items]
     ctl = controllink.control_info(pag.items)
     links = controllink.sheet_links(sheet)
     pairing = {rid: i['final'] for rid, i in ctl.items() if i['final']}
-    hidden, hidden_fixed = sheetcfg.hidden_view(current_user.id, sheet.name, sheet.columns)
-    view_order = list(range(ncols))
-    cfg = sheetcfg.load(sheet.name)
-    if sheetcfg.layout_enabled(cfg, sheet.name, sheet.header_row is None):   # układ wzorcowy PSH
-        view_order = layout.display_order([sheetcfg.orig_name(cfg, sheet.columns, i) for i in range(ncols)], sheet.name)
+    vm = _view_model(sheet, current_user.id)
+    prefs, shown = vm['prefs'], vm['prefs']['shown']
     show_empty = request.args.get('puste') == '1'
-    all_empty = _empty_columns(sheet, date_clauses) - hidden
-    empty_count = len(all_empty)
-    hidden_all = hidden | (set() if show_empty else all_empty)
+    empty_all = _empty_columns(sheet, date_clauses)
+    empty_hidden = empty_all - vm['hidden'] - shown      # ukryte tylko dlatego, że puste
+    empty_count = len(empty_hidden)
+    hidden_all = vm['hidden'] | (set() if show_empty else empty_hidden)
+    visible = [x for x in vm['order']
+               if (x not in prefs['fixed'] if x == layout.VIRTUAL_ELEMENTS else x not in hidden_all)]
+    hidden_menu = sorted(prefs['hidden'] | ((vm['default_hidden'] - shown) - empty_all))
+    sheet_nav, nav_urls = _sheet_nav(sheet, {k: v for k, v in (
+        ('od', date_from.isoformat() if date_from else ''), ('do', date_to.isoformat() if date_to else '')) if has_dates})
+    _remember_sheet(sheet)
     return render_template('produkcja/sheet.html', sheet=sheet, rows=rows, pag=pag,
                            q=q, state=state, pairing=pairing, ctl=ctl, links=links,
                            kind=kind, ctl_state=ctl_state,
@@ -227,9 +276,10 @@ def sheet_view(sheet_id):
                                                        ('puste', '1' if show_empty else '')) if v},
                                   **({'od': date_from.isoformat() if date_from else '',
                                       'do': date_to.isoformat() if date_to else ''} if has_dates else {})},
-                           visible=[i for i in view_order if i not in hidden_all],
+                           visible=visible, col_keys=vm['key_of'],
                            show_empty=show_empty, empty_count=empty_count,
-                           hidden=sorted(hidden), hidden_fixed=hidden_fixed,
+                           hidden=hidden_menu, hidden_fixed=prefs['fixed'], layout_on=vm['layout_on'],
+                           custom_order=bool(prefs['order']), sheet_nav=sheet_nav, nav_urls=nav_urls,
                            widths=sheetcfg.column_widths(current_user.id, sheet.name, sheet.columns),
                            fixed_names=sheetcfg.FIXED_COLUMNS,
                            formula_cols=set(sheet.formula_cols),
@@ -244,24 +294,54 @@ def column_visibility(sheet_id):
     sheet = _sheet_or_403(sheet_id)
     payload = request.get_json(silent=True) or {}
     columns = sheet.columns
-    hidden, fixed = sheetcfg.hidden_view(current_user.id, sheet.name, columns)
+    vm = _view_model(sheet, current_user.id)
+    prefs = vm['prefs']
     if payload.get('all'):
-        hidden, fixed = set(), set()
+        prefs['hidden'], prefs['fixed'], prefs['shown'] = set(), set(), set(vm['default_hidden'])
     else:
         col = payload.get('col')
-        target = fixed if col in sheetcfg.FIXED_COLUMNS else hidden
-        if col not in sheetcfg.FIXED_COLUMNS:
+        if col in sheetcfg.FIXED_COLUMNS:
+            (prefs['fixed'].discard if payload.get('visible') else prefs['fixed'].add)(col)
+        else:
             try:
                 col = int(col)
             except (TypeError, ValueError):
                 return jsonify({'error': 'Nieprawidłowa kolumna'}), 400
             if col < 0 or col >= len(columns):
                 return jsonify({'error': 'Nieprawidłowa kolumna'}), 400
-        if payload.get('visible'):
-            target.discard(col)
-        else:
-            target.add(col)
-    sheetcfg.save_hidden(current_user.id, sheet.name, columns, hidden, fixed)
+            if payload.get('visible'):
+                prefs['hidden'].discard(col)
+                prefs['shown'].add(col)      # pokazana mimo domyślnego ukrycia (albo pustej)
+            else:
+                prefs['hidden'].add(col)
+                prefs['shown'].discard(col)
+    sheetcfg.save_prefs(current_user.id, sheet.name, columns, prefs)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@produkcja_bp.route('/sheet/<int:sheet_id>/kolumna/kolejnosc', methods=['POST'])
+@login_required
+@planning_required
+def column_move(sheet_id):
+    """Własna kolejność kolumn użytkownika: `col` ląduje przed `before` (puste = na końcu),
+    `reset` przywraca kolejność domyślną."""
+    sheet = _sheet_or_403(sheet_id)
+    payload = request.get_json(silent=True) or {}
+    vm = _view_model(sheet, current_user.id)
+    prefs = vm['prefs']
+    if payload.get('reset'):
+        prefs['order'] = []
+    else:
+        keys = [vm['key_of'](x) for x in vm['order']]
+        col, before = payload.get('col'), payload.get('before') or None
+        if col not in keys or (before is not None and before not in keys):
+            return jsonify({'error': 'Nieprawidłowa kolumna'}), 400
+        if col != before:
+            keys.remove(col)
+            keys.insert(keys.index(before) if before is not None else len(keys), col)
+            prefs['order'] = keys
+    sheetcfg.save_prefs(current_user.id, sheet.name, sheet.columns, prefs)
     db.session.commit()
     return jsonify({'ok': True})
 
@@ -673,7 +753,7 @@ def import_file():
         db.session.commit()
         _audit('prod_import', 'ProdFile', rec.id, rec.note)
         flash(msg, 'success')
-        return redirect(url_for('produkcja.index'))
+        return redirect(url_for('produkcja.index', lista=1))
     return render_template('produkcja/import.html', has_data=ProdSheet.query.first() is not None,
                            sheet_names=[s.name for s in ProdSheet.query.order_by(ProdSheet.position)])
 
@@ -725,7 +805,7 @@ def import_csv():
         _audit('prod_import_csv', 'ProdFile', rec.id, rec.note)
         summary.append(f'{sd["name"]} ({total})')
     flash('Wczytano z CSV: ' + ', '.join(summary) + '.', 'success')
-    return redirect(url_for('produkcja.index'))
+    return redirect(url_for('produkcja.index', lista=1))
 
 
 @produkcja_bp.route('/sheet/<int:sheet_id>/csv')

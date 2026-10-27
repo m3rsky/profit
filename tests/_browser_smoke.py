@@ -35,6 +35,9 @@ ws.title = 'PSH'
 ws.append(['ZAM', 'CZAS REALIZACJI', 'TERMIN REALIZACJI', 'NAZWA TOW.', 'ILOŚĆ', 'ODBIORCA', 'NUMER ZO', 'GIĘCIE', 'SPAW.', 'KJ'])
 for n in range(20):
     ws.append([today, 3, today, f'PSH 600X800X{300 + n} dlugi tekst', 1, 'KLIENT TESTOWY', f'ZO-{n}', 'AB', 'CD', 'EF'])
+ws2 = wb.create_sheet('SP')
+ws2.append(['ZAM', 'CZAS REALIZACJI', 'TERMIN REALIZACJI', 'NAZWA TOW.', 'ILOŚĆ', 'ODBIORCA', 'NUMER ZO', 'GIĘCIE'])
+ws2.append([today, 3, today, 'SP 400X750', 1, 'KLIENT', 'ZO-SP', 'AB'])
 xlsx = os.path.join(tempfile.mkdtemp(), 'l.xlsx')
 buf = io.BytesIO()
 wb.save(buf)
@@ -58,7 +61,7 @@ with sync_playwright() as p:
     pg.goto(base + '/produkcja/import')
     pg.set_input_files('#file', xlsx)
     pg.click('#import-btn')
-    pg.wait_for_url('**/produkcja/')
+    pg.wait_for_url(lambda u: u.split('?')[0].endswith('/produkcja/'))
     with app.app_context():
         from models import ProdSheet
         sid = ProdSheet.query.first().id
@@ -99,5 +102,28 @@ with sync_playwright() as p:
     pg.reload()
     pg.wait_for_selector('#prod-table')
     out['resize_saved'] = header(3).bounding_box()['width'] - before
+
+    # przenoszenie kolumn: okienko "Przesuń w prawo" i przeciągnięcie nagłówka
+    def keys():
+        return pg.eval_on_selector_all('th.colhead[data-key]', 'els => els.map(e => e.dataset.key)')
+    k0 = keys()
+    first = pg.locator('th.colhead[data-key]').nth(0)
+    first.click(position={'x': 10, 'y': 10})
+    with pg.expect_navigation():
+        pg.locator('.col-pop button', has_text='Przesuń w prawo').click()
+    pg.wait_for_selector('#prod-table')
+    k1 = keys()
+    out['move_popup'] = k1[1] == k0[0] and k1[0] == k0[1]
+    heads_loc = pg.locator('th.colhead[data-key]')
+    heads_loc.nth(0).drag_to(heads_loc.last, target_position={'x': heads_loc.last.bounding_box()['width'] - 5, 'y': 10})
+    time.sleep(0.8)
+    pg.wait_for_selector('#prod-table')
+    k2 = keys()
+    out['move_drag'] = k2[-1] == k1[0]
+    out['keys'] = [k0, k1, k2]
+    # przełączanie arkuszy listą wyboru
+    pg.select_option('#sheet-switch', index=1)
+    pg.wait_for_url(f'**/produkcja/sheet/{sid + 1}*')
+    out['switched'] = 'SP' in pg.inner_text('h1.page-title')
     b.close()
 print('SMOKE_RESULT ' + json.dumps(out))

@@ -341,45 +341,51 @@ def test_hidden_columns_are_per_user_and_kept(app, client, planner):
     with app.app_context():
         uid = User.query.filter_by(username='planista').first().id
     client.post('/produkcja/access', data={'access': [f'{uid}:{sid}'], '_csrf_token': _csrf(client)})
-    # administrator ukrywa kolumnę KOLOR (klik w nagłówek)
+    url = f'/produkcja/sheet/{sid}'
     hdr = {'X-CSRF-Token': _csrf(client)}
-    assert client.post(f'/produkcja/sheet/{sid}/kolumna', json={'col': 8, 'visible': False},
-                       headers=hdr).get_json()['ok']
-    html = client.get(f'/produkcja/sheet/{sid}').get_data(as_text=True)
-    assert 'RAL 7035' not in html and 'ELEKTRO TEST' in html
-    assert 'Ukryte kolumny (1)' in html
+    # KOLOR nie jest w układzie wzorcowym widoku, więc jest domyślnie ukryty (ale dostępny w menu)
+    html = client.get(url).get_data(as_text=True)
+    assert 'RAL 7035' not in html and 'ELEKTRO TEST' in html and 'data-show="8"' in html
+    # administrator ukrywa ODBIORCĘ (klik w nagłówek) i pokazuje KOLOR
+    assert client.post(url + '/kolumna', json={'col': 6, 'visible': False}, headers=hdr).get_json()['ok']
+    assert client.post(url + '/kolumna', json={'col': 8, 'visible': True}, headers=hdr).get_json()['ok']
+    html = client.get(url).get_data(as_text=True)
+    assert 'ELEKTRO TEST' not in html and 'RAL 7035' in html and 'Kolumny: ukryte' in html
     rid = _row_id(app, 'PSH', 'ZO-T1')
     with app.app_context():
-        assert json.loads(db.session.get(ProdRow, rid).data)[8] == 'RAL 7035'   # dane zostają
-    assert client.post(f'/produkcja/sheet/{sid}/kolumna', json={'col': 99, 'visible': False},
-                       headers=hdr).status_code == 400
-    # kolumny aplikacji (Wiersz, Listy QA) też można ukryć
-    for k in ('row', 'qa'):
-        client.post(f'/produkcja/sheet/{sid}/kolumna', json={'col': k, 'visible': False}, headers=hdr)
-    html = client.get(f'/produkcja/sheet/{sid}').get_data(as_text=True)
-    assert 'data-c="row"' not in html and 'data-c="qa"' not in html and 'Ukryte kolumny (3)' in html
-    client.post(f'/produkcja/sheet/{sid}/kolumna', json={'col': 'row', 'visible': True}, headers=hdr)
-    assert 'data-c="row"' in client.get(f'/produkcja/sheet/{sid}').get_data(as_text=True)
-    # planista ma własny widok: nadal widzi wszystko
+        assert json.loads(db.session.get(ProdRow, rid).data)[6] == 'ELEKTRO TEST'      # dane zostają
+    assert client.post(url + '/kolumna', json={'col': 99, 'visible': False}, headers=hdr).status_code == 400
+    # kolumny aplikacji (Wiersz, Listy QA, Elementy) też można ukryć
+    for k in ('row', 'qa', 'el'):
+        client.post(url + '/kolumna', json={'col': k, 'visible': False}, headers=hdr)
+    html = client.get(url).get_data(as_text=True)
+    assert 'data-c="row"' not in html and 'data-c="qa"' not in html and 'data-c="el"' not in html
+    client.post(url + '/kolumna', json={'col': 'row', 'visible': True}, headers=hdr)
+    assert 'data-c="row"' in client.get(url).get_data(as_text=True)
+    # planista ma własny widok: nadal widzi ODBIORCĘ, a KOLOR jest u niego domyślnie ukryty
     logout(client)
     login(client, planner, 'Plan1234!')
-    assert 'RAL 7035' in client.get(f'/produkcja/sheet/{sid}').get_data(as_text=True)
-    # ukrycie administratora przeżywa ponowne wczytanie pliku, a "pokaż wszystkie" je zdejmuje
+    html = client.get(url).get_data(as_text=True)
+    assert 'ELEKTRO TEST' in html and 'RAL 7035' not in html
+    # ustawienia administratora przeżywają ponowne wczytanie pliku, a "pokaż wszystkie" je zdejmuje
     logout(client)
     _admin(client)
     _import(client)
     sid = _sheet_id(app, 'PSH')
-    assert 'RAL 7035' not in client.get(f'/produkcja/sheet/{sid}').get_data(as_text=True)
-    client.post(f'/produkcja/sheet/{sid}/kolumna', json={'all': True}, headers={'X-CSRF-Token': _csrf(client)})
-    assert 'RAL 7035' in client.get(f'/produkcja/sheet/{sid}').get_data(as_text=True)
+    url = f'/produkcja/sheet/{sid}'
+    html = client.get(url).get_data(as_text=True)
+    assert 'ELEKTRO TEST' not in html and 'RAL 7035' in html
+    client.post(url + '/kolumna', json={'all': True}, headers={'X-CSRF-Token': _csrf(client)})
+    html = client.get(url).get_data(as_text=True)
+    assert 'ELEKTRO TEST' in html and 'RAL 7035' in html
 
 
 def test_empty_columns_hidden_automatically(app, client):
     wb = Workbook()
     ws = wb.active
     ws.title = 'PSH'
-    ws.append(['ZAM', 'CZAS REALIZACJI', 'NAZWA TOW.', 'ILOŚĆ', 'ODBIORCA', 'NUMER ZO', 'UWAGI', 'KJ', 'NOTATKA'])
-    ws.append([TODAY, 3, PRODUCT, 2, 'ELEKTRO TEST', 'ZO-T1', None, None, 'jest'])
+    ws.append(['ZAM', 'ROZP.', 'CZAS REALIZACJI', 'NAZWA TOW.', 'ILOŚĆ', 'ODBIORCA', 'NUMER ZO', 'KJ', 'UWAGI'])
+    ws.append([TODAY, None, 3, PRODUCT, 2, 'ELEKTRO TEST', 'ZO-T1', None, 'jest'])
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
@@ -388,10 +394,10 @@ def test_empty_columns_hidden_automatically(app, client):
     sid = _sheet_id(app, 'PSH')
     html = client.get(f'/produkcja/sheet/{sid}').get_data(as_text=True)
     assert 'Puste kolumny ukryte (1)' in html
-    assert '>UWAGI<span class="col-rs"' not in html          # pusta, ukryta automatycznie
-    assert '>KJ<span class="col-rs"' in html                 # pusta, ale to etap (wpisuje się w aplikacji)
-    assert '>NOTATKA<span class="col-rs"' in html            # ma wartość
-    assert '>UWAGI<span class="col-rs"' in client.get(f'/produkcja/sheet/{sid}?puste=1').get_data(as_text=True)
+    assert '>DATA<span class="col-rs"' not in html                   # domyślnie widoczna, ale pusta: ukryta
+    assert '>KONTROLA KOŃCOWA<span class="col-rs"' in html          # pusta, ale to etap (wpisuje się w aplikacji)
+    assert '>UWAGI<span class="col-rs"' not in html and 'data-show="8"' in html   # spoza wzorca: ukryta, w menu
+    assert '>DATA<span class="col-rs"' in client.get(f'/produkcja/sheet/{sid}?puste=1').get_data(as_text=True)
 
 
 def test_controllink_suggestions_and_product_matching():
@@ -544,18 +550,18 @@ def test_column_rename_from_header_persists_and_can_be_reset(app, client):
     sid = _sheet_id(app, 'PSH')
     hdr = {'X-CSRF-Token': _csrf(client)}
     url = f'/produkcja/sheet/{sid}/kolumna/nazwa'
-    assert client.post(url, json={'col': 8, 'name': '  Kolor   RAL '}, headers=hdr).get_json()['name'] == 'Kolor RAL'
+    assert client.post(url, json={'col': 7, 'name': '  Numer   ZO X '}, headers=hdr).get_json()['name'] == 'Numer ZO X'
     html = client.get(f'/produkcja/sheet/{sid}').get_data(as_text=True)
-    assert '>Kolor RAL<span class="col-rs"' in html and '>KOLOR<span class="col-rs"' not in html
+    assert '>Numer ZO X<span class="col-rs"' in html and '>NUMER ZO<span class="col-rs"' not in html
     assert client.post(url, json={'col': 99, 'name': 'x'}, headers=hdr).status_code == 400
-    _import(client)   # nazwa przeżywa ponowne wczytanie pliku
+    _import(client)   # własna nazwa przeżywa ponowne wczytanie pliku
     sid = _sheet_id(app, 'PSH')
-    assert '>Kolor RAL<span class="col-rs"' in client.get(f'/produkcja/sheet/{sid}').get_data(as_text=True)
+    assert '>Numer ZO X<span class="col-rs"' in client.get(f'/produkcja/sheet/{sid}').get_data(as_text=True)
     hdr = {'X-CSRF-Token': _csrf(client)}
-    client.post(f'/produkcja/sheet/{sid}/kolumna/nazwa', json={'col': 8, 'name': ''}, headers=hdr)   # reset
-    assert '>KOLOR<span class="col-rs"' in client.get(f'/produkcja/sheet/{sid}').get_data(as_text=True)
+    client.post(f'/produkcja/sheet/{sid}/kolumna/nazwa', json={'col': 7, 'name': ''}, headers=hdr)   # reset
+    assert '>NUMER ZO<span class="col-rs"' in client.get(f'/produkcja/sheet/{sid}').get_data(as_text=True)
     with app.app_context():
-        assert db.session.get(ProdSheet, sid).columns[8] == 'KOLOR'
+        assert db.session.get(ProdSheet, sid).columns[7] == 'NUMER ZO'
 
 
 def test_layout_matches_columns_to_psh_pattern():
@@ -574,9 +580,9 @@ def test_layout_matches_columns_to_psh_pattern():
             'StreamSoft', 'WYPAL.', 'GIĘCIE', 'GIĘCIE DRZ', 'SPAW.', 'DRZWI', 'MASKI', 'D.zaw', 'D.dost',
             'WYCZYSZCZONE', 'Złożone', 'KJ', 'PAK.', 'MAL.']
     n = layout.canon_names(inox)
-    assert n[9] == 'WYPALANIE' and n[11] == 'GIĘCIE DR' and n[16] == 'D. PRZYW.' and n[17] == 'CZYSZ. OB.'
+    assert n[9] == 'WYPALANIE' and n[11] == 'GIĘCIE DR' and n[16] == 'Drzwi. PRZYW.' and n[17] == 'CZYSZ. OB.'
     order = layout.display_order(inox)
-    assert [inox[i] for i in order][:12] == ['ZAM', 'ROZ.', 'czas realizacji', 'termin realizacji', 'NAZWA TOW.',
+    assert [inox[i] for i in order if i != 'el'][:12] == ['ZAM', 'ROZ.', 'czas realizacji', 'termin realizacji', 'NAZWA TOW.',
                                               'ILOŚĆ', 'ODBIORCA', 'NUMER ZO', 'StreamSoft', 'WYPAL.', 'GIĘCIE',
                                               'GIĘCIE DRZ']
     assert order.index(21) < order.index(15)   # MAL. (indeks 21) przed D.zaw (indeks 15)
@@ -586,7 +592,7 @@ def test_layout_matches_columns_to_psh_pattern():
               'NUMER ZO', 'KOLOR', 'Kolor', 'GIĘCIE'] + [get_column_letter(i + 1) for i in range(12, 40)]
     n = layout.canon_names(profit, 'PROFIT')
     assert n[11] == 'GIĘCIE OB.' and n[12] == 'SPAW. OB.' and n[13] == 'SPAW DRZW.' and n[19] == 'SKŁADANIE'
-    assert n[22] == 'KJ' and 14 not in n
+    assert n[22] == 'KONTROLA KOŃCOWA' and 14 not in n
     assert layout.stage_indexes(profit, 'PROFIT') >= {11, 12, 13, 16, 17, 19, 21, 22}
 
 
@@ -610,14 +616,18 @@ def test_import_applies_psh_layout_to_other_sheets(app, client):
         assert sh.columns[11] == 'SZYKOWANIE' and sh.columns[12] == 'WYPALANIE' and sh.columns[13] == 'GIĘCIE OB.'
         assert sh.columns[14] == 'SKŁADANIE' and sh.columns[9] == 'LANTEK'
         stages = {s.label for s in ProdStageColumn.query.filter_by(sheet_id=sid)}
-        assert {'WYPALANIE', 'GIĘCIE OB.', 'SZYKOWANIE', 'SKŁADANIE', 'KJ', 'MAL'} <= stages
+        assert {'WYPALANIE', 'GIĘCIE OB.', 'SZYKOWANIE', 'SKŁADANIE', 'KONTROLA KOŃCOWA', 'MAL'} <= stages
         assert db.session.get(ProdSheet, _sheet_id(app, 'BRAKI')).columns == [
             'ZAM', 'NAZWA TOW.', 'ILOŚĆ', 'NAZWA ODBIORCY', 'NUMER ZO', 'SPAW. OB.', 'GIĘCIE OB.']   # układ obejmuje wszystkie arkusze
     import re
     html = client.get(f'/produkcja/sheet/{sid}').get_data(as_text=True)
-    heads = re.findall(r'<th class="colhead"[^>]*>([^<]+)<span class="col-rs"', html)
-    assert heads.index('WYPALANIE') < heads.index('GIĘCIE OB.') < heads.index('MAL') < heads.index('SZYKOWANIE') \
-        < heads.index('SKŁADANIE') < heads.index('KJ') < heads.index('LANTEK')      # LANTEK (bez wzorca) na końcu
+    heads = re.findall(r'<th class="colhead"[^>]*>([^<]+)(?:<span class="col-rs"|</th>)', html)
+    # widać tylko kolumny z listy wzorcowej, w jej kolejności (z kolumną wirtualną ELEMENTY)
+    assert heads == ['Wiersz', 'Listy QA', 'DATA', 'NAZWA TOW.', 'NAZWA ODBIORCY', 'NUMER ZO', 'GIĘCIE OB.',
+                     'ELEMENTY', 'MAL', 'SKŁADANIE', 'KONTROLA KOŃCOWA']
+    # pozostałe kolumny są domyślnie ukryte, ale dostępne w menu
+    for hidden_name in ('WYPALANIE', 'SZYKOWANIE', 'LANTEK', 'ZAM', 'KOLOR'):
+        assert f'</i> {hidden_name}</button>' in html
     # własna nazwa nie jest nadpisywana przy ponownym wczytaniu
     client.post(f'/produkcja/sheet/{sid}/kolumna/nazwa', json={'col': 12, 'name': 'Wypał laser'},
                 headers={'X-CSRF-Token': _csrf(client)})
@@ -627,8 +637,9 @@ def test_import_applies_psh_layout_to_other_sheets(app, client):
         assert db.session.get(ProdSheet, sid).columns[12] == 'Wypał laser'
     # wyłączenie układu przywraca kolejność z pliku
     client.post(f'/produkcja/sheet/{sid}/uklad', data={'action': 'off', '_csrf_token': _csrf(client)})
-    heads = re.findall(r'<th class="colhead"[^>]*>([^<]+)<span class="col-rs"', client.get(f'/produkcja/sheet/{sid}').get_data(as_text=True))
-    assert heads.index('LANTEK') < heads.index('MAL')
+    heads = re.findall(r'<th class="colhead"[^>]*>([^<]+)(?:<span class="col-rs"|</th>)',
+                       client.get(f'/produkcja/sheet/{sid}').get_data(as_text=True))
+    assert heads.index('LANTEK') < heads.index('MAL')      # bez układu: kolejność i widoczność jak w pliku
 
 
 def test_control_pairing_prefers_best_product_match_and_ignores_type_separators(app, client):
@@ -715,3 +726,98 @@ def test_column_width_is_per_user_validated_and_resettable(app, client, planner)
     client.post(f'/produkcja/sheet/{sid}/kolumna/szerokosc', json={'col': 4, 'width': 0},
                 headers={'X-CSRF-Token': _csrf(client)})
     assert 'width: 321px' not in client.get(f'/produkcja/sheet/{sid}').get_data(as_text=True)
+
+
+def _heads(html):
+    import re
+    return re.findall(r'<th class="colhead"[^>]*>([^<]+)(?:<span class="col-rs"|</th>)', html)
+
+
+def test_column_order_is_per_user_validated_and_resettable(app, client, planner):
+    import re
+    _admin(client)
+    _import(client)
+    sid = _sheet_id(app, 'PSH')
+    with app.app_context():
+        uid = User.query.filter_by(username='planista').first().id
+    client.post('/produkcja/access', data={'access': [f'{uid}:{sid}'], '_csrf_token': _csrf(client)})
+    url = f'/produkcja/sheet/{sid}'
+    hdr = {'X-CSRF-Token': _csrf(client)}
+    html = client.get(url).get_data(as_text=True)
+    default = ['Wiersz', 'Listy QA', 'DATA', 'NAZWA TOW.', 'NAZWA ODBIORCY', 'NUMER ZO', 'SPAW. OB.', 'ELEMENTY',
+               'KONTROLA KOŃCOWA']
+    assert _heads(html) == default
+    assert re.findall(r'data-key="([^"]+)"', html) == ['ROZP.', 'NAZWA TOW.', 'ODBIORCA', 'NUMER ZO', 'SPAW.', '@el', 'KJ']
+    move = lambda body: client.post(url + '/kolumna/kolejnosc', json=body, headers=hdr)
+    # KJ przed NAZWA TOW., ELEMENTY (kolumna wirtualna) na sam początek
+    r = move({'col': 'KJ', 'before': 'NAZWA TOW.'}); assert r.status_code == 200, r.get_data(as_text=True)
+    r = move({'col': '@el', 'before': 'ROZP.'}); assert r.status_code == 200, r.get_data(as_text=True)
+    assert _heads(client.get(url).get_data(as_text=True)) == [
+        'Wiersz', 'Listy QA', 'ELEMENTY', 'DATA', 'KONTROLA KOŃCOWA', 'NAZWA TOW.', 'NAZWA ODBIORCY', 'NUMER ZO', 'SPAW. OB.']
+    assert move({'col': 'ROZP.', 'before': None}).get_json()['ok']          # na koniec
+    assert _heads(client.get(url).get_data(as_text=True))[-1] == 'DATA'
+    assert move({'col': 'nie ma', 'before': 'KJ'}).status_code == 400
+    assert move({'col': 'KJ', 'before': 'nie ma'}).status_code == 400
+    # kolejność jest własna: planista widzi domyślną
+    logout(client)
+    login(client, planner, 'Plan1234!')
+    assert _heads(client.get(url).get_data(as_text=True)) == default
+    # kolejność administratora przeżywa ponowne wczytanie pliku, a reset przywraca domyślną
+    logout(client)
+    _admin(client)
+    _import(client)
+    sid = _sheet_id(app, 'PSH')
+    url = f'/produkcja/sheet/{sid}'
+    hdr = {'X-CSRF-Token': _csrf(client)}
+    html = client.get(url).get_data(as_text=True)
+    assert _heads(html)[-1] == 'DATA' and 'id="reset-order"' in html
+    client.post(url + '/kolumna/kolejnosc', json={'reset': True}, headers=hdr)
+    assert _heads(client.get(url).get_data(as_text=True)) == default
+
+
+def test_elements_column_shows_control_elements_of_the_order(app, client):
+    from models import (ProductionDepartment, ControlElement, ControlOrder, ControlRecord, ControlRecordElement)
+    _admin(client)
+    _import(client)
+    with app.app_context():
+        uid = User.query.filter_by(username='admin').first().id
+        dept = ProductionDepartment(name='T9 Dział E', order=960)
+        db.session.add_all([dept, ControlElement(name='T9 Korpus'), ControlElement(name='T9 Drzwi')])
+        db.session.flush()
+        o = ControlOrder(zo_number='ZO-T1', product_name=PRODUCT)
+        db.session.add(o)
+        db.session.flush()
+        rec = ControlRecord(zo_number='ZO-T1', user_id=uid, department_id=dept.id, control_order_id=o.id,
+                            status='completed')
+        rec.element_links.append(ControlRecordElement(name='T9 Drzwi'))
+        rec.element_links.append(ControlRecordElement(name='T9 Korpus'))
+        db.session.add(rec)
+        db.session.commit()
+    try:
+        sid = _sheet_id(app, 'PSH')
+        html = client.get(f'/produkcja/sheet/{sid}').get_data(as_text=True)
+        assert 'data-c="el">T9 Korpus, T9 Drzwi</td>' in html or 'data-c="el">T9 Drzwi, T9 Korpus</td>' in html
+        assert 'data-c="el"></td>' in html        # zlecenie bez kontroli ma pustą kolumnę ELEMENTY
+    finally:
+        with app.app_context():
+            for rec in ControlRecord.query.filter_by(zo_number='ZO-T1').all():
+                db.session.delete(rec)
+            ControlOrder.query.filter_by(zo_number='ZO-T1').delete()
+            ControlElement.query.filter(ControlElement.name.like('T9 %')).delete(synchronize_session=False)
+            ProductionDepartment.query.filter(ProductionDepartment.name.like('T9 %')).delete(synchronize_session=False)
+            db.session.commit()
+
+
+def test_sheet_switcher_and_last_opened_sheet(app, client):
+    _admin(client)
+    _import(client)
+    psh, sp = _sheet_id(app, 'PSH'), _sheet_id(app, 'SP')
+    html = client.get(f'/produkcja/sheet/{psh}').get_data(as_text=True)
+    assert 'id="sheet-switch"' in html and 'SP (1)' in html and 'PSH (2)' in html
+    assert f'/produkcja/sheet/{sp}' in html and 'Następny arkusz: SP' in html and 'Poprzedni arkusz' not in html
+    assert 'od=' in html                      # przełączenie zachowuje zakres dat
+    # wejście z menu otwiera ostatnio używany arkusz, lista arkuszy jest pod ?lista=1
+    client.get(f'/produkcja/sheet/{sp}')
+    resp = client.get('/produkcja/')
+    assert resp.status_code == 302 and resp.headers['Location'].endswith(f'/produkcja/sheet/{sp}')
+    assert client.get('/produkcja/?lista=1').status_code == 200

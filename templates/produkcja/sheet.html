@@ -19,6 +19,9 @@ table.prod-table tr.saved td.pc.flash { background: var(--success-bg, #f0fdf4); 
 .prod-bar { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin: .75rem 0; }
 .prod-qa a, .prod-qa span { text-decoration: none; }
 table.prod-table thead th.colhead { cursor: pointer; }
+table.prod-table thead th.colhead.drag-src { opacity: .4; }
+table.prod-table thead th.colhead.drop-left { box-shadow: inset 3px 0 0 var(--primary, #2563eb); }
+table.prod-table thead th.colhead.drop-right { box-shadow: inset -3px 0 0 var(--primary, #2563eb); }
 .col-rs { position: absolute; top: 0; right: -3px; width: 8px; height: 100%; cursor: col-resize; z-index: 5; touch-action: none; }
 .col-rs:hover, .col-rs.active { background: var(--primary, #2563eb); opacity: .35; }
 body.col-resizing { cursor: col-resize; user-select: none; }
@@ -43,10 +46,21 @@ table.prod-table th[data-c="{{ c }}"], table.prod-table td[data-c="{{ c }}"] { w
 <div class="page-header">
   <div>
     <h1 class="page-title"><i class="bi bi-table"></i> {{ sheet.name }}</h1>
+    {% if sheet_nav|length > 1 %}
+    {% set idx = sheet_nav|map(attribute=0)|list %}
+    {% set pos = idx.index(sheet.id) if sheet.id in idx else -1 %}
+    <div class="sheet-switch" style="display:flex;gap:.4rem;align-items:center;margin:.35rem 0;">
+      {% if pos > 0 %}<a class="btn btn-ghost btn-sm" href="{{ nav_urls[sheet_nav[pos - 1][0]] }}" title="Poprzedni arkusz: {{ sheet_nav[pos - 1][1] }}"><i class="bi bi-chevron-left"></i></a>{% endif %}
+      <select id="sheet-switch" class="form-control" style="width:auto;min-width:220px;" aria-label="Wybierz arkusz">
+        {% for sid, sname, scount in sheet_nav %}<option value="{{ nav_urls[sid] }}" {% if sid == sheet.id %}selected{% endif %}>{{ sname }} ({{ scount }})</option>{% endfor %}
+      </select>
+      {% if pos >= 0 and pos < sheet_nav|length - 1 %}<a class="btn btn-ghost btn-sm" href="{{ nav_urls[sheet_nav[pos + 1][0]] }}" title="Następny arkusz: {{ sheet_nav[pos + 1][1] }}"><i class="bi bi-chevron-right"></i></a>{% endif %}
+    </div>
+    {% endif %}
     <span class="text-muted" style="font-size:0.82rem;">{{ pag.total }} zleceń{% if q %} dla „{{ q }}”{% endif %}{% if has_dates %} (termin {% if date_from or date_to %}{{ date_from or '...' }} do {{ date_to or '...' }}{% else %}z wszystkich dat{% endif %}){% endif %}. Kliknij komórkę, aby ją edytować (Enter zapisuje, Esc anuluje). Szare kolumny liczy Excel. Kliknij nagłówek kolumny, aby zmienić jej nazwę (dla wszystkich) lub ukryć ją (tylko u Ciebie).</span>
   </div>
   <div class="page-header-actions">
-    <a href="{{ url_for('produkcja.index') }}" class="btn btn-ghost"><i class="bi bi-arrow-left"></i> Arkusze</a>
+    <a href="{{ url_for('produkcja.index', lista=1) }}" class="btn btn-ghost"><i class="bi bi-arrow-left"></i> Arkusze</a>
     <a href="{{ url_for('produkcja.sheet_stages', sheet_id=sheet.id) }}" class="btn btn-ghost"><i class="bi bi-list-check"></i> Kolumny i etapy</a>
     <a href="{{ url_for('produkcja.row_new', sheet_id=sheet.id) }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nowe zlecenie</a>
     <a href="{{ url_for('produkcja.sheet_csv', sheet_id=sheet.id) }}" class="btn btn-outline"><i class="bi bi-filetype-csv"></i> Pobierz CSV</a>
@@ -109,13 +123,14 @@ table.prod-table th[data-c="{{ c }}"], table.prod-table td[data-c="{{ c }}"] { w
       <i class="bi bi-layout-three-columns"></i> {% if show_empty %}Ukryj puste kolumny ({{ empty_count }}){% else %}Puste kolumny ukryte ({{ empty_count }}), pokaż{% endif %}
     </a>
     {% endif %}
-    {% if hidden or hidden_fixed %}
+    {% if hidden or hidden_fixed or custom_order %}
     <details class="prod-hidden">
-      <summary class="btn btn-outline btn-sm"><i class="bi bi-eye-slash"></i> Ukryte kolumny ({{ hidden|length + hidden_fixed|length }})</summary>
+      <summary class="btn btn-outline btn-sm"><i class="bi bi-eye-slash"></i> Kolumny{% if hidden or hidden_fixed %}: ukryte {{ hidden|length + hidden_fixed|length }}{% endif %}</summary>
       <div class="prod-hidden-menu">
-        {% for k in ['row', 'qa'] if k in hidden_fixed %}<button type="button" class="btn btn-ghost btn-sm" data-show="{{ k }}"><i class="bi bi-eye"></i> {{ fixed_names[k] }}</button>{% endfor %}
+        {% for k in ['row', 'qa', 'el'] if k in hidden_fixed %}<button type="button" class="btn btn-ghost btn-sm" data-show="{{ k }}"><i class="bi bi-eye"></i> {{ fixed_names[k] }}</button>{% endfor %}
         {% for i in hidden %}<button type="button" class="btn btn-ghost btn-sm" data-show="{{ i }}"><i class="bi bi-eye"></i> {{ sheet.columns[i] }}</button>{% endfor %}
-        <button type="button" class="btn btn-primary btn-sm" data-show="all">Pokaż wszystkie</button>
+        {% if hidden or hidden_fixed %}<button type="button" class="btn btn-primary btn-sm" data-show="all">Pokaż wszystkie</button>{% endif %}
+        {% if custom_order %}<button type="button" class="btn btn-outline btn-sm" id="reset-order"><i class="bi bi-arrow-counterclockwise"></i> Domyślna kolejność kolumn</button>{% endif %}
       </div>
     </details>
     {% endif %}
@@ -128,7 +143,7 @@ table.prod-table th[data-c="{{ c }}"], table.prod-table td[data-c="{{ c }}"] { w
           <th class="sel"><input type="checkbox" id="chk-all" aria-label="Zaznacz wszystkie"></th>
           {% if 'row' not in hidden_fixed %}<th class="colhead" data-c="row" title="Kliknij, aby ukryć kolumnę">Wiersz</th>{% endif %}
           {% if 'qa' not in hidden_fixed %}<th class="colhead" data-c="qa" title="Kliknij, aby ukryć kolumnę">Listy QA</th>{% endif %}
-          {% for i in visible %}<th class="colhead" data-c="{{ i }}" title="Kliknij, aby zmienić nazwę lub ukryć kolumnę">{{ sheet.columns[i] }}<span class="col-rs" data-c="{{ i }}" title="Przeciągnij, aby zmienić szerokość (dwuklik: automatyczna)"></span></th>{% endfor %}
+          {% for i in visible %}{% if i == 'el' %}<th class="colhead" data-c="el" data-key="{{ col_keys(i) }}" draggable="true" title="Kliknij, aby przesunąć lub ukryć kolumnę">ELEMENTY</th>{% else %}<th class="colhead" data-c="{{ i }}" data-key="{{ col_keys(i) }}" draggable="true" title="Kliknij, aby zmienić nazwę, przesunąć lub ukryć kolumnę (przeciągnij, aby przenieść)">{{ sheet.columns[i] }}<span class="col-rs" data-c="{{ i }}" title="Przeciągnij, aby zmienić szerokość (dwuklik: automatyczna)"></span></th>{% endif %}{% endfor %}
         </tr>
       </thead>
       <tbody>
@@ -147,14 +162,16 @@ table.prod-table th[data-c="{{ c }}"], table.prod-table td[data-c="{{ c }}"] { w
             {% else %}<span class="text-muted">-</span>{% endif %}
           </td>{% endif %}
           {% for i in visible %}
+          {% if i == 'el' %}<td class="pf" data-c="el">{{ ctl.get(r.id, {}).get('elements', [])|join(', ') }}</td>{% else %}
           {% set link = links.get(i) %}
           {% set st = ctl.get(r.id, {}).get('stages', {}).get(i) if link and not link.final else None %}
           {% set fin = ctl.get(r.id, {}).get('final') if link and link.final else None %}
           <td class="{% if i in formula_cols %}pf{% else %}pc{% endif %}" data-c="{{ i }}">{{ item.cells[i] }}{% if st %}{% set tip = 'Kontrola etapowa: utworzone ' ~ st.created ~ ' z ' ~ st.total ~ ', zakończone ' ~ st.done ~ (', z niezgodnością' if st.ng else '') %}{% if can('kontrola_etapowa') and st.order_id %}<a class="ctl-sq ctl-{{ st.state }}" href="{{ url_for('kontrola.order_page', order_id=st.order_id) }}" title="{{ tip }}"><i></i>{% if st.total > 1 %}<b>{{ st.done }}/{{ st.total }}</b>{% endif %}</a>{% else %}<span class="ctl-sq ctl-{{ st.state }}" title="{{ tip }}"><i></i>{% if st.total > 1 %}<b>{{ st.done }}/{{ st.total }}</b>{% endif %}</span>{% endif %}{% elif fin %}{% set tip = 'Kontrola Końcowa: utworzone listy ' ~ fin.total ~ ', zakończone ' ~ fin.done ~ (', z niezgodnością: ' ~ fin.ng if fin.ng else '') %}{% if can('kontrola_koncowa') %}<a class="ctl-sq ctl-{{ fin.state }}" href="{{ url_for('report_detail', report_id=fin.ids[0]) }}" title="{{ tip }}"><i></i>{% if fin.total > 1 %}<b>{{ fin.done }}/{{ fin.total }}</b>{% endif %}</a>{% else %}<span class="ctl-sq ctl-{{ fin.state }}" title="{{ tip }}"><i></i>{% if fin.total > 1 %}<b>{{ fin.done }}/{{ fin.total }}</b>{% endif %}</span>{% endif %}{% endif %}</td>
+          {% endif %}
           {% endfor %}
         </tr>
         {% else %}
-        <tr><td colspan="{{ visible|length + 3 - hidden_fixed|length }}" class="text-muted" style="padding:1rem;">Brak zleceń.</td></tr>
+        <tr><td colspan="{{ visible|length + 3 - hidden_fixed|select('in', ['row', 'qa'])|list|length }}" class="text-muted" style="padding:1rem;">Brak zleceń.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -199,6 +216,55 @@ table.prod-table th[data-c="{{ c }}"], table.prod-table td[data-c="{{ c }}"] { w
       })
       .catch(function () { alert('Błąd sieci, nazwa nie została zmieniona.'); });
   }
+  var moveUrl = "{{ url_for('produkcja.column_move', sheet_id=sheet.id) }}";
+  function moveCol(key, before) {
+    return fetch(moveUrl, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrf},
+      body: JSON.stringify(key === null ? {reset: true} : {col: key, before: before})
+    }).then(function (r) {
+      if (!r.ok) throw new Error();
+      location.reload();
+    }).catch(function () { alert('Nie udało się zmienić kolejności kolumn.'); });
+  }
+  var resetBtn = document.getElementById('reset-order');
+  if (resetBtn) resetBtn.addEventListener('click', function () { moveCol(null, null); });
+  var sheetSwitch = document.getElementById('sheet-switch');
+  if (sheetSwitch) sheetSwitch.addEventListener('change', function () { location.href = sheetSwitch.value; });
+
+  // przenoszenie kolumn przeciągnięciem nagłówka
+  var dragKey = null, resizing = false;
+  var dragHeads = table.querySelectorAll('thead th.colhead[data-key]');
+  function clearDrop() {
+    dragHeads.forEach(function (h) { h.classList.remove('drop-left', 'drop-right'); });
+  }
+  dragHeads.forEach(function (h) {
+    h.addEventListener('dragstart', function (e) {
+      if (resizing) { e.preventDefault(); return; }
+      dragKey = h.dataset.key;
+      closePop();
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', dragKey);
+      h.classList.add('drag-src');
+    });
+    h.addEventListener('dragend', function () { dragKey = null; h.classList.remove('drag-src'); clearDrop(); });
+    h.addEventListener('dragover', function (e) {
+      if (dragKey === null || h.dataset.key === dragKey) return;
+      e.preventDefault();
+      var r = h.getBoundingClientRect(), left = e.clientX < r.left + r.width / 2;
+      clearDrop();
+      h.classList.add(left ? 'drop-left' : 'drop-right');
+    });
+    h.addEventListener('drop', function (e) {
+      if (dragKey === null || h.dataset.key === dragKey) return;
+      e.preventDefault();
+      var r = h.getBoundingClientRect(), left = e.clientX < r.left + r.width / 2;
+      var list = Array.prototype.slice.call(dragHeads), at = list.indexOf(h);
+      var before = left ? h.dataset.key : (at + 1 < list.length ? list[at + 1].dataset.key : null);
+      if (before === dragKey) { clearDrop(); return; }    // upuszczenie tuż przed samą sobą
+      moveCol(dragKey, before);
+    });
+  });
   var pop = null;
   function closePop() { if (pop) { pop.remove(); pop = null; } }
   table.querySelector('thead').addEventListener('click', function (e) {
@@ -247,7 +313,19 @@ table.prod-table th[data-c="{{ c }}"], table.prod-table td[data-c="{{ c }}"] { w
         input.select();
       });
     }
-    action('bi-eye-slash', 'Ukryj kolumnę „' + th.textContent + '”', function () {
+    if (th.dataset.key) {   // kolumny, które można przenosić
+      var heads = Array.prototype.slice.call(table.querySelectorAll('thead th.colhead[data-key]'));
+      var at = heads.indexOf(th);
+      if (at > 0) {
+        action('bi-arrow-left', 'Przesuń w lewo', function () { moveCol(th.dataset.key, heads[at - 1].dataset.key); });
+      }
+      if (at < heads.length - 1) {
+        action('bi-arrow-right', 'Przesuń w prawo', function () {
+          moveCol(th.dataset.key, at + 2 < heads.length ? heads[at + 2].dataset.key : null);
+        });
+      }
+    }
+    action('bi-eye-slash', 'Ukryj kolumnę „' + th.textContent.replace(/\s+/g, ' ').trim() + '”', function () {
       saveCol({col: colKey, visible: false});
     });
     document.body.appendChild(pop);
@@ -294,6 +372,7 @@ table.prod-table th[data-c="{{ c }}"], table.prod-table td[data-c="{{ c }}"] { w
     h.addEventListener('pointerdown', function (e) {
       e.preventDefault();
       e.stopPropagation();
+      resizing = true;
       var startX = e.clientX, startW = th.getBoundingClientRect().width, w = startW;
       h.setPointerCapture(e.pointerId);
       h.classList.add('active');
@@ -308,6 +387,7 @@ table.prod-table th[data-c="{{ c }}"], table.prod-table td[data-c="{{ c }}"] { w
         h.removeEventListener('pointerup', up);
         h.removeEventListener('pointercancel', up);
         h.classList.remove('active');
+        resizing = false;
         document.body.classList.remove('col-resizing');
         if (w !== Math.round(startW)) saveWidth(parseInt(col, 10), w);
       }

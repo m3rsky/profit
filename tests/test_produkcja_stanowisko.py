@@ -59,7 +59,7 @@ def test_stage_columns_detected_on_import(app, client):
     _import(client)
     with app.app_context():
         labels = {s.label for s in ProdStageColumn.query.filter_by(sheet_id=_sheet_id(app, 'PSH'))}
-    assert labels == {'SPAW. OB.', 'KJ'}
+    assert labels == {'SPAW. OB.', 'KONTROLA KOŃCOWA'}
 
 
 def test_employee_crud_and_duplicate_initials_only_warn(app, client, planner):
@@ -112,9 +112,9 @@ def test_station_flow_writes_initials_and_history(app, client, station):
     r = client.post('/produkcja/skan/zlecenie', json={'o': 'zo-t1', 'p': 'kontrola zo api'},
                     headers={'X-CSRF-Token': _csrf(client)})
     order = r.get_json()['orders'][0]
-    assert order['sheet'] == 'PSH' and {s['label'] for s in order['stages']} == {'SPAW. OB.', 'KJ'}
+    assert order['sheet'] == 'PSH' and {s['label'] for s in order['stages']} == {'SPAW. OB.', 'KONTROLA KOŃCOWA'}
     rid = order['row_id']
-    kj = _stage_id(app, 'PSH', 'KJ')
+    kj = _stage_id(app, 'PSH', 'KONTROLA KOŃCOWA')
     spaw = _stage_id(app, 'PSH', 'SPAW. OB.')
 
     assert _entry(client, rid, kj).get_json()['value'] == 'JK'           # pusta komórka
@@ -298,7 +298,7 @@ def test_delete_employee_keeps_history_and_disables_badge(app, client, station):
     login(client, station, 'Stan1234!')
     _scan_emp(client, 'JR128')
     rid = _row_id(app, 'PSH', 'ZO-T1')
-    assert _entry(client, rid, _stage_id(app, 'PSH', 'KJ')).get_json()['value'] == 'JRo'
+    assert _entry(client, rid, _stage_id(app, 'PSH', 'KONTROLA KOŃCOWA')).get_json()['value'] == 'JRo'
     logout(client)
 
     _admin(client)

@@ -1,5 +1,5 @@
 """Test dymny w prawdziwej przeglądarce: skrypty listy produkcyjnej nie zgłaszają błędów, a ukrywanie,
-zmiana nazwy i szerokości kolumny działają po kliknięciu i przeciągnięciu nagłówka.
+zmiana nazwy, szerokości i kolejności kolumny oraz przełączanie arkuszy działają po kliknięciu i przeciągnięciu.
 Pomijany, gdy nie ma Playwrighta albo przeglądarki Chromium."""
 import json
 import os
@@ -24,4 +24,7 @@ def test_header_actions_work_in_real_browser():
     assert out['errors'] == [], f"błędy JavaScript na stronie: {out['errors']}"
     assert out['hidden'], 'kolumna nie została ukryta po kliknięciu w nagłówek'
     assert out['renamed'], 'nazwa kolumny nie zmieniła się po kliknięciu w nagłówek'
+    assert out['move_popup'], f"kolumna nie przesunęła się przyciskiem w okienku nagłówka: {out['keys']}"
+    assert out['move_drag'], f"kolumna nie przeniosła się przeciągnięciem nagłówka: {out['keys']}"
+    assert out['switched'], 'lista wyboru arkusza nie przełączyła arkusza'
     assert out['resize_live'] > 50 and out['resize_saved'] > 50, f"szerokość nie zmienia się: {out}"
