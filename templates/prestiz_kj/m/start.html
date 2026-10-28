@@ -1,0 +1,34 @@
+{% extends "prestiz_kj/m/base_m.html" %}
+{% from "_list_search.html" import list_search %}
+{% from "prestiz_kj/_status.html" import order_status %}
+{% block title %}Aplikacja KJ{% endblock %}
+{% block back %}<span class="m-back" aria-hidden="true"><i class="bi bi-clipboard2-check"></i></span>{% endblock %}
+{% block heading %}Kontrola jakości{% endblock %}
+
+{% block content %}
+<form method="get" action="{{ url_for('prestiz_kj.m_start') }}" class="m-scan">
+  <button type="button" class="m-big m-big--primary" data-ls-qr-start><i class="bi bi-qr-code-scan"></i> Skanuj QR zlecenia</button>
+  {{ list_search('q', q, 'Lub wpisz numer zlecenia…', qr=True, clear_url=url_for('prestiz_kj.m_start')) }}
+</form>
+
+<h2 class="m-h2">{% if q %}Wyniki: {{ q }}{% else %}Czeka na kontrolę{% endif %}</h2>
+{% for o in orders %}
+{% set s = summaries[o.id] %}
+<a class="m-card m-card--link" href="{{ url_for('prestiz_kj.m_order', order_id=o.id) }}">
+  <div class="m-card-row"><strong>{{ o.number }}</strong>{{ order_status(o.status) }}</div>
+  <div class="pkj-hint">{{ o.product }}{% if o.client %} · {{ o.client }}{% endif %}</div>
+  {% if s.held %}<div class="rs rs-warn"><i class="bi bi-hourglass-split"></i> RW wstrzymane: {{ s.held }}</div>{% endif %}
+</a>
+{% else %}
+<div class="m-empty">{% if q %}Brak zleceń pasujących do wyszukiwania.{% else %}Żadne zlecenie nie czeka na kontrolę. Zamelduj operację z KJ w module albo zeskanuj kod.{% endif %}</div>
+{% endfor %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* Duży przycisk uruchamia ten sam skaner co przycisk w polu szukania */
+document.querySelector('[data-ls-qr-start]').addEventListener('click', function () {
+  document.querySelector('.ls-qr[data-ls-qr]').click();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "prestiz_kj/m/base_m.html" %}
+{% block title %}Historia {{ order.number }}{% endblock %}
+{% block back %}<a href="{{ url_for('prestiz_kj.m_order', order_id=order.id) }}" class="m-back" aria-label="Zlecenie"><i class="bi bi-chevron-left"></i></a>{% endblock %}
+{% block heading %}Historia · {{ order.number }}{% endblock %}
+
+{% block content %}
+{% for it in items %}
+{% set i = it.insp %}
+<a class="m-card m-card--link" href="{{ url_for('prestiz_kj.m_inspection', insp_id=i.id) }}">
+  <div class="m-card-row">
+    <strong>{{ it.op.operation_name if it.op else '-' }}{% if i.round > 1 %} (kontrola sprawdzająca){% endif %}</strong>
+    {% if i.status == 'w_toku' %}<span class="rs rs-warn"><i class="bi bi-hourglass-split"></i> W toku {{ it.done[0] }}/{{ it.done[1] }}</span>
+    {% elif i.status == 'przerwana' %}<span class="rs rs-ng"><i class="bi bi-x-circle"></i> Przerwana</span>
+    {% elif i.result == 'OK' %}<span class="rs rs-ok"><i class="bi bi-check2-circle"></i> Zgodna</span>
+    {% else %}<span class="rs rs-ng"><i class="bi bi-x-circle"></i> Niezgodna</span>{% endif %}
+  </div>
+  <div class="pkj-hint">{{ (i.finished_at or i.started_at) | localdt('%d.%m.%Y %H:%M') }} · kontroler {{ i.inspector_name }}{% if i.performer_name %} · wykonawca {{ i.performer_name }}{% endif %}</div>
+  <div>{% for m in it.imats %}<span class="rs {{ 'rs-ok' if m.verdict == 'OK' else ('rs-ng' if m.verdict == 'NOK' else 'rs-muted') }}">{{ m.name }}</span> {% endfor %}</div>
+</a>
+{% else %}
+<div class="m-empty">To zlecenie nie ma jeszcze żadnych kontrol.</div>
+{% endfor %}
+{% endblock %}

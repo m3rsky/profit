@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Raporty KJ Prestiż{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pkj.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-graph-up"></i> Raporty KJ Prestiż</h1>
+    <span class="text-muted" style="font-size:0.82rem;">Raporty z procesu kontroli jakości na danych demonstracyjnych. Każdy ma filtry (okres, klient, produkt, dział) i eksport do Excela.</span>
+  </div>
+  <div class="page-header-actions"><a href="{{ url_for('prestiz_kj.index') }}" class="btn btn-outline"><i class="bi bi-arrow-left"></i> Przegląd</a></div>
+</div>
+{% include "prestiz_kj/_demo_bar.html" %}
+
+<div class="pkj-tiles">
+  {% for slug, (title, icon, _fn, _axis) in reports.items() %}
+  <a class="pkj-tile pkj-report-tile" href="{{ url_for('prestiz_kj.report_page', slug=slug) }}">
+    <b><i class="bi {{ icon }}"></i></b><span style="font-size:.95rem;color:inherit;font-weight:600;">{{ title }}</span>
+  </a>
+  {% endfor %}
+</div>
+
+<div class="card"><div class="card-body card-body--flush">
+  <h2 style="font-size:1.05rem;margin:1rem 1rem .25rem;">Karta kontroli zlecenia</h2>
+  <p class="pkj-hint" style="margin:0 1rem .75rem;">Wszystkie kontrole zlecenia: operacje, materiały, punkty, wyniki, wartości, zdjęcia, kontroler, wykonawca i daty. Do archiwum i dla klienta (PDF).</p>
+  {% if orders %}
+  <div class="table-wrap">
+    <table class="data-table tbl-cards">
+      <thead><tr><th>Zlecenie</th><th>Klient</th><th>Data</th><th scope="col"><span class="sr-only">Akcje</span></th></tr></thead>
+      <tbody>
+        {% for o in orders %}
+        <tr>
+          <td data-label="Zlecenie"><strong>{{ o.number }}</strong><div class="pkj-hint">{{ o.product }}</div></td>
+          <td data-label="Klient">{{ o.client or '-' }}</td>
+          <td data-label="Data">{{ o.created_at | localdt('%d.%m.%Y') }}</td>
+          <td class="td-actions">
+            <a class="btn btn-outline btn-sm" href="{{ url_for('prestiz_kj.report_card', order_id=o.id) }}">Podgląd</a>
+            <a class="btn btn-primary btn-sm" href="{{ url_for('prestiz_kj.report_card_pdf', order_id=o.id) }}" target="_blank"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<div class="empty-state">Brak zleceń z kontrolami. Wczytaj dane demo w Przeglądzie.</div>{% endif %}
+</div></div>
+{% endblock %}

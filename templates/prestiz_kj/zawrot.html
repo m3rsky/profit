@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% from "prestiz_kj/_status.html" import return_status, element_status %}
+{% block title %}Zawrót {{ zp.number }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pkj.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-arrow-return-left"></i> Zawrót: {{ om.material_name }} · {{ zp.number }}</h1>
+    <span class="text-muted" style="font-size:0.82rem;">{{ zp.product }}{% if zp.client %} · {{ zp.client }}{% endif %}</span>
+    <div style="margin-top:.4rem;">{{ return_status(ret.status) }}</div>
+  </div>
+  <div class="page-header-actions">
+    {% if ret.status == 'do_zatwierdzenia' and current_user.is_admin %}
+    <form method="post" action="{{ url_for('prestiz_kj.return_approve', return_id=ret.id) }}" style="display:inline;">{{ csrf_input() }}
+      <button type="submit" class="btn btn-primary"><i class="bi bi-check2"></i> Zatwierdź zawrót</button></form>
+    {% endif %}
+    <a href="{{ url_for('prestiz_kj.returns_list') }}" class="btn btn-outline"><i class="bi bi-arrow-left"></i> Zawroty</a>
+  </div>
+</div>
+{% include "prestiz_kj/_demo_bar.html" %}
+
+<div class="card" style="margin-bottom:1rem;"><div class="card-body">
+  <div class="pkj-row" style="padding:.3rem 0;"><b style="min-width:11rem;">Zlecenie</b><a href="{{ url_for('prestiz_kj.order_page', order_id=zp.id) }}">{{ zp.number }}</a></div>
+  <div class="pkj-row" style="padding:.3rem 0;"><b style="min-width:11rem;">Element</b>{{ element_status(om.element_status) }}</div>
+  <div class="pkj-row" style="padding:.3rem 0;"><b style="min-width:11rem;">Decyzja</b>{{ decisions[ret.decision] }}</div>
+  <div class="pkj-row" style="padding:.3rem 0;"><b style="min-width:11rem;">Przyczyna</b>{{ ret.reason_name }}</div>
+  {% if ret.description %}<div class="pkj-row" style="padding:.3rem 0;"><b style="min-width:11rem;">Co poprawić</b>{{ ret.description }}</div>{% endif %}
+  <div class="pkj-row" style="padding:.3rem 0;"><b style="min-width:11rem;">Zgłosił</b>{{ ret.created_by or '-' }}, {{ ret.created_at | localdt('%d.%m.%Y %H:%M') }}</div>
+  <div class="pkj-row" style="padding:.3rem 0;"><b style="min-width:11rem;">Zlecenie naprawcze</b>
+    {% if zn %}<a href="{{ url_for('prestiz_kj.order_page', order_id=zn.id) }}">{{ zn.number }}</a>{% else %}<span class="text-muted">jeszcze nie utworzone</span>{% endif %}</div>
+  <div class="pkj-row" style="padding:.3rem 0;"><b style="min-width:11rem;">Operacje</b>
+    <span>{% for o in ops %}{{ o.position }}. {{ o.operation_name }}{% if o.added_manually %} <span class="pkj-hint">(ręcznie)</span>{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</span></div>
+</div></div>
+
+<div class="card"><div class="card-body">
+  <h2 style="font-size:1.05rem;margin-top:0;">Niezgodne punkty kontroli</h2>
+  {% for r in results %}
+  <div class="pkj-row" style="padding:.5rem 0;align-items:flex-start;">
+    <div style="flex:1;min-width:220px;"><strong>{{ r.title }}</strong> <span class="pkj-hint">({{ r.section }})</span>
+      {% if r.value is not none %}<div>Wartość: {{ '%g' % r.value }} {{ r.unit or '' }}</div>{% endif %}
+      {% if r.notes %}<div class="pkj-hint">{{ r.notes }}</div>{% endif %}</div>
+    <div class="m-photos">{% for ph in photos.get(r.id, []) %}<a href="{{ url_for('prestiz_kj.serve_upload', filename=ph.filename) }}" target="_blank"><img class="pkj-thumb" style="height:64px;" src="{{ url_for('prestiz_kj.serve_upload', filename=ph.filename) }}" alt="Zdjęcie"></a>{% endfor %}</div>
+  </div>
+  {% else %}<div class="pkj-hint">Brak zapisanych niezgodnych punktów (np. kontrola przerwana).</div>{% endfor %}
+  {% if inspection %}<div style="margin-top:.6rem;"><a class="btn btn-outline btn-sm" href="{{ url_for('prestiz_kj.m_inspection', insp_id=inspection.id) }}">Cała kontrola</a></div>{% endif %}
+</div></div>
+{% endblock %}

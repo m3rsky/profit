@@ -1,0 +1,127 @@
+{% extends "prestiz_kj/m/base_m.html" %}
+{% from "prestiz_kj/_status.html" import element_status %}
+{% set live = insp.status == 'w_toku' %}
+{% block title %}Kontrola {{ order.number }}{% endblock %}
+{% block back %}<a href="{{ url_for('prestiz_kj.m_order', order_id=order.id) }}" class="m-back" aria-label="Zlecenie"><i class="bi bi-chevron-left"></i></a>{% endblock %}
+{% block heading %}{{ oop.operation_name }}{% if insp.round > 1 %} (sprawdzająca){% endif %} · {{ order.number }}{% endblock %}
+
+{% block content %}
+{% if not live %}
+<div class="m-banner {{ 'm-banner--ok' if insp.result == 'OK' else 'm-banner--ng' }}">
+  {% if insp.status == 'przerwana' %}
+  <strong><i class="bi bi-x-circle"></i> Kontrola przerwana</strong>
+  <div>Błąd wyklucza element: {{ needs_return | join(', ') }}. RW zostaje wstrzymane, wymagany zawrót.</div>
+  {% elif insp.result == 'OK' %}
+  <strong><i class="bi bi-check2-circle"></i> Kontrola zgodna</strong>
+  <div>RW na materiały wydane (symulacja): {{ imats | map(attribute='name') | join(', ') }}.</div>
+  {% else %}
+  <strong><i class="bi bi-x-circle"></i> Wykryto niezgodność</strong>
+  <div>Wymagany zawrót: {{ needs_return | join(', ') }}. RW tych materiałów zostaje wstrzymane do czasu naprawy i kontroli sprawdzającej.
+    {% set okn = imats | selectattr('verdict', 'equalto', 'OK') | map(attribute='name') | list %}{% if okn %} Zgodne, RW wydane: {{ okn | join(', ') }}.{% endif %}</div>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="m-card">
+  <div class="m-card-row"><strong>{{ order.product }}</strong><span class="pkj-hint">{{ insp.started_at | localdt('%d.%m %H:%M') }}</span></div>
+  <div class="pkj-hint">Materiały: {{ imats | map(attribute='name') | join(', ') }}</div>
+  <div class="pkj-hint">Kontroler: {{ insp.inspector_name }}</div>
+  {% if live %}
+  <label class="m-label" for="m-performer">Wykonawca (z meldunku)</label>
+  <select id="m-performer" class="form-control m-select" data-performer-url="{{ url_for('prestiz_kj.m_set_performer', insp_id=insp.id) }}">
+    {% for e in employees %}<option value="{{ e.id }}" {% if e.id == insp.performer_id %}selected{% endif %}>{{ e.name }}{% if e.department %} ({{ e.department }}){% endif %}</option>{% endfor %}
+  </select>
+  {% else %}
+  <div class="pkj-hint">Wykonawca: {{ insp.performer_name or '-' }}</div>
+  {% endif %}
+</div>
+
+{% if live %}
+<form method="post" action="{{ url_for('prestiz_kj.m_rest_ok', insp_id=insp.id) }}">
+  {{ csrf_input() }}
+  <button type="submit" class="m-big m-big--ghost" style="margin-top:0;"><i class="bi bi-check2-all"></i> Pozostałe punkty: OK</button>
+</form>
+<div class="m-progress" id="m-progress" data-total="{{ total }}">
+  <span><b id="m-done">{{ done }}</b> / {{ total }} ocenionych</span>
+  <span class="rs-bar"><span id="m-bar" style="width: {{ (100 * done / total) | round | int if total else 0 }}%"></span></span>
+</div>
+{% endif %}
+
+{% for sec in sections %}
+<h2 class="m-h2">{{ sec.name }}</h2>
+{% for r in sec.results %}
+<div class="m-pt {% if r.out_of_range %}m-pt--range{% endif %}" data-rid="{{ r.id }}"
+     data-url="{{ url_for('prestiz_kj.m_save_result', insp_id=insp.id, result_id=r.id) }}"
+     data-photo-url="{{ url_for('prestiz_kj.m_upload_photo', insp_id=insp.id, result_id=r.id) }}">
+  <div class="m-pt-title">{{ r.title }}</div>
+  {% if r.point_id and images.get(r.point_id) %}
+  <a href="{{ url_for('prestiz_kj.serve_upload', filename=images[r.point_id]) }}" target="_blank"><img class="m-pt-img" src="{{ url_for('prestiz_kj.serve_upload', filename=images[r.point_id]) }}" alt="Grafika punktu"></a>
+  {% endif %}
+  {% if r.kind == 'value' %}
+  <div class="m-val">
+    {% if live %}<input type="text" inputmode="decimal" class="form-control m-val-input" placeholder="Wartość" value="{{ '%g' % r.value if r.value is not none else '' }}" aria-label="Zmierzona wartość">
+    {% else %}<strong>{{ '%g' % r.value if r.value is not none else '-' }}</strong>{% endif %}
+    <span>{{ r.unit or '' }}</span>
+    <span class="pkj-hint">zakres {{ '%g' % r.min_value if r.min_value is not none else '...' }} do {{ '%g' % r.max_value if r.max_value is not none else '...' }}</span>
+  </div>
+  <div class="m-range-warn" {% if not r.out_of_range %}hidden{% endif %}><i class="bi bi-exclamation-triangle"></i> Poza zakresem</div>
+  {% endif %}
+  {% if live %}
+  <div class="m-btns" role="group" aria-label="Ocena punktu">
+    <button type="button" class="m-b m-b-ok {% if r.result == 'OK' %}on{% endif %}" data-v="OK">OK</button>
+    <button type="button" class="m-b m-b-ng {% if r.result == 'NOK' %}on{% endif %}" data-v="NOK">NOK</button>
+    <button type="button" class="m-b m-b-nd {% if r.result == 'ND' %}on{% endif %}" data-v="ND">ND</button>
+  </div>
+  {% else %}
+  <div>{% if r.result == 'OK' %}<span class="rs rs-ok"><i class="bi bi-check2-circle"></i> OK</span>
+    {% elif r.result == 'NOK' %}<span class="rs rs-ng"><i class="bi bi-x-circle"></i> NOK</span>
+    {% else %}<span class="rs rs-muted"><i class="bi bi-dash-circle"></i> Nie dotyczy</span>{% endif %}</div>
+  {% endif %}
+  {% if live %}
+  <details class="m-more" {% if r.result == 'NOK' or r.notes or photos.get(r.id) %}open{% endif %}>
+    <summary>Uwagi i zdjęcia{% if r.photo_required_on_nok %} <span class="pkj-hint">(zdjęcie wymagane przy NOK)</span>{% endif %}</summary>
+    <textarea class="form-control m-notes" rows="2" maxlength="2000" placeholder="Uwagi">{{ r.notes or '' }}</textarea>
+    <div class="m-photos">
+      {% for ph in photos.get(r.id, []) %}
+      <span class="m-ph" data-pid="{{ ph.id }}" data-del="{{ url_for('prestiz_kj.m_delete_photo', photo_id=ph.id) }}">
+        <a href="{{ url_for('prestiz_kj.serve_upload', filename=ph.filename) }}" target="_blank"><img src="{{ url_for('prestiz_kj.serve_upload', filename=ph.filename) }}" alt="Zdjęcie"></a>
+        <button type="button" class="m-ph-del" aria-label="Usuń zdjęcie">&times;</button></span>
+      {% endfor %}
+    </div>
+    <label class="m-big m-big--ghost m-photo-btn"><i class="bi bi-camera"></i> Dodaj zdjęcie
+      <input type="file" accept="image/*" capture="environment" hidden></label>
+  </details>
+  {% else %}
+  {% if r.notes %}<div class="pkj-hint">Uwagi: {{ r.notes }}</div>{% endif %}
+  <div class="m-photos">{% for ph in photos.get(r.id, []) %}<a href="{{ url_for('prestiz_kj.serve_upload', filename=ph.filename) }}" target="_blank" class="m-ph"><img src="{{ url_for('prestiz_kj.serve_upload', filename=ph.filename) }}" alt="Zdjęcie"></a>{% endfor %}</div>
+  {% endif %}
+</div>
+{% endfor %}
+{% endfor %}
+
+{% if not live %}
+{% for m in to_return %}
+<a class="m-big m-big--danger" href="{{ url_for('prestiz_kj.m_return_new', material_id=m.id) }}"><i class="bi bi-arrow-return-left"></i> Zgłoś zawrót: {{ m.material_name }}</a>
+{% endfor %}
+<a class="m-big m-big--primary" href="{{ url_for('prestiz_kj.m_order', order_id=order.id) }}"><i class="bi bi-arrow-left"></i> Wróć do zlecenia</a>
+<a class="m-big m-big--ghost" href="{{ url_for('prestiz_kj.m_history', order_id=order.id) }}"><i class="bi bi-clock-history"></i> Historia kontroli</a>
+{% endif %}
+{% endblock %}
+
+{% block foot %}
+{% if live %}
+<div class="m-bar">
+  <form method="post" action="{{ url_for('prestiz_kj.m_interrupt', insp_id=insp.id) }}"
+        onsubmit="return confirm('Przerwać kontrolę? Błąd wyklucza element, RW zostaje wstrzymane i trzeba będzie zawrócić element.');">
+    {{ csrf_input() }}
+    <button type="submit" class="m-big m-big--danger"><i class="bi bi-slash-circle"></i> Przerwij</button>
+  </form>
+  <form method="post" action="{{ url_for('prestiz_kj.m_finish', insp_id=insp.id) }}">
+    {{ csrf_input() }}
+    <button type="submit" class="m-big m-big--primary" id="m-finish"><i class="bi bi-check2"></i> Zakończ</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}{% if live %}<script src="{{ url_for('static', filename='js/pkj-mobile.js') }}"></script>{% endif %}{% endblock %}

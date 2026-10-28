@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Karta kontroli {{ card.order.number }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pkj.css') }}">
+{% endblock %}
+
+{% block content %}
+{% set order = card.order %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-file-earmark-text"></i> Karta kontroli: {{ order.number }}</h1>
+    <span class="text-muted" style="font-size:0.82rem;">{{ order.product }}{% if order.client %} · {{ order.client }}{% endif %} · {{ order.quantity }} szt.</span>
+  </div>
+  <div class="page-header-actions">
+    <a href="{{ url_for('prestiz_kj.report_card_pdf', order_id=order.id) }}" class="btn btn-primary" target="_blank"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+    <a href="{{ url_for('prestiz_kj.order_page', order_id=order.id) }}" class="btn btn-outline">Zlecenie</a>
+    <a href="{{ url_for('prestiz_kj.reports_index') }}" class="btn btn-outline"><i class="bi bi-arrow-left"></i> Raporty</a>
+  </div>
+</div>
+{% include "prestiz_kj/_demo_bar.html" %}
+
+{% for b in card.blocks %}
+{% set i = b.insp %}
+<div class="card" style="margin-bottom:1rem;"><div class="card-body card-body--flush">
+  <h2 style="font-size:1.05rem;margin:1rem 1rem .25rem;">{{ loop.index }}. {{ 'Kontrola sprawdzająca' if i.round > 1 else 'Kontrola' }}: {{ b.op }}
+    {% if i.status == 'przerwana' %}<span class="rs rs-ng"><i class="bi bi-x-circle"></i> Przerwana</span>
+    {% elif i.result == 'OK' %}<span class="rs rs-ok"><i class="bi bi-check2-circle"></i> Zgodna</span>
+    {% elif i.result == 'NOK' %}<span class="rs rs-ng"><i class="bi bi-x-circle"></i> Niezgodna</span>
+    {% else %}<span class="rs rs-warn"><i class="bi bi-hourglass-split"></i> W toku</span>{% endif %}</h2>
+  <p class="pkj-hint" style="margin:0 1rem .5rem;">Kontroler {{ i.inspector_name or '-' }} · wykonawca {{ i.performer_name or '-' }} · {{ i.started_at | localdt }} do {{ (i.finished_at | localdt) if i.finished_at else '...' }} · materiały: {% for m in b.materials %}{{ m.name }} ({{ m.verdict or '-' }}){% if not loop.last %}, {% endif %}{% endfor %}</p>
+  <div class="table-wrap">
+    <table class="data-table tbl-cards">
+      <thead><tr><th>Punkt</th><th>Wynik</th><th>Wartość</th><th>Uwagi</th><th>Zdjęcia</th></tr></thead>
+      <tbody>
+        {% for sec in b.sections %}
+        <tr class="pkj-total"><td colspan="5"><strong>{{ sec.name }}</strong></td></tr>
+        {% for r in sec.results %}
+        <tr>
+          <td data-label="Punkt">{{ r.title }}</td>
+          <td data-label="Wynik">{% if r.result == 'OK' %}<span class="rs rs-ok"><i class="bi bi-check2-circle"></i> OK</span>{% elif r.result == 'NOK' %}<span class="rs rs-ng"><i class="bi bi-x-circle"></i> NOK</span>{% elif r.result == 'ND' %}<span class="rs rs-muted"><i class="bi bi-dash-circle"></i> ND</span>{% else %}-{% endif %}</td>
+          <td data-label="Wartość">{% if r.value is not none %}{{ '%g' % r.value }} {{ r.unit or '' }} <span class="pkj-hint">({{ '%g' % r.min_value if r.min_value is not none else '...' }} do {{ '%g' % r.max_value if r.max_value is not none else '...' }})</span>{% else %}-{% endif %}</td>
+          <td data-label="Uwagi">{{ r.notes or '-' }}</td>
+          <td data-label="Zdjęcia">{% for ph in card.photos.get(r.id, []) %}<a href="{{ url_for('prestiz_kj.serve_upload', filename=ph.filename) }}" target="_blank"><img class="pkj-thumb" src="{{ url_for('prestiz_kj.serve_upload', filename=ph.filename) }}" alt="Zdjęcie"></a> {% else %}-{% endfor %}</td>
+        </tr>
+        {% endfor %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div></div>
+{% else %}
+<div class="empty-state">To zlecenie nie ma jeszcze żadnych kontroli KJ.</div>
+{% endfor %}
+
+{% if card.returns %}
+<div class="card"><div class="card-body card-body--flush">
+  <h2 style="font-size:1.05rem;margin:1rem 1rem .5rem;">Zawroty i zlecenia naprawcze</h2>
+  <div class="table-wrap">
+    <table class="data-table tbl-cards">
+      <thead><tr><th>Materiał</th><th>Przyczyna</th><th>Decyzja</th><th>Zlecenie naprawcze</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for r in card.returns %}
+        {% set zn = card.zns.get(r.repair_order_id) %}
+        <tr><td data-label="Materiał">{{ card.material_names.get(r.order_material_id, '-') }}</td><td data-label="Przyczyna">{{ r.reason_name }}</td>
+          <td data-label="Decyzja">{{ decisions[r.decision] }}</td>
+          <td data-label="ZN">{% if zn %}<a href="{{ url_for('prestiz_kj.order_page', order_id=zn.id) }}">{{ zn.number }}</a>{% else %}-{% endif %}</td>
+          <td data-label="Status">{{ labels.get(r.status, r.status) }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div></div>
+{% endif %}
+{% endblock %}

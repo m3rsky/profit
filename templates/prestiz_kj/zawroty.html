@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% from "_list_search.html" import list_search %}
+{% from "prestiz_kj/_status.html" import return_status, element_status %}
+{% block title %}Zawroty KJ Prestiż{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pkj.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-arrow-return-left"></i> Rejestr zawrotów (demo)</h1>
+    <span class="text-muted" style="font-size:0.82rem;">Elementy zawrócone przez kontrolę KJ: przyczyna, decyzja, zlecenie naprawcze i status.{% if waiting %} Czeka na zatwierdzenie: {{ waiting }}.{% endif %}</span>
+  </div>
+  <div class="page-header-actions">
+    <a href="{{ url_for('prestiz_kj.orders_list') }}" class="btn btn-outline"><i class="bi bi-list-ul"></i> Zlecenia</a>
+    <a href="{{ url_for('prestiz_kj.index') }}" class="btn btn-outline"><i class="bi bi-arrow-left"></i> Przegląd</a>
+  </div>
+</div>
+{% include "prestiz_kj/_demo_bar.html" %}
+
+<form method="get" action="{{ url_for('prestiz_kj.returns_list') }}" class="filter-bar filter-bar--rows">
+{% call list_search('q', q, 'Szukaj: zlecenie, materiał, przyczyna, klient…', active=(1 if status else 0), uid='pkj-ret-more', clear_url=url_for('prestiz_kj.returns_list')) %}
+  <div class="filter-row">
+    <select class="form-control filter-select" name="s" title="Filtruj po statusie">
+      <option value="">Wszystkie statusy</option>
+      {% for key, label in labels.items() %}<option value="{{ key }}" {% if status == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+  </div>
+{% endcall %}
+</form>
+
+<div class="card"><div class="card-body card-body--flush">
+  {% if rows %}
+  <div class="table-wrap">
+    <table class="data-table tbl-cards">
+      <thead><tr><th>Zlecenie / materiał</th><th>Przyczyna</th><th>Decyzja</th><th>Zlecenie naprawcze</th><th>Data</th><th>Status</th><th scope="col"><span class="sr-only">Akcje</span></th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td data-label="Zlecenie"><a href="{{ url_for('prestiz_kj.return_page', return_id=r.ret.id) }}"><strong>{{ r.zp.number }}</strong></a>
+            <div class="pkj-hint">{{ r.om.material_name }} · {{ r.zp.client or '-' }}</div></td>
+          <td data-label="Przyczyna">{{ r.ret.reason_name }}</td>
+          <td data-label="Decyzja">{{ decisions[r.ret.decision] }}</td>
+          <td data-label="ZN">{% if r.zn %}<a href="{{ url_for('prestiz_kj.order_page', order_id=r.zn.id) }}">{{ r.zn.number }}</a>{% else %}<span class="text-muted">-</span>{% endif %}</td>
+          <td data-label="Data">{{ r.ret.created_at | localdt('%d.%m.%Y') }}</td>
+          <td data-label="Status">{{ return_status(r.ret.status) }}</td>
+          <td class="td-actions">
+            {% if r.ret.status == 'do_zatwierdzenia' and current_user.is_admin %}
+            <form method="post" action="{{ url_for('prestiz_kj.return_approve', return_id=r.ret.id) }}" style="display:inline;">{{ csrf_input() }}
+              <button type="submit" class="btn btn-primary btn-sm">Zatwierdź</button></form>
+            {% endif %}
+            <a class="btn btn-outline btn-sm" href="{{ url_for('prestiz_kj.return_page', return_id=r.ret.id) }}">Szczegóły</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="pagination">
+    {% if pager.has_prev %}<a href="{{ url_for('prestiz_kj.returns_list', q=q, s=status, page=pager.prev_num) }}" class="btn btn-outline btn-sm"><i class="bi bi-arrow-left"></i> Poprzednia</a>{% endif %}
+    <span>{{ pager.page }} / {{ pager.pages or 1 }} ({{ pager.total }} pozycji)</span>
+    {% if pager.has_next %}<a href="{{ url_for('prestiz_kj.returns_list', q=q, s=status, page=pager.next_num) }}" class="btn btn-outline btn-sm">Następna <i class="bi bi-arrow-right"></i></a>{% endif %}
+  </div>
+  {% else %}<div class="empty-state">Brak zawrotów w tym widoku.</div>{% endif %}
+</div></div>
+{% endblock %}

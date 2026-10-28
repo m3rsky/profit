@@ -125,6 +125,10 @@ Rejestr zgłoszeń jakościowych (NCR-podobny) — kategorie: Spawanie, Montaż,
 
 Ewidencja produkcji na spawalni/giętarce/wycinarce — rekordy (`SpawalniaRecord`) przypisane do numeru ZO (zlecenia produkcyjnego), z operatorami spawania, gięcia i cięcia (osobne słowniki operatorów), pomiarami (przekątne, odchyłki, 3 pomiary kontrolne) i wynikiem OK/NG per etap. Obsługuje partie (batch) przy wielosztukowych ZO. Eksport do PDF i Excel dla admina/kontrolera.
 
+### 3.8 KJ Prestiż (pogląd) (`/kj-prestiz`)
+
+Osobny moduł poglądowy, który pokazuje Zarządowi i firmie Streamsoft docelowy proces kontroli jakości w Prestiżu i aplikacji Android: konfiguracja operacji, materiałów i punktów (K1 do K4), meldunek operacji ze wstrzymanym RW, mobilna aplikacja KJ (skan QR, ocena punktów, zdjęcia), zawrót z decyzją poprawka albo złom i zlecenie naprawcze, kontrola sprawdzająca, raporty (rejestr niezgodności, FPY, Pareto, koszt zawrotów, wyniki wg pracownika, czas kontroli, karta kontroli w PDF, eksport do Excela). Moduł działa wyłącznie na danych demonstracyjnych we własnych tabelach `pkj_*`, nie łączy się z Prestiżem i nie zmienia innych modułów. Pełny opis, model danych i zasady: `CLAUDE.md` (sekcja "KJ Prestiż") oraz `PLAN_MODUL_KJ_PRESTIZ_REALIZACJA.md`.
+
 ---
 
 ## 4. API

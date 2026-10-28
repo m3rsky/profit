@@ -1,0 +1,65 @@
+{% extends "prestiz_kj/m/base_m.html" %}
+{% block title %}Zawrót {{ om.material_name }}{% endblock %}
+{% block back %}<a href="{{ url_for('prestiz_kj.m_order', order_id=order.id) }}" class="m-back" aria-label="Zlecenie"><i class="bi bi-chevron-left"></i></a>{% endblock %}
+{% block heading %}Zawrót: {{ om.material_name }}{% endblock %}
+
+{% block content %}
+<div class="m-card">
+  <div class="m-card-row"><strong>{{ order.number }}</strong><span class="rs rs-ng"><i class="bi bi-x-circle"></i> Zawrócony</span></div>
+  <div class="pkj-hint">{{ order.product }}</div>
+  {% if failed %}
+  <div class="pkj-hint" style="margin-top:.5rem;">Niezgodne punkty:</div>
+  <ul class="m-fails">{% for r in failed %}<li>{{ r.title }}{% if r.value is not none %} ({{ '%g' % r.value }} {{ r.unit or '' }}){% endif %}{% if r.notes %}<div class="pkj-hint">{{ r.notes }}</div>{% endif %}</li>{% endfor %}</ul>
+  {% endif %}
+</div>
+
+<form method="post" action="{{ url_for('prestiz_kj.m_return_new', material_id=om.id) }}" id="m-return-form">
+  {{ csrf_input() }}
+  <h2 class="m-h2">Decyzja</h2>
+  <div class="m-btns m-btns--2">
+    <label class="m-radio"><input type="radio" name="decision" value="poprawka" {% if form.get('decision', 'poprawka') == 'poprawka' %}checked{% endif %}><span><i class="bi bi-tools"></i> Poprawka</span></label>
+    <label class="m-radio"><input type="radio" name="decision" value="zlom" {% if form.get('decision') == 'zlom' %}checked{% endif %}><span><i class="bi bi-trash"></i> Złom</span></label>
+  </div>
+
+  <div id="m-fix-ops">
+    <h2 class="m-h2">Na jaką operację wraca element</h2>
+    <div class="m-card">
+      {% for o in route %}
+      <label class="m-check"><input type="radio" name="target" value="{{ o.id }}" {% if sel_target == o.id %}checked{% endif %}><span>{{ o.position }}. {{ o.operation_name }}</span></label>
+      {% endfor %}
+    </div>
+    <h2 class="m-h2">Dodaj operację ręcznie</h2>
+    <div class="m-card">
+      {% for op in operations %}
+      <label class="m-check"><input type="checkbox" name="extra" value="{{ op.id }}" {% if op.id|string in form.getlist('extra') %}checked{% endif %}><span>{{ op.name }}</span></label>
+      {% endfor %}
+    </div>
+  </div>
+  <p class="pkj-hint" id="m-scrap-note" hidden>Złom: powstanie zlecenie na nowy element od pierwszej operacji trasy do kontrolowanej operacji włącznie, a rozchód materiału zostanie zasymulowany.</p>
+
+  <h2 class="m-h2">Przyczyna</h2>
+  <select name="reason_id" class="form-control m-select" required>
+    <option value="">Wybierz przyczynę…</option>
+    {% for r in reasons %}<option value="{{ r.id }}" {% if sel_reason == r.id %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
+  </select>
+
+  <h2 class="m-h2">Co poprawić</h2>
+  <textarea name="description" class="form-control m-notes" rows="3" maxlength="2000" placeholder="Opis dla produkcji">{{ form.get('description', '') }}</textarea>
+
+  {% if manager %}<p class="pkj-hint">Zawrót wymaga zatwierdzenia kierownika. Zlecenie naprawcze powstanie po zatwierdzeniu.</p>{% endif %}
+  <button type="submit" class="m-big m-big--primary"><i class="bi bi-check2"></i> {% if manager %}Wyślij do zatwierdzenia{% else %}Utwórz zlecenie naprawcze{% endif %}</button>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var form = document.getElementById('m-return-form'), fix = document.getElementById('m-fix-ops'), note = document.getElementById('m-scrap-note');
+  function sync() {
+    var scrap = form.querySelector('input[name=decision]:checked').value === 'zlom';
+    fix.hidden = scrap; note.hidden = !scrap;
+  }
+  form.addEventListener('change', sync); sync();
+})();
+</script>
+{% endblock %}

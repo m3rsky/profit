@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+{% block title %}Konfiguracja KJ Prestiż{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pkj.css') }}">
+{% endblock %}
+
+{% macro move_buttons(slug, item, first, last) %}
+<div class="pkj-move">
+  <button type="submit" formnovalidate formaction="{{ url_for('prestiz_kj.config_move', slug=slug, item_id=item.id, direction='up') }}"
+          class="btn btn-outline btn-sm" title="W górę (zapisuje też zmiany)" {% if first %}disabled{% endif %}><i class="bi bi-chevron-up"></i></button>
+  <button type="submit" formnovalidate formaction="{{ url_for('prestiz_kj.config_move', slug=slug, item_id=item.id, direction='down') }}"
+          class="btn btn-outline btn-sm" title="W dół (zapisuje też zmiany)" {% if last %}disabled{% endif %}><i class="bi bi-chevron-down"></i></button>
+</div>
+{% endmacro %}
+
+{% macro delete_button(slug, item) %}
+<button type="submit" formnovalidate class="btn btn-danger btn-sm" title="Usuń"
+        formaction="{{ url_for('prestiz_kj.config_delete', slug=slug, item_id=item.id) }}"
+        onclick="return confirm('Usunąć ten wpis?');"><i class="bi bi-trash"></i></button>
+{% endmacro %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-sliders"></i> Konfiguracja KJ Prestiż</h1>
+    <span class="text-muted" style="font-size:0.82rem;">Parametry K1 do K4 pokazywane Streamsoft. Zmiany w wielu wierszach i nowy wpis zapisujesz jednym przyciskiem „Zapisz wszystko”.</span>
+  </div>
+  <div class="page-header-actions">
+    <a href="{{ url_for('prestiz_kj.index') }}" class="btn btn-outline"><i class="bi bi-arrow-left"></i> Przegląd</a>
+  </div>
+</div>
+
+{% include "prestiz_kj/_demo_bar.html" %}
+
+<nav class="pkj-tabs">
+  {% for key, label, icon in tabs %}
+  <a href="{{ url_for('prestiz_kj.config_page', slug=key) }}" class="{% if key == slug %}active{% endif %}"><i class="bi {{ icon }}"></i> {{ label }}</a>
+  {% endfor %}
+</nav>
+
+<form method="post" action="{{ url_for('prestiz_kj.config_save_all', slug=slug) }}" id="pkj-form"
+      autocomplete="off" enctype="multipart/form-data">
+  {{ csrf_input() }}
+  <input type="hidden" name="save_first" value="1">
+  {% if slug == 'punkty' %}<input type="hidden" name="back_zakres" value="{{ zakres }}">{% endif %}
+
+{% if slug == 'operacje' %}
+  <div class="card" style="margin-bottom:1rem;"><div class="card-body">
+    <p class="pkj-hint" style="margin-top:0;">K1: operacja z flagą KJ po meldunku nie wydaje od razu RW na materiały, żeby można było wygenerować zlecenie naprawcze.</p>
+    <div class="pkj-new">
+      <input type="text" name="new_name" class="form-control" maxlength="128" placeholder="Nowa operacja, np. Spawanie">
+      <label><input type="checkbox" name="new_kj" value="1"> Podlega KJ</label>
+    </div>
+  </div></div>
+  <div class="card"><div class="card-body" style="padding:0;">
+    {% for o in items %}
+    <div class="pkj-row {% if not o.is_active %}pkj-off{% endif %}">
+      {{ move_buttons(slug, o, loop.first, loop.last) }}
+      <div class="pkj-main">
+        <input type="text" name="name_{{ o.id }}" class="form-control" maxlength="128" value="{{ o.name }}" required>
+        <label><input type="checkbox" name="kj_{{ o.id }}" value="1" {% if o.kj_required %}checked{% endif %}> Podlega KJ</label>
+        <label><input type="checkbox" name="active_{{ o.id }}" value="1" {% if o.is_active %}checked{% endif %}> Aktywna</label>
+      </div>
+      {{ delete_button(slug, o) }}
+    </div>
+    {% else %}<div class="pkj-row pkj-hint">Brak operacji. Dodaj pierwszą albo wczytaj dane demo w Przeglądzie.</div>{% endfor %}
+  </div></div>
+
+{% elif slug == 'materialy' %}
+  <div class="card" style="margin-bottom:1rem;"><div class="card-body">
+    <p class="pkj-hint" style="margin-top:0;">K2: tylko materiały z flagą KJ pojawiają się w aplikacji KJ. K4: grupa pozwala kontrolować materiały wspólnie.</p>
+    <div class="pkj-new">
+      <input type="text" name="new_name" class="form-control" maxlength="128" placeholder="Nowy materiał, np. Korpus">
+      <select name="new_group_id" class="form-control"><option value="">Bez grupy</option>
+        {% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}</select>
+      <label><input type="checkbox" name="new_kj" value="1"> Podlega KJ</label>
+    </div>
+  </div></div>
+  <div class="card" style="margin-bottom:1rem;"><div class="card-body" style="padding:0;">
+    {% for m in items %}
+    <div class="pkj-row {% if not m.is_active %}pkj-off{% endif %}">
+      {{ move_buttons(slug, m, loop.first, loop.last) }}
+      <div class="pkj-main">
+        <input type="text" name="name_{{ m.id }}" class="form-control" maxlength="128" value="{{ m.name }}" required>
+        <select name="group_{{ m.id }}" class="form-control"><option value="">Bez grupy</option>
+          {% for g in groups %}<option value="{{ g.id }}" {% if m.group_id == g.id %}selected{% endif %}>{{ g.name }}</option>{% endfor %}</select>
+        <label><input type="checkbox" name="kj_{{ m.id }}" value="1" {% if m.kj_flag %}checked{% endif %}> Podlega KJ</label>
+        <label><input type="checkbox" name="active_{{ m.id }}" value="1" {% if m.is_active %}checked{% endif %}> Aktywny</label>
+      </div>
+      {{ delete_button(slug, m) }}
+    </div>
+    {% else %}<div class="pkj-row pkj-hint">Brak materiałów.</div>{% endfor %}
+  </div></div>
+  <div class="card"><div class="card-body" style="padding:0;">
+    <div class="pkj-row"><b>Grupy materiałów</b>
+      <input type="text" name="new_group" class="form-control" maxlength="128" placeholder="Nowa grupa, np. Obudowa" style="max-width:20rem;"></div>
+    {% for g in groups %}
+    <div class="pkj-row"><div class="pkj-main">
+      <input type="text" name="gname_{{ g.id }}" class="form-control" maxlength="128" value="{{ g.name }}" required></div>
+      <button type="submit" formnovalidate class="btn btn-danger btn-sm" title="Usuń grupę"
+              formaction="{{ url_for('prestiz_kj.config_group_delete', group_id=g.id) }}"
+              onclick="return confirm('Usunąć grupę?');"><i class="bi bi-trash"></i></button></div>
+    {% endfor %}
+  </div></div>
+
+{% elif slug == 'punkty' %}
+  <nav class="pkj-tabs">
+    <a href="{{ url_for('prestiz_kj.config_page', slug='punkty') }}" class="{% if not zakres %}active{% endif %}">Wszystkie</a>
+    <a href="{{ url_for('prestiz_kj.config_page', slug='punkty', zakres='all') }}" class="{% if zakres == 'all' %}active{% endif %}">Wspólne</a>
+    <a href="{{ url_for('prestiz_kj.config_page', slug='punkty', zakres='operation') }}" class="{% if zakres == 'operation' %}active{% endif %}">Operacje</a>
+    <a href="{{ url_for('prestiz_kj.config_page', slug='punkty', zakres='material') }}" class="{% if zakres == 'material' %}active{% endif %}">Materiały</a>
+    <a href="{{ url_for('prestiz_kj.config_page', slug='punkty', zakres='group') }}" class="{% if zakres == 'group' %}active{% endif %}">Grupy</a>
+  </nav>
+  {% macro target_select(name, current) %}
+  <select name="{{ name }}" class="form-control">
+    <option value="all" {% if current == 'all' %}selected{% endif %}>Wspólny (wszystkie operacje)</option>
+    <optgroup label="Operacja">{% for o in operations %}<option value="op:{{ o.id }}" {% if current == 'op:' ~ o.id %}selected{% endif %}>{{ o.name }}</option>{% endfor %}</optgroup>
+    <optgroup label="Materiał">{% for m in materials %}<option value="mat:{{ m.id }}" {% if current == 'mat:' ~ m.id %}selected{% endif %}>{{ m.name }}</option>{% endfor %}</optgroup>
+    <optgroup label="Grupa materiałów">{% for g in groups %}<option value="grp:{{ g.id }}" {% if current == 'grp:' ~ g.id %}selected{% endif %}>{{ g.name }}</option>{% endfor %}</optgroup>
+  </select>
+  {% endmacro %}
+  {% macro kind_select(name, current) %}
+  <select name="{{ name }}" class="form-control pkj-narrow"><option value="ok_nok" {% if current == 'ok_nok' %}selected{% endif %}>OK / NOK</option>
+    <option value="value" {% if current == 'value' %}selected{% endif %}>Wartość</option></select>
+  {% endmacro %}
+  <div class="card" style="margin-bottom:1rem;"><div class="card-body">
+    <p class="pkj-hint" style="margin-top:0;">K3: lista punktów przypisana do operacji, materiału lub grupy. Punkt typu „Wartość” ma zakres min i max oraz jednostkę, wynik poza zakresem jest oznaczany na czerwono.</p>
+    <div class="pkj-new">
+      <input type="text" name="new_title" class="form-control" maxlength="256" placeholder="Nowy punkt, np. Spoiny ciągłe, bez pęknięć">
+      {{ kind_select('new_kind', 'ok_nok') }}
+      <input type="text" name="new_min" class="form-control pkj-narrow" placeholder="min" inputmode="decimal" style="flex:0 0 5rem;">
+      <input type="text" name="new_max" class="form-control pkj-narrow" placeholder="max" inputmode="decimal" style="flex:0 0 5rem;">
+      <input type="text" name="new_unit" class="form-control pkj-narrow" placeholder="jedn." maxlength="16" style="flex:0 0 5rem;">
+      {{ target_select('new_target', 'all') }}
+      <label><input type="checkbox" name="new_photo" value="1"> Zdjęcie przy NOK</label>
+      <input type="file" name="new_image" accept="image/*" title="Grafika punktu (opcjonalnie)">
+    </div>
+  </div></div>
+  <div class="card"><div class="card-body" style="padding:0;">
+    {% for p in items %}
+    <div class="pkj-row {% if not p.is_active %}pkj-off{% endif %}">
+      {{ move_buttons(slug, p, loop.first, loop.last) }}
+      <div class="pkj-main">
+        <input type="text" name="title_{{ p.id }}" class="form-control" maxlength="256" value="{{ p.title }}" required style="min-width:14rem;">
+        {{ kind_select('kind_' ~ p.id, p.kind) }}
+        <input type="text" name="min_{{ p.id }}" class="form-control pkj-narrow" value="{{ '%g' % p.min_value if p.min_value is not none else '' }}" placeholder="min" inputmode="decimal" style="flex:0 0 5rem;">
+        <input type="text" name="max_{{ p.id }}" class="form-control pkj-narrow" value="{{ '%g' % p.max_value if p.max_value is not none else '' }}" placeholder="max" inputmode="decimal" style="flex:0 0 5rem;">
+        <input type="text" name="unit_{{ p.id }}" class="form-control pkj-narrow" value="{{ p.unit or '' }}" placeholder="jedn." maxlength="16" style="flex:0 0 5rem;">
+        {{ target_select('target_' ~ p.id, p.target_value) }}
+        <label><input type="checkbox" name="photo_{{ p.id }}" value="1" {% if p.photo_required_on_nok %}checked{% endif %}> Zdjęcie przy NOK</label>
+        <label><input type="checkbox" name="active_{{ p.id }}" value="1" {% if p.is_active %}checked{% endif %}> Aktywny</label>
+        {% if p.image %}
+        <a href="{{ url_for('prestiz_kj.serve_upload', filename=p.image) }}" target="_blank"><img class="pkj-thumb" src="{{ url_for('prestiz_kj.serve_upload', filename=p.image) }}" alt="Grafika punktu"></a>
+        <label><input type="checkbox" name="remove_image_{{ p.id }}" value="1"> Usuń grafikę</label>
+        {% endif %}
+        <input type="file" name="image_{{ p.id }}" accept="image/*" title="{{ 'Zmień grafikę' if p.image else 'Dodaj grafikę' }}">
+      </div>
+      {{ delete_button(slug, p) }}
+    </div>
+    {% else %}<div class="pkj-row pkj-hint">Brak punktów w tym widoku.</div>{% endfor %}
+  </div></div>
+
+{% elif slug == 'przyczyny' %}
+  <div class="card" style="margin-bottom:1rem;"><div class="card-body">
+    <div class="pkj-new"><input type="text" name="new_name" class="form-control" maxlength="128" placeholder="Nowa przyczyna, np. Spoina niepełna"></div>
+  </div></div>
+  <div class="card"><div class="card-body" style="padding:0;">
+    {% for r in items %}
+    <div class="pkj-row {% if not r.is_active %}pkj-off{% endif %}">
+      {{ move_buttons(slug, r, loop.first, loop.last) }}
+      <div class="pkj-main">
+        <input type="text" name="name_{{ r.id }}" class="form-control" maxlength="128" value="{{ r.name }}" required>
+        <label><input type="checkbox" name="active_{{ r.id }}" value="1" {% if r.is_active %}checked{% endif %}> Aktywna</label>
+      </div>
+      {{ delete_button(slug, r) }}
+    </div>
+    {% else %}<div class="pkj-row pkj-hint">Brak przyczyn.</div>{% endfor %}
+  </div></div>
+
+{% elif slug == 'pracownicy' %}
+  <div class="card" style="margin-bottom:1rem;"><div class="card-body">
+    <p class="pkj-hint" style="margin-top:0;">Fikcyjne osoby do meldunków i raportów. Moduł nie czyta prawdziwej listy pracowników.</p>
+    <div class="pkj-new">
+      <input type="text" name="new_name" class="form-control" maxlength="128" placeholder="Imię i nazwisko (fikcyjne)">
+      <input type="text" name="new_dept" class="form-control" maxlength="64" placeholder="Dział, np. Spawanie">
+    </div>
+  </div></div>
+  <div class="card"><div class="card-body" style="padding:0;">
+    {% for e in items %}
+    <div class="pkj-row {% if not e.is_active %}pkj-off{% endif %}">
+      <div class="pkj-main">
+        <input type="text" name="name_{{ e.id }}" class="form-control" maxlength="128" value="{{ e.name }}" required>
+        <input type="text" name="dept_{{ e.id }}" class="form-control" maxlength="64" value="{{ e.department or '' }}" placeholder="Dział">
+        <label><input type="checkbox" name="active_{{ e.id }}" value="1" {% if e.is_active %}checked{% endif %}> Aktywny</label>
+      </div>
+      {{ delete_button(slug, e) }}
+    </div>
+    {% else %}<div class="pkj-row pkj-hint">Brak pracowników demo.</div>{% endfor %}
+  </div></div>
+
+{% else %}
+  <div class="card"><div class="card-body">
+    <p class="pkj-hint" style="margin-top:0;">Warianty z pytań otwartych do Streamsoft. Zmiana wpływa na zachowanie zawrotów i raport kosztów w kolejnych etapach.</p>
+    <div style="display:grid;gap:1rem;max-width:40rem;">
+      <div><label><b>Zatwierdzanie zawrotu</b></label>
+        <select name="approval_mode" class="form-control">
+          {% for val, label in choices.approval_mode.items() %}<option value="{{ val }}" {% if current.approval_mode == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select></div>
+      <div><label><b>Rozliczenie złomu</b></label>
+        <select name="scrap_mode" class="form-control">
+          {% for val, label in choices.scrap_mode.items() %}<option value="{{ val }}" {% if current.scrap_mode == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select></div>
+      <div><label><b>Koszt godziny poprawki (PLN)</b></label>
+        <input type="text" name="repair_hour_cost" class="form-control" value="{{ current.repair_hour_cost }}" inputmode="decimal" style="max-width:10rem;">
+        <span class="pkj-hint">Używany w raporcie kosztu zawrotów.</span></div>
+      <div><label><b>Czas jednej operacji naprawczej (godziny)</b></label>
+        <input type="text" name="repair_op_hours" class="form-control" value="{{ current.repair_op_hours }}" inputmode="decimal" style="max-width:10rem;">
+        <span class="pkj-hint">Mnożnik liczby operacji zlecenia naprawczego w raporcie kosztu zawrotów.</span></div>
+      <div><label><b>Koszt materiału jednego zezłomowanego elementu (PLN)</b></label>
+        <input type="text" name="scrap_material_cost" class="form-control" value="{{ current.scrap_material_cost }}" inputmode="decimal" style="max-width:10rem;">
+        <span class="pkj-hint">Pokazywany w dokumencie rozchodu przy wariancie "z kosztem" i w raporcie kosztu zawrotów.</span></div>
+    </div>
+  </div></div>
+{% endif %}
+
+  <div class="pkj-savebar">
+    <button type="submit" class="btn btn-primary"><i class="bi bi-check2"></i> Zapisz wszystko</button>
+    <span class="pkj-dirty" id="pkj-dirty" hidden>Są niezapisane zmiany</span>
+  </div>
+</form>
+
+<script>
+(function () {
+  var form = document.getElementById('pkj-form'), note = document.getElementById('pkj-dirty'), dirty = false, sending = false;
+  form.addEventListener('input', function () { dirty = true; note.hidden = false; });
+  form.addEventListener('change', function () { dirty = true; note.hidden = false; });
+  form.addEventListener('submit', function () { sending = true; });
+  window.addEventListener('beforeunload', function (e) { if (dirty && !sending) { e.preventDefault(); e.returnValue = ''; } });
+})();
+</script>
+{% endblock %}

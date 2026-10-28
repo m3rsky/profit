@@ -12,6 +12,8 @@ class Config:
     UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads')
     QAR_UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'qar_uploads')
     DOKUMENTACJA_UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'dokumentacja_uploads')
+    # Moduł KJ Prestiż (pogląd): grafiki punktów i zdjęcia, serwowane przez blueprint
+    PKJ_UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'pkj_uploads')
     # Pliki listy produkcyjnej (import/kopie) poza static, żeby nie były serwowane publicznie
     PRODUKCJA_FOLDER = os.path.join(BASE_DIR, 'instance', 'produkcja')
     MAX_CONTENT_LENGTH = 32 * 1024 * 1024

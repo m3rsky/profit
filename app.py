@@ -62,6 +62,9 @@ app.register_blueprint(produkcja_bp)
 from kontrola import kontrola_bp  # noqa: E402
 app.register_blueprint(kontrola_bp)
 
+from prestiz_kj import prestiz_kj_bp  # noqa: E402
+app.register_blueprint(prestiz_kj_bp)
+
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 _log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
@@ -248,7 +251,7 @@ app.jinja_env.globals['today'] = None  # filled per-request below
 
 # Pozycje menu, które użytkownik może przestawiać (klucz → domyślna pozycja z listy).
 NAV_DEFAULT = ['dashboard', 'kontrola_etapowa', 'kontrola_koncowa', 'nowa_kontrola', 'zlecenia_qa', 'qar',
-               'lista_produkcyjna', 'stanowisko', 'ustawienia', 'szablony', 'dokumentacja']
+               'lista_produkcyjna', 'stanowisko', 'ustawienia', 'szablony', 'dokumentacja', 'kj_prestiz']
 
 
 # Moduł -> endpoint startowy (do przekierowania z Dashboardu, gdy rola go nie ma)
@@ -256,6 +259,7 @@ MODULE_HOME = {
     'dashboard': 'dashboard', 'kontrola_etapowa': 'kontrola.list_records', 'kontrola_koncowa': 'reports_list',
     'qar': 'qar.list_reports', 'lista_produkcyjna': 'produkcja.index', 'stanowisko': 'produkcja.scan_page',
     'ustawienia': 'ustawienia.index', 'szablony': 'admin_templates', 'dokumentacja': 'dokumentacja.list_entries',
+    'kj_prestiz': 'prestiz_kj.index',
 }
 
 # Endpointy z app.py przypisane do modułów w macierzy uprawnień (blueprinty mapuje _module_for_endpoint)
@@ -271,7 +275,7 @@ _STATYSTYKI_ENDPOINTS = {
     'admin_briefing_pdf', 'api_ng_task_reports', 'api_template_duration_reports',
 }
 _BLUEPRINT_MODULES = {'kontrola': 'kontrola_etapowa', 'qar': 'qar', 'dokumentacja': 'dokumentacja',
-                      'ustawienia': 'ustawienia'}
+                      'ustawienia': 'ustawienia', 'prestiz_kj': 'kj_prestiz'}
 _STANOWISKO_ENDPOINTS = {'scan_employee', 'scan_entry', 'scan_logout', 'scan_order', 'scan_page'}
 
 
@@ -2872,6 +2876,7 @@ def init_db():
     os.makedirs(app.config['QAR_UPLOAD_FOLDER'], exist_ok=True)
     os.makedirs(app.config['DOKUMENTACJA_UPLOAD_FOLDER'], exist_ok=True)
     os.makedirs(app.config['PRODUKCJA_FOLDER'], exist_ok=True)
+    os.makedirs(app.config['PKJ_UPLOAD_FOLDER'], exist_ok=True)
     with app.app_context():
         _migrate_schema()
         db.create_all()

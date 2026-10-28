@@ -1,0 +1,20 @@
+{# Znaczniki statusów modułu KJ Prestiż na klasach .rs* (STANDARD_LIST.md), jeden znacznik na wartość. #}
+{% set _ORDER = {'nowe': ('rs-info', 'bi-circle', 'Nowe'), 'w_produkcji': ('rs-warn', 'bi-hourglass-split', 'W produkcji'),
+                 'do_kontroli': ('rs-info', 'bi-circle', 'Do kontroli'), 'zakonczone': ('rs-ok', 'bi-check2-circle', 'Zakończone'),
+                 'zamkniete': ('rs-ok', 'bi-check2-circle', 'Zamknięte')} %}
+{% set _OP = {'oczekuje': ('rs-muted', 'bi-hourglass-split', 'Oczekuje'), 'do_kontroli': ('rs-info', 'bi-circle', 'Do kontroli'),
+              'zakonczona': ('rs-ok', 'bi-check2-circle', 'Zakończona')} %}
+{% set _RW = {'brak': ('rs-muted', 'bi-hourglass-split', 'Brak'), 'wstrzymane': ('rs-warn', 'bi-hourglass-split', 'RW wstrzymane'),
+              'wydane': ('rs-ok', 'bi-check2-circle', 'RW wydane'), 'anulowane': ('rs-ng', 'bi-x-circle', 'RW anulowane')} %}
+{% set _EL = {'oczekuje': ('rs-muted', 'bi-hourglass-split', 'Oczekuje'), 'w_kontroli': ('rs-warn', 'bi-hourglass-split', 'W kontroli'),
+              'zawrocony': ('rs-ng', 'bi-x-circle', 'Zawrócony'), 'w_naprawie': ('rs-warn', 'bi-tools', 'W naprawie'),
+              'do_ponownej_kontroli': ('rs-info', 'bi-arrow-repeat', 'Do ponownej kontroli'),
+              'zgodny': ('rs-ok', 'bi-check2-circle', 'Zgodny'), 'zlom': ('rs-ng', 'bi-x-circle', 'Złom')} %}
+{% set _RET = {'do_zatwierdzenia': ('rs-warn', 'bi-hourglass-split', 'Do zatwierdzenia'), 'w_naprawie': ('rs-warn', 'bi-tools', 'W naprawie'),
+              'do_ponownej_kontroli': ('rs-info', 'bi-arrow-repeat', 'Do ponownej kontroli'), 'zamkniety': ('rs-ok', 'bi-check2-circle', 'Zamknięty')} %}
+{% macro _mark(table, key) %}{% set t = table.get(key, ('rs-muted', 'bi-circle', key)) %}<span class="rs {{ t[0] }}"><i class="bi {{ t[1] }}"></i> {{ t[2] }}</span>{% endmacro %}
+{% macro order_status(key) %}{{ _mark(_ORDER, key) }}{% endmacro %}
+{% macro op_status(key) %}{{ _mark(_OP, key) }}{% endmacro %}
+{% macro rw_status(key) %}{{ _mark(_RW, key) }}{% endmacro %}
+{% macro element_status(key) %}{{ _mark(_EL, key) }}{% endmacro %}
+{% macro return_status(key) %}{{ _mark(_RET, key) }}{% endmacro %}

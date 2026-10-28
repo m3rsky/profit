@@ -72,7 +72,7 @@ Każda lista używa tego samego wzoru, makra `list_search` z `templates/_list_se
 - Przycisk "Filtruj" w panelu nie jest potrzebny, bo "Szukaj" wysyła cały formularz.
 
 Użycie: `{% from "_list_search.html" import list_search %}`, a w formularzu `{% call list_search('q', q, 'Szukaj…', qr=True, active=N, uid='moja-lista') %}...pola filtrów...{% endcall %}` (bez `call`, gdy nie ma filtrów).
-Listy ze wzorem: Kontrola etapowa, Kontrola Końcowa, Raporty QAR, Dokumentacja, Lista produkcyjna (arkusz i historia).
+Listy ze wzorem: Kontrola etapowa, Kontrola Końcowa, Raporty QAR, Dokumentacja, Lista produkcyjna (arkusz i historia), KJ Prestiż (zlecenia i zawroty).
 
 ## 9. Tryb ciemny
 
@@ -98,3 +98,6 @@ Warianty kolorów są w `main.css` (`body.dark .rs-*`). Nie dodajemy osobnych st
 | 23.10.2026 | Kontrola etapowa (`/kontrola`) | Szukanie skanem QR: przycisk przy polu szukania otwiera kamerę, odczytany numer ZO filtruje listę. | `templates/kontrola/list.html` |
 | 23.10.2026 | Kontrola etapowa (`/kontrola`) | Telefon: pole szukania na całą szerokość, przyciski Szukaj, Skanuj QR i Filtry w rzędzie pod polem. | `templates/kontrola/list.html` |
 | 23.10.2026 | Wszystkie listy z wyszukiwaniem | Wspólny wzór wyszukiwania (makro `list_search`): pole, Skanuj QR, Szukaj; na telefonie pole na całą szerokość, pod nim Filtry, Skanuj QR, Szukaj, filtry wysuwane. Usunięty przycisk Filtruj. | `templates/_list_search.html`, `static/js/list-search.js`, `static/css/erp-design.css`, szablony list |
+| 28.10.2026 | KJ Prestiż, zlecenia (`/kj-prestiz/zlecenia`) | Nowa lista wg standardu: statusy zlecenia, trasy, RW, elementu i zawrotu na znacznikach `.rs*` (jeden znacznik, bez plakietek `.badge`), wspólne wyszukiwanie `list_search` ze skanem QR i filtrami (status, rodzaj ZP/ZN, okres), pasek zaznaczania z usuwaniem jako obrys, tabela `tbl-cards` z akordeonem na telefonie, paginacja. Statusy w jednym makrze `_status.html`. | `templates/prestiz_kj/zlecenia.html`, `templates/prestiz_kj/_status.html`, `static/css/pkj.css` |
+| 28.10.2026 | KJ Prestiż, zawroty (`/kj-prestiz/zawroty`) | Nowa lista wg standardu: status zawrotu na `.rs*` (do zatwierdzenia, w naprawie, do ponownej kontroli, zamknięty), `list_search` z filtrem statusu, `tbl-cards`, paginacja. | `templates/prestiz_kj/zawroty.html`, `templates/prestiz_kj/_status.html` |
+| 28.10.2026 | KJ Prestiż, aplikacja KJ i raporty | Wyniki punktów i werdykty materiałów w aplikacji mobilnej oraz w karcie kontroli na tych samych znacznikach `.rs*` (OK, NOK, ND, zgodna, niezgodna, przerwana). Raporty to tabele danych z kolumnami liczbowymi wyrównanymi do prawej, nie listy z akcjami. | `templates/prestiz_kj/m/`, `templates/prestiz_kj/karta.html`, `templates/prestiz_kj/raport.html`, `static/css/pkj.css` |

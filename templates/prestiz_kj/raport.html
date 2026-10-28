@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}{{ report.title }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pkj.css') }}">
+{% if report.chart %}<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" defer></script>{% endif %}
+{% endblock %}
+
+{% block content %}
+{% set f = report.filters %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi {{ icon }}"></i> {{ report.title }}</h1>
+    <span class="text-muted" style="font-size:0.82rem;">{{ report.subtitle }}</span>
+  </div>
+  <div class="page-header-actions">
+    <a href="{{ url_for('prestiz_kj.report_xlsx', slug=slug, **query) }}" class="btn btn-primary"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+    <a href="{{ url_for('prestiz_kj.reports_index') }}" class="btn btn-outline"><i class="bi bi-arrow-left"></i> Raporty</a>
+  </div>
+</div>
+{% include "prestiz_kj/_demo_bar.html" %}
+
+<form method="get" action="{{ url_for('prestiz_kj.report_page', slug=slug) }}" class="filter-bar filter-bar--rows" style="margin-bottom:1rem;">
+  <div class="filter-row">
+    {% if report.axes %}
+    <select class="form-control filter-select" name="{{ report.axis_param }}" title="Oś raportu" aria-label="Oś raportu">
+      {% for key, label in report.axes.items() %}<option value="{{ key }}" {% if report.axis == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    {% endif %}
+    <select class="form-control filter-select" name="klient" aria-label="Klient"><option value="">Wszyscy klienci</option>
+      {% for c in options.clients %}<option value="{{ c }}" {% if f.klient == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
+    <select class="form-control filter-select" name="produkt" aria-label="Produkt"><option value="">Wszystkie produkty</option>
+      {% for p in options.products %}<option value="{{ p }}" {% if f.produkt == p %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>
+    <select class="form-control filter-select" name="dzial" aria-label="Dział wykonawcy"><option value="">Wszystkie działy</option>
+      {% for d in options.depts %}<option value="{{ d }}" {% if f.dzial == d %}selected{% endif %}>{{ d }}</option>{% endfor %}</select>
+  </div>
+  <div class="filter-row">
+    <div class="filter-date-group"><label class="filter-label" for="r_od">Od:</label>
+      <input class="form-control filter-date" type="date" id="r_od" name="od" value="{{ f.od.isoformat() if f.od else '' }}"></div>
+    <div class="filter-date-group"><label class="filter-label" for="r_do">Do:</label>
+      <input class="form-control filter-date" type="date" id="r_do" name="do" value="{{ f.do.isoformat() if f.do else '' }}"></div>
+    <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel"></i> Pokaż</button>
+    <a href="{{ url_for('prestiz_kj.report_page', slug=slug) }}" class="btn btn-ghost btn-sm"><i class="bi bi-x-lg"></i> Wyczyść</a>
+  </div>
+</form>
+
+<div class="pkj-hint" style="margin-bottom:.6rem;">Filtry: {{ report.filters_text }}</div>
+
+<div class="pkj-tiles">
+  {% for label, value in report.kpis %}<div class="pkj-tile"><b>{{ value }}</b><span>{{ label }}</span></div>{% endfor %}
+</div>
+
+{% if report.chart %}
+<div class="card" style="margin-bottom:1rem;"><div class="card-body">
+  <div class="pkj-chart"><canvas id="pkj-chart" role="img" aria-label="Wykres: {{ report.title }}. Dane w tabeli poniżej."></canvas></div>
+  <script type="application/json" id="pkj-chart-data">{{ report.chart | tojson }}</script>
+</div></div>
+{% endif %}
+
+{% for t in report.tables %}
+<div class="card" style="margin-bottom:1rem;"><div class="card-body card-body--flush">
+  <h2 style="font-size:1.05rem;margin:1rem 1rem .5rem;">{{ t.title }}</h2>
+  {% if t.rows %}
+  <div class="table-wrap">
+    <table class="data-table tbl-cards pkj-report-table">
+      <thead><tr>{% for label, kind in t.columns %}<th{% if kind in ('int', 'pct', 'money', 'float1') %} class="pkj-num"{% endif %}>{{ label }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for row in t.rows %}
+        <tr>{% for (label, kind), v in zip_cols(t.columns, row) %}<td data-label="{{ label }}"{% if kind in ('int', 'pct', 'money', 'float1') %} class="pkj-num"{% endif %}>{{ fmt(v, kind) }}</td>{% endfor %}</tr>
+        {% endfor %}
+        {% if t.total %}
+        <tr class="pkj-total">{% for (label, kind), v in zip_cols(t.columns, t.total) %}<td data-label="{{ label }}"{% if kind in ('int', 'pct', 'money', 'float1') %} class="pkj-num"{% endif %}><strong>{{ fmt(v, kind) }}</strong></td>{% endfor %}</tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<div class="empty-state">Brak danych dla wybranych filtrów.</div>{% endif %}
+</div></div>
+{% endfor %}
+
+{% if report.note %}<p class="pkj-hint">{{ report.note }}</p>{% endif %}
+{% endblock %}
+
+{% block scripts %}{% if report.chart %}<script src="{{ url_for('static', filename='js/pkj-reports.js') }}"></script>{% endif %}{% endblock %}

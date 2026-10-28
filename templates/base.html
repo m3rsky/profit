@@ -156,6 +156,13 @@
         <span>Dokumentacja</span>
       </a>
 {% endif %}
+{% if can('kj_prestiz') %}
+      <a href="{{ url_for('prestiz_kj.index') }}" data-nav-key="kj_prestiz" style="order:{{ menu_pos('kj_prestiz') }}"
+         class="{% if request.endpoint and request.endpoint.startswith('prestiz_kj.') %}active{% endif %}">
+        <span class="nav-icon"><i class="bi bi-clipboard2-check"></i></span>
+        <span>KJ Prestiż (pogląd)</span>
+      </a>
+{% endif %}
       </div>
       <div class="nav-edit-bar" id="nav-edit-bar" hidden>
         <button type="button" class="btn btn-primary btn-sm" data-nav-save><i class="bi bi-check2"></i> Zapisz</button>

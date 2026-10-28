@@ -38,6 +38,7 @@ MODULES = {
     'ustawienia': 'Ustawienia produkcji',
     'szablony': 'Szablony',
     'dokumentacja': 'Dokumentacja',
+    'kj_prestiz': 'KJ Prestiż (pogląd)',
     'statystyki': 'Statystyki',
     'dziennik': 'Dziennik zdarzeń',
 }

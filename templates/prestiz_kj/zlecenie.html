@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% from "prestiz_kj/_status.html" import order_status, op_status, rw_status, element_status, return_status %}
+{% block title %}{{ order.number }} KJ Prestiż{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pkj.css') }}">
+{% endblock %}
+
+{% block content %}
+{% set opname = {} %}{% for o in ops %}{% set _ = opname.update({o.id: o.operation_name}) %}{% endfor %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-clipboard2-check"></i> {{ order.number }}</h1>
+    <span class="text-muted" style="font-size:0.82rem;">{{ order.product }}{% if order.client %} · {{ order.client }}{% endif %} · {{ order.quantity }} szt. ·
+      {% if order.type == 'ZN' %}zlecenie naprawcze{% if parent %} do <a href="{{ url_for('prestiz_kj.order_page', order_id=parent.id) }}">{{ parent.number }}</a>{% endif %}{% else %}zlecenie produkcyjne{% endif %}</span>
+    <div style="margin-top:.4rem;">{{ order_status(order.status) }}</div>
+    {% if source %}<div class="pkj-hint" style="margin-top:.4rem;">Zawrót: {{ source.reason_name }}, decyzja: {{ decisions[source.decision]|lower }}, <a href="{{ url_for('prestiz_kj.return_page', return_id=source.id) }}">szczegóły</a></div>{% endif %}
+  </div>
+  <div class="page-header-actions">
+    {% if inspections %}<a href="{{ url_for('prestiz_kj.report_card_pdf', order_id=order.id) }}" class="btn btn-outline btn-sm" target="_blank"><i class="bi bi-file-earmark-pdf"></i> Karta kontroli (PDF)</a>{% endif %}
+    <a href="{{ url_for('prestiz_kj.order_label', order_id=order.id) }}" class="btn btn-outline btn-sm" target="_blank"><i class="bi bi-qr-code"></i> Etykieta QR</a>
+    {% if current_user.is_kontroler %}<a href="{{ url_for('prestiz_kj.m_order', order_id=order.id) }}" class="btn btn-primary btn-sm"><i class="bi bi-phone"></i> Kontrola w aplikacji KJ</a>{% endif %}
+    {% if current_user.is_admin %}
+    <button type="button" class="btn btn-danger btn-sm" data-post-url="{{ url_for('prestiz_kj.order_delete', order_id=order.id) }}"
+            data-post-confirm="Usunąć zlecenie {{ order.number }} razem z kontrolami i zawrotami?"><i class="bi bi-trash"></i> Usuń</button>
+    {% endif %}
+    <a href="{{ url_for('prestiz_kj.orders_list') }}" class="btn btn-outline"><i class="bi bi-arrow-left"></i> Zlecenia</a>
+  </div>
+</div>
+
+{% include "prestiz_kj/_demo_bar.html" %}
+
+<div class="card" style="margin-bottom:1rem;"><div class="card-body card-body--flush">
+  <h2 style="font-size:1.05rem;margin:1rem 1rem .5rem;">Trasa operacji</h2>
+  <div class="table-wrap">
+    <table class="data-table tbl-cards">
+      <thead><tr><th>#</th><th>Operacja</th><th>KJ</th><th>Status</th><th>Zameldowano</th><th>Wykonawca</th><th>Meldunek</th></tr></thead>
+      <tbody>
+        {% for o in ops %}
+        <tr>
+          <td data-label="#">{{ o.position }}</td>
+          <td data-label="Operacja"><strong>{{ o.operation_name }}</strong>{% if o.added_manually %} <span class="pkj-hint">(dodana ręcznie)</span>{% endif %}</td>
+          <td data-label="KJ">{% if o.kj_required %}<span class="rs rs-info"><i class="bi bi-clipboard2-check"></i> KJ</span>{% else %}<span class="text-muted">-</span>{% endif %}</td>
+          <td data-label="Status">{{ op_status(o.status) }}</td>
+          <td data-label="Zameldowano">{{ o.reported_at | localdt('%d.%m.%Y %H:%M') if o.reported_at else '-' }}</td>
+          <td data-label="Wykonawca">{{ o.employee_name or '-' }}</td>
+          <td data-label="Meldunek">
+            {% if o.status == 'oczekuje' and not blocked[o.id] and current_user.is_kontroler %}
+            <form method="post" action="{{ url_for('prestiz_kj.order_report', order_id=order.id) }}" class="pkj-new" style="flex-wrap:nowrap;">
+              {{ csrf_input() }}
+              <input type="hidden" name="oop_id" value="{{ o.id }}">
+              <select name="employee_id" class="form-control" required aria-label="Pracownik" style="min-width:11rem;">
+                <option value="">Pracownik…</option>
+                {% for e in employees %}<option value="{{ e.id }}" {% if e.department == o.operation_name %}selected{% endif %}>{{ e.name }}{% if e.department %} ({{ e.department }}){% endif %}</option>{% endfor %}
+              </select>
+              <button type="submit" class="btn btn-primary btn-sm">Melduj operację</button>
+            </form>
+            {% elif o.status == 'oczekuje' %}<span class="pkj-hint">{{ blocked[o.id] }}</span>
+            {% else %}<span class="text-muted">-</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div></div>
+
+<div class="card" style="margin-bottom:1rem;"><div class="card-body card-body--flush">
+  <h2 style="font-size:1.05rem;margin:1rem 1rem .5rem;">Materiały podlegające KJ</h2>
+  {% if materials %}
+  <div class="table-wrap">
+    <table class="data-table tbl-cards">
+      <thead><tr><th>Operacja</th><th>Materiał</th><th>Szt.</th><th>RW</th><th>Element</th></tr></thead>
+      <tbody>
+        {% for m in materials %}
+        <tr>
+          <td data-label="Operacja">{{ opname.get(m.order_operation_id, '-') }}</td>
+          <td data-label="Materiał"><strong>{{ m.material_name }}</strong></td>
+          <td data-label="Szt.">{{ m.quantity }}</td>
+          <td data-label="RW">{{ rw_status(m.rw_status) }}</td>
+          <td data-label="Element">{{ element_status(m.element_status) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<div class="empty-state">{% if order.type == 'ZN' %}Operacje naprawcze nie mają własnej kontroli KJ. Po ich zakończeniu element wraca do kontroli sprawdzającej na zleceniu {{ parent.number if parent else '' }}.{% else %}Trasa nie ma operacji z KJ, więc nie ma materiałów do kontroli.{% endif %}</div>{% endif %}
+</div></div>
+
+{% if inspections %}
+<div class="card" style="margin-bottom:1rem;"><div class="card-body card-body--flush">
+  <h2 style="font-size:1.05rem;margin:1rem 1rem .5rem;">Kontrole KJ</h2>
+  <div class="table-wrap">
+    <table class="data-table tbl-cards">
+      <thead><tr><th>Operacja</th><th>Materiały</th><th>Kontroler</th><th>Wykonawca</th><th>Data</th><th>Wynik</th><th></th></tr></thead>
+      <tbody>
+        {% for i in inspections %}
+        <tr>
+          <td data-label="Operacja">{{ opname.get(i.order_operation_id, '-') }}{% if i.round > 1 %} <span class="pkj-hint">(sprawdzająca)</span>{% endif %}</td>
+          <td data-label="Materiały">{{ imats.get(i.id, []) | join(', ') }}</td>
+          <td data-label="Kontroler">{{ i.inspector_name or '-' }}</td>
+          <td data-label="Wykonawca">{{ i.performer_name or '-' }}</td>
+          <td data-label="Data">{{ (i.finished_at or i.started_at) | localdt('%d.%m.%Y %H:%M') }}</td>
+          <td data-label="Wynik">
+            {% if i.status == 'w_toku' %}<span class="rs rs-warn"><i class="bi bi-hourglass-split"></i> W toku</span>
+            {% elif i.status == 'przerwana' %}<span class="rs rs-ng"><i class="bi bi-x-circle"></i> Przerwana</span>
+            {% elif i.result == 'OK' %}<span class="rs rs-ok"><i class="bi bi-check2-circle"></i> Zgodna</span>
+            {% else %}<span class="rs rs-ng"><i class="bi bi-x-circle"></i> Niezgodna</span>{% endif %}
+          </td>
+          <td class="td-actions"><a class="btn btn-outline btn-sm" href="{{ url_for('prestiz_kj.m_inspection', insp_id=i.id) }}">Szczegóły</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div></div>
+{% endif %}
+
+{% if returns %}
+<div class="card" style="margin-bottom:1rem;"><div class="card-body card-body--flush">
+  <h2 style="font-size:1.05rem;margin:1rem 1rem .5rem;">Zawroty</h2>
+  <div class="table-wrap">
+    <table class="data-table tbl-cards">
+      <thead><tr><th>Materiał</th><th>Przyczyna</th><th>Decyzja</th><th>Zlecenie naprawcze</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        {% for r in returns %}
+        <tr>
+          <td data-label="Materiał">{{ mat_names.get(r.order_material_id, '-') }}</td>
+          <td data-label="Przyczyna">{{ r.reason_name }}</td>
+          <td data-label="Decyzja">{{ decisions[r.decision] }}</td>
+          <td data-label="ZN">{% if zns.get(r.id) %}<a href="{{ url_for('prestiz_kj.order_page', order_id=zns[r.id].id) }}">{{ zns[r.id].number }}</a>{% else %}<span class="text-muted">-</span>{% endif %}</td>
+          <td data-label="Status">{{ return_status(r.status) }}</td>
+          <td class="td-actions"><a class="btn btn-outline btn-sm" href="{{ url_for('prestiz_kj.return_page', return_id=r.id) }}">Szczegóły</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div></div>
+{% endif %}
+
+<div class="card"><div class="card-body">
+  <h2 style="font-size:1.05rem;margin-top:0;">Oś czasu</h2>
+  {% for e in events %}
+  <div class="pkj-row" style="padding:.5rem 0;">
+    <span class="pkj-hint" style="min-width:8.5rem;">{{ e.ts | localdt('%d.%m.%Y %H:%M') }}</span>
+    <span>{{ e.text }}</span>
+    {% if e.actor %}<span class="pkj-hint">({{ e.actor }})</span>{% endif %}
+  </div>
+  {% else %}<div class="pkj-hint">Brak zdarzeń.</div>{% endfor %}
+</div></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('click', function (e) {
+  var btn = e.target.closest('[data-post-url]');
+  if (!btn) return;
+  if (btn.dataset.postConfirm && !confirm(btn.dataset.postConfirm)) return;
+  var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+  var f = document.createElement('form');
+  f.method = 'POST'; f.action = btn.dataset.postUrl;
+  f.innerHTML = '<input type="hidden" name="_csrf_token" value="' + csrf + '">';
+  document.body.appendChild(f); f.submit();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,140 @@
+/* Moduł KJ Prestiż (pogląd): style z prefiksem .pkj-, statusy zostają na .rs* z main.css */
+.pkj-demo-bar { display:flex; gap:.5rem; align-items:center; padding:.5rem .9rem; margin-bottom:1rem;
+  border:1px dashed var(--border,#cbd5e1); border-radius:var(--radius-md,10px); font-size:.85rem;
+  color:var(--text-muted,#64748b); }
+.pkj-tabs { display:flex; gap:.35rem; flex-wrap:wrap; margin-bottom:1rem; }
+.pkj-tabs a { padding:.45rem .8rem; border-radius:var(--radius-md,10px); border:1px solid var(--border,#e2e8f0);
+  text-decoration:none; color:inherit; font-size:.9rem; }
+.pkj-tabs a.active { background:var(--primary,#1a3a5c); color:#fff; border-color:transparent; }
+.pkj-row { display:flex; gap:.6rem; align-items:center; padding:.75rem 1rem; flex-wrap:wrap; }
+.pkj-row + .pkj-row { border-top:1px solid var(--border,#e2e8f0); }
+.pkj-row.pkj-off { opacity:.6; }
+.pkj-move { display:flex; flex-direction:column; gap:2px; }
+.pkj-main { flex:1; min-width:240px; display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
+.pkj-main .form-control { flex:1; min-width:9rem; }
+.pkj-main .pkj-narrow { flex:0 0 6.5rem; min-width:5rem; }
+.pkj-main select.form-control { flex:0 1 14rem; }
+.pkj-hint { color:var(--text-muted,#64748b); font-size:.82rem; }
+.pkj-new { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
+.pkj-new .form-control { flex:1; min-width:10rem; }
+.pkj-savebar { position:sticky; bottom:0; z-index:5; display:flex; gap:.6rem; align-items:center; flex-wrap:wrap;
+  padding:.7rem 1rem; margin-top:1rem; background:var(--card-bg,var(--surface,#fff));
+  border:1px solid var(--border,#e2e8f0); border-radius:var(--radius-md,10px);
+  box-shadow:0 -2px 10px rgba(0,0,0,.08); }
+.pkj-savebar .btn { min-height:46px; }
+.pkj-dirty { color:#b45309; font-size:.88rem; font-weight:600; }
+.pkj-tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:.75rem; margin-bottom:1rem; }
+.pkj-tile { padding:.9rem 1rem; border:1px solid var(--border,#e2e8f0); border-radius:var(--radius-md,10px); }
+.pkj-tile b { display:block; font-size:1.6rem; line-height:1.2; }
+.pkj-tile span { color:var(--text-muted,#64748b); font-size:.82rem; }
+.pkj-thumb { height:36px; border-radius:4px; border:1px solid var(--border,#e2e8f0); }
+
+/* ── Aplikacja KJ (widok mobilny, strony /m/*) ── */
+.pkj-m { margin:0; background:var(--bg,#f4f6fa); min-height:100vh; }
+.pkj-m .ls-qr { display:none; }
+.m-top { position:sticky; top:0; z-index:20; display:flex; align-items:center; gap:.5rem; padding:.55rem .75rem;
+  background:var(--card-bg,var(--surface,#fff)); border-bottom:1px solid var(--border,#e2e8f0); }
+.m-title { flex:1; font-weight:700; font-size:1.05rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.m-back { display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; font-size:1.3rem;
+  color:inherit; text-decoration:none; border-radius:10px; }
+.m-main { padding:.75rem .75rem 7.5rem; max-width:640px; margin:0 auto; }
+.m-h2 { font-size:1rem; margin:1.1rem .15rem .45rem; }
+.m-card { display:block; padding:.8rem .9rem; margin-bottom:.6rem; color:inherit; text-decoration:none;
+  background:var(--card-bg,var(--surface,#fff)); border:1px solid var(--border,#e2e8f0); border-radius:12px; }
+.m-card--link:active { background:rgba(0,0,0,.04); }
+.m-card-row { display:flex; justify-content:space-between; align-items:center; gap:.5rem; margin-bottom:.15rem; }
+.m-empty { padding:1.2rem .5rem; text-align:center; color:var(--text-muted,#64748b); }
+.m-big { display:flex; align-items:center; justify-content:center; gap:.5rem; width:100%; min-height:56px; margin:.6rem 0;
+  padding:.6rem 1rem; font-size:1.05rem; font-weight:600; border-radius:12px; border:1px solid var(--border,#cbd5e1);
+  background:var(--card-bg,#fff); color:inherit; text-decoration:none; cursor:pointer; }
+.m-big--primary { background:var(--primary,#1a3a5c); border-color:transparent; color:#fff; }
+.m-big--danger { color:#b91c1c; border-color:#fca5a5; background:transparent; }
+.m-big--ghost { background:transparent; }
+.m-scan .ls-row { margin-top:.4rem; }
+.m-label { display:block; margin:.7rem 0 .2rem; font-size:.82rem; color:var(--text-muted,#64748b); }
+.m-select { min-height:48px; font-size:1rem; width:100%; }
+.m-check { display:flex; align-items:center; gap:.8rem; min-height:52px; font-size:1.05rem; border-top:1px solid var(--border,#e2e8f0); }
+.m-check:first-of-type { border-top:0; }
+.m-check input { width:26px; height:26px; flex:0 0 auto; }
+.m-progress { position:sticky; top:57px; z-index:10; display:flex; align-items:center; gap:.7rem; padding:.45rem .8rem;
+  margin:0 -.75rem .5rem; background:var(--card-bg,#fff); border-bottom:1px solid var(--border,#e2e8f0); font-size:.9rem; }
+.m-progress .rs-bar { flex:1; margin:0; }
+.m-pt { padding:.85rem .9rem; margin-bottom:.6rem; background:var(--card-bg,#fff); border:1px solid var(--border,#e2e8f0);
+  border-radius:12px; }
+.m-pt--range { border-color:#dc2626; }
+.m-pt-title { font-weight:600; margin-bottom:.5rem; }
+.m-pt-img { max-width:100%; max-height:160px; border-radius:8px; margin-bottom:.5rem; border:1px solid var(--border,#e2e8f0); }
+.m-val { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; margin-bottom:.5rem; }
+.m-val-input { width:7.5rem; min-height:52px; font-size:1.25rem; text-align:right; }
+.m-range-warn { color:#b91c1c; font-weight:600; margin-bottom:.5rem; }
+.m-btns { display:grid; grid-template-columns:1fr 1fr 1fr; gap:.5rem; }
+.m-b { min-height:60px; font-size:1.15rem; font-weight:700; border-radius:12px; border:2px solid var(--border,#cbd5e1);
+  background:transparent; color:inherit; cursor:pointer; }
+.m-b-ok.on { background:#16a34a; border-color:#16a34a; color:#fff; }
+.m-b-ng.on { background:#dc2626; border-color:#dc2626; color:#fff; }
+.m-b-nd.on { background:#64748b; border-color:#64748b; color:#fff; }
+.m-more { margin-top:.6rem; }
+.m-more summary { cursor:pointer; padding:.4rem 0; font-size:.92rem; }
+.m-notes { width:100%; font-size:1rem; margin:.4rem 0; }
+.m-photos { display:flex; flex-wrap:wrap; gap:.5rem; margin:.4rem 0; }
+.m-ph { position:relative; display:inline-block; }
+.m-ph img { width:84px; height:84px; object-fit:cover; border-radius:8px; border:1px solid var(--border,#e2e8f0); }
+.m-ph-del { position:absolute; top:-8px; right:-8px; width:28px; height:28px; border-radius:50%; border:0;
+  background:#dc2626; color:#fff; font-size:1.1rem; line-height:1; cursor:pointer; }
+.m-photo-btn { margin:.4rem 0 0; }
+.m-bar { position:fixed; left:0; right:0; bottom:0; z-index:30; display:grid; grid-template-columns:1fr 1.4fr; gap:.6rem;
+  padding:.6rem .75rem calc(.6rem + env(safe-area-inset-bottom)); background:var(--card-bg,#fff);
+  border-top:1px solid var(--border,#e2e8f0); }
+.m-bar form { margin:0; }
+.m-bar .m-big { margin:0; }
+.m-banner { padding:.9rem 1rem; margin-bottom:.7rem; border-radius:12px; border:1px solid; }
+.m-banner--ok { background:#f0fdf4; border-color:#86efac; color:#166534; }
+.m-banner--ng { background:#fef2f2; border-color:#fca5a5; color:#991b1b; }
+.m-toast { position:fixed; left:50%; bottom:6.5rem; transform:translateX(-50%); z-index:50; max-width:90%;
+  padding:.6rem 1rem; border-radius:10px; background:#111827; color:#fff; font-size:.92rem; }
+/* Ramka telefonu na komputerze (strona /aplikacja) */
+.pkj-phone-wrap { display:flex; justify-content:center; padding:.5rem 0 1.5rem; }
+.pkj-phone { width:414px; max-width:100%; height:min(844px, 82vh); padding:12px; box-sizing:border-box;
+  background:#111827; border-radius:42px; box-shadow:0 10px 40px rgba(0,0,0,.25); }
+.pkj-phone iframe { width:100%; height:100%; border:0; border-radius:30px; background:#fff; }
+.m-card--alert { border-color:#fca5a5; }
+.m-btns--2 { grid-template-columns:1fr 1fr; }
+.m-radio { display:block; cursor:pointer; }
+.m-radio input { position:absolute; opacity:0; pointer-events:none; }
+.m-radio span { display:flex; align-items:center; justify-content:center; gap:.5rem; min-height:60px; font-size:1.1rem; font-weight:700;
+  border:2px solid var(--border,#cbd5e1); border-radius:12px; background:var(--card-bg,#fff); }
+.m-radio input:checked + span { background:var(--primary,#1a3a5c); border-color:transparent; color:#fff; }
+.m-radio input:focus-visible + span { outline:2px solid #3b82f6; outline-offset:2px; }
+.m-fails { margin:.3rem 0 0; padding-left:1.1rem; }
+
+/* ── Raporty ── */
+.pkj-chart { position:relative; height:320px; }
+.pkj-num { text-align:right; font-variant-numeric:tabular-nums; }
+.pkj-total td { background:rgba(26,58,92,.06); }
+.pkj-report-tile { text-decoration:none; color:inherit; }
+.pkj-report-tile b { font-size:1.4rem; }
+.pkj-report-tile:hover { border-color:var(--primary,#1a3a5c); }
+@media (max-width: 640px) { .pkj-chart { height:260px; } .pkj-num { text-align:left; } }
+.data-table th.pkj-num { text-align:right; }
+@media (max-width: 640px) { .data-table th.pkj-num { text-align:left; } }
+/* Tryb prezentacji KJ Prestiż: scenariusz, nawigacja modułu, plakietka DEMO w aplikacji */
+.pkj-modnav { margin-bottom:.6rem; }
+.pkj-modnav a { white-space:nowrap; }
+.m-demo { padding:.1rem .45rem; font-size:.65rem; font-weight:700; letter-spacing:.06em; color:#b45309;
+  border:1px solid #f59e0b; border-radius:999px; }
+.pkj-sc-head { display:flex; gap:.7rem; align-items:center; flex-wrap:wrap; margin-bottom:1rem; }
+.pkj-steps { list-style:none; margin:0; padding:0; display:grid; gap:.8rem; }
+.pkj-step { display:flex; gap:1rem; padding:1rem 1.1rem; background:var(--card-bg,var(--surface,#fff));
+  border:1px solid var(--border,#e2e8f0); border-radius:var(--radius-md,12px); }
+.pkj-step--now { border-color:#f59e0b; box-shadow:0 0 0 2px rgba(245,158,11,.18); }
+.pkj-step--done { opacity:.82; }
+.pkj-step-num { flex:0 0 2.2rem; height:2.2rem; display:flex; align-items:center; justify-content:center; border-radius:50%;
+  background:var(--primary,#1a3a5c); color:#fff; font-weight:700; }
+.pkj-step--done .pkj-step-num { background:#16a34a; }
+.pkj-step-body { flex:1; min-width:0; }
+.pkj-step-top { display:flex; justify-content:space-between; gap:.6rem; align-items:center; flex-wrap:wrap; }
+.pkj-step-top h2 { font-size:1.05rem; margin:0; }
+.pkj-step-body p { margin:.35rem 0; }
+.pkj-tips { margin:.3rem 0 .6rem; padding-left:1.2rem; color:var(--text-muted,#475569); font-size:.9rem; }
+.pkj-step-links { display:flex; gap:.5rem; flex-wrap:wrap; }
+@media (max-width: 640px) { .pkj-step { padding:.8rem; gap:.7rem; } }

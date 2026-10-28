@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% from "_list_search.html" import list_search %}
+{% from "prestiz_kj/_status.html" import order_status %}
+{% block title %}Zlecenia KJ Prestiż{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pkj.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-clipboard2-check"></i> Zlecenia produkcyjne (demo)</h1>
+    <span class="text-muted" style="font-size:0.82rem;">Zlecenia z trasą operacji. Meldunek operacji z KJ wstrzymuje RW na materiały do czasu kontroli.</span>
+  </div>
+  <div class="page-header-actions">
+    {% if current_user.is_admin %}
+    <button type="button" class="btn btn-outline" id="pkj-add-toggle" aria-controls="pkj-add" aria-expanded="false"><i class="bi bi-plus-lg"></i> Dodaj zlecenie</button>
+    {% endif %}
+    <a href="{{ url_for('prestiz_kj.index') }}" class="btn btn-outline"><i class="bi bi-arrow-left"></i> Przegląd</a>
+  </div>
+</div>
+
+{% include "prestiz_kj/_demo_bar.html" %}
+
+{% if current_user.is_admin %}
+<div class="card" id="pkj-add" hidden style="margin-bottom:1rem;"><div class="card-body">
+  <form method="post" action="{{ url_for('prestiz_kj.order_create') }}" autocomplete="off">
+    {{ csrf_input() }}
+    <div class="pkj-new">
+      <input type="text" name="number" class="form-control" maxlength="64" placeholder="Numer zlecenia, np. ZP-DEMO-010" required>
+      <input type="text" name="product" class="form-control" maxlength="256" placeholder="Produkt" required>
+      <input type="text" name="client" class="form-control" maxlength="256" placeholder="Klient (opcjonalnie)">
+      <input type="number" name="quantity" class="form-control" min="1" max="9999" value="1" style="max-width:6rem;flex:0 0 6rem;" aria-label="Ilość">
+    </div>
+    <p class="pkj-hint" style="margin:.6rem 0 .3rem;">Trasa: zaznacz operacje (bez zaznaczenia: wszystkie aktywne).</p>
+    <div class="pkj-new">
+      {% for o in operations %}<label><input type="checkbox" name="op" value="{{ o.id }}"> {{ o.name }}{% if o.kj_required %} (KJ){% endif %}</label>{% endfor %}
+    </div>
+    <div style="margin-top:.8rem;"><button type="submit" class="btn btn-primary"><i class="bi bi-check2"></i> Dodaj</button></div>
+  </form>
+</div>
+</div>
+{% endif %}
+
+{% set active_filters = [filters.s, filters.od, filters.do, (filters.typ if filters.typ != 'zp' else '')] | select | list | length %}
+<form method="get" action="{{ url_for('prestiz_kj.orders_list') }}" class="filter-bar filter-bar--rows">
+{% call list_search('q', filters.q, 'Szukaj: numer, produkt, klient…', qr=True, active=active_filters, uid='pkj-filter-more', clear_url=url_for('prestiz_kj.orders_list')) %}
+  <div class="filter-row">
+    <select class="form-control filter-select" name="s" title="Filtruj po statusie">
+      <option value="">Wszystkie statusy</option>
+      {% for key, label in statuses.items() %}<option value="{{ key }}" {% if filters.s == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <select class="form-control filter-select" name="typ" title="Rodzaj zlecenia">
+      <option value="zp" {% if filters.typ == 'zp' %}selected{% endif %}>Produkcyjne</option>
+      <option value="zn" {% if filters.typ == 'zn' %}selected{% endif %}>Naprawcze (ZN)</option>
+      <option value="all" {% if filters.typ == 'all' %}selected{% endif %}>Wszystkie</option>
+    </select>
+    <select class="form-control filter-select filter-perpage" name="per_page" title="Pozycji na stronę" onchange="this.form.submit()">
+      {% for n in per_page_choices %}<option value="{{ n }}" {% if per_page == n %}selected{% endif %}>{{ n }} / stronę</option>{% endfor %}
+    </select>
+  </div>
+  <div class="filter-row">
+    <div class="filter-date-group"><label class="filter-label" for="pkj_od">Od:</label>
+      <input class="form-control filter-date" type="date" id="pkj_od" name="od" value="{{ filters.od }}"></div>
+    <div class="filter-date-group"><label class="filter-label" for="pkj_do">Do:</label>
+      <input class="form-control filter-date" type="date" id="pkj_do" name="do" value="{{ filters.do }}"></div>
+  </div>
+{% endcall %}
+</form>
+
+{% if current_user.is_admin and pager.items %}
+<form method="post" action="{{ url_for('prestiz_kj.orders_bulk_delete') }}" id="bulk-form">
+  {{ csrf_input() }}
+  <div class="bulk-bar" id="bulk-bar">
+    <span class="bulk-count" id="bulk-count">0 zaznaczonych</span>
+    <div class="bulk-actions">
+      <button type="button" id="btn-select-all" class="btn btn-outline btn-sm" onclick="toggleSelectAll()">Zaznacz wszystkie</button>
+      <button type="submit" class="btn btn-danger btn-sm" id="btn-delete-selected"
+              data-confirm="Usunąć zaznaczone zlecenia razem z kontrolami i zawrotami?">Usuń zaznaczone</button>
+    </div>
+  </div>
+{% endif %}
+
+<div class="card"><div class="card-body card-body--flush">
+  {% if pager.items %}
+  <div class="table-wrap">
+    <table class="data-table tbl-cards">
+      <thead><tr>
+        {% if current_user.is_admin %}
+        <th class="th-check" scope="col"><label class="sr-only" for="select-all">Zaznacz wszystkie</label>
+          <input type="checkbox" id="select-all" title="Zaznacz wszystkie"></th>
+        {% endif %}
+        <th>Zlecenie / produkt</th><th>Klient</th><th>Szt.</th><th>Postęp</th><th>RW</th><th>Data</th><th>Status</th>
+        <th scope="col"><span class="sr-only">Akcje</span></th>
+      </tr></thead>
+      <tbody>
+        {% for o in pager.items %}
+        {% set s = summaries[o.id] %}
+        <tr>
+          {% if current_user.is_admin %}
+          <td class="th-check"><label class="sr-only" for="check-{{ o.id }}">Zaznacz {{ o.number }}</label>
+            <input type="checkbox" id="check-{{ o.id }}" class="row-check" name="order_ids" value="{{ o.id }}"></td>
+          {% endif %}
+          <td data-label="Zlecenie" class="td-title-expandable">
+            <a href="{{ url_for('prestiz_kj.order_page', order_id=o.id) }}"><strong>{{ o.number }}</strong></a>
+            <div class="pkj-hint">{{ o.product }}</div>
+            <button type="button" class="row-expand-btn" aria-expanded="false" aria-label="Rozwiń szczegóły">
+              <i class="bi bi-chevron-down row-expand-chevron"></i></button>
+          </td>
+          <td data-label="Klient" class="td-collapse-sm">{{ o.client or '-' }}</td>
+          <td data-label="Szt." class="td-collapse-sm">{{ o.quantity or '-' }}</td>
+          <td data-label="Postęp" class="td-collapse-sm">{{ s.done }}/{{ s.total }}{% if s.next %} <span class="pkj-hint">dalej: {{ s.next }}</span>{% endif %}</td>
+          <td data-label="RW" class="td-collapse-sm">
+            {% if s.held %}<span class="rs rs-warn"><i class="bi bi-hourglass-split"></i> Wstrzymane: {{ s.held }}</span>{% else %}<span class="text-muted">-</span>{% endif %}
+          </td>
+          <td data-label="Data" class="td-collapse-sm">{{ o.created_at | localdt('%d.%m.%Y') }}</td>
+          <td data-label="Status">{{ order_status(o.status) }}</td>
+          <td class="td-actions td-collapse-sm" data-label="">
+            <a class="btn btn-outline btn-sm" href="{{ url_for('prestiz_kj.order_page', order_id=o.id) }}">Szczegóły</a>
+            {% if current_user.is_admin %}
+            <button type="button" class="btn btn-danger btn-sm" title="Usuń zlecenie"
+                    data-post-url="{{ url_for('prestiz_kj.order_delete', order_id=o.id) }}"
+                    data-post-confirm="Usunąć zlecenie {{ o.number }} razem z kontrolami i zawrotami?">Usuń</button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="pagination">
+    {% if pager.has_prev %}<a href="{{ url_for('prestiz_kj.orders_list', q=filters.q, s=filters.s, od=filters.od, do=filters.do, typ=filters.typ, per_page=per_page, page=pager.prev_num) }}" class="btn btn-outline btn-sm"><i class="bi bi-arrow-left"></i> Poprzednia</a>{% endif %}
+    <span>{{ pager.page }} / {{ pager.pages or 1 }} ({{ pager.total }} pozycji)</span>
+    {% if pager.has_next %}<a href="{{ url_for('prestiz_kj.orders_list', q=filters.q, s=filters.s, od=filters.od, do=filters.do, typ=filters.typ, per_page=per_page, page=pager.next_num) }}" class="btn btn-outline btn-sm">Następna <i class="bi bi-arrow-right"></i></a>{% endif %}
+  </div>
+  {% else %}
+  <div class="empty-state">Brak zleceń w tym widoku. Wczytaj dane demo w Przeglądzie albo dodaj zlecenie.</div>
+  {% endif %}
+</div></div>
+{% if current_user.is_admin and pager.items %}</form>{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.row-expand-btn');
+    if (!btn) return;
+    var row = btn.closest('tr'), expanded = btn.getAttribute('aria-expanded') === 'true';
+    row.classList.toggle('row-expanded', !expanded);
+    btn.setAttribute('aria-expanded', String(!expanded));
+    var ch = btn.querySelector('.row-expand-chevron');
+    if (ch) ch.className = expanded ? 'bi bi-chevron-down row-expand-chevron' : 'bi bi-chevron-up row-expand-chevron';
+  });
+  var tg = document.getElementById('pkj-add-toggle'), box = document.getElementById('pkj-add');
+  if (tg && box) tg.addEventListener('click', function () {
+    var show = box.hidden; box.hidden = !show; tg.setAttribute('aria-expanded', String(show));
+    if (show) { var f = box.querySelector('input'); if (f) f.focus(); }
+  });
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-post-url]');
+    if (!btn) return;
+    if (btn.dataset.postConfirm && !confirm(btn.dataset.postConfirm)) return;
+    var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+    var f = document.createElement('form');
+    f.method = 'POST'; f.action = btn.dataset.postUrl;
+    f.innerHTML = '<input type="hidden" name="_csrf_token" value="' + csrf + '">';
+    document.body.appendChild(f); f.submit();
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,63 @@
+{% extends "prestiz_kj/m/base_m.html" %}
+{% from "prestiz_kj/_status.html" import order_status, element_status %}
+{% block title %}{{ order.number }}{% endblock %}
+{% block heading %}{{ order.number }}{% endblock %}
+
+{% block content %}
+<div class="m-card">
+  <div class="m-card-row"><strong>{{ order.product }}</strong>{{ order_status(order.status) }}</div>
+  <div class="pkj-hint">{% if order.client %}{{ order.client }} · {% endif %}{{ order.quantity }} szt.</div>
+</div>
+
+{% for b in blocks %}
+<h2 class="m-h2">{{ b.op.operation_name }} <span class="pkj-hint">zameldowano {{ b.op.reported_at | localdt('%d.%m %H:%M') }}{% if b.op.employee_name %}, {{ b.op.employee_name }}{% endif %}</span></h2>
+{% if b.to_return %}
+<div class="m-card m-card--alert">
+  <div class="pkj-hint" style="margin-bottom:.4rem;">Wymagany zawrót</div>
+  {% for m in b.to_return %}
+  <a class="m-big m-big--danger" href="{{ url_for('prestiz_kj.m_return_new', material_id=m.id) }}"><i class="bi bi-arrow-return-left"></i> Zgłoś zawrót: {{ m.material_name }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+{% if b.recheck %}
+<form method="post" action="{{ url_for('prestiz_kj.m_start_inspection') }}" class="m-card">
+  {{ csrf_input() }}
+  <input type="hidden" name="oop_id" value="{{ b.op.id }}">
+  <div class="pkj-hint" style="margin-bottom:.4rem;">Kontrola sprawdzająca po naprawie</div>
+  {% for m in b.recheck %}
+  <label class="m-check"><input type="checkbox" name="material" value="{{ m.id }}" checked><span>{{ m.material_name }}</span></label>
+  {% endfor %}
+  <button type="submit" class="m-big m-big--primary"><i class="bi bi-arrow-repeat"></i> Rozpocznij kontrolę sprawdzającą</button>
+</form>
+{% endif %}
+{% if b.pending %}
+<form method="post" action="{{ url_for('prestiz_kj.m_start_inspection') }}" class="m-card">
+  {{ csrf_input() }}
+  <input type="hidden" name="oop_id" value="{{ b.op.id }}">
+  <div class="pkj-hint" style="margin-bottom:.4rem;">Zaznacz materiały do kontroli</div>
+  {% for m in b.pending %}
+  <label class="m-check"><input type="checkbox" name="material" value="{{ m.id }}" checked><span>{{ m.material_name }}</span></label>
+  {% endfor %}
+  <button type="submit" class="m-big m-big--primary"><i class="bi bi-play-fill"></i> Rozpocznij kontrolę</button>
+</form>
+{% endif %}
+{% for insp in b.running %}
+<a class="m-card m-card--link" href="{{ url_for('prestiz_kj.m_inspection', insp_id=insp.id) }}">
+  <div class="m-card-row"><strong>Kontrola w toku</strong><span class="rs rs-warn"><i class="bi bi-hourglass-split"></i> Kontynuuj</span></div>
+</a>
+{% endfor %}
+{% if b.others %}
+<div class="m-card">
+  {% for m in b.others %}
+  {% set r = b.returns.get(m.id) %}
+  <div class="m-card-row"><span>{{ m.material_name }}</span>{{ element_status(m.element_status) }}</div>
+  {% if r %}<a class="pkj-hint" href="{{ url_for('prestiz_kj.m_return', return_id=r.id) }}">Zawrót: {{ r.reason_name }}{% if b.zns.get(r.id) %}, {{ b.zns[r.id].number }}{% endif %}</a>{% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+{% else %}
+<div class="m-empty">Żadna operacja tego zlecenia nie czeka teraz na kontrolę KJ.</div>
+{% endfor %}
+
+<a class="m-big m-big--ghost" href="{{ url_for('prestiz_kj.m_history', order_id=order.id) }}"><i class="bi bi-clock-history"></i> Historia kontroli{% if inspections %} ({{ inspections }}){% endif %}</a>
+{% endblock %}

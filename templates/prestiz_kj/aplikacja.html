@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Aplikacja KJ{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pkj.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-phone"></i> Aplikacja KJ</h1>
+    <span class="text-muted" style="font-size:0.82rem;">Podgląd aplikacji kontrolera w ramce telefonu. Ta sama strona na telefonie otwiera się na pełnym ekranie.</span>
+  </div>
+  <div class="page-header-actions">
+    <a href="{{ url_for('prestiz_kj.m_start') }}" class="btn btn-outline" target="_blank"><i class="bi bi-arrows-fullscreen"></i> Pełny ekran</a>
+    <a href="{{ url_for('prestiz_kj.index') }}" class="btn btn-outline"><i class="bi bi-arrow-left"></i> Przegląd</a>
+  </div>
+</div>
+{% include "prestiz_kj/_demo_bar.html" %}
+<div class="pkj-phone-wrap">
+  <div class="pkj-phone"><iframe src="{{ url_for('prestiz_kj.m_start') }}" allow="camera" title="Aplikacja KJ"></iframe></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* Na telefonie ramka nie ma sensu: otwórz aplikację na pełnym ekranie */
+if (window.matchMedia('(max-width: 768px)').matches) { window.location.replace("{{ url_for('prestiz_kj.m_start') }}"); }
+</script>
+{% endblock %}

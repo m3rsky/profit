@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Pytania do Streamsoft{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pkj.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-question-circle"></i> Pytania do Streamsoft</h1>
+    <span class="text-muted" style="font-size:0.82rem;">Kwestie otwarte po spotkaniach i miejsca w module poglądowym, gdzie dane pytanie wychodzi w praktyce. Wymagania oznaczone "ponad ustalenia" nie padły w podsumowaniu spotkań i są do potwierdzenia.</span>
+  </div>
+</div>
+{% include "prestiz_kj/_demo_bar.html" %}
+
+<div class="card" style="margin-bottom:1rem;"><div class="card-body card-body--flush">
+  <h2 style="font-size:1.05rem;margin:1rem 1rem .5rem;">Kwestie otwarte</h2>
+  <div class="table-wrap">
+    <table class="data-table tbl-cards">
+      <thead><tr><th>Pytanie</th><th>Co pokazuje moduł poglądowy</th><th></th></tr></thead>
+      <tbody>
+        <tr><td data-label="Pytanie"><strong>Praca bez Wi-Fi na hali i późniejsza synchronizacja?</strong></td>
+          <td data-label="Pokaz">Nie jest symulowana. Aplikacja zapisuje każdą ocenę punktu od razu po dotknięciu, więc przerwana praca niczego nie gubi. Pytanie: czy aplikacja Android ma kolejkować zapisy lokalnie.</td>
+          <td class="td-actions"><a class="btn btn-outline btn-sm" href="{{ url_for('prestiz_kj.app_frame') }}">Aplikacja KJ</a></td></tr>
+        <tr><td data-label="Pytanie"><strong>Kto zatwierdza zawrót i zlecenie naprawcze: kontroler czy kierownik?</strong></td>
+          <td data-label="Pokaz">Przełącznik w ustawieniach. Teraz: <strong>{{ modes.approval_mode }}</strong>. W trybie kierownika zawrót czeka w rejestrze na zatwierdzenie.</td>
+          <td class="td-actions"><a class="btn btn-outline btn-sm" href="{{ url_for('prestiz_kj.config_page', slug='ustawienia') }}">Ustawienia</a>
+            <a class="btn btn-outline btn-sm" href="{{ url_for('prestiz_kj.returns_list') }}">Zawroty</a></td></tr>
+        <tr><td data-label="Pytanie"><strong>Rozliczenie materiału przy złomie i nowym elemencie.</strong></td>
+          <td data-label="Pokaz">Przełącznik w ustawieniach. Teraz: <strong>{{ modes.scrap_mode }}</strong>. Złom tworzy zlecenie na nowy element od pierwszej operacji, a rozchód materiału (z kosztem) widać na osi czasu i w raporcie kosztów.</td>
+          <td class="td-actions"><a class="btn btn-outline btn-sm" href="{{ url_for('prestiz_kj.report_page', slug='koszt-zawrotow') }}">Koszt zawrotów</a></td></tr>
+        <tr><td data-label="Pytanie"><strong>Czy kontrola końcowa całej szafy też przechodzi do nowej aplikacji?</strong></td>
+          <td data-label="Pokaz">Poza zakresem pokazu. W profit Kontrola Końcowa działa równolegle i osobno.</td><td></td></tr>
+        <tr><td data-label="Pytanie"><strong>Historia z profit: migracja do Prestiża czy archiwum w profit?</strong></td>
+          <td data-label="Pokaz">Karta kontroli zlecenia w PDF pokazuje, jak mogłoby wyglądać archiwum: wszystkie kontrole, punkty, wartości i zdjęcia.</td>
+          <td class="td-actions"><a class="btn btn-outline btn-sm" href="{{ url_for('prestiz_kj.reports_index') }}">Raporty</a></td></tr>
+        <tr><td data-label="Pytanie"><strong>Obecne etykiety QR zostają czy Prestiż drukuje własne?</strong></td>
+          <td data-label="Pokaz">Etykieta demo ma te same pola co obecne kody (produkt, klient, ZO, ilość), więc ten sam skaner czyta oba.</td>
+          <td class="td-actions"><a class="btn btn-outline btn-sm" href="{{ url_for('prestiz_kj.orders_list') }}">Zlecenia</a></td></tr>
+        <tr><td data-label="Pytanie"><strong>Forma dostępu do danych (D1) i czy jest w cenie.</strong></td>
+          <td data-label="Pokaz">Pokazane eksporty do Excela i PDF (D3). Dostęp dla narzędzi KUBIAK przez API REST albo widok w bazie (kontrole, punkty, wyniki, zdjęcia, zawroty) jest do ustalenia.</td><td></td></tr>
+        <tr><td data-label="Pytanie"><strong>Wycena, harmonogram, pilotaż na jednym dziale.</strong></td>
+          <td data-label="Pokaz">Poza zakresem pokazu.</td><td></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div></div>
+
+<div class="card" style="margin-bottom:1rem;"><div class="card-body card-body--flush">
+  <h2 style="font-size:1.05rem;margin:1rem 1rem .5rem;">Wymagania ponad ustalenia (do potwierdzenia)</h2>
+  <div class="table-wrap">
+    <table class="data-table tbl-cards">
+      <thead><tr><th>Nr</th><th>Wymaganie</th><th>Gdzie widać w pokazie</th></tr></thead>
+      <tbody>
+        <tr><td data-label="Nr">A4</td><td data-label="Wymaganie">Punkty wspólne dla wszystkich operacji, punkty operacji i punkty materiału.</td>
+          <td data-label="Pokaz"><a href="{{ url_for('prestiz_kj.config_page', slug='punkty') }}">Konfiguracja, Punkty kontrolne</a> (zakres: wspólny, operacja, materiał, grupa)</td></tr>
+        <tr><td data-label="Nr">A5</td><td data-label="Wymaganie">Wynik przechowuje kopię treści punktu z chwili kontroli, edycja punktów nie zmienia historii.</td>
+          <td data-label="Pokaz">Zmień treść punktu w konfiguracji i otwórz kartę kontroli zlecenia: stare wyniki mają dawną treść.</td></tr>
+        <tr><td data-label="Nr">B4</td><td data-label="Wymaganie">Osoba odpowiedzialna podpowiadana z meldunku operacji, z możliwością zmiany.</td>
+          <td data-label="Pokaz">Aplikacja KJ, ekran kontroli: pole "Wykonawca (z meldunku)".</td></tr>
+        <tr><td data-label="Nr">C2</td><td data-label="Wymaganie">Decyzja poprawka albo złom. Złom generuje zlecenie na nowy element i rozchód materiału.</td>
+          <td data-label="Pokaz">Ekran zawrotu w aplikacji KJ, rejestr zawrotów i raport kosztów.</td></tr>
+        <tr><td data-label="Nr">D2</td><td data-label="Wymaganie">Zasilanie list punktów z zewnątrz (import lub API), np. z plików konstrukcyjnych.</td>
+          <td data-label="Pokaz">Poza zakresem pokazu. Kierunek rozwoju.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div></div>
+
+<div class="card"><div class="card-body card-body--flush">
+  <h2 style="font-size:1.05rem;margin:1rem 1rem .5rem;">Słownik pojęć: obecny profit a docelowy Prestiż</h2>
+  <div class="table-wrap">
+    <table class="data-table tbl-cards">
+      <thead><tr><th>Obecny profit (Kontrola etapowa)</th><th>Docelowy Prestiż / moduł poglądowy</th></tr></thead>
+      <tbody>
+        <tr><td>Dział kontroli (Gięcie, Spawanie, Malowanie)</td><td>Operacja z flagą KJ (K1)</td></tr>
+        <tr><td>Element kontroli (Drzwi, Korpus, Płyta)</td><td>Materiał z flagą KJ, grupa materiałów (K2, K4)</td></tr>
+        <tr><td>Punkty ogólne, działu i elementu</td><td>Lista punktów: wspólne, operacji, materiału (K3, A4)</td></tr>
+        <tr><td>Para ZO i produkt ze skanu QR</td><td>Zlecenie produkcyjne (ZP), ten sam kod QR (B1)</td></tr>
+        <tr><td>Wykonawca (pracownik działu)</td><td>Pracownik z meldunku operacji (B4)</td></tr>
+        <tr><td>NG tworzy raport QAR</td><td>NOK tworzy zawrót i zlecenie naprawcze (C1)</td></tr>
+        <tr><td>Ponowna kontrola</td><td>Kontrola sprawdzająca po meldunku zlecenia naprawczego (B6)</td></tr>
+        <tr><td>Brak</td><td>Wstrzymane RW, rozchód po OK (K1, A3)</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div></div>
+{% endblock %}

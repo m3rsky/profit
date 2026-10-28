@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Scenariusz pokazu KJ Prestiż{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pkj.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-play-circle"></i> Scenariusz pokazu</h1>
+    <span class="text-muted" style="font-size:0.82rem;">Siedem kroków na zleceniu ZP-DEMO-001, około 5 do 7 minut. Stan każdego kroku liczy się z danych, więc widać, gdzie jesteś.</span>
+  </div>
+  <div class="page-header-actions">
+    {% if current_user.is_admin %}
+    <form method="post" action="{{ url_for('prestiz_kj.demo_reset_scenario') }}" style="display:inline;"
+          onsubmit="return confirm('Przywrócić ZP-DEMO-001 do stanu początkowego? Zawroty i ZN tego zlecenia zostaną usunięte.');">
+      {{ csrf_input() }}<input type="hidden" name="next" value="{{ url_for('prestiz_kj.scenario') }}">
+      <button type="submit" class="btn btn-outline"><i class="bi bi-skip-backward"></i> Przywróć scenariusz pokazu</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% include "prestiz_kj/_demo_bar.html" %}
+
+{% if not order %}
+<div class="card"><div class="card-body">
+  <p>Nie ma jeszcze danych demonstracyjnych ze zleceniem ZP-DEMO-001.</p>
+  {% if current_user.is_admin %}
+  <form method="post" action="{{ url_for('prestiz_kj.demo_load') }}">{{ csrf_input() }}
+    <button type="submit" class="btn btn-primary"><i class="bi bi-download"></i> Wczytaj dane demo</button></form>
+  {% else %}<p class="pkj-hint">Poproś administratora o wczytanie danych demo.</p>{% endif %}
+</div></div>
+{% else %}
+<div class="pkj-sc-head">
+  <a class="btn btn-outline btn-sm" href="{{ url_for('prestiz_kj.order_page', order_id=order.id) }}"><i class="bi bi-list-ul"></i> {{ order.number }}</a>
+  <span class="pkj-hint">{{ order.product }} · {{ order.client }}</span>
+  {% if all_done %}<span class="rs rs-ok"><i class="bi bi-check2-circle"></i> Scenariusz wykonany</span>{% endif %}
+</div>
+
+<ol class="pkj-steps">
+  {% for s in steps %}
+  <li class="pkj-step pkj-step--{{ s.state }}" id="krok-{{ s.key }}">
+    <div class="pkj-step-num">{{ loop.index }}</div>
+    <div class="pkj-step-body">
+      <div class="pkj-step-top">
+        <h2>{{ s.title }}</h2>
+        {% if s.state == 'done' %}<span class="rs rs-ok"><i class="bi bi-check2-circle"></i> Gotowe</span>
+        {% elif s.state == 'now' %}<span class="rs rs-warn"><i class="bi bi-hourglass-split"></i> Teraz</span>
+        {% else %}<span class="rs rs-muted"><i class="bi bi-circle"></i> Czeka</span>{% endif %}
+      </div>
+      <p>{{ s.text }}</p>
+      {% if s.detail %}<p class="pkj-hint"><i class="bi bi-info-circle"></i> {{ s.detail }}</p>{% endif %}
+      <ul class="pkj-tips">{% for t in s.tips %}<li>{{ t }}</li>{% endfor %}</ul>
+      <div class="pkj-step-links">
+        {% for l in s.links %}<a class="btn {{ 'btn-primary' if s.state == 'now' and loop.first else 'btn-outline' }} btn-sm" href="{{ l.url }}"><i class="bi {{ l.icon }}"></i> {{ l.label }}</a>{% endfor %}
+      </div>
+    </div>
+  </li>
+  {% endfor %}
+</ol>
+{% endif %}
+{% endblock %}

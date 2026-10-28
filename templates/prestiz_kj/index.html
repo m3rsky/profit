@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}KJ Prestiż (pogląd){% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pkj.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-clipboard2-check"></i> KJ Prestiż (pogląd)</h1>
+    <span class="text-muted" style="font-size:0.82rem;">Docelowy proces kontroli jakości: konfiguracja operacji, materiałów i punktów, meldunek ze wstrzymanym RW, aplikacja KJ, zawrót i zlecenie naprawcze, kontrola sprawdzająca, raporty.</span>
+  </div>
+  <div class="page-header-actions">
+    <a href="{{ url_for('prestiz_kj.scenario') }}" class="btn btn-primary"><i class="bi bi-play-circle"></i> Scenariusz pokazu</a>
+    <a href="{{ url_for('prestiz_kj.orders_list') }}" class="btn btn-outline"><i class="bi bi-list-ul"></i> Zlecenia</a>
+    <a href="{{ url_for('prestiz_kj.reports_index') }}" class="btn btn-outline"><i class="bi bi-graph-up"></i> Raporty</a>
+    <a href="{{ url_for('prestiz_kj.returns_list') }}" class="btn btn-outline"><i class="bi bi-arrow-return-left"></i> Zawroty</a>
+    <a href="{{ url_for('prestiz_kj.app_frame') }}" class="btn btn-outline"><i class="bi bi-phone"></i> Aplikacja KJ</a>
+    {% if current_user.is_admin %}
+    <a href="{{ url_for('prestiz_kj.config_index') }}" class="btn btn-outline"><i class="bi bi-sliders"></i> Konfiguracja</a>
+    {% endif %}
+  </div>
+</div>
+
+{% include "prestiz_kj/_demo_bar.html" %}
+
+<div class="pkj-tiles">
+  <div class="pkj-tile"><b>{{ counts.kj_operations }} / {{ counts.operations }}</b><span>operacje z KJ (K1)</span></div>
+  <div class="pkj-tile"><b>{{ counts.kj_materials }} / {{ counts.materials }}</b><span>materiały z KJ (K2)</span></div>
+  <div class="pkj-tile"><b>{{ counts.points }}</b><span>punkty kontrolne (K3)</span></div>
+  <div class="pkj-tile"><b>{{ counts.reasons }}</b><span>przyczyny niezgodności</span></div>
+  <div class="pkj-tile"><b>{{ counts.employees }}</b><span>pracownicy demo</span></div>
+  <div class="pkj-tile"><b>{{ counts.orders }}</b><span>zlecenia demo</span></div>
+</div>
+
+{% if current_user.is_admin %}
+<div class="card">
+  <div class="card-body">
+    <h2 style="font-size:1.05rem;margin-top:0;">Dane demonstracyjne</h2>
+    {% if not has_config %}
+    <p class="pkj-hint">Moduł jest pusty. Wczytaj konfigurację startową: operacje, materiały, punkty kontrolne, przyczyny i pracowników demo.</p>
+    {% endif %}
+    <div class="pkj-new">
+      <form method="post" action="{{ url_for('prestiz_kj.demo_load') }}">
+        {{ csrf_input() }}
+        <button type="submit" class="btn btn-primary" {% if has_config %}disabled{% endif %}><i class="bi bi-download"></i> Wczytaj dane demo</button>
+      </form>
+      <form method="post" action="{{ url_for('prestiz_kj.demo_reset_scenario') }}"
+            onsubmit="return confirm('Przywrócić ZP-DEMO-001 do stanu początkowego?');">
+        {{ csrf_input() }}
+        <button type="submit" class="btn btn-outline"><i class="bi bi-skip-backward"></i> Przywróć scenariusz pokazu</button>
+      </form>
+      <form method="post" action="{{ url_for('prestiz_kj.demo_reset_orders') }}"
+            onsubmit="return confirm('Usunąć zlecenia demo, kontrole i zawroty? Konfiguracja zostanie.');">
+        {{ csrf_input() }}
+        <button type="submit" class="btn btn-outline"><i class="bi bi-arrow-counterclockwise"></i> Resetuj zlecenia</button>
+      </form>
+      <form method="post" action="{{ url_for('prestiz_kj.demo_reset_all') }}"
+            onsubmit="return confirm('Usunąć całą zawartość modułu KJ Prestiż (konfigurację i zlecenia)? Inne moduły nie są ruszane.');">
+        {{ csrf_input() }}
+        <button type="submit" class="btn btn-danger"><i class="bi bi-trash"></i> Resetuj wszystko</button>
+      </form>
+    </div>
+    <p class="pkj-hint" style="margin:.75rem 0 0;">Reset dotyczy wyłącznie tabel tego modułu.</p>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

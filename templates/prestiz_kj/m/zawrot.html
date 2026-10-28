@@ -1,0 +1,27 @@
+{% extends "prestiz_kj/m/base_m.html" %}
+{% from "prestiz_kj/_status.html" import return_status, element_status %}
+{% block title %}Zawrót {{ om.material_name }}{% endblock %}
+{% block back %}<a href="{{ url_for('prestiz_kj.m_order', order_id=zp.id) }}" class="m-back" aria-label="Zlecenie"><i class="bi bi-chevron-left"></i></a>{% endblock %}
+{% block heading %}Zawrót: {{ om.material_name }}{% endblock %}
+
+{% block content %}
+<div class="m-banner m-banner--{{ 'ok' if zn else 'ng' }}">
+  {% if zn %}
+  <strong><i class="bi bi-check2-circle"></i> Utworzono {{ zn.number }}</strong>
+  <div>{{ 'Zlecenie na nowy element' if ret.decision == 'zlom' else 'Zlecenie naprawcze' }} przechodzi przez produkcję. Po zameldowaniu ostatniej operacji element wróci do kontroli sprawdzającej.</div>
+  {% else %}
+  <strong><i class="bi bi-hourglass-split"></i> Zawrót czeka na zatwierdzenie</strong>
+  <div>Kierownik zatwierdza zawrót w module na komputerze. Dopiero wtedy powstanie zlecenie naprawcze.</div>
+  {% endif %}
+</div>
+<div class="m-card">
+  <div class="m-card-row"><strong>{{ zp.number }}</strong>{{ return_status(ret.status) }}</div>
+  <div class="pkj-hint">{{ zp.product }}</div>
+  <div class="m-card-row"><span>Element</span>{{ element_status(om.element_status) }}</div>
+  <div class="m-card-row"><span>Decyzja</span><strong>{{ decisions[ret.decision] }}</strong></div>
+  <div class="m-card-row"><span>Przyczyna</span><strong>{{ ret.reason_name }}</strong></div>
+  {% if ret.description %}<div class="pkj-hint">{{ ret.description }}</div>{% endif %}
+  <div class="pkj-hint" style="margin-top:.4rem;">Operacje: {% for o in ops %}{{ o.operation_name }}{% if o.added_manually %} (ręcznie){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</div>
+</div>
+<a class="m-big m-big--primary" href="{{ url_for('prestiz_kj.m_order', order_id=zp.id) }}"><i class="bi bi-arrow-left"></i> Wróć do zlecenia</a>
+{% endblock %}

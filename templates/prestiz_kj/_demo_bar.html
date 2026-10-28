@@ -1,0 +1,14 @@
+{% set ep = request.endpoint or '' %}
+<nav class="pkj-tabs pkj-modnav" aria-label="KJ Prestiż">
+  <a href="{{ url_for('prestiz_kj.index') }}" class="{% if ep == 'prestiz_kj.index' %}active{% endif %}"><i class="bi bi-house"></i> Przegląd</a>
+  <a href="{{ url_for('prestiz_kj.scenario') }}" class="{% if ep == 'prestiz_kj.scenario' %}active{% endif %}"><i class="bi bi-play-circle"></i> Scenariusz</a>
+  <a href="{{ url_for('prestiz_kj.orders_list') }}" class="{% if ep in ('prestiz_kj.orders_list', 'prestiz_kj.order_page') %}active{% endif %}"><i class="bi bi-list-ul"></i> Zlecenia</a>
+  <a href="{{ url_for('prestiz_kj.app_frame') }}" class="{% if ep == 'prestiz_kj.app_frame' %}active{% endif %}"><i class="bi bi-phone"></i> Aplikacja KJ</a>
+  <a href="{{ url_for('prestiz_kj.returns_list') }}" class="{% if ep in ('prestiz_kj.returns_list', 'prestiz_kj.return_page') %}active{% endif %}"><i class="bi bi-arrow-return-left"></i> Zawroty</a>
+  <a href="{{ url_for('prestiz_kj.reports_index') }}" class="{% if ep in ('prestiz_kj.reports_index', 'prestiz_kj.report_page', 'prestiz_kj.report_card') %}active{% endif %}"><i class="bi bi-graph-up"></i> Raporty</a>
+  {% if current_user.is_admin %}<a href="{{ url_for('prestiz_kj.config_index') }}" class="{% if ep.startswith('prestiz_kj.config_') %}active{% endif %}"><i class="bi bi-sliders"></i> Konfiguracja</a>{% endif %}
+  <a href="{{ url_for('prestiz_kj.questions') }}" class="{% if ep == 'prestiz_kj.questions' %}active{% endif %}"><i class="bi bi-question-circle"></i> Pytania</a>
+</nav>
+<div class="pkj-demo-bar"><i class="bi bi-info-circle"></i>
+  Moduł poglądowy: dane demonstracyjne, bez połączenia z Prestiżem. Nie zmienia pozostałych modułów profit.
+</div>
