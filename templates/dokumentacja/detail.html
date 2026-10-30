@@ -68,6 +68,9 @@
       {% else %}
       <div class="text-muted" style="font-size:.85rem;margin-bottom:8px;">Bez opisu.</div>
       {% endif %}
+      {% if entry.zo_number %}
+      <div style="font-size:.88rem;margin-bottom:6px;"><strong>Numer ZO:</strong> {{ entry.zo_number }}</div>
+      {% endif %}
       <div style="font-size:.78rem;color:#999;">
         Autor: <strong>{{ entry.author.username if entry.author else '—' }}</strong> ·
         Utworzono: {{ entry.created_at | localdt }}
@@ -97,6 +100,10 @@
         <input type="text" name="title" class="form-control" required maxlength="256" value="{{ entry.title }}">
       </div>
       <div class="form-group" style="margin-bottom:10px;">
+        <label class="form-label">Numer ZO</label>
+        <input type="text" name="zo_number" class="form-control" maxlength="64" value="{{ entry.zo_number or '' }}">
+      </div>
+      <div class="form-group" style="margin-bottom:10px;">
         <label class="form-label">Opis</label>
         <textarea name="description" class="form-control" rows="4">{{ entry.description or '' }}</textarea>
       </div>
@@ -122,7 +129,7 @@
       <label class="doc-dropzone" for="doc-file-input">
         <i class="bi bi-cloud-arrow-up" style="font-size:1.8rem;"></i>
         <span>Przeciągnij pliki tutaj albo dotknij, aby wybrać z dysku</span>
-        <span class="text-muted" style="font-size:.78rem;">PDF, Word, Excel, PowerPoint, obrazy, archiwa · maks. 32 MB/plik</span>
+        <span class="text-muted" style="font-size:.78rem;">PDF, Word, Excel, PowerPoint, obrazy, archiwa · maks. 32 MB/plik · modele STEP (.step, .stp) do {{ step_max_mb }} MB</span>
         <input type="file" id="doc-file-input" name="files" multiple style="display:none;">
       </label>
       <div class="doc-upload-actions" style="display:none;margin-top:10px;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -144,6 +151,12 @@
                   data-src="{{ url_for('dokumentacja.serve_file', filename=f.filename) }}">
             <i class="bi bi-eye"></i> Podgląd
           </button>
+          {% endif %}
+          {% if f.is_step %}
+          <a class="btn btn-outline btn-xs" target="_blank" rel="noopener"
+             href="{{ url_for('dokumentacja.view_3d', file_id=f.id) }}">
+            <i class="bi bi-box"></i> Podgląd 3D
+          </a>
           {% endif %}
           <a class="btn btn-outline btn-xs" href="{{ url_for('dokumentacja.serve_file', filename=f.filename, download=1) }}">
             <i class="bi bi-download"></i> Pobierz
@@ -309,17 +322,33 @@ document.querySelectorAll('.doc-upload-form').forEach(function (form) {
   const actions = form.querySelector('.doc-upload-actions');
   const info = form.querySelector('.doc-upload-info');
 
+  function fmtSize(b) {
+    return b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
+  }
   function refresh() {
     const n = input.files.length;
     if (n) {
       actions.style.display = 'flex';
-      info.textContent = n === 1 ? ('Wybrano: ' + input.files[0].name)
-                                 : ('Wybrano plików: ' + n);
+      let total = 0;
+      for (const f of input.files) total += f.size;
+      info.textContent = n === 1 ? ('Wybrano: ' + input.files[0].name + ' (' + fmtSize(total) + ')')
+                                 : ('Wybrano plików: ' + n + ' (razem ' + fmtSize(total) + ')');
     } else {
       actions.style.display = 'none';
     }
   }
   input.addEventListener('change', refresh);
+
+  // Duże pliki (np. złożenia STEP): pokaż rozmiar i poproś o potwierdzenie
+  const CONFIRM_BYTES = {{ confirm_mb }} * 1048576;
+  form.addEventListener('submit', function (e) {
+    const big = Array.from(input.files).filter(function (f) { return f.size >= CONFIRM_BYTES; });
+    if (!big.length) return;
+    const lines = big.map(function (f) { return '• ' + f.name + ' (' + fmtSize(f.size) + ')'; }).join('\n');
+    if (!confirm('Wysyłasz duże pliki:\n' + lines + '\n\nWysyłanie może potrwać. Kontynuować?')) {
+      e.preventDefault();
+    }
+  });
 
   ['dragenter', 'dragover'].forEach(function (ev) {
     zone.addEventListener(ev, function (e) { e.preventDefault(); zone.classList.add('dragover'); });

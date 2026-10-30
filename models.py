@@ -824,6 +824,7 @@ class DocEntry(db.Model):
     id          = db.Column(db.Integer, primary_key=True)
     title       = db.Column(db.String(256), nullable=False)
     description = db.Column(db.Text, nullable=True)
+    zo_number   = db.Column(db.String(64), nullable=True)   # numer ZO (opcjonalnie)
     user_id     = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     created_at  = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
     updated_at  = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
@@ -889,6 +890,11 @@ class DocFile(db.Model):
         return self.ext == 'pdf'
 
     @property
+    def is_step(self):
+        """Model 3D (STEP) z podglądem w przeglądarce."""
+        return self.kind == 'document' and self.ext in ('step', 'stp')
+
+    @property
     def preview_name(self):
         """Nazwa pliku do podglądu inline (preview jeśli jest, inaczej oryginał)."""
         return self.preview_filename or self.filename
@@ -915,6 +921,7 @@ class DocFile(db.Model):
         'txt': 'bi-file-earmark-text', 'odt': 'bi-file-earmark-text', 'ods': 'bi-file-earmark-spreadsheet',
         'zip': 'bi-file-earmark-zip', 'rar': 'bi-file-earmark-zip', '7z': 'bi-file-earmark-zip',
         'dwg': 'bi-file-earmark-ruled', 'dxf': 'bi-file-earmark-ruled',
+        'step': 'bi-box', 'stp': 'bi-box',
     }
 
     @property

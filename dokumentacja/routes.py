@@ -54,6 +54,25 @@ def _is_document_ext(ext):
     return ext in current_app.config['DOC_DOCUMENT_EXTENSIONS']
 
 
+def _is_step_ext(ext):
+    return ext in current_app.config['DOC_STEP_EXTENSIONS']
+
+
+def _stream_size(file):
+    file.stream.seek(0, os.SEEK_END)
+    size = file.stream.tell()
+    file.stream.seek(0)
+    return size
+
+
+def _looks_like_step(file):
+    """STEP (ISO 10303-21) zaczyna się od nagłówka ISO-10303-21."""
+    file.stream.seek(0)
+    head = file.stream.read(1024)
+    file.stream.seek(0)
+    return b'ISO-10303-21' in head
+
+
 def _upload_dir():
     d = current_app.config['DOKUMENTACJA_UPLOAD_FOLDER']
     os.makedirs(d, exist_ok=True)
@@ -154,6 +173,16 @@ def _add_file(entry, file, force_kind=None):
     if not ext or (not _is_image_ext(ext) and not _is_document_ext(ext)):
         return False, f'Pominięto „{file.filename}” — niedozwolony typ pliku.'
 
+    is_step = _is_step_ext(ext)
+    size = _stream_size(file)
+    max_bytes = (current_app.config['DOC_STEP_MAX_BYTES'] if is_step
+                 else current_app.config['DOC_MAX_FILE_BYTES'])
+    if size > max_bytes:
+        return False, (f'Pominięto „{file.filename}”, plik ma {size / 1048576:.0f} MB, '
+                       f'limit to {max_bytes // 1048576} MB.')
+    if is_step and not _looks_like_step(file):
+        return False, f'Pominięto „{file.filename}”, to nie jest prawidłowy plik STEP.'
+
     treat_as_image = _is_image_ext(ext) if force_kind is None else (force_kind == 'image')
 
     if treat_as_image:
@@ -186,7 +215,8 @@ def list_entries():
     query = DocEntry.query
     if q:
         like = f'%{q}%'
-        query = query.filter(DocEntry.title.ilike(like) | DocEntry.description.ilike(like))
+        query = query.filter(DocEntry.title.ilike(like) | DocEntry.description.ilike(like)
+                             | DocEntry.zo_number.ilike(like))
     entries = query.order_by(DocEntry.created_at.desc()).all()
     return render_template('dokumentacja/list.html', entries=entries, q=q)
 
@@ -199,14 +229,15 @@ def new_entry():
     if request.method == 'POST':
         title = request.form.get('title', '').strip()
         description = request.form.get('description', '').strip()
+        zo_number = request.form.get('zo_number', '').strip()[:64]
         if not title:
             flash('Tytuł jest wymagany.', 'error')
             return render_template('dokumentacja/new.html', form=request.form)
         entry = DocEntry(title=title, description=description or None,
-                         user_id=current_user.id)
+                         zo_number=zo_number or None, user_id=current_user.id)
         db.session.add(entry)
         db.session.commit()
-        _audit('doc_create', entry.id, f'title={title}')
+        _audit('doc_create', entry.id, f'title={title} zo={zo_number}')
         flash('Teczka utworzona. Dodaj dokumenty, zdjęcia i notatki.', 'success')
         return redirect(url_for('dokumentacja.entry_detail', entry_id=entry.id))
     return render_template('dokumentacja/new.html', form={})
@@ -219,7 +250,9 @@ def new_entry():
 def entry_detail(entry_id):
     entry = get_or_404(DocEntry, entry_id)
     return render_template('dokumentacja/detail.html', entry=entry,
-                           can_edit=_can_edit_entry(entry))
+                           can_edit=_can_edit_entry(entry),
+                           confirm_mb=current_app.config['DOC_CONFIRM_MB'],
+                           step_max_mb=current_app.config['DOC_STEP_MAX_BYTES'] // 1048576)
 
 
 @dokumentacja_bp.route('/<int:entry_id>/edytuj', methods=['POST'])
@@ -230,14 +263,16 @@ def edit_entry(entry_id):
         abort(403)
     title = request.form.get('title', '').strip()
     description = request.form.get('description', '').strip()
+    zo_number = request.form.get('zo_number', '').strip()[:64]
     if not title:
         flash('Tytuł jest wymagany.', 'error')
         return redirect(url_for('dokumentacja.entry_detail', entry_id=entry.id))
     entry.title = title
     entry.description = description or None
+    entry.zo_number = zo_number or None
     entry.updated_at = datetime.now(UTC)
     db.session.commit()
-    _audit('doc_edit', entry.id, f'title={title}')
+    _audit('doc_edit', entry.id, f'title={title} zo={zo_number}')
     flash('Zapisano zmiany.', 'success')
     return redirect(url_for('dokumentacja.entry_detail', entry_id=entry.id))
 
@@ -382,6 +417,23 @@ def delete_note(note_id):
     _audit('doc_note_delete', entry_id)
     flash('Notatka usunięta.', 'success')
     return redirect(url_for('dokumentacja.entry_detail', entry_id=entry_id) + '#notatki')
+
+
+# ── Podgląd 3D (STEP) ───────────────────────────────────────────────────────
+
+@dokumentacja_bp.route('/podglad3d/<int:file_id>')
+@login_required
+def view_3d(file_id):
+    """Osobna strona z podglądem modelu STEP. Model wskazuje id rekordu, a nie
+    ścieżka z adresu, więc nie da się wczytać dowolnego pliku."""
+    f = get_or_404(DocFile, file_id)
+    if not f.is_step:
+        abort(404)
+    return render_template(
+        'dokumentacja/viewer3d.html', f=f, entry=f.entry,
+        model_url=url_for('dokumentacja.serve_file', filename=f.filename),
+        download_url=url_for('dokumentacja.serve_file', filename=f.filename, download=1),
+    )
 
 
 # ── Serwowanie plików ──────────────────────────────────────────────────────

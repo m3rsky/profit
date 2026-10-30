@@ -54,6 +54,11 @@ from ustawienia import ustawienia_bp  # noqa: E402
 app.register_blueprint(ustawienia_bp)
 
 from dokumentacja import dokumentacja_bp  # noqa: E402
+from dokumentacja.storage import migrate_legacy_uploads  # noqa: E402
+
+# Podgląd 3D (occt-import-js) wymaga application/wasm; nie każdy Python/system to zna
+import mimetypes  # noqa: E402
+mimetypes.add_type('application/wasm', '.wasm')
 app.register_blueprint(dokumentacja_bp)
 
 from produkcja import produkcja_bp  # noqa: E402
@@ -154,6 +159,19 @@ def _verify_image(file_stream) -> bool:
     except Exception:
         file_stream.seek(0)
         return False
+
+@app.before_request
+def limit_upload_size():
+    """Config.MAX_CONTENT_LENGTH jest podniesiony pod pliki STEP, więc poza
+    wysyłką dokumentów do teczki obowiązuje dawny, niższy limit."""
+    if request.method not in ('POST', 'PUT', 'PATCH'):
+        return
+    if request.endpoint == 'dokumentacja.add_documents':
+        return
+    limit = app.config.get('DEFAULT_MAX_UPLOAD')
+    if limit and request.content_length and request.content_length > limit:
+        abort(413)
+
 
 @app.before_request
 def csrf_protect():
@@ -2821,7 +2839,11 @@ def not_found(e):
 
 @app.errorhandler(413)
 def payload_too_large(e):
-    limit_mb = app.config.get('MAX_CONTENT_LENGTH', 0) // (1024 * 1024)
+    if request.endpoint == 'dokumentacja.add_documents':
+        limit = app.config.get('MAX_CONTENT_LENGTH', 0)
+    else:
+        limit = app.config.get('DEFAULT_MAX_UPLOAD') or app.config.get('MAX_CONTENT_LENGTH', 0)
+    limit_mb = limit // (1024 * 1024)
     msg = f'Plik jest za duży. Maksymalny rozmiar przesyłki to {limit_mb} MB.'
     if request.accept_mimetypes.accept_json and not request.accept_mimetypes.accept_html:
         return jsonify(ok=False, error=msg), 413
@@ -2875,6 +2897,8 @@ def init_db():
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     os.makedirs(app.config['QAR_UPLOAD_FOLDER'], exist_ok=True)
     os.makedirs(app.config['DOKUMENTACJA_UPLOAD_FOLDER'], exist_ok=True)
+    migrate_legacy_uploads(app.config.get('DOKUMENTACJA_LEGACY_FOLDER'),
+                           app.config['DOKUMENTACJA_UPLOAD_FOLDER'], app.logger)
     os.makedirs(app.config['PRODUKCJA_FOLDER'], exist_ok=True)
     os.makedirs(app.config['PKJ_UPLOAD_FOLDER'], exist_ok=True)
     with app.app_context():
@@ -2990,6 +3014,11 @@ def _migrate_schema():
     engine = db.engine
     insp = inspect(engine)
     with engine.connect() as conn:
+        if 'doc_entries' in insp.get_table_names():
+            cols = [c['name'] for c in insp.get_columns('doc_entries')]
+            if 'zo_number' not in cols:
+                conn.execute(text('ALTER TABLE doc_entries ADD COLUMN zo_number VARCHAR(64)'))
+                conn.commit()
         if 'prod_entries' in insp.get_table_names():
             cols = [c['name'] for c in insp.get_columns('prod_entries')]
             if 'employee_name' not in cols:

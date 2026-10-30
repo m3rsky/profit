@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'psh-qc-v10';
+const CACHE_VERSION = 'psh-qc-v11';
 const STATIC_CACHE  = `${CACHE_VERSION}-static`;
 const ALL_CACHES    = [STATIC_CACHE];
 
@@ -53,6 +53,13 @@ self.addEventListener('fetch', event => {
   if (url.pathname.startsWith('/api/') ||
       url.pathname.startsWith('/uploads/') ||
       url.pathname === '/logout') {
+    event.respondWith(fetch(request));
+    return;
+  }
+
+  // Podgląd 3D (three.js + WASM, ok. 9 MB): bez cache SW, bo cache-first odświeżałby
+  // go w tle przy każdym otwarciu. Cache przeglądarki (ETag) wystarcza, tylko online.
+  if (url.pathname.startsWith('/static/podglad3d/')) {
     event.respondWith(fetch(request));
     return;
   }

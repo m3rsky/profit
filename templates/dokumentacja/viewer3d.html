@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Podgląd 3D: {{ f.original_name or f.filename }}</title>
+<style>
+  :root { --bg:#f4f5f7; --panel:#fff; --txt:#1d2329; --muted:#6b7480; --acc:#c8102e; --line:#dde1e6; }
+  * { box-sizing:border-box; }
+  html, body { height:100%; }
+  body { margin:0; font-family:system-ui,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--txt); display:flex; flex-direction:column; }
+  header { display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding:8px 12px; background:var(--panel); border-bottom:1px solid var(--line); }
+  header h1 { font-size:15px; margin:0 auto 0 0; min-width:0; overflow-wrap:anywhere; }
+  header h1 small { display:block; font-weight:400; font-size:12px; color:var(--muted); }
+  button, a.btn { font:inherit; font-size:13px; padding:7px 12px; border:1px solid var(--line); background:var(--panel); color:var(--txt); border-radius:6px; cursor:pointer; text-decoration:none; }
+  button:disabled { opacity:.45; cursor:default; }
+  button.on { border-color:var(--acc); color:var(--acc); }
+  #info { font-size:12px; color:var(--muted); padding:4px 12px; min-height:22px; }
+  #stage { position:relative; flex:1; min-height:300px; margin:0 12px 12px; background:var(--panel); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  #stage canvas { display:block; width:100%; height:100%; touch-action:none; }
+  #hint { position:absolute; left:0; right:0; bottom:8px; text-align:center; color:var(--muted); font-size:12px; pointer-events:none; padding:0 12px; }
+  #busy { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(255,255,255,.75); font-size:14px; }
+  #busy.show { display:flex; }
+  .err { color:var(--acc); }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "{{ url_for('static', filename='podglad3d/lib/three.module.js') }}",
+  "three/addons/": "{{ url_for('static', filename='podglad3d/lib/addons/') }}"
+} }
+</script>
+</head>
+<body>
+<header>
+  <h1>{{ f.original_name or f.filename }}
+    <small>Teczka: {{ entry.title }}{% if entry.zo_number %} · ZO {{ entry.zo_number }}{% endif %}</small>
+  </h1>
+  <button data-view="iso" disabled>Izometria</button>
+  <button data-view="front" disabled>Przód</button>
+  <button data-view="top" disabled>Góra</button>
+  <button data-view="side" disabled>Bok</button>
+  <button id="edges" class="on" disabled>Krawędzie</button>
+  <a class="btn" href="{{ download_url }}">Pobierz</a>
+  <a class="btn" href="{{ url_for('dokumentacja.entry_detail', entry_id=entry.id) }}#dokumenty">Teczka</a>
+</header>
+<div id="info"></div>
+<div id="stage">
+  <div id="hint">Obrót: lewy przycisk · Przesuw: prawy · Zoom: kółko · Na telefonie: palce</div>
+  <div id="busy">Wczytywanie modelu…</div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const MODEL_URL  = {{ model_url | tojson }};
+const MODEL_NAME = {{ (f.original_name or f.filename) | tojson }};
+const MODEL_SIZE = {{ (f.size_bytes or 0) | tojson }};
+const WORKER_URL = {{ url_for('static', filename='podglad3d/lib/occt-import-js-worker.js') | tojson }};
+
+const stage = document.getElementById('stage');
+const hint  = document.getElementById('hint');
+const busy  = document.getElementById('busy');
+const info  = document.getElementById('info');
+const viewBtns = document.querySelectorAll('[data-view]');
+const edgesBtn = document.getElementById('edges');
+
+// --- scena ---
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0xffffff);
+stage.prepend(renderer.domElement);
+
+const scene  = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 1e7);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f96, 2.2));
+const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+sun.position.set(1, 2, 3);
+camera.add(sun);
+scene.add(camera);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+let model = null, edgeGroup = null, box = null;
+const timing = {};
+
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(stage);
+resize();
+renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+
+// --- widoki ---
+function setView(name = 'iso') {
+  if (!box) return;
+  const c = box.getCenter(new THREE.Vector3());
+  const r = box.getSize(new THREE.Vector3()).length() / 2;
+  const dist = r / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2)) * 1.05;
+  const dirs = { iso: [1, 0.8, 1], front: [0, 0, 1], top: [0, 1, 0.0001], side: [1, 0, 0] };
+  const d = new THREE.Vector3(...dirs[name]).normalize();
+  camera.position.copy(c).addScaledVector(d, dist);
+  camera.near = dist / 1000; camera.far = dist * 100;
+  camera.updateProjectionMatrix();
+  controls.target.copy(c);
+  controls.update();
+}
+viewBtns.forEach(b => b.onclick = () => setView(b.dataset.view));
+edgesBtn.onclick = () => {
+  if (!edgeGroup) return;
+  edgeGroup.visible = !edgeGroup.visible;
+  edgesBtn.classList.toggle('on', edgeGroup.visible);
+};
+
+// --- budowa modelu z wyniku occt-import-js ---
+function buildModel(result) {
+  const group = new THREE.Group();
+  const edges = new THREE.Group();
+  let tris = 0;
+  for (const m of result.meshes) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(m.attributes.position.array, 3));
+    if (m.attributes.normal) geo.setAttribute('normal', new THREE.Float32BufferAttribute(m.attributes.normal.array, 3));
+    geo.setIndex(new THREE.Uint32BufferAttribute(m.index.array, 1));
+    if (!m.attributes.normal) geo.computeVertexNormals();
+    tris += m.index.array.length / 3;
+
+    const base = m.color ? new THREE.Color(...m.color) : new THREE.Color(0.75, 0.77, 0.8);
+    let vertexColors = false;
+    if (m.brep_faces && m.brep_faces.some(f => f.color)) {
+      // kolory pojedynczych ścian
+      const n = m.attributes.position.array.length / 3;
+      const cols = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) cols.set([base.r, base.g, base.b], i * 3);
+      const idx = m.index.array;
+      for (const f of m.brep_faces) {
+        if (!f.color) continue;
+        for (let t = f.first; t <= f.last; t++)
+          for (let k = 0; k < 3; k++) cols.set(f.color, idx[t * 3 + k] * 3);
+      }
+      geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+      vertexColors = true;
+    }
+    const mat = new THREE.MeshStandardMaterial({
+      color: vertexColors ? 0xffffff : base, vertexColors,
+      metalness: 0.15, roughness: 0.6, side: THREE.DoubleSide,
+      polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.name = m.name || '';
+    group.add(mesh);
+  }
+  const tMesh = performance.now();
+  // krawędzie tylko dla rozsądnych rozmiarów (przy dużych złożeniach mulą)
+  if (tris < 600000) {
+    const lineMat = new THREE.LineBasicMaterial({ color: 0x222222 });
+    group.children.forEach(mesh => edges.add(new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry, 30), lineMat)));
+  }
+  timing.edges = performance.now() - tMesh;
+  // SolidWorks: oś Y w górę – tak samo jak w podglądzie, bez obracania
+  const root = new THREE.Group();
+  root.add(group, edges);
+  return { root, edges, tris, parts: result.meshes.length };
+}
+
+// --- wczytywanie przez worker (lokalne biblioteki, bez CDN) ---
+let worker = null;
+function readStep(buffer) {
+  return new Promise((resolve, reject) => {
+    if (!worker) worker = new Worker(WORKER_URL);
+    worker.onmessage = e => resolve(e.data);
+    worker.onerror = e => { worker.terminate(); worker = null; reject(new Error(e.message || 'błąd biblioteki STEP')); };
+    worker.postMessage({
+      format: 'step', buffer: new Uint8Array(buffer),
+      params: { linearUnit: 'millimeter', linearDeflectionType: 'bounding_box_ratio', linearDeflection: 0.001, angularDeflection: 0.5 }
+    }, [buffer]);
+  });
+}
+
+async function load() {
+  busy.classList.add('show');
+  info.textContent = MODEL_NAME + (MODEL_SIZE ? ' · ' + (MODEL_SIZE / 1048576).toFixed(1) + ' MB' : '');
+  const t0 = performance.now();
+  const stageText = t => { busy.textContent = t; };
+  try {
+    stageText('Pobieranie pliku…');
+    const r = await fetch(MODEL_URL, { credentials: 'same-origin' });
+    if (!r.ok) throw new Error('Nie można pobrać pliku (' + r.status + ')');
+    const buf = await r.arrayBuffer();
+    timing.fetch = performance.now() - t0;
+    stageText('Analiza pliku STEP…');
+    const t1 = performance.now();
+    const result = await readStep(buf);
+    timing.parse = performance.now() - t1;
+    if (!result || !result.success || !result.meshes.length) throw new Error('Plik nie zawiera geometrii albo jest uszkodzony');
+    stageText('Budowanie modelu…');
+    await new Promise(requestAnimationFrame);
+    const t2 = performance.now();
+    const built = buildModel(result);
+    timing.build = performance.now() - t2;
+    model = built.root; edgeGroup = built.edges;
+    scene.add(model);
+    box = new THREE.Box3().setFromObject(model);
+    setView('iso');
+    viewBtns.forEach(b => b.disabled = false);
+    edgesBtn.disabled = !edgeGroup.children.length;
+    edgesBtn.classList.toggle('on', !!edgeGroup.children.length);
+    const s = box.getSize(new THREE.Vector3());
+    info.textContent += ` · ${built.parts} brył · ${Math.round(built.tris).toLocaleString('pl')} trójkątów · ` +
+      `gabaryt ${s.x.toFixed(0)}×${s.y.toFixed(0)}×${s.z.toFixed(0)} mm · ${((performance.now() - t0) / 1000).toFixed(1)} s ` +
+      `(pobranie ${(timing.fetch / 1000).toFixed(1)} s, analiza STEP ${(timing.parse / 1000).toFixed(1)} s, ` +
+      `siatka ${((timing.build - timing.edges) / 1000).toFixed(1)} s, krawędzie ${(timing.edges / 1000).toFixed(1)} s)`;
+  } catch (err) {
+    info.innerHTML = '<span class="err"></span>';
+    info.firstChild.textContent = 'Błąd: ' + err.message;
+    hint.style.display = 'none';
+  } finally {
+    busy.classList.remove('show');
+  }
+}
+load();
+</script>
+</body>
+</html>

@@ -12,6 +12,7 @@
 }
 .doc-tile:hover { box-shadow: 0 4px 14px rgba(0,0,0,.08); transform: translateY(-1px); }
 .doc-tile-title { font-weight: 600; font-size: .98rem; margin-bottom: 6px; overflow-wrap: break-word; }
+.doc-tile-zo { font-size: .8rem; color: #1a6e8a; font-weight: 600; margin-bottom: 6px; }
 .doc-tile-desc { color: #777; font-size: .84rem; line-height: 1.5; margin-bottom: 10px;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .doc-tile-meta { display: flex; flex-wrap: wrap; gap: 10px; font-size: .78rem; color: #888; }
@@ -36,7 +37,7 @@
 <div class="card card--spaced-top">
   <div class="card-body" style="padding-bottom:0;">
     <form method="get" class="filter-bar filter-bar--rows" style="margin-bottom:1rem;">
-      {{ list_search('q', q, 'Szukaj po tytule lub opisie…', clear_url=url_for('dokumentacja.list_entries')) }}
+      {{ list_search('q', q, 'Szukaj po tytule, opisie lub numerze ZO…', clear_url=url_for('dokumentacja.list_entries')) }}
     </form>
   </div>
 
@@ -46,6 +47,7 @@
       {% for e in entries %}
       <a class="doc-tile" href="{{ url_for('dokumentacja.entry_detail', entry_id=e.id) }}">
         <div class="doc-tile-title">{{ e.title }}</div>
+        {% if e.zo_number %}<div class="doc-tile-zo"><i class="bi bi-hash"></i>ZO {{ e.zo_number }}</div>{% endif %}
         {% if e.description %}<div class="doc-tile-desc">{{ e.description }}</div>{% endif %}
         <div class="doc-tile-meta">
           <span class="chip"><i class="bi bi-file-earmark"></i>{{ e.document_count }}</span>

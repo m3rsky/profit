@@ -387,3 +387,254 @@ class TestNotes:
         token = _csrf(client)
         resp = client.post(f'/dokumentacja/notatka/{nid}/usun', data={'_csrf_token': token})
         assert resp.status_code == 403
+
+
+# ── Numer ZO ─────────────────────────────────────────────────────────────────
+
+class TestZoNumber:
+    def test_create_with_zo_and_search(self, client):
+        login(client, 'oper', 'Oper1234!')
+        token = _csrf(client)
+        client.post('/dokumentacja/nowa', data={
+            'title': 'Szafa z ZO', 'zo_number': ' ZO/77/2026 ', '_csrf_token': token,
+        }, follow_redirects=True)
+        with flask_app.app_context():
+            e = DocEntry.query.filter_by(title='Szafa z ZO').first()
+            assert e.zo_number == 'ZO/77/2026'
+        resp = client.get('/dokumentacja/?q=77/2026')
+        assert b'Szafa z ZO' in resp.data
+        assert b'ZO/77/2026' in resp.data
+
+    def test_edit_zo(self, client):
+        login(client, 'oper', 'Oper1234!')
+        eid = _mk_entry(client, 'Teczka ZO')
+        token = _csrf(client)
+        client.post(f'/dokumentacja/{eid}/edytuj', data={
+            'title': 'Teczka ZO', 'zo_number': 'ZO/1', '_csrf_token': token,
+        }, follow_redirects=True)
+        with flask_app.app_context():
+            assert db.session.get(DocEntry, eid).zo_number == 'ZO/1'
+        token = _csrf(client)
+        client.post(f'/dokumentacja/{eid}/edytuj', data={
+            'title': 'Teczka ZO', 'zo_number': '', '_csrf_token': token,
+        }, follow_redirects=True)
+        with flask_app.app_context():
+            assert db.session.get(DocEntry, eid).zo_number is None
+
+
+# ── Modele STEP i podgląd 3D ─────────────────────────────────────────────────
+
+STEP_BYTES = (b"ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('x'),'2;1');\nENDSEC;\n"
+              b"DATA;\nENDSEC;\nEND-ISO-10303-21;\n")
+
+
+def _upload_step(client, eid, name='czesc.step', data=STEP_BYTES):
+    token = _csrf(client)
+    client.post(f'/dokumentacja/{eid}/dokumenty', data={
+        'files': (io.BytesIO(data), name), '_csrf_token': token,
+    }, content_type='multipart/form-data', follow_redirects=True)
+
+
+class TestStep:
+    @pytest.mark.parametrize('name', ['a.step', 'a.stp', 'A.STEP', 'A.STP', 'A.Stp'])
+    def test_step_extensions_case_insensitive(self, client, name):
+        login(client, 'oper', 'Oper1234!')
+        eid = _mk_entry(client)
+        _upload_step(client, eid, name)
+        with flask_app.app_context():
+            f = DocFile.query.filter_by(entry_id=eid).first()
+            assert f is not None and f.kind == 'document'
+            assert f.filename.endswith(('.step', '.stp'))
+            assert f.is_step
+            assert f.icon == 'bi-box'
+
+    def test_step_without_header_rejected(self, client):
+        login(client, 'oper', 'Oper1234!')
+        eid = _mk_entry(client)
+        _upload_step(client, eid, 'falsz.step', b'to nie jest STEP')
+        with flask_app.app_context():
+            assert DocFile.query.filter_by(entry_id=eid).count() == 0
+
+    def test_view_3d_page_for_step(self, client):
+        login(client, 'oper', 'Oper1234!')
+        eid = _mk_entry(client, 'Teczka 3D')
+        _upload_step(client, eid, 'zlozenie.STEP')
+        with flask_app.app_context():
+            f = DocFile.query.filter_by(entry_id=eid).first()
+            fid, fname = f.id, f.filename
+        resp = client.get(f'/dokumentacja/podglad3d/{fid}')
+        assert resp.status_code == 200
+        assert f'/dokumentacja/plik/{fname}'.encode() in resp.data
+        assert b'zlozenie.STEP' in resp.data
+        assert b'/static/podglad3d/lib/three.module.js' in resp.data
+        detail = client.get(f'/dokumentacja/{eid}')
+        assert f'/dokumentacja/podglad3d/{fid}'.encode() in detail.data
+
+    def test_view_3d_requires_login(self, client):
+        login(client, 'oper', 'Oper1234!')
+        eid = _mk_entry(client)
+        _upload_step(client, eid)
+        with flask_app.app_context():
+            fid = DocFile.query.filter_by(entry_id=eid).first().id
+        logout(client)
+        resp = client.get(f'/dokumentacja/podglad3d/{fid}')
+        assert resp.status_code in (302, 401)
+
+    def test_view_3d_404_for_non_step_and_missing(self, client):
+        login(client, 'oper', 'Oper1234!')
+        eid = _mk_entry(client)
+        token = _csrf(client)
+        client.post(f'/dokumentacja/{eid}/dokumenty', data={
+            'files': (io.BytesIO(b'%PDF-1.4'), 'x.pdf'), '_csrf_token': token,
+        }, content_type='multipart/form-data', follow_redirects=True)
+        with flask_app.app_context():
+            fid = DocFile.query.filter_by(entry_id=eid).first().id
+        assert client.get(f'/dokumentacja/podglad3d/{fid}').status_code == 404
+        assert client.get('/dokumentacja/podglad3d/999999').status_code == 404
+
+    def test_view_3d_does_not_accept_path(self, client):
+        login(client, 'oper', 'Oper1234!')
+        assert client.get('/dokumentacja/podglad3d/..%2f..%2fconfig.py').status_code == 404
+        assert client.get('/dokumentacja/podglad3d/abc').status_code == 404
+
+    def test_step_served_from_same_origin(self, client):
+        login(client, 'oper', 'Oper1234!')
+        eid = _mk_entry(client)
+        _upload_step(client, eid)
+        with flask_app.app_context():
+            fname = DocFile.query.filter_by(entry_id=eid).first().filename
+        resp = client.get(f'/dokumentacja/plik/{fname}')
+        assert resp.status_code == 200
+        assert resp.data == STEP_BYTES
+
+    def test_wasm_served_with_proper_mime(self, client):
+        resp = client.get('/static/podglad3d/lib/occt-import-js.wasm')
+        assert resp.status_code == 200
+        assert resp.mimetype == 'application/wasm'
+        resp.close()
+
+    def test_viewer_libs_present(self, client):
+        for name in ('three.module.js', 'three.core.js', 'addons/controls/OrbitControls.js',
+                     'occt-import-js.js', 'occt-import-js-worker.js'):
+            resp = client.get(f'/static/podglad3d/lib/{name}')
+            assert resp.status_code == 200, name
+            resp.close()
+
+
+# ── Limity rozmiaru ──────────────────────────────────────────────────────────
+
+class TestSizeLimits:
+    @pytest.fixture(autouse=True)
+    def _restore_limits(self):
+        keys = ('DOC_MAX_FILE_BYTES', 'DOC_STEP_MAX_BYTES', 'DEFAULT_MAX_UPLOAD')
+        prev = {k: flask_app.config[k] for k in keys}
+        yield
+        flask_app.config.update(prev)
+
+    def test_default_limits_configured(self):
+        assert flask_app.config['MAX_CONTENT_LENGTH'] >= 200 * 1024 * 1024
+        assert flask_app.config['DOC_STEP_MAX_BYTES'] == 200 * 1024 * 1024
+        assert flask_app.config['DOC_MAX_FILE_BYTES'] == 32 * 1024 * 1024
+
+    def test_step_has_higher_per_file_limit_than_other_documents(self, client):
+        flask_app.config['DOC_MAX_FILE_BYTES'] = 200
+        flask_app.config['DOC_STEP_MAX_BYTES'] = 5000
+        login(client, 'oper', 'Oper1234!')
+        eid = _mk_entry(client)
+        _upload_step(client, eid, 'duzy.step', STEP_BYTES + b' ' * 500)
+        token = _csrf(client)
+        client.post(f'/dokumentacja/{eid}/dokumenty', data={
+            'files': (io.BytesIO(b'%PDF-1.4' + b' ' * 500), 'duzy.pdf'), '_csrf_token': token,
+        }, content_type='multipart/form-data', follow_redirects=True)
+        with flask_app.app_context():
+            names = [f.original_name for f in DocFile.query.filter_by(entry_id=eid)]
+        assert names == ['duzy.step']
+
+    def test_step_over_its_limit_rejected_with_message(self, client):
+        flask_app.config['DOC_STEP_MAX_BYTES'] = 50
+        login(client, 'oper', 'Oper1234!')
+        eid = _mk_entry(client)
+        token = _csrf(client)
+        resp = client.post(f'/dokumentacja/{eid}/dokumenty', data={
+            'files': (io.BytesIO(STEP_BYTES), 'za_duzy.step'), '_csrf_token': token,
+        }, content_type='multipart/form-data', follow_redirects=True)
+        assert 'limit to'.encode() in resp.data
+        with flask_app.app_context():
+            assert DocFile.query.filter_by(entry_id=eid).count() == 0
+
+    def test_other_endpoints_keep_old_request_limit(self, client):
+        flask_app.config['DEFAULT_MAX_UPLOAD'] = 1000
+        login(client, 'oper', 'Oper1234!')
+        eid = _mk_entry(client)
+        token = _csrf(client)
+        client.post(f'/dokumentacja/{eid}/zdjecia', data={
+            'images': (_png_bytes(300, 300), 'foto.png'), '_csrf_token': token,
+        }, content_type='multipart/form-data', follow_redirects=True)
+        with flask_app.app_context():
+            assert DocFile.query.filter_by(entry_id=eid).count() == 0
+        token = _csrf(client)
+        client.post(f'/dokumentacja/{eid}/dokumenty', data={
+            'files': (_png_bytes(300, 300), 'foto.png'), '_csrf_token': token,
+        }, content_type='multipart/form-data', follow_redirects=True)
+        with flask_app.app_context():
+            assert DocFile.query.filter_by(entry_id=eid).count() == 1
+
+
+# ── Lokalizacja plików ───────────────────────────────────────────────────────
+
+class TestStorage:
+    def test_upload_folder_outside_static(self):
+        from config import Config
+        norm = Config.DOKUMENTACJA_UPLOAD_FOLDER.replace('\\', '/')
+        assert '/static/' not in norm
+        assert '/instance/' in norm
+
+    def test_legacy_files_are_moved(self, tmp_path):
+        from dokumentacja.storage import migrate_legacy_uploads
+        old, new = tmp_path / 'static_old', tmp_path / 'instance_new'
+        old.mkdir()
+        new.mkdir()
+        (old / 'a.pdf').write_bytes(b'A')
+        (old / 'b.jpg').write_bytes(b'B')
+        (new / 'b.jpg').write_bytes(b'NEW')
+        assert migrate_legacy_uploads(str(old), str(new)) == 1
+        assert (new / 'a.pdf').read_bytes() == b'A'
+        assert (new / 'b.jpg').read_bytes() == b'NEW'
+        assert (old / 'b.jpg').exists()
+        assert migrate_legacy_uploads(str(old), str(new)) == 0
+
+    def test_legacy_folder_removed_when_empty(self, tmp_path):
+        from dokumentacja.storage import migrate_legacy_uploads
+        old, new = tmp_path / 'o', tmp_path / 'n'
+        old.mkdir()
+        (old / 'x.pdf').write_bytes(b'X')
+        assert migrate_legacy_uploads(str(old), str(new)) == 1
+        assert not old.exists()
+
+    def test_missing_legacy_folder_is_noop(self, tmp_path):
+        from dokumentacja.storage import migrate_legacy_uploads
+        assert migrate_legacy_uploads(str(tmp_path / 'brak'), str(tmp_path / 'n')) == 0
+        assert migrate_legacy_uploads(None, str(tmp_path / 'n')) == 0
+
+
+class TestMigration:
+    def test_migration_adds_zo_number_to_existing_table(self, app):
+        """Na produkcji tabela doc_entries już istnieje bez kolumny zo_number."""
+        from sqlalchemy import create_engine, inspect, text
+        import app as app_module
+        engine = create_engine('sqlite:///:memory:')
+        with engine.begin() as conn:
+            conn.execute(text('CREATE TABLE doc_entries (id INTEGER PRIMARY KEY, '
+                              'title VARCHAR(256), description TEXT)'))
+
+        class FakeDb:   # _migrate_schema używa tylko db.engine
+            pass
+        FakeDb.engine = engine
+        real = app_module.db
+        app_module.db = FakeDb
+        try:
+            app_module._migrate_schema()
+            app_module._migrate_schema()   # drugi raz nie wywala
+        finally:
+            app_module.db = real
+        assert 'zo_number' in [c['name'] for c in inspect(engine).get_columns('doc_entries')]
