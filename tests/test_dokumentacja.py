@@ -6,7 +6,7 @@ import pytest
 from PIL import Image
 
 from app import app as flask_app, db
-from models import User, DocEntry, DocFile, DocNote
+from models import User, DocEntry, DocFile, DocNote, DocMeasurement
 from test_app import login, logout, _csrf
 
 
@@ -26,6 +26,7 @@ def _clean_tables():
     yield
     with flask_app.app_context():
         DocNote.query.delete()
+        DocMeasurement.query.delete()
         DocFile.query.delete()
         DocEntry.query.delete()
         db.session.commit()
@@ -638,3 +639,147 @@ class TestMigration:
         finally:
             app_module.db = real
         assert 'zo_number' in [c['name'] for c in inspect(engine).get_columns('doc_entries')]
+
+
+# ── Zapisane pomiary w podglądzie 3D ─────────────────────────────────────────
+
+def _meas_payload(label='Otwór do krawędzi', element='Zamek D5'):
+    return {'label': label, 'element': element, 'data': {
+        'A': {'k': 'circle', 'c': [1, 2, 3], 'r': 3.0, 'n': [0, 0, 1], 'part': 1},
+        'B': {'k': 'line', 'a': [0, 0, 0], 'b': [10, 0, 0], 'dir': [1, 0, 0], 'len': 10.0},
+        'rows': [['Odległość', '5.00 mm'], ['Średnica otworu', 'Ø6.00']],
+        'segs': [[[1, 2, 3], [1, 0, 3]]],
+    }}
+
+
+def _post_json(client, url, payload):
+    return client.post(url, json=payload, headers={'X-CSRF-Token': _csrf(client)})
+
+
+def _step_file(client, name='model.step'):
+    eid = _mk_entry(client)
+    _upload_step(client, eid, name)
+    with flask_app.app_context():
+        return DocFile.query.filter_by(entry_id=eid).first().id
+
+
+class TestMeasurements:
+    def test_create_and_list(self, client):
+        login(client, 'oper', 'Oper1234!')
+        fid = _step_file(client)
+        resp = _post_json(client, f'/dokumentacja/podglad3d/{fid}/pomiary', _meas_payload())
+        assert resp.status_code == 201
+        body = resp.get_json()
+        assert body['label'] == 'Otwór do krawędzi' and body['element'] == 'Zamek D5' and body['can_edit'] is True
+        lst = client.get(f'/dokumentacja/podglad3d/{fid}/pomiary').get_json()
+        assert len(lst) == 1 and lst[0]['data']['rows'][0] == ['Odległość', '5.00 mm']
+        assert lst[0]['data']['A']['r'] == 3.0 and lst[0]['author'] == 'oper'
+        with flask_app.app_context():
+            assert DocMeasurement.query.filter_by(file_id=fid).count() == 1
+
+    def test_only_step_files(self, client):
+        login(client, 'oper', 'Oper1234!')
+        eid = _mk_entry(client)
+        token = _csrf(client)
+        client.post(f'/dokumentacja/{eid}/dokumenty', data={
+            'files': (io.BytesIO(b'%PDF-1.4'), 'x.pdf'), '_csrf_token': token,
+        }, content_type='multipart/form-data', follow_redirects=True)
+        with flask_app.app_context():
+            fid = DocFile.query.filter_by(entry_id=eid).first().id
+        assert client.get(f'/dokumentacja/podglad3d/{fid}/pomiary').status_code == 404
+        assert _post_json(client, f'/dokumentacja/podglad3d/{fid}/pomiary', _meas_payload()).status_code == 404
+
+    def test_requires_login_and_csrf(self, client):
+        login(client, 'oper', 'Oper1234!')
+        fid = _step_file(client)
+        no_csrf = client.post(f'/dokumentacja/podglad3d/{fid}/pomiary', json=_meas_payload())
+        assert no_csrf.status_code == 403
+        logout(client)
+        assert client.get(f'/dokumentacja/podglad3d/{fid}/pomiary').status_code in (302, 401)
+
+    def test_validation_rejects_bad_data(self, client):
+        login(client, 'oper', 'Oper1234!')
+        fid = _step_file(client)
+        url = f'/dokumentacja/podglad3d/{fid}/pomiary'
+        bad_kind = _meas_payload(); bad_kind['data']['A']['k'] = 'sfera'
+        no_rows = _meas_payload(); no_rows['data']['rows'] = []
+        nan = _meas_payload(); nan['data']['A']['r'] = float('nan')
+        too_many = _meas_payload(); too_many['data']['rows'] = [['a', 'b']] * 13
+        bad_vec = _meas_payload(); bad_vec['data']['A']['c'] = [1, 2]
+        for payload in (bad_kind, no_rows, nan, too_many, bad_vec, {'data': 'x'}, {}):
+            assert _post_json(client, url, payload).status_code == 400, payload
+        assert client.get(url).get_json() == []
+
+    def test_unknown_fields_are_dropped(self, client):
+        login(client, 'oper', 'Oper1234!')
+        fid = _step_file(client)
+        payload = _meas_payload()
+        payload['data']['A']['evil'] = '<script>alert(1)</script>'
+        payload['data']['injected'] = {'x': 1}
+        _post_json(client, f'/dokumentacja/podglad3d/{fid}/pomiary', payload)
+        data = client.get(f'/dokumentacja/podglad3d/{fid}/pomiary').get_json()[0]['data']
+        assert 'evil' not in data['A'] and 'injected' not in data
+
+    def test_rename_and_delete_by_author(self, client):
+        login(client, 'oper', 'Oper1234!')
+        fid = _step_file(client)
+        mid = _post_json(client, f'/dokumentacja/podglad3d/{fid}/pomiary', _meas_payload()).get_json()['id']
+        r = _post_json(client, f'/dokumentacja/pomiar/{mid}/edytuj', {'label': 'Nowa nazwa'})
+        assert r.status_code == 200 and r.get_json()['label'] == 'Nowa nazwa'
+        assert _post_json(client, f'/dokumentacja/pomiar/{mid}/usun', {}).status_code == 200
+        with flask_app.app_context():
+            assert DocMeasurement.query.count() == 0
+
+    def test_other_user_sees_but_cannot_change(self, client, other_user):
+        login(client, 'oper', 'Oper1234!')
+        fid = _step_file(client)
+        mid = _post_json(client, f'/dokumentacja/podglad3d/{fid}/pomiary', _meas_payload()).get_json()['id']
+        logout(client)
+        login(client, other_user, 'Other1234!')
+        lst = client.get(f'/dokumentacja/podglad3d/{fid}/pomiary').get_json()
+        assert len(lst) == 1 and lst[0]['can_edit'] is False
+        assert _post_json(client, f'/dokumentacja/pomiar/{mid}/edytuj', {'label': 'x'}).status_code == 403
+        assert _post_json(client, f'/dokumentacja/pomiar/{mid}/usun', {}).status_code == 403
+        # ale może dodać własny pomiar do cudzego pliku
+        assert _post_json(client, f'/dokumentacja/podglad3d/{fid}/pomiary', _meas_payload('Mój')).status_code == 201
+
+    def test_admin_can_delete_foreign_measurement(self, client):
+        login(client, 'oper', 'Oper1234!')
+        fid = _step_file(client)
+        mid = _post_json(client, f'/dokumentacja/podglad3d/{fid}/pomiary', _meas_payload()).get_json()['id']
+        logout(client)
+        login(client, 'admin', 'Admin1234!')
+        assert _post_json(client, f'/dokumentacja/pomiar/{mid}/usun', {}).status_code == 200
+
+    def test_deleting_file_removes_its_measurements(self, client):
+        login(client, 'oper', 'Oper1234!')
+        fid = _step_file(client)
+        _post_json(client, f'/dokumentacja/podglad3d/{fid}/pomiary', _meas_payload())
+        _post_json(client, f'/dokumentacja/podglad3d/{fid}/pomiary', _meas_payload('Drugi'))
+        client.post(f'/dokumentacja/plik/{fid}/usun', data={'_csrf_token': _csrf(client)}, follow_redirects=True)
+        with flask_app.app_context():
+            assert DocMeasurement.query.count() == 0
+
+    def test_flat_space_and_k_roundtrip(self, client):
+        login(client, 'oper', 'Oper1234!')
+        fid = _step_file(client)
+        url = f'/dokumentacja/podglad3d/{fid}/pomiary'
+        payload = _meas_payload()
+        payload['data']['space'] = 'flat'
+        payload['data']['K'] = 0.33
+        assert _post_json(client, url, payload).status_code == 201
+        data = client.get(url).get_json()[0]['data']
+        assert data['space'] == 'flat' and data['K'] == 0.33
+
+    def test_space_defaults_to_3d_and_rejects_unknown(self, client):
+        login(client, 'oper', 'Oper1234!')
+        fid = _step_file(client)
+        url = f'/dokumentacja/podglad3d/{fid}/pomiary'
+        assert _post_json(client, url, _meas_payload()).status_code == 201
+        assert client.get(url).get_json()[0]['data']['space'] == '3d'
+        bad_space = _meas_payload(); bad_space['data']['space'] = 'inna'
+        bad_k = _meas_payload(); bad_k['data']['K'] = 7
+        nan_k = _meas_payload(); nan_k['data']['K'] = float('nan')
+        for payload in (bad_space, bad_k, nan_k):
+            assert _post_json(client, url, payload).status_code == 400
+

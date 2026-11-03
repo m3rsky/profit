@@ -1,14 +1,16 @@
 import os
+import json
+import math
 import uuid
 import mimetypes
 from datetime import datetime, timezone
 
 from flask import (render_template, redirect, url_for, request, flash,
-                   abort, current_app, send_from_directory, make_response)
+                   abort, current_app, send_from_directory, make_response, jsonify)
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 
-from models import db, get_or_404, AuditLog, DocEntry, DocFile, DocNote
+from models import db, get_or_404, AuditLog, DocEntry, DocFile, DocNote, DocMeasurement
 from . import dokumentacja_bp
 
 UTC = timezone.utc
@@ -433,7 +435,159 @@ def view_3d(file_id):
         'dokumentacja/viewer3d.html', f=f, entry=f.entry,
         model_url=url_for('dokumentacja.serve_file', filename=f.filename),
         download_url=url_for('dokumentacja.serve_file', filename=f.filename, download=1),
+        measurements_url=url_for('dokumentacja.measurements', file_id=f.id),
+        measurement_edit_url=url_for('dokumentacja.edit_measurement', mid=0),
+        measurement_delete_url=url_for('dokumentacja.delete_measurement', mid=0),
     )
+
+
+# ── Pomiary zapisane w podglądzie 3D ────────────────────────────────────────
+
+_MEAS_KINDS = {'pt', 'circle', 'line', 'plane', 'cyl'}
+_MEAS_VEC_KEYS = ('p', 'c', 'n', 'a', 'b', 'dir', 'anchor', 'o')     # wektory 3D
+_MEAS_NUM_KEYS = ('r', 'len', 'area', 'part', 'faceId')
+_MEAS_BOOL_KEYS = ('convex', 'free', 'arc')
+_MEAS_MAX_BYTES = 20000
+
+
+def _num(x):
+    """Liczba skończona albo ValueError (JSON z przeglądarki może nieść NaN/Infinity)."""
+    if isinstance(x, bool) or not isinstance(x, (int, float)) or not math.isfinite(x):
+        raise ValueError('liczba')
+    return float(x)
+
+
+def _vec3(v):
+    if not isinstance(v, (list, tuple)) or len(v) != 3:
+        raise ValueError('wektor')
+    return [_num(x) for x in v]
+
+
+def _clean_feature(f):
+    if not isinstance(f, dict) or f.get('k') not in _MEAS_KINDS:
+        raise ValueError('cecha')
+    out = {'k': f['k']}
+    for k in _MEAS_VEC_KEYS:
+        if k in f:
+            out[k] = _vec3(f[k])
+    for k in _MEAS_NUM_KEYS:
+        if k in f:
+            out[k] = _num(f[k])
+    for k in _MEAS_BOOL_KEYS:
+        if k in f:
+            out[k] = bool(f[k])
+    return out
+
+
+def _clean_measurement(data):
+    """Zostawia tylko znane pola pomiaru (cechy, wiersze wyniku, odcinki) i odrzuca resztę."""
+    if not isinstance(data, dict):
+        raise ValueError('dane')
+    rows = data.get('rows')
+    segs = data.get('segs', [])
+    if not isinstance(rows, list) or not 1 <= len(rows) <= 12:
+        raise ValueError('wiersze')
+    clean_rows = []
+    for r in rows:
+        if not isinstance(r, (list, tuple)) or len(r) != 2 or not all(isinstance(x, str) for x in r):
+            raise ValueError('wiersz')
+        clean_rows.append([r[0][:80], r[1][:80]])
+    if not isinstance(segs, list) or len(segs) > 6:
+        raise ValueError('odcinki')
+    clean_segs = []
+    for sg in segs:
+        if not isinstance(sg, (list, tuple)) or len(sg) != 2:
+            raise ValueError('odcinek')
+        clean_segs.append([_vec3(sg[0]), _vec3(sg[1])])
+    space = data.get('space', '3d')
+    if space not in ('3d', 'flat'):
+        raise ValueError('przestrzeń')
+    out = {'A': _clean_feature(data.get('A')), 'B': _clean_feature(data.get('B')),
+           'rows': clean_rows, 'segs': clean_segs, 'space': space}
+    if 'K' in data:                       # współczynnik K, dla którego policzono pomiar na wykroju
+        k = _num(data['K'])
+        if not 0 <= k <= 1.5:
+            raise ValueError('K')
+        out['K'] = k
+    if len(json.dumps(out)) > _MEAS_MAX_BYTES:
+        raise ValueError('rozmiar')
+    return out
+
+
+def _step_file_or_404(file_id):
+    f = get_or_404(DocFile, file_id)
+    if not f.is_step:
+        abort(404)
+    return f
+
+
+def _can_edit_measurement(m):
+    return (m.user_id == current_user.id or _can_edit_file(m.file)
+            or current_user.can('dokumentacja.manage_all'))
+
+
+def _meas_json(m):
+    return {
+        'id': m.id, 'label': m.label or '', 'element': m.element or '',
+        'data': json.loads(m.data),
+        'author': m.author.username if m.author else '',
+        'created_at': m.created_at.isoformat() if m.created_at else None,
+        'can_edit': _can_edit_measurement(m),
+    }
+
+
+@dokumentacja_bp.route('/podglad3d/<int:file_id>/pomiary', methods=['GET', 'POST'])
+@login_required
+def measurements(file_id):
+    f = _step_file_or_404(file_id)
+    if request.method == 'GET':
+        items = f.measurements.order_by(DocMeasurement.id).all()
+        return jsonify([_meas_json(m) for m in items])
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify(error='Brak danych pomiaru.'), 400
+    try:
+        data = _clean_measurement(payload.get('data'))
+    except ValueError:
+        return jsonify(error='Nieprawidłowe dane pomiaru.'), 400
+    if f.measurements.count() >= 500:
+        return jsonify(error='Za dużo zapisanych pomiarów dla tego pliku.'), 400
+    m = DocMeasurement(
+        file_id=f.id, user_id=current_user.id, data=json.dumps(data),
+        label=(str(payload.get('label') or '').strip()[:128] or None),
+        element=(str(payload.get('element') or '').strip()[:256] or None),
+    )
+    db.session.add(m)
+    db.session.commit()
+    _audit('doc_measure_add', f.entry_id, f'file={f.original_name} measurement={m.id}')
+    return jsonify(_meas_json(m)), 201
+
+
+@dokumentacja_bp.route('/pomiar/<int:mid>/edytuj', methods=['POST'])
+@login_required
+def edit_measurement(mid):
+    m = get_or_404(DocMeasurement, mid)
+    if not _can_edit_measurement(m):
+        abort(403)
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify(error='Brak danych.'), 400
+    m.label = (str(payload.get('label') or '').strip()[:128] or None)
+    db.session.commit()
+    return jsonify(_meas_json(m))
+
+
+@dokumentacja_bp.route('/pomiar/<int:mid>/usun', methods=['POST'])
+@login_required
+def delete_measurement(mid):
+    m = get_or_404(DocMeasurement, mid)
+    if not _can_edit_measurement(m):
+        abort(403)
+    entry_id, name = m.file.entry_id, m.file.original_name
+    db.session.delete(m)
+    db.session.commit()
+    _audit('doc_measure_delete', entry_id, f'file={name} measurement={mid}')
+    return jsonify(ok=True)
 
 
 # ── Serwowanie plików ──────────────────────────────────────────────────────

@@ -929,6 +929,8 @@ class DocFile(db.Model):
     created_at       = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
 
     author = db.relationship('User', foreign_keys=[user_id])
+    measurements = db.relationship('DocMeasurement', backref='file', lazy='dynamic',
+                                   cascade='all, delete-orphan')
 
     @property
     def ext(self):
@@ -997,6 +999,24 @@ class DocNote(db.Model):
 
     def __repr__(self):
         return f'<DocNote {self.id} entry={self.entry_id}>'
+
+
+class DocMeasurement(db.Model):
+    """Pomiar zapisany w podglądzie 3D pliku STEP: cechy (otwór, krawędź, płaszczyzna...)
+    w układzie modelu, policzone wartości i element, którego dotyczy."""
+    __tablename__ = 'doc_measurements'
+    id         = db.Column(db.Integer, primary_key=True)
+    file_id    = db.Column(db.Integer, db.ForeignKey('doc_files.id'), nullable=False, index=True)
+    label      = db.Column(db.String(128), nullable=True)
+    element    = db.Column(db.String(256), nullable=True)   # nazwy elementów, np. "Zamek D5 / 03"
+    data       = db.Column(db.Text, nullable=False)          # JSON: A, B, rows, segs
+    user_id    = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+
+    author = db.relationship('User', foreign_keys=[user_id])
+
+    def __repr__(self):
+        return f'<DocMeasurement {self.id} file={self.file_id}>'
 
 
 # ── Lista produkcyjna (import z Excela) ───────────────────────────────────────

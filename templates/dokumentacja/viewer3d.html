@@ -33,7 +33,12 @@
   /* panel boczny */
   #panel { width:320px; flex:none; overflow:auto; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px; font-size:13px; }
   #panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:12px 0 6px; }
-  #panel h2:first-child { margin-top:0; }
+  #panel .sec:first-child h2 { margin-top:0; }
+  #panel .sec-h { cursor:pointer; user-select:none; -webkit-user-select:none; display:flex; align-items:center; gap:6px; }
+  #panel .sec-h::before { content:'▾'; width:10px; color:var(--muted); }
+  #panel .sec.collapsed .sec-h::before { content:'▸'; }
+  #panel .sec.collapsed .sec-b { display:none; }
+  #sheet-handle { display:none; }
   .seg { display:flex; gap:4px; flex-wrap:wrap; }
   .seg button { padding:5px 10px; font-size:12px; }
   .clip-row { display:flex; align-items:center; gap:8px; margin-top:8px; }
@@ -50,13 +55,99 @@
   .tr input[type=checkbox] { flex:none; width:16px; height:16px; }
   .kids { display:none; }
   .kids.open { display:block; }
+  /* pomiary */
+  #meas-labels { position:absolute; inset:0; pointer-events:none; overflow:hidden; z-index:2; }
+  .mlabel { position:absolute; transform:translate(-50%,-130%); background:#c8102e; color:#fff; font-size:12px; font-weight:600; padding:2px 6px; border-radius:4px; white-space:nowrap; }
+  #meas-hint { font-size:12px; color:var(--muted); margin:6px 0; line-height:1.35; }
+  .mgroup { margin-bottom:8px; }
+  .mghead { display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; padding:3px 2px; cursor:pointer; overflow-wrap:anywhere; }
+  .mrow { border:1px solid var(--line); border-radius:6px; margin-bottom:4px; font-size:12px; line-height:1.45; }
+  .mrow.draft { border-style:dashed; }
+  .mtop { display:flex; gap:6px; align-items:center; padding:3px 6px; }
+  .mtop input { flex:none; }
+  .mtitle { flex:1; min-width:0; display:flex; gap:6px; align-items:baseline; background:none; border:0; padding:3px 0; font:inherit; font-size:12px; text-align:left; cursor:pointer; }
+  .mtitle .mchev { color:var(--muted); width:10px; flex:none; }
+  .mtitle .mnm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
+  .mtitle .mval { color:var(--acc); white-space:nowrap; font-weight:600; }
+  .mrow .msave { padding:2px 8px; font-size:11px; flex:none; }
+  .mbody { padding:2px 8px 8px 28px; }
+  .mrow .mhead { color:var(--muted); margin-bottom:2px; overflow-wrap:anywhere; }
+  .mnote { color:var(--muted); font-size:11px; }
+  .mnamerow { display:flex; gap:6px; margin-top:6px; }
+  .mname { flex:1; min-width:0; font:inherit; font-size:12px; padding:3px 6px; border:1px solid var(--line); border-radius:6px; }
+  .mbar { display:flex; gap:6px; align-items:center; margin-top:6px; }
+  .mbar .mstate { color:var(--muted); font-size:11px; margin-right:auto; }
+  .mrow button { padding:2px 8px; font-size:11px; }
+  .mrow .mtitle { padding:3px 0; font-size:12px; }
+  #selsize { flex-basis:100%; font-size:12px; color:var(--muted); }
+  .rowsel { width:100%; font:inherit; font-size:12px; padding:4px; margin-top:6px; }
+  /* rozwinięcie blachy */
+  #flat { position:fixed; inset:0; background:rgba(15,20,30,.55); display:none; z-index:30; align-items:center; justify-content:center; }
+  #flat.open { display:flex; }
+  .flat-card { background:var(--panel); width:min(1100px,96vw); height:min(88vh,900px); display:flex; flex-direction:column; border-radius:12px; overflow:hidden; }
+  .flat-head { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:10px 12px; border-bottom:1px solid var(--line); }
+  .flat-head h3 { margin:0 auto 0 0; font-size:15px; overflow-wrap:anywhere; }
+  .flat-head label { font-size:12px; color:var(--muted); }
+  .flat-head input { width:64px; font:inherit; padding:4px 6px; border:1px solid var(--line); border-radius:6px; }
+  .flat-body { display:flex; gap:12px; padding:12px; flex:1; min-height:0; }
+  #flat-svg { flex:1; min-width:0; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  #flat-svg svg { width:100%; height:100%; display:block; }
+  #flat-side { width:330px; flex:none; overflow:auto; font-size:13px; line-height:1.6; }
+  #flat-dims { border-top:1px solid var(--line); margin-top:10px; padding-top:6px; }
+  #flat-dims h4 { margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+  .fd-bar { display:flex; flex-wrap:wrap; gap:4px; }
+  .fd-bar button, .fd-row button { padding:3px 8px; font-size:12px; }
+  .fd-hint { font-size:12px; color:var(--muted); margin:6px 0; line-height:1.35; }
+  .fd-ghead { display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; margin-top:8px; cursor:pointer; }
+  .fd-row { border:1px solid var(--line); border-radius:6px; margin-top:4px; font-size:12px; line-height:1.45; }
+  .fd-row.draft { border-style:dashed; }
+  .fd-top { display:flex; gap:6px; align-items:center; padding:3px 6px; }
+  .fd-top input { flex:none; }
+  .fd-title { flex:1; min-width:0; display:flex; gap:6px; align-items:baseline; background:none; border:0; padding:3px 0; font:inherit; font-size:12px; text-align:left; cursor:pointer; }
+  .fd-title .fd-chev { color:var(--muted); width:10px; flex:none; }
+  .fd-title .fd-nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
+  .fd-title .fd-val { color:var(--acc); white-space:nowrap; font-weight:600; }
+  .fd-body { padding:2px 8px 8px 28px; }
+  .fd-desc { color:var(--muted); overflow-wrap:anywhere; margin-bottom:2px; }
+  .fd-note { color:var(--muted); font-size:11px; }
+  .fd-namerow { display:flex; gap:6px; margin-top:6px; }
+  .fd-name { flex:1; min-width:0; font:inherit; font-size:12px; padding:3px 6px; border:1px solid var(--line); border-radius:6px; }
+  .fd-skipped { font-size:11px; color:#8a5a00; background:#fff8e6; border:1px solid #f0dca8; border-radius:6px; padding:6px 8px; margin-top:8px; line-height:1.45; }
+  .fd-actions { display:flex; gap:6px; align-items:center; margin-top:4px; }
+  .fd-actions .fd-state { color:var(--muted); font-size:11px; margin-right:auto; }
+  #flat-side .warn { color:#8a5a00; font-size:12px; margin-top:6px; }
+  #flat-side .note { color:var(--muted); font-size:12px; margin-top:8px; }
+  @media (max-width: 800px) {
+    .flat-body { flex-direction:column; }
+    #flat-side { width:auto; max-height:40vh; }
+  }
   @media (max-width: 800px) {
     #layout { margin:0 8px 8px; }
     header { gap:4px; padding:6px 8px; }
     button, a.btn { padding:5px 8px; font-size:12px; }
     #info { padding:2px 8px; }
-    #panel { position:fixed; left:0; right:0; bottom:0; width:auto; max-height:56vh; border-radius:14px 14px 0 0; box-shadow:0 -6px 24px rgba(0,0,0,.18); z-index:10; display:none; }
-    #panel.open { display:block; }
+    #stage { min-height:160px; }
+    /* panel jako dolna szuflada: stuknięcie lub przesunięcie uchwytu palcem zwija i rozwija */
+    body[data-sheet=min] #layout { margin-bottom:62px; }
+    body[data-sheet=mid] #layout { margin-bottom:calc(48vh + 10px); }
+    body[data-sheet=max] #layout { margin-bottom:62px; }
+    #panel { position:fixed; left:0; right:0; bottom:0; width:auto; height:var(--sheet-h, 52px); display:flex; flex-direction:column;
+             padding:0; overflow:hidden; border-radius:16px 16px 0 0; border-bottom:0; box-shadow:0 -6px 24px rgba(0,0,0,.18);
+             z-index:10; transition:height .2s ease; }
+    #panel.dragging { transition:none; }
+    #panel[data-state=min] { --sheet-h:52px; }
+    #panel[data-state=mid] { --sheet-h:48vh; }
+    #panel[data-state=max] { --sheet-h:88vh; }
+    #sheet-handle { display:flex; flex-direction:column; align-items:center; gap:3px; flex:none; padding:8px 12px 7px; cursor:grab;
+                    touch-action:none; user-select:none; -webkit-user-select:none; }
+    #sheet-handle .grip { width:42px; height:5px; border-radius:3px; background:#c3c9d1; }
+    #sheet-title { font-size:12px; color:var(--muted); }
+    #panel-body { flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; padding:0 12px 18px; }
+    /* większe cele dotykowe */
+    #panel input[type=checkbox] { width:20px; height:20px; }
+    #panel .sec-h { padding:10px 0; margin:0; }
+    .mtitle, .fd-title { padding:9px 0; }
+    .mrow button, .fd-row button, .seg button, .tools button { padding:7px 11px; font-size:12px; }
     .tr input[type=range] { width:80px; }
     .tr { padding:6px 4px; }
   }
@@ -64,7 +155,8 @@
 <script type="importmap">
 { "imports": {
   "three": "{{ url_for('static', filename='podglad3d/lib/three.module.js') }}",
-  "three/addons/": "{{ url_for('static', filename='podglad3d/lib/addons/') }}"
+  "three/addons/": "{{ url_for('static', filename='podglad3d/lib/addons/') }}",
+  "viewer/": "{{ url_for('static', filename='podglad3d/') }}"
 } }
 </script>
 </head>
@@ -80,6 +172,7 @@
   <button id="edges" class="on" disabled>Krawędzie</button>
   <button id="xray" disabled title="Cały model półprzezroczysty, zaznaczony element pełny">Rentgen</button>
   <button id="colors" disabled title="Różne kolory dla komponentów">Kolory</button>
+  <button id="measbtn" disabled title="Pomiar odległości, otworów i kątów">Pomiar</button>
   <button id="panelbtn" disabled>Elementy</button>
   <a class="btn" href="{{ download_url }}">Pobierz</a>
   <a class="btn" href="{{ url_for('dokumentacja.entry_detail', entry_id=entry.id) }}#dokumenty">Teczka</a>
@@ -91,42 +184,118 @@
       <span class="nm" id="selname"></span>
       <button id="s-hide">Ukryj</button>
       <button id="s-iso">Izoluj</button>
+      <button id="s-flat" title="Rozwinięcie elementu z blachy do płaskiego wykroju">Rozwiń blachę</button>
       <button id="s-clear">Odznacz</button>
+      <span id="selsize"></span>
     </div>
+    <div id="meas-labels"></div>
     <div id="hint">Obrót: lewy przycisk · Przesuw: prawy · Zoom: kółko · Klik w element: zaznacz · Na telefonie: palce</div>
     <div id="busy">Wczytywanie modelu…</div>
   </div>
-  <aside id="panel" aria-label="Elementy i przekrój">
-    <h2>Przekrój</h2>
-    <div class="seg" id="clipaxis">
-      <button data-axis="">Wyłączony</button>
-      <button data-axis="x">X</button>
-      <button data-axis="y">Y</button>
-      <button data-axis="z">Z</button>
-      <button id="clipflip" title="Odwróć stronę cięcia">Odwróć</button>
+  <aside id="panel" aria-label="Elementy, pomiary i przekrój" data-state="min">
+    <div id="sheet-handle" role="button" tabindex="0" aria-label="Rozwiń lub zwiń panel (przesuń palcem w górę lub w dół)">
+      <span class="grip"></span>
+      <span id="sheet-title">Panel: przekrój, pomiary, elementy</span>
     </div>
-    <div class="clip-row">
-      <input type="range" id="clippos" min="0" max="1000" value="500" disabled aria-label="Położenie przekroju">
-      <span class="clip-val" id="clipval"></span>
+    <div id="panel-body">
+    <section class="sec" data-sec="clip">
+      <h2 class="sec-h" role="button" tabindex="0">Przekrój</h2>
+      <div class="sec-b">
+        <div class="seg" id="clipaxis">
+          <button data-axis="">Wyłączony</button>
+          <button data-axis="x">X</button>
+          <button data-axis="y">Y</button>
+          <button data-axis="z">Z</button>
+          <button id="clipflip" title="Odwróć stronę cięcia">Odwróć</button>
+        </div>
+        <div class="clip-row">
+          <input type="range" id="clippos" min="0" max="1000" value="500" disabled aria-label="Położenie przekroju">
+          <span class="clip-val" id="clipval"></span>
+        </div>
+      </div>
+    </section>
+    <section class="sec" data-sec="expl">
+      <h2 class="sec-h" role="button" tabindex="0">Rozstrzelenie</h2>
+      <div class="sec-b">
+        <div class="clip-row">
+          <input type="range" id="explpos" min="0" max="100" value="0" disabled aria-label="Stopień rozstrzelenia">
+          <span class="clip-val" id="explval">0%</span>
+        </div>
+        <select id="explmode" class="rowsel" aria-label="Kierunek rozstrzelenia">
+          <option value="radial">Od środka modelu</option>
+          <option value="x">Wzdłuż osi X</option>
+          <option value="y">Wzdłuż osi Y</option>
+          <option value="z">Wzdłuż osi Z</option>
+        </select>
+      </div>
+    </section>
+    <section class="sec" data-sec="meas">
+      <h2 class="sec-h" role="button" tabindex="0">Pomiar</h2>
+      <div class="sec-b">
+        <div class="seg">
+          <button id="measbtn2">Włącz pomiar</button>
+          <button id="measclear" title="Usuwa tylko pomiary, których jeszcze nie zapisano">Usuń niezapisane</button>
+        </div>
+        <div class="seg" style="margin-top:4px">
+          <button id="measshow">Pokaż wszystkie</button>
+          <button id="meashide">Ukryj wszystkie</button>
+          <button id="meassaveall">Zapisz wszystkie</button>
+        </div>
+        <div id="meas-hint">Pomiar wyłączony.</div>
+        <div id="meas-list"></div>
+      </div>
+    </section>
+    <section class="sec" data-sec="tree">
+      <h2 class="sec-h" role="button" tabindex="0">Elementy</h2>
+      <div class="sec-b">
+        <div class="tools">
+          <button id="showall">Pokaż wszystko</button>
+          <button id="expand">Rozwiń</button>
+          <button id="collapse">Zwiń</button>
+        </div>
+        <div id="tree"></div>
+      </div>
+    </section>
     </div>
-    <h2>Elementy</h2>
-    <div class="tools">
-      <button id="showall">Pokaż wszystko</button>
-      <button id="expand">Rozwiń</button>
-      <button id="collapse">Zwiń</button>
-    </div>
-    <div id="tree"></div>
   </aside>
+</div>
+
+<div id="flat" role="dialog" aria-label="Rozwinięcie blachy">
+  <div class="flat-card">
+    <div class="flat-head">
+      <h3 id="flat-title">Rozwinięcie blachy</h3>
+      <select id="flat-body" style="display:none;max-width:100%;font:inherit;font-size:12px;padding:4px" aria-label="Bryła do rozwinięcia"></select>
+      <label>K <input id="flat-k" type="number" step="0.01" min="0" max="1" value="0.5" title="Współczynnik K (położenie osi neutralnej)"></label>
+      <button id="flat-calc">Przelicz</button>
+      <button id="flat-dxf">Pobierz DXF</button>
+      <button id="flat-close">Zamknij</button>
+    </div>
+    <div class="flat-body">
+      <div id="flat-svg"></div>
+      <div id="flat-side">
+        <div id="flat-info"></div>
+        <div id="flat-dims"></div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import * as G from 'viewer/geom.js';
+import { initMeasure } from 'viewer/measure.js';
+import { initExplode } from 'viewer/explode.js';
+import { initFlat } from 'viewer/flat.js';
 
 const MODEL_URL  = {{ model_url | tojson }};
 const MODEL_NAME = {{ (f.original_name or f.filename) | tojson }};
 const MODEL_SIZE = {{ (f.size_bytes or 0) | tojson }};
 const WORKER_URL = {{ url_for('static', filename='podglad3d/lib/occt-import-js-worker.js') | tojson }};
+const MEAS_URL = {{ measurements_url | tojson }};
+const MEAS_EDIT_URL = {{ measurement_edit_url | tojson }};
+const MEAS_DEL_URL = {{ measurement_delete_url | tojson }};
+const CSRF = {{ csrf_token() | tojson }};
 
 const EDGE_TRI_LIMIT = 600000;   // krawędzie tylko dla rozsądnych rozmiarów
 const MAX_GROUP = 12;            // komponent z większą liczbą brył zaznacza się bryłami
@@ -164,6 +333,13 @@ controls.enableDamping = true;
 
 let model = null, box = null;
 const timing = {};
+const meshData = [];            // surowe dane siatek (pozycje, indeksy, ściany B-rep) do pomiarów i rozwinięcia
+const geomCache = [];
+function getGeom(i) {
+  if (!geomCache[i]) { const d = meshData[i]; geomCache[i] = G.prepare(d.pos, d.idx, d.faces); }
+  return geomCache[i];
+}
+let measure = null, explode = null, flat = null, lastPicked = -1;
 
 // stan podglądu
 const parts = [];            // {mesh, edges, node, visible, opacity, fileColor, autoColor, hasVC}
@@ -184,7 +360,7 @@ function resize() {
 new ResizeObserver(resize).observe(stage);
 resize();
 // bez modelu nie ma co rysować: oszczędza procesor dla analizy STEP w tle (ważne na telefonie)
-renderer.setAnimationLoop(() => { if (!model) return; controls.update(); renderer.render(scene, camera); });
+renderer.setAnimationLoop(() => { if (!model) return; controls.update(); renderer.render(scene, camera); if (measure) measure.update(); });
 
 // --- widoki ---
 function setView(name = 'iso') {
@@ -249,6 +425,7 @@ function buildModel(result) {
     const mesh = new THREE.Mesh(geo, mat);
     mesh.name = m.name || '';
     mesh.userData.i = i;
+    meshData[i] = { pos: m.attributes.position.array, idx: m.index.array, faces: m.brep_faces || [] };
     root.add(mesh);
 
     let edges = null;
@@ -422,6 +599,11 @@ function select(node) {
   applyAll();
   if (node) {
     document.getElementById('selname').textContent = pathOf(node);
+    // gabaryt osiowy zaznaczonego elementu
+    const bb = new THREE.Box3();
+    node.all.forEach(i => { const g = parts[i].mesh.geometry; g.computeBoundingBox(); bb.union(g.boundingBox); });
+    const sz = bb.getSize(new THREE.Vector3());
+    document.getElementById('selsize').textContent = 'Gabaryt (osie X/Y/Z): ' + sz.x.toFixed(1) + ' × ' + sz.y.toFixed(1) + ' × ' + sz.z.toFixed(1) + ' mm';
     selBox.classList.add('show');
     // pokaż wiersz w drzewie
     for (let p = node.parent; p; p = p.parent) openNode(p, true);
@@ -507,7 +689,102 @@ document.getElementById('s-clear').onclick = () => select(null);
 edgesBtn.onclick = () => { edgesOn = !edgesOn; edgesBtn.classList.toggle('on', edgesOn); applyAll(); };
 xrayBtn.onclick = () => { xray = !xray; xrayBtn.classList.toggle('on', xray); applyAll(); };
 colorsBtn.onclick = () => { autoColors = !autoColors; colorsBtn.classList.toggle('on', autoColors); applyColors(); };
-panelBtn.onclick = () => { panel.classList.toggle('open'); panelBtn.classList.toggle('on', panel.classList.contains('open')); resize(); };
+// --- panel: na telefonie dolna szuflada przesuwana palcem, na komputerze panel boczny ---
+const mobileMq = window.matchMedia('(max-width: 800px)');
+const handle = document.getElementById('sheet-handle');
+const sheetHeights = () => ({ min: 52, mid: Math.round(window.innerHeight * 0.48), max: Math.round(window.innerHeight * 0.88) });
+function setSheet(state) {
+  if (!mobileMq.matches) return;
+  panel.dataset.state = state;
+  document.body.dataset.sheet = state;
+  panel.style.height = '';
+  panel.classList.remove('dragging');
+  panel.classList.toggle('open', state !== 'min');
+  panelBtn.classList.toggle('on', state !== 'min');
+  resize();
+  setTimeout(resize, 230);                       // po animacji wysokości
+}
+const HINT_DESKTOP = hint.textContent;
+const HINT_TOUCH = 'Obrót: jeden palec · Przesuw i zoom: dwa palce · Dotknięcie: zaznacz element';
+function applyMode() {
+  hint.textContent = mobileMq.matches ? HINT_TOUCH : HINT_DESKTOP;
+  if (mobileMq.matches) { setSheet(panel.dataset.state || 'min'); }
+  else {
+    panel.style.height = '';
+    panel.classList.add('open'); panelBtn.classList.add('on');
+    delete document.body.dataset.sheet;
+    resize();
+  }
+}
+function openPanel() {
+  if (mobileMq.matches) { if (panel.dataset.state === 'min') setSheet('mid'); }
+  else { panel.classList.add('open'); panelBtn.classList.add('on'); resize(); }
+}
+let sheetDrag = null;
+handle.addEventListener('pointerdown', e => {
+  if (!mobileMq.matches) return;
+  handle.setPointerCapture(e.pointerId);
+  sheetDrag = { y: e.clientY, h: panel.getBoundingClientRect().height, moved: 0, lastY: e.clientY, lastT: performance.now(), v: 0 };
+  panel.classList.add('dragging');
+});
+handle.addEventListener('pointermove', e => {
+  if (!sheetDrag) return;
+  const dy = sheetDrag.y - e.clientY, H = sheetHeights(), now = performance.now();
+  sheetDrag.moved = Math.max(sheetDrag.moved, Math.abs(dy));
+  panel.style.height = Math.max(H.min, Math.min(H.max, sheetDrag.h + dy)) + 'px';
+  sheetDrag.v = (sheetDrag.lastY - e.clientY) / Math.max(1, now - sheetDrag.lastT);   // px/ms, dodatnie = w górę
+  sheetDrag.lastY = e.clientY; sheetDrag.lastT = now;
+});
+function endSheetDrag() {
+  if (!sheetDrag) return;
+  const d = sheetDrag, H = sheetHeights();
+  sheetDrag = null;
+  let state;
+  if (d.moved < 6) state = panel.dataset.state === 'min' ? 'mid' : 'min';      // stuknięcie przełącza
+  else {
+    const target = panel.getBoundingClientRect().height + d.v * 180;           // z uwzględnieniem rozmachu
+    state = ['min', 'mid', 'max'].reduce((a, b) => (Math.abs(H[b] - target) < Math.abs(H[a] - target) ? b : a));
+  }
+  setSheet(state);
+}
+handle.addEventListener('pointerup', endSheetDrag);
+handle.addEventListener('pointercancel', endSheetDrag);
+handle.addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSheet(panel.dataset.state === 'min' ? 'mid' : 'min'); }
+});
+mobileMq.addEventListener('change', applyMode);
+
+// sekcje panelu zwijane dotknięciem nagłówka; stan pamiętany w przeglądarce (na telefonie przekrój i rozstrzelenie domyślnie zwinięte)
+const SEC_KEY = 'v3d.sections';
+let secState = {};
+try { secState = JSON.parse(localStorage.getItem(SEC_KEY) || '{}') || {}; } catch (e) { secState = {}; }
+function setSection(sec, collapsed) {
+  sec.classList.toggle('collapsed', collapsed);
+  sec.querySelector('.sec-h').setAttribute('aria-expanded', String(!collapsed));
+}
+document.querySelectorAll('#panel .sec').forEach(sec => {
+  const id = sec.dataset.sec, h = sec.querySelector('.sec-h');
+  setSection(sec, id in secState ? !!secState[id] : (mobileMq.matches && (id === 'clip' || id === 'expl')));
+  const toggle = () => {
+    const c = !sec.classList.contains('collapsed');
+    setSection(sec, c);
+    secState[id] = c;
+    try { localStorage.setItem(SEC_KEY, JSON.stringify(secState)); } catch (e) { /* tryb prywatny */ }
+  };
+  h.onclick = toggle;
+  h.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } };
+});
+const sectionEl = id => document.querySelector('#panel .sec[data-sec="' + id + '"]');
+
+// podpis uchwytu: liczba pomiarów
+function updateSheetTitle(n) { document.getElementById('sheet-title').textContent = 'Pomiary (' + n + ') · elementy · przekrój'; }
+document.addEventListener('v3d-measures', e => updateSheetTitle(e.detail.count));
+applyMode();
+
+panelBtn.onclick = () => {
+  if (mobileMq.matches) setSheet(panel.dataset.state === 'min' ? 'mid' : 'min');
+  else { panel.classList.toggle('open'); panelBtn.classList.toggle('on', panel.classList.contains('open')); resize(); }
+};
 
 // --- przekrój ---
 const clipPos = document.getElementById('clippos');
@@ -544,17 +821,96 @@ renderer.domElement.addEventListener('pointerup', e => {
   const dt = performance.now() - down.t;
   down = null;
   if (moved > 6 || dt > 600) return;   // to było obracanie, nie klik
-  pick(e.clientX, e.clientY);
+  if (measure && measure.isActive()) measure.pick(e.clientX, e.clientY);
+  else pick(e.clientX, e.clientY);
 });
-function pick(cx, cy) {
+// promień spod kursora: pierwszy trafiony widoczny element (z uwzględnieniem przekroju)
+function castRay(cx, cy) {
   const r = renderer.domElement.getBoundingClientRect();
   raycaster.setFromCamera(new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), camera);
   const targets = parts.filter(p => p.visible && p.mesh.material.opacity > 0.05).map(p => p.mesh);
   const hits = raycaster.intersectObjects(targets, false);
   const cut = renderer.clippingPlanes.length ? renderer.clippingPlanes[0] : null;
   const hit = hits.find(h => !cut || cut.distanceToPoint(h.point) >= 0);
+  return hit ? { partIndex: hit.object.userData.i, triangle: hit.faceIndex, point: [hit.point.x, hit.point.y, hit.point.z] } : null;
+}
+function pick(cx, cy) {
+  const hit = castRay(cx, cy);
   if (!hit) { select(null); return; }
-  select(unitFor(parts[hit.object.userData.i]));
+  lastPicked = hit.partIndex;
+  select(unitFor(parts[hit.partIndex]));
+}
+
+// --- pomiary, rozstrzelenie, rozwinięcie blachy ---
+function explodeUnits() {
+  const top = rootNode.kids.filter(k => !k.body && k.all.length);
+  return top.length >= 2 ? top.map(k => k.all) : parts.map((_, i) => [i]);
+}
+async function api(url, body) {
+  const r = await fetch(url, {
+    method: body === undefined ? 'GET' : 'POST', credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!r.ok) {
+    let msg = String(r.status);
+    try { msg = (await r.json()).error || msg; } catch (e) { /* odpowiedź bez JSON */ }
+    throw new Error(msg);
+  }
+  return r.json();
+}
+
+const unfoldCache = new Map();
+
+function initTools() {
+  const ctx = {
+    scene, camera, renderer, parts, getGeom, castRay, getUnits: explodeUnits,
+    get box() { return box; },
+    isExploded: () => !!(explode && explode.active()),
+    elementOf: i => { const p = parts[i]; const u = p && unitFor(p); return (u && u.label) || ''; },
+    api: {
+      list: () => api(MEAS_URL),
+      save: p => api(MEAS_URL, p),
+      rename: (id, label) => api(MEAS_EDIT_URL.replace('/0/', '/' + id + '/'), { label }),
+      remove: id => api(MEAS_DEL_URL.replace('/0/', '/' + id + '/'), {}),
+    },
+    flatMapper: (part, K) => { const key = part + ':' + K; if (!unfoldCache.has(key)) unfoldCache.set(key, ctx.safeUnfold(part, K)); return unfoldCache.get(key); },
+    safeUnfold: (i, K) => { try { return G.unfoldSheet(getGeom(i), { K }); } catch (e) { return { ok: false, errors: ['Błąd obliczeń: ' + e.message], warnings: [] }; } },
+  };
+  measure = initMeasure(ctx);
+  ctx.measure = measure;
+  explode = initExplode(ctx);
+  flat = initFlat(ctx);
+
+  const mb = document.getElementById('measbtn'), mb2 = document.getElementById('measbtn2');
+  const setMeasure = on => {
+    measure.setActive(on);
+    mb.classList.toggle('on', on); mb2.classList.toggle('on', on);
+    mb2.textContent = on ? 'Wyłącz pomiar' : 'Włącz pomiar';
+    if (on) { openPanel(); setSection(sectionEl('meas'), false); }
+  };
+  mb.onclick = mb2.onclick = () => setMeasure(!measure.isActive());
+  document.getElementById('measclear').onclick = () => measure.clear(true);
+  document.getElementById('measshow').onclick = () => measure.setAllVisible(true);
+  document.getElementById('meashide').onclick = () => measure.setAllVisible(false);
+  document.getElementById('meassaveall').onclick = () => measure.saveAll();
+  api(MEAS_URL).then(list => measure.load(list)).catch(() => { /* brak zapisanych pomiarów lub brak sieci */ });
+
+  const ep = document.getElementById('explpos'), ev = document.getElementById('explval');
+  ep.oninput = () => { ev.textContent = ep.value + '%'; explode.set(ep.value / 100 * 1.5); };
+  document.getElementById('explmode').onchange = e => explode.setMode(e.target.value);
+
+  document.getElementById('s-flat').onclick = () => {
+    if (!selected) return;
+    // kandydaci: bryły zaznaczonego elementu (największe pierwsze), okno samo wybiera blachę z gięciami
+    const ids = [...selSet].sort((a, b) => meshData[b].idx.length - meshData[a].idx.length).slice(0, 24);
+    const cands = ids.map((i, k) => ({ index: i, label: 'Bryła ' + (k + 1) }));
+    const name = selected.label || pathOf(selected);
+    document.getElementById('flat-title').dataset.file = (MODEL_NAME.replace(/\.[^.]+$/, '') + '_' + name).replace(/[^\w\-]+/g, '_');
+    flat.open(cands, name);
+  };
+  mb.disabled = false;
+  document.getElementById('explpos').disabled = false;
 }
 
 // --- wczytywanie przez worker (lokalne biblioteki, bez CDN) ---
@@ -611,7 +967,8 @@ async function load() {
     xrayBtn.disabled = false;
     colorsBtn.disabled = false;
     panelBtn.disabled = false;
-    if (window.innerWidth > 800) { panel.classList.add('open'); panelBtn.classList.add('on'); resize(); }
+    initTools();
+    applyMode();
     updateClip();
 
     const s = box.getSize(new THREE.Vector3());
@@ -630,7 +987,10 @@ async function load() {
 
 // uchwyt dla testów w przeglądarce
 window.viewer3d = {
-  parts, allNodes,
+  parts, allNodes, getGeom, castRay, G, meshData, geomCache,
+  saveMeasurement: p => api(MEAS_URL, p), listMeasurements: () => api(MEAS_URL),
+  tools: () => ({ measure, explode, flat }),
+  project: p => { const v = new THREE.Vector3(p[0], p[1], p[2]).project(camera); const r = renderer.domElement.getBoundingClientRect(); return [(v.x * 0.5 + 0.5) * r.width + r.left, (-v.y * 0.5 + 0.5) * r.height + r.top]; },
   clipCount: () => renderer.clippingPlanes.length,
   selected: () => (selected ? selected.label : null),
   pickAt: (x, y) => pick(x, y),
