@@ -3150,7 +3150,16 @@ def _migrate_schema():
                 ('control_results', 'element_id',
                  'ALTER TABLE control_results ADD COLUMN element_id INTEGER REFERENCES control_elements(id)'),
                 ('control_results', 'element_name',
-                 'ALTER TABLE control_results ADD COLUMN element_name VARCHAR(128)')):
+                 'ALTER TABLE control_results ADD COLUMN element_name VARCHAR(128)'),
+                ('control_points', 'point_type', "ALTER TABLE control_points ADD COLUMN point_type VARCHAR(16) NOT NULL DEFAULT 'ok_ng'"),
+                ('control_points', 'unit', 'ALTER TABLE control_points ADD COLUMN unit VARCHAR(32)'),
+                ('control_points', 'value_min', 'ALTER TABLE control_points ADD COLUMN value_min FLOAT'),
+                ('control_points', 'value_max', 'ALTER TABLE control_points ADD COLUMN value_max FLOAT'),
+                ('control_results', 'point_type', "ALTER TABLE control_results ADD COLUMN point_type VARCHAR(16) NOT NULL DEFAULT 'ok_ng'"),
+                ('control_results', 'unit', 'ALTER TABLE control_results ADD COLUMN unit VARCHAR(32)'),
+                ('control_results', 'value_min', 'ALTER TABLE control_results ADD COLUMN value_min FLOAT'),
+                ('control_results', 'value_max', 'ALTER TABLE control_results ADD COLUMN value_max FLOAT'),
+                ('control_results', 'value_text', 'ALTER TABLE control_results ADD COLUMN value_text VARCHAR(32)')):
             if tbl in insp.get_table_names() and col not in [c['name'] for c in insp.get_columns(tbl)]:
                 conn.execute(text(ddl))
                 conn.commit()

@@ -10,6 +10,10 @@
 .kz-pt-foot { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; }
 .kz-pt-off { opacity:.6; }
 .kz-new { display:flex; flex-direction:column; gap:.4rem; }
+.kz-measure { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; padding:.5rem .6rem; border:1px dashed var(--border,#cbd5e1); border-radius:8px; }
+.kz-measure[hidden] { display:none; }
+.kz-measure .form-control { width:7rem; }
+.kz-measure label { font-size:.82rem; color:var(--text-muted,#64748b); display:flex; gap:.3rem; align-items:center; }
 .kz-savebar { position:sticky; bottom:0; z-index:5; display:flex; gap:.6rem; align-items:center; flex-wrap:wrap;
   padding:.7rem 1rem; margin-top:1rem; background:var(--card-bg,var(--surface,#fff)); border:1px solid var(--border,#e2e8f0);
   border-radius:var(--radius-md,10px); box-shadow:0 -2px 10px rgba(0,0,0,.08); }
@@ -67,6 +71,15 @@
         <option value="">bez elementu</option>
         {% for el in elements %}<option value="{{ el.id }}" {% if element_filter == el.id %}selected{% endif %}>Element: {{ el.name }}</option>{% endfor %}
       </select>
+      <select name="new_type" class="form-control" aria-label="Typ punktu" data-measure-toggle>
+        <option value="ok_ng">Typ: ocena OK/NG</option>
+        <option value="pomiar">Typ: pomiar z miernika (wartość, min i max)</option>
+      </select>
+      <div class="kz-measure" data-measure hidden>
+        <label>Jednostka <input type="text" name="new_unit" class="form-control" maxlength="32" placeholder="np. mm"></label>
+        <label>Minimum <input type="text" name="new_min" class="form-control" inputmode="decimal" placeholder="opcjonalnie"></label>
+        <label>Maksimum <input type="text" name="new_max" class="form-control" inputmode="decimal" placeholder="opcjonalnie"></label>
+      </div>
     </div>
   </div>
 
@@ -94,7 +107,16 @@
               <option value="">bez elementu</option>
               {% for el in elements %}<option value="{{ el.id }}" {% if p.element_id == el.id %}selected{% endif %}>{{ el.name }}</option>{% endfor %}
             </select>
+            <select name="type_{{ p.id }}" class="form-control" style="width:auto;" aria-label="Typ punktu" data-measure-toggle>
+              <option value="ok_ng" {% if p.point_type != 'pomiar' %}selected{% endif %}>OK/NG</option>
+              <option value="pomiar" {% if p.point_type == 'pomiar' %}selected{% endif %}>Pomiar</option>
+            </select>
             <label><input type="checkbox" name="active_{{ p.id }}" value="1" {% if p.is_active %}checked{% endif %}> Aktywny</label>
+          </div>
+          <div class="kz-measure" data-measure {% if p.point_type != 'pomiar' %}hidden{% endif %}>
+            <label>Jednostka <input type="text" name="unit_{{ p.id }}" class="form-control" maxlength="32" value="{{ p.unit or '' }}" placeholder="np. mm"></label>
+            <label>Minimum <input type="text" name="min_{{ p.id }}" class="form-control" inputmode="decimal" value="{{ ('%g' % p.value_min)|replace('.', ',') if p.value_min is not none else '' }}" placeholder="opcjonalnie"></label>
+            <label>Maksimum <input type="text" name="max_{{ p.id }}" class="form-control" inputmode="decimal" value="{{ ('%g' % p.value_max)|replace('.', ',') if p.value_max is not none else '' }}" placeholder="opcjonalnie"></label>
           </div>
         </div>
         <button type="submit" formnovalidate formaction="{{ url_for('kontrola.point_delete', point_id=p.id) }}" class="btn btn-danger btn-sm"
@@ -124,6 +146,12 @@
   form.addEventListener('input', function () { dirty = true; note.hidden = false; });
   form.addEventListener('change', function () { dirty = true; note.hidden = false; });
   form.addEventListener('submit', function () { submitting = true; });
+  form.addEventListener('change', function (e) {
+    var sel = e.target.closest('[data-measure-toggle]');
+    if (!sel) return;
+    var box = sel.closest('.kz-pt-main, .kz-new').querySelector('[data-measure]');
+    if (box) box.hidden = sel.value !== 'pomiar';
+  });
   window.addEventListener('beforeunload', function (e) {
     if (dirty && !submitting) { e.preventDefault(); e.returnValue = ''; }
   });

@@ -1151,9 +1151,30 @@ class ControlPoint(db.Model):
     # Element kontroli, do którego należy punkt (pusty: punkt nie zależy od elementu).
     element_id  = db.Column(db.Integer, db.ForeignKey('control_elements.id'), nullable=True)
     element     = db.relationship('ControlElement', foreign_keys=[element_id])
+    # Typ punktu: ok_ng (ocena OK/NG) albo pomiar (wartość z miernika oceniana względem min i max).
+    point_type  = db.Column(db.String(16), default='ok_ng', nullable=False)
+    unit        = db.Column(db.String(32), nullable=True)
+    value_min   = db.Column(db.Float, nullable=True)
+    value_max   = db.Column(db.Float, nullable=True)
 
     def __repr__(self):
         return f'<ControlPoint {self.title}>'
+
+
+def measure_number(value):
+    """Liczba bez zbędnych zer, z przecinkiem dziesiętnym (12.5 -> '12,5')."""
+    return f'{value:.10g}'.replace('.', ',')
+
+
+def measure_limits_label(vmin, vmax, unit):
+    unit = f' {unit}' if unit else ''
+    if vmin is not None and vmax is not None:
+        return f'{measure_number(vmin)} – {measure_number(vmax)}{unit}'
+    if vmin is not None:
+        return f'min {measure_number(vmin)}{unit}'
+    if vmax is not None:
+        return f'max {measure_number(vmax)}{unit}'
+    return 'bez limitów'
 
 
 class ControlElement(db.Model):
@@ -1326,9 +1347,24 @@ class ControlResult(db.Model):
     # Punkt elementu: element kontroli (id i kopia nazwy), puste dla punktów wspólnych.
     element_id    = db.Column(db.Integer, db.ForeignKey('control_elements.id'), nullable=True)
     element_name  = db.Column(db.String(128), nullable=True)
+    # Pomiar: kopia typu, jednostki i limitów z chwili utworzenia kontroli oraz wpisana wartość.
+    point_type    = db.Column(db.String(16), default='ok_ng', nullable=False)
+    unit          = db.Column(db.String(32), nullable=True)
+    value_min     = db.Column(db.Float, nullable=True)
+    value_max     = db.Column(db.Float, nullable=True)
+    value_text    = db.Column(db.String(32), nullable=True)
 
     record     = db.relationship('ControlRecord', back_populates='results')
     qar_report = db.relationship('QARReport', foreign_keys=[qar_report_id])
+
+    @property
+    def is_measure(self):
+        return self.point_type == 'pomiar'
+
+    @property
+    def limits_label(self):
+        """Zakres pomiaru do wyświetlenia, np. "10 – 12 mm", "min 5 V", "max 3 mm"."""
+        return measure_limits_label(self.value_min, self.value_max, self.unit)
 
 
 class StageControlPoint(db.Model):

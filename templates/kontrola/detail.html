@@ -17,6 +17,11 @@
 .kz-cb input { display:none; }
 .kz-cb--ok:has(input:checked) { border-color:var(--ok-border,#16a34a); background:var(--ok-bg,#dcfce7); color:var(--ok-text,#166534); }
 .kz-cb--ng:has(input:checked) { border-color:var(--danger-text,#b91c1c); background:var(--danger-bg,#fee2e2); color:var(--danger-text,#b91c1c); }
+.kz-measure-in { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; margin:.5rem 0 0 2.1rem; }
+.kz-measure-in input { width:9rem; font-size:1.1rem; min-height:48px; text-align:right; }
+.kz-unit { font-weight:600; }
+.kz-range { color:var(--text-muted,#64748b); font-size:.85rem; }
+.kz-live { min-width:3.2rem; text-align:center; }
 .kz-notes { width:calc(100% - 2.1rem); margin:.5rem 0 0 2.1rem; font-size:.9rem; }
 .kz-ro-notes { margin:.4rem 0 0 2.1rem; font-size:.88rem; }
 .kz-group { padding:.55rem 1rem; background:var(--bg-subtle,#f1f5f9); font-weight:700; font-size:.85rem; border-top:1px solid var(--border,#e2e8f0); }
@@ -106,7 +111,19 @@
           </div>
           {% if res.description %}<div class="kz-desc">{{ res.description }}</div>{% endif %}
 
-          {% if can_edit %}
+          {% if can_edit and res.is_measure %}
+          <div class="kz-measure-in">
+            <input type="text" inputmode="decimal" name="value_{{ res.id }}" class="form-control kz-val" autocomplete="off"
+                   value="{{ res.value_text or '' }}" placeholder="Wartość z miernika"
+                   data-min="{{ res.value_min if res.value_min is not none else '' }}"
+                   data-max="{{ res.value_max if res.value_max is not none else '' }}" aria-label="Wartość z miernika">
+            <span class="kz-unit">{{ res.unit or '' }}</span>
+            <span class="kz-range">zakres: {{ res.limits_label }}</span>
+            <span class="badge kz-live {% if res.result == 'OK' %}badge-success{% elif res.result == 'NG' %}badge-danger{% else %}badge-neutral{% endif %}">{{ res.result or '-' }}</span>
+          </div>
+          <textarea name="notes_{{ res.id }}" class="form-control kz-notes" rows="2"
+                    placeholder="Uwagi (przy NG trafią do raportu QAR)">{{ res.notes or '' }}</textarea>
+          {% elif can_edit %}
           <div class="kz-okng">
             <label class="kz-cb kz-cb--ok">
               <input type="radio" name="result_{{ res.id }}" value="OK" {% if res.result == 'OK' %}checked{% endif %}>
@@ -121,6 +138,9 @@
                     placeholder="Uwagi (przy NG trafią do raportu QAR)">{{ res.notes or '' }}</textarea>
           {% elif res.notes %}
           <div class="kz-ro-notes"><i class="bi bi-chat-left-text"></i> {{ res.notes }}</div>
+          {% endif %}
+          {% if not can_edit and res.is_measure %}
+          <div class="kz-ro-notes"><i class="bi bi-speedometer2"></i> Wartość: <strong>{{ res.value_text or '-' }}{% if res.unit %} {{ res.unit }}{% endif %}</strong> (zakres {{ res.limits_label }})</div>
           {% endif %}
         </div>
         {% endfor %}
@@ -196,4 +216,27 @@
   </form>
   {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* Podgląd wyniku pomiaru w trakcie wpisywania (ostateczny wynik liczy serwer). */
+(function () {
+  document.querySelectorAll('.kz-val').forEach(function (inp) {
+    var badge = inp.parentNode.querySelector('.kz-live');
+    function update() {
+      var raw = inp.value.trim().replace(/\s/g, '').replace(',', '.');
+      var cls = 'badge kz-live badge-neutral', text = '-';
+      if (raw !== '' && !isNaN(Number(raw))) {
+        var v = Number(raw), lo = inp.dataset.min, hi = inp.dataset.max;
+        var bad = (lo !== '' && v < Number(lo)) || (hi !== '' && v > Number(hi));
+        cls = 'badge kz-live ' + (bad ? 'badge-danger' : 'badge-success');
+        text = bad ? 'NG' : 'OK';
+      } else if (raw !== '') { text = '?'; }
+      badge.className = cls; badge.textContent = text;
+    }
+    inp.addEventListener('input', update);
+  });
+})();
+</script>
 {% endblock %}

@@ -105,20 +105,49 @@ def _element_points(element_id, department_id):
             .order_by(ControlPoint.order, ControlPoint.id).all())
 
 
+def _parse_number(raw):
+    """Liczba z pola tekstowego (przecinek lub kropka). Puste pole: None. Błędna wartość: ValueError."""
+    text = (raw or '').strip().replace(' ', '').replace(',', '.')
+    if not text:
+        return None
+    value = float(text)
+    if value != value or value in (float('inf'), float('-inf')):
+        raise ValueError('nieskończona wartość')
+    return value
+
+
+def _measure_result(value, vmin, vmax):
+    """Wynik pomiaru z zakresu: OK, gdy wartość mieści się w minimum i maksimum (każde opcjonalne)."""
+    if (vmin is not None and value < vmin) or (vmax is not None and value > vmax):
+        return 'NG'
+    return 'OK'
+
+
+def _new_result(rec, point, position, element=None):
+    """Wiersz wyniku dla punktu: kopia tytułu, opisu oraz typu i limitów pomiaru."""
+    src_type = getattr(point, 'point_type', None) or 'ok_ng'
+    return ControlResult(
+        record=rec, point_id=(point.id if isinstance(point, ControlPoint) else point.point_id), position=position,
+        title=point.title, description=point.description,
+        element_id=element.id if element is not None else None,
+        element_name=element.name if element is not None else None,
+        point_type=src_type, unit=point.unit if src_type == 'pomiar' else None,
+        value_min=point.value_min if src_type == 'pomiar' else None,
+        value_max=point.value_max if src_type == 'pomiar' else None)
+
+
 def _add_department_results(rec, department_id, elements):
     """Wyniki kontroli działu: sekcja wspólna (punkty ogólne i działu), potem punkty każdego wybranego
     elementu osobno. Zwraca liczbę punktów. Bez commitu."""
     position = 0
     for p in _active_points(department_id):
         position += 1
-        db.session.add(ControlResult(record=rec, point_id=p.id, position=position,
-                                     title=p.title, description=p.description))
+        db.session.add(_new_result(rec, p, position))
     for i, el in enumerate(elements, 1):
         db.session.add(ControlRecordElement(record_id=rec.id, element_id=el.id, name=el.name, position=i))
         for p in _element_points(el.id, department_id):
             position += 1
-            db.session.add(ControlResult(record=rec, point_id=p.id, position=position, title=p.title,
-                                         description=p.description, element_id=el.id, element_name=el.name))
+            db.session.add(_new_result(rec, p, position, el))
     return position
 
 
@@ -142,9 +171,10 @@ def _add_results(rec, rows):
     """Dodaje do kontroli wiersze punktów (kopia tytułu i opisu). `rows` to
     ControlPoint albo ControlResult z poprzedniej kontroli. Bez commitu."""
     for i, p in enumerate(rows, 1):
-        point_id = p.id if isinstance(p, ControlPoint) else p.point_id
-        db.session.add(ControlResult(record=rec, point_id=point_id, position=i,
-                                     title=p.title, description=p.description))
+        r = _new_result(rec, p, i)
+        if not isinstance(p, ControlPoint):          # kopia z poprzedniej kontroli zachowuje element
+            r.element_id, r.element_name = p.element_id, p.element_name
+        db.session.add(r)
 
 
 def _notify(roles, message, alert_type='info'):
@@ -186,6 +216,9 @@ def _create_qar_for_result(rec, res):
         description += f' | Dział kontroli: {rec.department.name}'
     if res.element_name:
         description += f' | Element: {res.element_name}'
+    if res.is_measure and res.value_text:
+        unit = f' {res.unit}' if res.unit else ''
+        description += f' | Wartość: {res.value_text}{unit} (zakres {res.limits_label})'
     emp = rec.employee or (rec.previous.employee if rec.previous is not None else None)
     if emp is not None:
         description += f' | Wykonawca: {emp.name} ({emp.department.name})'
@@ -276,9 +309,29 @@ def _apply_form(rec, form):
             db.session.refresh(rec, ['employee'])
             _sync_qar_employee(rec)
     for res in rec.results:
-        result = form.get(f'result_{res.id}') or None
-        if result not in (None, 'OK', 'NG'):
-            result = None
+        if res.is_measure:
+            # Pomiar: wynik zawsze wyliczany na serwerze z wpisanej wartości i limitów punktu.
+            raw = form.get(f'value_{res.id}')
+            if raw is None:                                  # pola nie przesłano: zostaje poprzedni stan
+                result, value_text = res.result, res.value_text
+            else:
+                try:
+                    number = _parse_number(raw)
+                except ValueError:
+                    flash(f'Punkt „{res.title}”: wartość „{raw.strip()}” nie jest liczbą, nie zapisano.', 'warning')
+                    number = False
+                if number is False:
+                    result, value_text = res.result, res.value_text
+                elif number is None:
+                    result, value_text = None, None
+                else:
+                    result = _measure_result(number, res.value_min, res.value_max)
+                    value_text = raw.strip().replace('.', ',')[:32]
+            res.value_text = value_text
+        else:
+            result = form.get(f'result_{res.id}') or None
+            if result not in (None, 'OK', 'NG'):
+                result = None
         notes = (form.get(f'notes_{res.id}') or '').strip() or None
         if (res.result, res.notes) != (result, notes):
             res.checked_at = now if result else None
@@ -1009,6 +1062,20 @@ def _ids_with_prefix(form, prefix):
     return sorted({int(k[len(prefix):]) for k in form if k.startswith(prefix) and k[len(prefix):].isdigit()})
 
 
+def _measure_spec(point_type, unit, vmin, vmax):
+    """Typ punktu i parametry pomiaru z formularza. Zwraca (słownik pól, błąd). Dla OK/NG limity są czyszczone."""
+    if (point_type or 'ok_ng') != 'pomiar':
+        return {'point_type': 'ok_ng', 'unit': None, 'value_min': None, 'value_max': None}, None
+    try:
+        low, high = _parse_number(vmin), _parse_number(vmax)
+    except ValueError:
+        return None, 'minimum i maksimum muszą być liczbami.'
+    if low is not None and high is not None and low > high:
+        return None, 'minimum nie może być większe niż maksimum.'
+    return {'point_type': 'pomiar', 'unit': (unit or '').strip()[:32] or None,
+            'value_min': low, 'value_max': high}, None
+
+
 def _apply_points_form(form):
     """Zapisuje wszystkie punkty z jednego formularza (pola `title_<id>`, `description_<id>`, `department_<id>`,
     `element_<id>`, `active_<id>`) oraz nowy punkt z pól `new_*`, jeśli ma nazwę. Zwraca
@@ -1024,11 +1091,16 @@ def _apply_points_form(form):
         if not title:
             errors.append(f'Punkt nr {pid}: nazwa jest wymagana, zmiany tego punktu pominięto.')
             continue
+        spec, err = _measure_spec(form.get(f'type_{pid}'), form.get(f'unit_{pid}'),
+                                  form.get(f'min_{pid}'), form.get(f'max_{pid}'))
+        if err:
+            errors.append(f'Punkt „{title}”: {err} Zmiany tego punktu pominięto.')
+            continue
         new = {'title': title[:256],
                'description': form.get(f'description_{pid}', '').strip() or None,
                'is_active': form.get(f'active_{pid}') == '1',
                'department_id': _parse_department(form.get(f'department_{pid}')),
-               'element_id': _parse_element(form.get(f'element_{pid}'))}
+               'element_id': _parse_element(form.get(f'element_{pid}')), **spec}
         if any(getattr(pt, k) != v for k, v in new.items()):
             for k, v in new.items():
                 setattr(pt, k, v)
@@ -1036,12 +1108,17 @@ def _apply_points_form(form):
     added = False
     new_title = form.get('new_title', '').strip()
     if new_title:
-        max_order = db.session.query(func.max(ControlPoint.order)).scalar() or 0
-        db.session.add(ControlPoint(title=new_title[:256], order=max_order + 1,
-                                    description=form.get('new_description', '').strip() or None,
-                                    department_id=_parse_department(form.get('new_department')),
-                                    element_id=_parse_element(form.get('new_element'))))
-        added = True
+        spec, err = _measure_spec(form.get('new_type'), form.get('new_unit'), form.get('new_min'),
+                                  form.get('new_max'))
+        if err:
+            errors.append(f'Nowy punkt „{new_title}”: {err} Nie dodano.')
+        else:
+            max_order = db.session.query(func.max(ControlPoint.order)).scalar() or 0
+            db.session.add(ControlPoint(title=new_title[:256], order=max_order + 1,
+                                        description=form.get('new_description', '').strip() or None,
+                                        department_id=_parse_department(form.get('new_department')),
+                                        element_id=_parse_element(form.get('new_element')), **spec))
+            added = True
     return changed, added, errors
 
 
