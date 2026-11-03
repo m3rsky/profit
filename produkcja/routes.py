@@ -35,7 +35,7 @@ def planning_required(f):
 def admin_only(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if not current_user.is_authenticated or not current_user.is_admin:
+        if not current_user.is_authenticated or not current_user.can('lista_produkcyjna.import'):
             abort(403)
         return f(*args, **kwargs)
     return decorated
@@ -43,7 +43,7 @@ def admin_only(f):
 
 def _accessible_sheet_ids():
     """None = wszystkie (admin), inaczej zbiór id arkuszy przydzielonych użytkownikowi."""
-    if current_user.is_admin:
+    if current_user.can('lista_produkcyjna.all_sheets'):
         return None
     rows = ProdSheetAccess.query.filter_by(user_id=current_user.id).all()
     return {r.sheet_id for r in rows}
@@ -828,7 +828,7 @@ def export_file():
     if sheet_id:
         _sheet_or_403(sheet_id)
         only = {sheet_id}
-    elif current_user.is_admin:
+    elif current_user.can('lista_produkcyjna.all_sheets'):
         only = None
     else:
         abort(403)

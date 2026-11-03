@@ -1,0 +1,65 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Uprawnienia: {{ user.username }}{% endblock %}
+{% block admin_content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-shield-lock"></i> Uprawnienia: {{ user.username }}</h1>
+    <span class="text-muted" style="font-size:0.82rem;">Rola: {{ user.role_label }}. Domyślnie użytkownik ma uprawnienia swojej roli (opcja "Z roli"). Wybierz "Zezwól" albo "Zabroń", żeby zmienić pojedyncze uprawnienie tylko dla tej osoby.</span>
+  </div>
+  <div class="page-header-actions">
+    <a href="{{ url_for('admin_users') }}" class="btn btn-outline"><i class="bi bi-arrow-left"></i> Użytkownicy</a>
+  </div>
+</div>
+
+<form method="post">
+  {{ csrf_input() }}
+  <div class="card">
+    <div class="card-body card-body--flush">
+      <table class="data-table perm-table">
+        <thead>
+          <tr>
+            <th>Uprawnienie</th>
+            <th class="perm-col">Rola daje</th>
+            <th class="perm-col">Dla tej osoby</th>
+            <th class="perm-col">Efekt</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% macro perm_row(key, label, is_action) %}
+          {% set ov = overrides.get(key) %}
+          {% set cur = 'allow' if ov is true else ('deny' if ov is false else 'inherit') %}
+          {% set effective = role_has[key] if ov is none else ov %}
+          <tr class="{% if is_action %}perm-action{% endif %}">
+            <td>{% if is_action %}<i class="bi bi-arrow-return-right"></i> {{ label }}{% else %}<strong>{{ label }}</strong>{% endif %}</td>
+            <td class="perm-col">{% if role_has[key] %}<i class="bi bi-check2"></i> tak{% else %}<span class="text-muted">nie</span>{% endif %}</td>
+            <td class="perm-col">
+              <select class="form-control perm-select" name="perm_{{ key }}" aria-label="{{ label }}">
+                <option value="inherit" {% if cur == 'inherit' %}selected{% endif %}>Z roli</option>
+                <option value="allow" {% if cur == 'allow' %}selected{% endif %}>Zezwól</option>
+                <option value="deny" {% if cur == 'deny' %}selected{% endif %}>Zabroń</option>
+              </select>
+            </td>
+            <td class="perm-col">{% if effective %}<strong>tak</strong>{% else %}<span class="text-muted">nie</span>{% endif %}{% if ov is not none %} <span class="text-muted">(wyjątek)</span>{% endif %}</td>
+          </tr>
+          {% endmacro %}
+          {% for key, label in modules.items() %}
+            {{ perm_row(key, label, false) }}
+            {% for akey, alabel in actions.get(key, []) %}
+              {{ perm_row(akey, alabel, true) }}
+            {% endfor %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="form-actions" style="margin-top:14px;">
+    <button type="submit" class="btn btn-primary">Zapisz uprawnienia</button>
+    <a href="{{ url_for('admin_users') }}" class="btn btn-ghost">Anuluj</a>
+  </div>
+</form>
+<style>
+.perm-table .perm-col { text-align: center; width: 140px; }
+.perm-table .perm-action td:first-child { padding-left: 28px; color: var(--text-muted, #6b7280); }
+.perm-table .perm-select { min-width: 110px; }
+</style>
+{% endblock %}

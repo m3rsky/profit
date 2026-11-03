@@ -42,7 +42,7 @@
       </h1>
     </div>
     <div class="page-header-actions">
-      {% if rec.control_order_id and current_user.is_kontroler %}
+      {% if rec.control_order_id and can('kontrola_etapowa.control') %}
       <a href="{{ url_for('kontrola.order_page', order_id=rec.control_order_id) }}" class="btn btn-outline">
         <i class="bi bi-diagram-2"></i> Zlecenie
       </a>
@@ -181,7 +181,7 @@
     {% endif %}
   </form>
 
-  {% if rec.state == 'to_do' and (current_user.is_operator or current_user.is_admin) %}
+  {% if rec.state == 'to_do' and (current_user.is_operator or can('kontrola_etapowa.done')) %}
   <form method="post" action="{{ url_for('kontrola.mark_done', record_id=rec.id) }}">
     {{ csrf_input() }}
     <button type="submit" class="btn btn-primary" style="width:100%;min-height:52px;"
@@ -191,13 +191,13 @@
   </form>
   {% endif %}
 
-  {% if rec.state == 'recheck' and current_user.is_kontroler %}
+  {% if rec.state == 'recheck' and can('kontrola_etapowa.control') %}
   <a class="btn btn-primary" style="min-height:52px;" href="{{ url_for('kontrola.view_record', record_id=rec.followup.id) }}">
     <i class="bi bi-clipboard-check"></i> Przejdź do kontroli sprawdzającej
   </a>
   {% endif %}
 
-  {% if current_user.is_admin and rec.status == 'completed' and not (rec.round == 1 and rec.done_at) %}
+  {% if can('kontrola_etapowa.reopen') and rec.status == 'completed' and not (rec.round == 1 and rec.done_at) %}
   <form method="post" action="{{ url_for('kontrola.reopen', record_id=rec.id) }}">
     {{ csrf_input() }}
     <button type="submit" class="btn btn-ghost btn-sm" data-confirm="Wznowić tę kontrolę do edycji?">
@@ -206,7 +206,7 @@
   </form>
   {% endif %}
 
-  {% if current_user.is_admin %}
+  {% if can('kontrola_etapowa.delete') %}
   <form method="post" action="{{ url_for('kontrola.delete_record', record_id=rec.id) }}">
     {{ csrf_input() }}
     <button type="submit" class="btn btn-danger btn-sm"

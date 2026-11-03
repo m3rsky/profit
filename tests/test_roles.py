@@ -2,7 +2,7 @@
 import pytest
 
 from app import app as flask_app, db, _migrate_roles, _seed_role_permissions
-from models import User, RolePermission, MODULES, DEFAULT_PERMISSIONS
+from models import User, RolePermission, MODULES, ACTIONS, DEFAULT_PERMISSIONS
 from test_app import login, logout, _csrf
 
 
@@ -148,7 +148,7 @@ class TestMigrationAndForm:
             _seed_role_permissions()
             got = {u.username: u.role for u in User.query.filter(User.username.like('stary_%'))}
             assert got == {'stary_admin': 'administrator', 'stary_plan': 'technolog', 'stary_stanowisko': 'operator'}
-            assert RolePermission.query.count() == len(DEFAULT_PERMISSIONS) * len(MODULES)
+            assert RolePermission.query.count() == len(DEFAULT_PERMISSIONS) * (len(MODULES) + len(ACTIONS))
             User.query.filter(User.username.like('stary_%')).delete(synchronize_session=False)
             RolePermission.query.delete()
             db.session.commit()

@@ -14,7 +14,7 @@
     <div style="margin-top:.4rem;">{{ return_status(ret.status) }}</div>
   </div>
   <div class="page-header-actions">
-    {% if ret.status == 'do_zatwierdzenia' and current_user.is_admin %}
+    {% if ret.status == 'do_zatwierdzenia' and can('kj_prestiz.admin') %}
     <form method="post" action="{{ url_for('prestiz_kj.return_approve', return_id=ret.id) }}" style="display:inline;">{{ csrf_input() }}
       <button type="submit" class="btn btn-primary"><i class="bi bi-check2"></i> Zatwierdź zawrót</button></form>
     {% endif %}

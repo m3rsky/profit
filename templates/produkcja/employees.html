@@ -15,7 +15,7 @@
   </div>
 </div>
 
-{% if current_user.is_admin %}
+{% if can('lista_produkcyjna.import') %}
 <div class="card card--spaced-top">
   <div class="card-body">
     <form method="post" action="{{ url_for('produkcja.employees_settings') }}" class="form-inline" style="gap:.75rem;flex-wrap:wrap;align-items:center;">

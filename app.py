@@ -16,7 +16,7 @@ from functools import wraps
 from logging.handlers import RotatingFileHandler
 from threading import Lock
 from flask import (Flask, render_template, redirect, url_for, request,
-                   flash, jsonify, send_from_directory, abort, session, make_response)
+                   flash, jsonify, send_from_directory, abort, session, make_response, g)
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from markupsafe import Markup
 from werkzeug.utils import secure_filename
@@ -31,7 +31,7 @@ from models import (db, get_or_404, User, ChecklistTemplate, Category, Task, Rep
                     QARReport, QARPhoto, QARCategory,
                     ProductionDepartment, DepartmentEmployee,
                     DailyBriefing, DocEntry, DocFile, DocNote,
-                    RolePermission, MODULES, DEFAULT_PERMISSIONS, ROLES, ROLE_LABELS, ADMIN_ROLE_NAMES, LEGACY_ROLES,
+                    RolePermission, UserPermission, ACTIONS, MODULES, DEFAULT_PERMISSIONS, ROLES, ROLE_LABELS, ADMIN_ROLE_NAMES, LEGACY_ROLES,
                     roles_matching)
 import anthropic
 import briefing_service
@@ -230,6 +230,18 @@ def admin_required(f):
     return decorated
 
 
+def permission_required(key):
+    """Wymaga uprawnienia szczegółowego ('moduł.akcja', zob. models.ACTIONS): roli albo wyjątku na koncie."""
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if not current_user.is_authenticated or not current_user.can(key):
+                abort(403)
+            return f(*args, **kwargs)
+        return decorated
+    return decorator
+
+
 def superadmin_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -240,9 +252,10 @@ def superadmin_required(f):
 
 
 def kontroler_required(f):
+    """Lista i nowe kontrole w Kontroli Końcowej: wymaga modułu (rola albo wyjątek na koncie)."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        if not current_user.is_authenticated or not current_user.is_kontroler:
+        if not current_user.is_authenticated or not current_user.can('kontrola_koncowa'):
             abort(403)
         return f(*args, **kwargs)
     return decorated
@@ -354,6 +367,8 @@ def _static_cache_bust(endpoint, values):
 @app.before_request
 def _enforce_module_access():
     """Moduł niedostępny dla roli jest niewidoczny w menu, a wejście z adresu kończy się odmową."""
+    g.pop('_role_perms', None)  # uprawnienia liczone od nowa w każdym żądaniu (także gdy kontekst aplikacji jest długotrwały)
+    g.pop('_user_perms', None)
     endpoint = request.endpoint
     if not endpoint or not current_user.is_authenticated:
         return None
@@ -844,8 +859,8 @@ def checklist_from_qr():
 @login_required
 def checklist_view(report_id):
     report = get_or_404(Report, report_id)
-    is_kontroler_report = report.report_type == 'kontroler' and current_user.is_kontroler
-    if (report.user_id != current_user.id and not current_user.is_admin
+    is_kontroler_report = report.report_type == 'kontroler' and current_user.can('kontrola_koncowa')
+    if (report.user_id != current_user.id and not current_user.can('kontrola_koncowa.edit')
             and not is_kontroler_report):
         abort(403)
     if report.status == 'in_progress':
@@ -884,8 +899,8 @@ def checklist_view(report_id):
 @login_required
 def complete_checklist(report_id):
     report = get_or_404(Report, report_id)
-    is_kontroler_report = report.report_type == 'kontroler' and current_user.is_kontroler
-    if (report.user_id != current_user.id and not current_user.is_admin
+    is_kontroler_report = report.report_type == 'kontroler' and current_user.can('kontrola_koncowa')
+    if (report.user_id != current_user.id and not current_user.can('kontrola_koncowa.edit')
             and not is_kontroler_report):
         abort(403)
     if is_kontroler_report and report.user_id != current_user.id:
@@ -946,7 +961,8 @@ def reports_list():
     date_to     = request.args.get('date_to', '')
     user_filter = request.args.get('user_id', type=int)
 
-    if current_user.is_admin:
+    sees_all = current_user.can('kontrola_koncowa.view_all')
+    if sees_all:
         q = Report.query
     else:
         # Kontroler widzi:
@@ -991,12 +1007,12 @@ def reports_list():
             q = q.filter(Report.created_at < datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1))
         except ValueError:
             pass
-    if current_user.is_admin and user_filter:
+    if sees_all and user_filter:
         q = q.filter_by(user_id=user_filter)
 
     reports   = q.order_by(Report.created_at.desc()).paginate(page=page, per_page=per_page)
     templates = ChecklistTemplate.query.order_by(ChecklistTemplate.name).all()
-    users     = User.query.order_by(User.username).all() if current_user.is_admin else []
+    users     = User.query.order_by(User.username).all() if sees_all else []
     filters   = dict(template_id=tmpl_filter, status=status_f, q=search_q,
                      date_from=date_from, date_to=date_to, user_id=user_filter,
                      per_page=per_page)
@@ -1009,7 +1025,8 @@ def reports_list():
 @app.route('/reports/export.csv')
 @login_required
 def reports_export_csv():
-    q = Report.query if current_user.is_admin else Report.query.filter_by(user_id=current_user.id)
+    q = (Report.query if current_user.can('kontrola_koncowa.view_all')
+         else Report.query.filter_by(user_id=current_user.id))
     tmpl_filter = request.args.get('template_id', type=int)
     status_f    = request.args.get('status', '')
     search_q    = request.args.get('q', '').strip()
@@ -1056,8 +1073,8 @@ def reports_export_csv():
 @login_required
 def report_detail(report_id):
     report = get_or_404(Report, report_id)
-    is_kontroler_report = report.report_type == 'kontroler' and current_user.is_kontroler
-    if (report.user_id != current_user.id and not current_user.is_admin
+    is_kontroler_report = report.report_type == 'kontroler' and current_user.can('kontrola_koncowa')
+    if (report.user_id != current_user.id and not current_user.can('kontrola_koncowa.view_all')
             and not is_kontroler_report):
         abort(403)
     items_by_category = {}
@@ -1074,7 +1091,7 @@ def report_detail(report_id):
 
 @app.route('/reports/<int:report_id>/edit', methods=['GET', 'POST'])
 @login_required
-@admin_required
+@permission_required('kontrola_koncowa.edit')
 def report_edit(report_id):
     report = get_or_404(Report, report_id)
     users = User.query.order_by(User.username).all()
@@ -1092,7 +1109,7 @@ def report_edit(report_id):
 
 @app.route('/reports/<int:report_id>/reopen', methods=['POST'])
 @login_required
-@admin_required
+@permission_required('kontrola_koncowa.reopen')
 def report_reopen(report_id):
     report = get_or_404(Report, report_id)
     ChecklistSession.query.filter_by(report_id=report_id).delete()
@@ -1137,7 +1154,7 @@ def report_unlock(report_id):
 
 @app.route('/reports/<int:report_id>/force-unlock', methods=['POST'])
 @login_required
-@admin_required
+@permission_required('kontrola_koncowa.unlock')
 def report_force_unlock(report_id):
     report = get_or_404(Report, report_id)
     report.locked_by_id = None
@@ -1152,7 +1169,7 @@ def report_force_unlock(report_id):
 
 @app.route('/reports/<int:report_id>/delete', methods=['POST'])
 @login_required
-@admin_required
+@permission_required('kontrola_koncowa.delete')
 def report_delete(report_id):
     report = get_or_404(Report, report_id)
     title = report.title
@@ -1164,7 +1181,7 @@ def report_delete(report_id):
 
 @app.route('/reports/batch/<batch_id>/delete', methods=['POST'])
 @login_required
-@admin_required
+@permission_required('kontrola_koncowa.delete')
 def report_batch_delete(batch_id):
     reports = Report.query.filter_by(batch_id=batch_id).all()
     if not reports:
@@ -1179,7 +1196,7 @@ def report_batch_delete(batch_id):
 
 @app.route('/reports/bulk-delete', methods=['POST'])
 @login_required
-@admin_required
+@permission_required('kontrola_koncowa.delete')
 def reports_bulk_delete():
     action = request.form.get('action')
     if action == 'selected':
@@ -1223,11 +1240,11 @@ def _delete_reports(reports):
 
 def _can_edit_report(report):
     """Czy bieżący użytkownik może edytować raport."""
-    if current_user.is_admin:
+    if current_user.can('kontrola_koncowa.edit'):
         return True
     if report.user_id == current_user.id:
         return True
-    if report.report_type == 'kontroler' and current_user.is_kontroler:
+    if report.report_type == 'kontroler' and current_user.can('kontrola_koncowa'):
         return True
     return False
 
@@ -1376,7 +1393,6 @@ def set_item_installers(item_id):
 
 @app.route('/api/tasks/reorder', methods=['POST'])
 @login_required
-@admin_required
 def api_tasks_reorder():
     items = request.json  # [{id: n}, ...] ordered by new position
     if not isinstance(items, list):
@@ -1391,7 +1407,6 @@ def api_tasks_reorder():
 
 @app.route('/api/categories/reorder', methods=['POST'])
 @login_required
-@admin_required
 def api_categories_reorder():
     items = request.json  # [{id: n}, ...] ordered by new position
     if not isinstance(items, list):
@@ -1476,7 +1491,7 @@ def uploaded_pdf(filename):
 def export_pdf(report_id):
     from pdf_generator import generate_pdf
     report = get_or_404(Report, report_id)
-    if report.user_id != current_user.id and not current_user.is_admin:
+    if report.user_id != current_user.id and not current_user.can('kontrola_koncowa.view_all'):
         abort(403)
     items_by_category = {}
     for item in report.items.all():
@@ -1491,7 +1506,6 @@ def export_pdf(report_id):
 
 @app.route('/admin/audit-log')
 @login_required
-@admin_required
 def admin_audit_log():
     page = request.args.get('page', 1, type=int)
     logs = (AuditLog.query.order_by(AuditLog.created_at.desc())
@@ -1503,7 +1517,6 @@ def admin_audit_log():
 
 @app.route('/admin/stats')
 @login_required
-@admin_required
 def admin_stats():
     from datetime import date as _date, timedelta as td
     now        = datetime.now(UTC).replace(tzinfo=None)  # naive UTC – spójne z SQLite string storage
@@ -1671,7 +1684,7 @@ _BRIEFING_MAX_RANGE_DAYS = 366
 
 @app.route('/admin/briefing/generate', methods=['POST'])
 @login_required
-@admin_required
+@permission_required('statystyki.briefing')
 def admin_briefing_generate():
     from datetime import date as _date
 
@@ -1728,7 +1741,6 @@ def admin_briefing_generate():
 
 @app.route('/admin/briefing/<int:briefing_id>')
 @login_required
-@admin_required
 def admin_briefing_detail(briefing_id):
     briefing = get_or_404(DailyBriefing, briefing_id)
     resp = jsonify({'success': True, 'briefing': _briefing_to_dict(briefing)})
@@ -1759,7 +1771,6 @@ def _serve_briefing_pdf(briefing):
 
 @app.route('/admin/briefing/<int:briefing_id>/pdf')
 @login_required
-@admin_required
 def admin_briefing_pdf(briefing_id):
     briefing = get_or_404(DailyBriefing, briefing_id)
     return _serve_briefing_pdf(briefing)
@@ -1829,7 +1840,6 @@ def _briefing_to_dict(briefing):
 
 @app.route('/admin/stats/debug')
 @login_required
-@admin_required
 def admin_stats_debug():
     from sqlalchemy import text
     total      = Report.query.count()
@@ -1865,7 +1875,6 @@ def admin_stats_debug():
 
 @app.route('/api/ng-task-reports')
 @login_required
-@admin_required
 def api_ng_task_reports():
     # Passenger/IQHost może zdublować query string: ?task_id=219?task_id=219
     # dlatego bierzemy surową wartość i wycinamy tylko część liczbową przed '?'/'&'
@@ -1932,7 +1941,6 @@ def api_ng_task_reports():
 
 @app.route('/api/template-duration-reports')
 @login_required
-@admin_required
 def api_template_duration_reports():
     _raw = request.args.get('template_id', '', type=str)
     try:
@@ -1975,7 +1983,6 @@ def api_template_duration_reports():
 
 @app.route('/admin/templates')
 @login_required
-@kontroler_required
 def admin_templates():
     templates = ChecklistTemplate.query.order_by(ChecklistTemplate.name).all()
     return render_template('admin/templates.html', templates=templates)
@@ -1983,7 +1990,6 @@ def admin_templates():
 
 @app.route('/admin/templates/export')
 @login_required
-@admin_required
 def admin_templates_export():
     import json as _json
     templates = ChecklistTemplate.query.order_by(ChecklistTemplate.name).all()
@@ -2021,7 +2027,6 @@ def admin_templates_export():
 
 @app.route('/admin/templates/import', methods=['POST'])
 @login_required
-@admin_required
 def admin_templates_import():
     import json as _json
     f = request.files.get('file')
@@ -2070,7 +2075,6 @@ def admin_templates_import():
 
 @app.route('/admin/templates/new', methods=['GET', 'POST'])
 @login_required
-@kontroler_required
 def admin_template_new():
     if request.method == 'POST':
         tmpl = ChecklistTemplate(
@@ -2087,7 +2091,6 @@ def admin_template_new():
 
 @app.route('/admin/templates/<int:tmpl_id>/edit', methods=['GET', 'POST'])
 @login_required
-@kontroler_required
 def admin_template_edit(tmpl_id):
     tmpl = get_or_404(ChecklistTemplate, tmpl_id)
     if request.method == 'POST':
@@ -2103,7 +2106,6 @@ def admin_template_edit(tmpl_id):
 
 @app.route('/admin/templates/<int:tmpl_id>/copy', methods=['POST'])
 @login_required
-@kontroler_required
 def admin_template_copy(tmpl_id):
     src = get_or_404(ChecklistTemplate, tmpl_id)
     copy = ChecklistTemplate(
@@ -2138,7 +2140,6 @@ def admin_template_copy(tmpl_id):
 
 @app.route('/admin/templates/<int:tmpl_id>/delete', methods=['POST'])
 @login_required
-@admin_required
 def admin_template_delete(tmpl_id):
     tmpl = get_or_404(ChecklistTemplate, tmpl_id)
     db.session.delete(tmpl)
@@ -2149,7 +2150,6 @@ def admin_template_delete(tmpl_id):
 
 @app.route('/admin/templates/bulk-delete', methods=['POST'])
 @login_required
-@admin_required
 def admin_templates_bulk_delete():
     ids = request.form.getlist('tmpl_ids', type=int)
     if not ids:
@@ -2169,7 +2169,6 @@ def admin_templates_bulk_delete():
 
 @app.route('/admin/templates/<int:tmpl_id>/categories')
 @login_required
-@kontroler_required
 def admin_template_categories(tmpl_id):
     tmpl = get_or_404(ChecklistTemplate, tmpl_id)
     categories = tmpl.categories.order_by(Category.order).all()
@@ -2178,7 +2177,6 @@ def admin_template_categories(tmpl_id):
 
 @app.route('/admin/templates/<int:tmpl_id>/categories/new', methods=['GET', 'POST'])
 @login_required
-@kontroler_required
 def admin_category_new(tmpl_id):
     tmpl = get_or_404(ChecklistTemplate, tmpl_id)
     if request.method == 'POST':
@@ -2196,7 +2194,6 @@ def admin_category_new(tmpl_id):
 
 @app.route('/admin/categories/<int:cat_id>/edit', methods=['GET', 'POST'])
 @login_required
-@kontroler_required
 def admin_category_edit(cat_id):
     cat = get_or_404(Category, cat_id)
     if request.method == 'POST':
@@ -2211,7 +2208,6 @@ def admin_category_edit(cat_id):
 
 @app.route('/admin/categories/<int:cat_id>/delete', methods=['POST'])
 @login_required
-@kontroler_required
 def admin_category_delete(cat_id):
     cat = get_or_404(Category, cat_id)
     tmpl_id = cat.template_id
@@ -2225,7 +2221,6 @@ def admin_category_delete(cat_id):
 
 @app.route('/admin/categories/<int:cat_id>/tasks')
 @login_required
-@kontroler_required
 def admin_tasks(cat_id):
     cat = get_or_404(Category, cat_id)
     tasks = cat.tasks.order_by(Task.order).all()
@@ -2234,7 +2229,6 @@ def admin_tasks(cat_id):
 
 @app.route('/admin/categories/<int:cat_id>/tasks/new', methods=['GET', 'POST'])
 @login_required
-@kontroler_required
 def admin_task_new(cat_id):
     cat = get_or_404(Category, cat_id)
     if request.method == 'POST':
@@ -2262,7 +2256,6 @@ def admin_task_new(cat_id):
 
 @app.route('/admin/tasks/<int:task_id>/edit', methods=['GET', 'POST'])
 @login_required
-@kontroler_required
 def admin_task_edit(task_id):
     task = get_or_404(Task, task_id)
     if request.method == 'POST':
@@ -2285,7 +2278,6 @@ def admin_task_edit(task_id):
 
 @app.route('/admin/tasks/<int:task_id>/delete', methods=['POST'])
 @login_required
-@kontroler_required
 def admin_task_delete(task_id):
     task = get_or_404(Task, task_id)
     cat_id = task.category_id
@@ -2297,7 +2289,6 @@ def admin_task_delete(task_id):
 
 @app.route('/admin/categories/<int:cat_id>/tasks/bulk-delete', methods=['POST'])
 @login_required
-@kontroler_required
 def admin_tasks_bulk_delete(cat_id):
     cat = get_or_404(Category, cat_id)
     ids = request.form.getlist('task_ids', type=int)
@@ -2317,7 +2308,6 @@ def admin_tasks_bulk_delete(cat_id):
 
 @app.route('/admin/installers', methods=['GET', 'POST'])
 @login_required
-@kontroler_required
 def admin_installers():
     if request.method == 'POST':
         action = request.form.get('action')
@@ -2438,15 +2428,16 @@ def admin_user_edit(user_id):
 @login_required
 @superadmin_required
 def admin_permissions():
-    """Macierz rola x moduł: superuser ustawia, które moduły widzi dana rola."""
+    """Macierz rola x uprawnienie: superuser ustawia, które moduły i akcje w modułach ma dana rola."""
+    keys = list(MODULES) + list(ACTIONS)
     if request.method == 'POST':
         granted = set(request.form.getlist('perm'))
         for role in ROLES:
-            for module in MODULES:
-                row = RolePermission.query.filter_by(role=role, module=module).first()
-                allowed = f'{role}:{module}' in granted
+            for key in keys:
+                row = RolePermission.query.filter_by(role=role, module=key).first()
+                allowed = f'{role}:{key}' in granted
                 if row is None:
-                    db.session.add(RolePermission(role=role, module=module, allowed=allowed))
+                    db.session.add(RolePermission(role=role, module=key, allowed=allowed))
                 else:
                     row.allowed = allowed
         db.session.commit()
@@ -2454,10 +2445,51 @@ def admin_permissions():
         flash('Uprawnienia ról zapisane.', 'success')
         return redirect(url_for('admin_permissions'))
     rows = {(r.role, r.module): r.allowed for r in RolePermission.query.all()}
-    matrix = {role: {m: rows.get((role, m), m in DEFAULT_PERMISSIONS.get(role, ())) for m in MODULES}
+    matrix = {role: {k: rows.get((role, k), k in DEFAULT_PERMISSIONS.get(role, ())) for k in keys}
               for role in ROLES}
     return render_template('admin/permissions.html', roles=ROLES, role_labels=ROLE_LABELS,
-                           modules=MODULES, matrix=matrix)
+                           modules=MODULES, actions=_actions_by_module(), matrix=matrix)
+
+
+def _actions_by_module():
+    """Akcje pogrupowane po module: {moduł: [(klucz, nazwa), ...]} do tabel uprawnień."""
+    out = {}
+    for key, (module, label) in ACTIONS.items():
+        out.setdefault(module, []).append((key, label))
+    return out
+
+
+@app.route('/admin/users/<int:user_id>/uprawnienia', methods=['GET', 'POST'])
+@login_required
+@superadmin_required
+def admin_user_permissions(user_id):
+    """Wyjątki od uprawnień roli dla jednego użytkownika: dziedzicz z roli, zezwól albo zabroń."""
+    user = get_or_404(User, user_id)
+    if user.is_superadmin:
+        flash('Super admin ma zawsze wszystkie uprawnienia.', 'info')
+        return redirect(url_for('admin_users'))
+    keys = list(MODULES) + list(ACTIONS)
+    if request.method == 'POST':
+        existing = {p.perm: p for p in UserPermission.query.filter_by(user_id=user.id).all()}
+        for key in keys:
+            choice = request.form.get(f'perm_{key}', 'inherit')
+            row = existing.get(key)
+            if choice not in ('allow', 'deny'):
+                if row is not None:
+                    db.session.delete(row)
+            elif row is None:
+                db.session.add(UserPermission(user_id=user.id, perm=key, allowed=choice == 'allow'))
+            else:
+                row.allowed = choice == 'allow'
+        db.session.commit()
+        _audit('user_permissions_update', 'user', user.id, f'username={user.username}')
+        flash('Uprawnienia użytkownika zapisane.', 'success')
+        return redirect(url_for('admin_user_permissions', user_id=user.id))
+    overrides = {p.perm: p.allowed for p in UserPermission.query.filter_by(user_id=user.id).all()}
+    rows = {r.module: r.allowed for r in RolePermission.query.filter_by(role=user.role_key).all()}
+    role_has = {k: rows.get(k, k in DEFAULT_PERMISSIONS.get(user.role_key, ())) for k in keys}
+    return render_template('admin/user_permissions.html', user=user, modules=MODULES,
+                           actions=_actions_by_module(), overrides=overrides, role_has=role_has)
 
 
 @app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
@@ -2475,6 +2507,7 @@ def admin_user_delete(user_id):
         for r in user.reports.all():
             r.user_id = current_user.id
         db.session.flush()
+        UserPermission.query.filter_by(user_id=user.id).delete()
         db.session.delete(user)
         db.session.commit()
         _audit('user_delete', 'user', user_id, f'username={uname}')
@@ -2734,7 +2767,7 @@ def api_desktop_reports():
     page    = request.args.get('page', 1, type=int)
     status  = request.args.get('status', '')
     q_str   = request.args.get('q', '').strip()
-    base_q  = Report.query if current_user.is_admin else Report.query.filter_by(user_id=current_user.id)
+    base_q  = Report.query if current_user.can('kontrola_koncowa.view_all') else Report.query.filter_by(user_id=current_user.id)
     if status:
         base_q = base_q.filter_by(status=status)
     if q_str:
@@ -2750,7 +2783,7 @@ def api_desktop_reports():
 @login_required
 def api_desktop_report_detail(report_id):
     report = get_or_404(Report, report_id)
-    if report.user_id != current_user.id and not current_user.is_admin:
+    if report.user_id != current_user.id and not current_user.can('kontrola_koncowa.view_all'):
         abort(403)
     categories = []
     items_by_cat = {}
@@ -2784,7 +2817,7 @@ def api_desktop_report_detail(report_id):
 @login_required
 def api_desktop_complete_report(report_id):
     report = get_or_404(Report, report_id)
-    if report.user_id != current_user.id and not current_user.is_admin:
+    if report.user_id != current_user.id and not current_user.can('kontrola_koncowa.edit'):
         abort(403)
     now_utc = datetime.now(UTC)
     report.status = 'completed'
@@ -2801,7 +2834,7 @@ def api_desktop_complete_report(report_id):
 @login_required
 def api_desktop_reopen_report(report_id):
     report = get_or_404(Report, report_id)
-    if not current_user.is_admin:
+    if not current_user.can('kontrola_koncowa.reopen'):
         abort(403)
     report.status = 'in_progress'
     report.completed_at = None
@@ -2872,7 +2905,7 @@ def _seed_role_permissions():
     """Dopisuje brakujące wpisy macierzy rola x moduł wartościami domyślnymi (nie zmienia istniejących)."""
     existing = {(r.role, r.module) for r in RolePermission.query.all()}
     for role in ROLES:
-        for module in MODULES:
+        for module in list(MODULES) + list(ACTIONS):
             if (role, module) not in existing:
                 db.session.add(RolePermission(role=role, module=module,
                                               allowed=module in DEFAULT_PERMISSIONS.get(role, ())))

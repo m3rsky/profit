@@ -35,17 +35,16 @@ def _audit(action, target_id=None, detail=None):
 
 def _qar_access(report):
     """Zwraca True jeśli użytkownik może zobaczyć raport."""
-    return (current_user.is_admin or current_user.is_kontroler or current_user.is_konstruktor
-            or report.user_id == current_user.id)
+    return current_user.can('qar.view_all') or report.user_id == current_user.id
 
 
 def _qar_edit_access(report):
     """Zwraca True jeśli użytkownik może edytować raport."""
-    if current_user.is_admin:
+    if current_user.can('qar.edit_closed'):
         return True
     if report.status == 'closed':
         return False
-    return current_user.is_kontroler or current_user.is_konstruktor or report.user_id == current_user.id
+    return current_user.can('qar.edit_all') or report.user_id == current_user.id
 
 
 def _allowed_image(filename):
@@ -138,7 +137,7 @@ def list_reports():
     date_from  = request.args.get('date_from', '')
     date_to    = request.args.get('date_to', '')
 
-    if current_user.is_admin or current_user.is_kontroler or current_user.is_konstruktor:
+    if current_user.can('qar.view_all'):
         q = QARReport.query
     else:
         q = QARReport.query.filter_by(user_id=current_user.id)
@@ -398,7 +397,7 @@ def close_report(report_id):
 @qar_bp.route('/<int:report_id>/reopen', methods=['POST'])
 @login_required
 def reopen_report(report_id):
-    if not (current_user.is_admin or current_user.is_konstruktor):
+    if not current_user.can('qar.reopen'):
         abort(403)
     report = get_or_404(QARReport, report_id)
     report.status         = 'in_progress'
@@ -416,7 +415,7 @@ def reopen_report(report_id):
 @qar_bp.route('/<int:report_id>/delete', methods=['POST'])
 @login_required
 def delete_report(report_id):
-    if not current_user.is_admin:
+    if not current_user.can('qar.delete'):
         abort(403)
     report = get_or_404(QARReport, report_id)
     upload_dir = current_app.config.get('QAR_UPLOAD_FOLDER', '')
@@ -440,7 +439,7 @@ def upload_photo(report_id):
     report = get_or_404(QARReport, report_id)
     if not _qar_access(report):
         return jsonify({'error': 'Forbidden'}), 403
-    if report.status == 'closed' and not current_user.is_admin:
+    if report.status == 'closed' and not current_user.can('qar.edit_closed'):
         return jsonify({'error': 'Raport jest zamknięty'}), 400
     file = request.files.get('photo')
     if not file or not _allowed_image(file.filename):
@@ -478,7 +477,7 @@ def delete_photo(photo_id):
     report = photo.report
     if not _qar_access(report):
         return jsonify({'error': 'Forbidden'}), 403
-    if report.status == 'closed' and not current_user.is_admin:
+    if report.status == 'closed' and not current_user.can('qar.edit_closed'):
         return jsonify({'error': 'Raport jest zamknięty'}), 400
     upload_dir = current_app.config.get('QAR_UPLOAD_FOLDER', '')
     path = os.path.join(upload_dir, photo.filename)
@@ -499,7 +498,7 @@ def update_caption(photo_id):
     report = photo.report
     if not _qar_access(report):
         return jsonify({'error': 'Forbidden'}), 403
-    if report.status == 'closed' and not current_user.is_admin:
+    if report.status == 'closed' and not current_user.can('qar.edit_closed'):
         return jsonify({'error': 'Raport jest zamknięty'}), 400
     data = request.get_json(silent=True) or {}
     photo.caption = data.get('caption', '').strip() or None
@@ -521,7 +520,7 @@ def serve_photo(filename):
 @qar_bp.route('/stats')
 @login_required
 def stats():
-    if not (current_user.is_admin or current_user.is_kontroler or current_user.is_konstruktor):
+    if not current_user.can('qar.stats'):
         abort(403)
     from sqlalchemy import func, case
     date_from = request.args.get('date_from', '')
@@ -587,7 +586,7 @@ def stats():
 @qar_bp.route('/admin/categories', methods=['GET', 'POST'])
 @login_required
 def admin_categories():
-    if not current_user.is_admin:
+    if not current_user.can('qar.categories'):
         abort(403)
     if request.method == 'POST':
         action = request.form.get('action')

@@ -37,12 +37,12 @@
     <span class="text-muted" style="font-size:0.82rem;">Quality Action Reports — dokumentacja niezgodności</span>
   </div>
   <div class="page-header-actions">
-    {% if current_user.is_admin or current_user.is_kontroler or current_user.is_konstruktor %}
+    {% if can('qar.stats') %}
     <a href="{{ url_for('qar.stats') }}" class="btn btn-outline">
       <i class="bi bi-bar-chart"></i> Statystyki
     </a>
     {% endif %}
-    {% if current_user.is_admin %}
+    {% if can('qar.categories') %}
     <a href="{{ url_for('qar.admin_categories') }}" class="btn btn-outline">
       <i class="bi bi-tags"></i> Kategorie
     </a>
@@ -111,7 +111,7 @@
         <th style="width:90px;">Status</th>
         <th style="width:90px;">Autor</th>
         <th style="width:110px;">Data</th>
-        <th style="width:{% if current_user.is_admin %}100{% else %}70{% endif %}px;"></th>
+        <th style="width:{% if can('qar.delete') %}100{% else %}70{% endif %}px;"></th>
       </tr>
     </thead>
     <tbody>
@@ -137,7 +137,7 @@
              class="btn btn-outline btn-xs" title="PDF" target="_blank">
             <i class="bi bi-file-earmark-pdf"></i>
           </a>
-          {% if current_user.is_admin %}
+          {% if can('qar.delete') %}
           <form method="post" action="{{ url_for('qar.delete_report', report_id=r.id) }}"
                 style="display:inline;" onsubmit="return confirm('Usunąć raport {{ r.number }}? Tej operacji nie można cofnąć.');">
             {{ csrf_input() }}
@@ -182,7 +182,7 @@
         </span>
       </div>
     </a>
-    {% if current_user.is_admin %}
+    {% if can('qar.delete') %}
     <form method="post" action="{{ url_for('qar.delete_report', report_id=r.id) }}"
           onsubmit="return confirm('Usunąć raport {{ r.number }}? Tej operacji nie można cofnąć.');">
       {{ csrf_input() }}

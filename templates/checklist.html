@@ -18,7 +18,7 @@
       <button type="submit" class="btn btn-success"><i class="bi bi-check-circle-fill"></i> Zamknij raport</button>
     </form>
     {% endif %}
-    {% if current_user.is_admin and report.status == 'completed' %}
+    {% if can('kontrola_koncowa.reopen') and report.status == 'completed' %}
     <form method="post" action="{{ url_for('report_reopen', report_id=report.id) }}">
       {{ csrf_input() }}
       <button type="submit" class="btn btn-secondary"
@@ -27,7 +27,7 @@
       </button>
     </form>
     {% endif %}
-    {% if current_user.is_admin %}
+    {% if can('kontrola_koncowa.edit') %}
     <a href="{{ url_for('report_edit', report_id=report.id) }}" class="btn btn-ghost">Edytuj raport</a>
     {% endif %}
     <a href="{{ url_for('export_pdf', report_id=report.id) }}" class="btn btn-outline"><i class="bi bi-file-earmark-arrow-down"></i> PDF</a>

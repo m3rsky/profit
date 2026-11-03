@@ -10,7 +10,7 @@
  <div class="page-header-actions">
     <a href="{{ url_for('produkcja.employees') }}" class="btn btn-ghost"><i class="bi bi-person-badge"></i> Pracownicy</a>
     <a href="{{ url_for('produkcja.history') }}" class="btn btn-ghost"><i class="bi bi-clock-history"></i> Historia wpisów</a>
-    {% if current_user.is_admin %}
+    {% if can('lista_produkcyjna.import') %}
     <a href="{{ url_for('produkcja.import_file') }}" class="btn btn-primary"><i class="bi bi-upload"></i> Wczytaj plik</a>
     <a href="{{ url_for('produkcja.access') }}" class="btn btn-ghost"><i class="bi bi-people"></i> Dostęp do arkuszy</a>
     <a href="{{ url_for('produkcja.files') }}" class="btn btn-ghost"><i class="bi bi-files"></i> Pliki i kopie</a>
@@ -51,7 +51,7 @@
   {% else %}
   <div class="empty-state">
     {% if not has_data %}
-      <p>Nie wczytano jeszcze żadnego pliku.{% if current_user.is_admin %} Użyj przycisku „Wczytaj plik”.{% endif %}</p>
+      <p>Nie wczytano jeszcze żadnego pliku.{% if can('lista_produkcyjna.import') %} Użyj przycisku „Wczytaj plik”.{% endif %}</p>
     {% else %}
       <p>Nie masz przydzielonych arkuszy. Poproś administratora o nadanie dostępu.</p>
     {% endif %}

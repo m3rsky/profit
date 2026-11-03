@@ -47,7 +47,7 @@
           <td data-label="Data">{{ r.ret.created_at | localdt('%d.%m.%Y') }}</td>
           <td data-label="Status">{{ return_status(r.ret.status) }}</td>
           <td class="td-actions">
-            {% if r.ret.status == 'do_zatwierdzenia' and current_user.is_admin %}
+            {% if r.ret.status == 'do_zatwierdzenia' and can('kj_prestiz.admin') %}
             <form method="post" action="{{ url_for('prestiz_kj.return_approve', return_id=r.ret.id) }}" style="display:inline;">{{ csrf_input() }}
               <button type="submit" class="btn btn-primary btn-sm">Zatwierdź</button></form>
             {% endif %}

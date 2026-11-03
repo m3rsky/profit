@@ -4,7 +4,7 @@
 <div class="page-header">
   <div>
     <h1 class="page-title"><i class="bi bi-shield-lock"></i> Uprawnienia ról</h1>
-    <span class="text-muted" style="font-size:0.82rem;">Zaznacz, które moduły widzi dana rola. Moduły bez zaznaczenia są dla tej roli niewidoczne. Superuser ma zawsze dostęp do wszystkiego.</span>
+    <span class="text-muted" style="font-size:0.82rem;">Zaznacz, które moduły widzi dana rola i jakie akcje może w nich wykonywać (wiersze pod modułem). Moduły bez zaznaczenia są dla tej roli niewidoczne. Wyjątki dla pojedynczej osoby ustawisz w Użytkownicy, przycisk Uprawnienia. Superuser ma zawsze dostęp do wszystkiego.</span>
   </div>
   <div class="page-header-actions">
     <a href="{{ url_for('admin_users') }}" class="btn btn-outline"><i class="bi bi-arrow-left"></i> Użytkownicy</a>
@@ -35,6 +35,18 @@
             {% endfor %}
             <td class="perm-col"><i class="bi bi-check2 text-muted" title="Zawsze"></i></td>
           </tr>
+          {% for akey, alabel in actions.get(key, []) %}
+          <tr class="perm-action">
+            <td><i class="bi bi-arrow-return-right"></i> {{ alabel }}</td>
+            {% for role in roles %}
+            <td class="perm-col">
+              <input type="checkbox" name="perm" value="{{ role }}:{{ akey }}" {% if matrix[role][akey] %}checked{% endif %}
+                     aria-label="{{ role_labels[role] }}: {{ alabel }}">
+            </td>
+            {% endfor %}
+            <td class="perm-col"><i class="bi bi-check2 text-muted" title="Zawsze"></i></td>
+          </tr>
+          {% endfor %}
           {% endfor %}
         </tbody>
       </table>
@@ -46,6 +58,7 @@
 </form>
 <style>
 .perm-table .perm-col { text-align: center; width: 110px; }
+.perm-table .perm-action td:first-child { padding-left: 28px; color: var(--text-muted, #6b7280); }
 .perm-table input[type=checkbox] { width: 18px; height: 18px; cursor: pointer; }
 </style>
 {% endblock %}

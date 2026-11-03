@@ -24,7 +24,7 @@
       <option value="{{ t.id }}" {% if filters.template_id == t.id %}selected{% endif %}>{{ t.name }}</option>
       {% endfor %}
     </select>
-    {% if current_user.is_admin %}
+    {% if can('kontrola_koncowa.view_all') %}
     <select class="form-control filter-select" name="user_id" title="Filtruj po operatorze">
       <option value="">Wszyscy operatorzy</option>
       {% for u in users %}
@@ -55,7 +55,7 @@
 {% endcall %}
 </form>
 
-{% if current_user.is_admin and reports.items %}
+{% if can('kontrola_koncowa.delete') and reports.items %}
 <form method="post" action="{{ url_for('reports_bulk_delete') }}" id="bulk-form">
   {{ csrf_input() }}
   <div class="bulk-bar" id="bulk-bar">
@@ -92,7 +92,7 @@
       <table class="data-table tbl-cards">
         <thead>
           <tr>
-            {% if current_user.is_admin %}
+            {% if can('kontrola_koncowa.delete') %}
             <th class="th-check" scope="col">
               <label class="sr-only" for="select-all">Zaznacz wszystkie</label>
               <input type="checkbox" id="select-all" title="Zaznacz wszystkie">
@@ -100,7 +100,7 @@
             {% endif %}
             <th>#</th>
             <th>Tytuł</th>
-            {% if current_user.is_admin %}<th>Operator</th>{% endif %}
+            {% if can('kontrola_koncowa.view_all') %}<th>Operator</th>{% endif %}
             <th>Data</th>
             <th>Status</th>
             <th>Czas</th>
@@ -113,7 +113,7 @@
           <tr data-batch-id="{{ r.batch_id or '' }}"
               data-batch-index="{{ r.batch_index or '' }}"
               data-batch-total="{{ r.batch_total or '' }}">
-            {% if current_user.is_admin %}
+            {% if can('kontrola_koncowa.delete') %}
             <td class="th-check">
               <label class="sr-only" for="check-{{ r.id }}">Zaznacz raport {{ r.id }}</label>
               <input type="checkbox" id="check-{{ r.id }}" name="report_ids" value="{{ r.id }}" class="row-check">
@@ -126,7 +126,7 @@
                 <i class="bi bi-chevron-down row-expand-chevron"></i>
               </button>
             </td>
-            {% if current_user.is_admin %}<td data-label="Operator" class="td-collapse-sm">{{ r.author.username }}</td>{% endif %}
+            {% if can('kontrola_koncowa.view_all') %}<td data-label="Operator" class="td-collapse-sm">{{ r.author.username }}</td>{% endif %}
             <td data-label="Data" class="td-collapse-sm">{{ r.created_at | localdt('%d.%m.%Y') }}</td>
             <td data-label="Status">
               {% if r.status == 'completed' %}
@@ -157,7 +157,7 @@
               {% else %}
               <a href="{{ url_for('report_detail', report_id=r.id, back=request.full_path) }}" class="btn btn-outline btn-sm">Podgląd</a>
               {% endif %}
-              {% if current_user.is_admin %}
+              {% if can('kontrola_koncowa.delete') %}
               {% if r.batch_id %}
               <button type="button"
                       class="btn btn-danger btn-sm"
@@ -192,7 +192,7 @@
   </div>
 </div>
 
-{% if current_user.is_admin and reports.items %}
+{% if can('kontrola_koncowa.delete') and reports.items %}
 </form>
 {% endif %}
 

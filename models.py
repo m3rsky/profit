@@ -42,12 +42,40 @@ MODULES = {
     'statystyki': 'Statystyki',
     'dziennik': 'Dziennik zdarzeń',
 }
+# Uprawnienia szczegółowe (akcje wewnątrz modułu): klucz 'moduł.akcja' -> (moduł, nazwa).
+# Zapisują się w tej samej macierzy rola x uprawnienie co moduły, a per użytkownik w `UserPermission`.
+ACTIONS = {
+    'kontrola_koncowa.view_all': ('kontrola_koncowa', 'Widzi raporty wszystkich użytkowników'),
+    'kontrola_koncowa.edit': ('kontrola_koncowa', 'Edytuje dane raportów i wypełnia cudze listy'),
+    'kontrola_koncowa.reopen': ('kontrola_koncowa', 'Wznawia zakończone raporty'),
+    'kontrola_koncowa.unlock': ('kontrola_koncowa', 'Zwalnia blokadę raportu innego użytkownika'),
+    'kontrola_koncowa.delete': ('kontrola_koncowa', 'Usuwa raporty (pojedyncze, serie i zbiorczo)'),
+    'kontrola_etapowa.control': ('kontrola_etapowa', 'Skanuje zlecenia, wypełnia i kończy kontrole'),
+    'kontrola_etapowa.done': ('kontrola_etapowa', 'Oznacza zlecenie jako wykonane'),
+    'kontrola_etapowa.reopen': ('kontrola_etapowa', 'Wznawia zakończone kontrole'),
+    'kontrola_etapowa.delete': ('kontrola_etapowa', 'Usuwa zlecenia i kontrole (pojedyncze i zbiorczo)'),
+    'kontrola_etapowa.points': ('kontrola_etapowa', 'Edytuje punkty i elementy kontroli'),
+    'qar.view_all': ('qar', 'Widzi raporty QAR wszystkich użytkowników'),
+    'qar.edit_all': ('qar', 'Edytuje cudze otwarte raporty QAR'),
+    'qar.edit_closed': ('qar', 'Edytuje zamknięte raporty i ich zdjęcia'),
+    'qar.reopen': ('qar', 'Wznawia zamknięte raporty QAR'),
+    'qar.delete': ('qar', 'Usuwa raporty QAR'),
+    'qar.stats': ('qar', 'Widzi statystyki QAR'),
+    'qar.categories': ('qar', 'Zarządza kategoriami QAR'),
+    'lista_produkcyjna.import': ('lista_produkcyjna', 'Wczytuje pliki, pobiera kopie, przydziela arkusze i ustawia zasady wpisów'),
+    'lista_produkcyjna.all_sheets': ('lista_produkcyjna', 'Widzi wszystkie arkusze (bez przydziału)'),
+    'dokumentacja.manage_all': ('dokumentacja', 'Edytuje i usuwa cudze teczki, pliki i notatki'),
+    'kj_prestiz.control': ('kj_prestiz', 'Kontroluje w aplikacji KJ i melduje operacje'),
+    'kj_prestiz.admin': ('kj_prestiz', 'Konfiguruje moduł, zarządza zleceniami i zatwierdza zawroty'),
+    'statystyki.briefing': ('statystyki', 'Generuje Poranny Briefing (AI)'),
+}
 # Domyślne uprawnienia ról (odpowiadają dotychczasowemu dostępowi); później zmienia je superuser
 DEFAULT_PERMISSIONS = {
-    'administrator': set(MODULES),
-    'kontroler': {'dashboard', 'kontrola_etapowa', 'kontrola_koncowa', 'qar', 'ustawienia', 'dokumentacja'},
-    'operator': {'kontrola_etapowa', 'stanowisko'},
-    'konstruktor': {'qar', 'dokumentacja'},
+    'administrator': set(MODULES) | set(ACTIONS),
+    'kontroler': {'dashboard', 'kontrola_etapowa', 'kontrola_koncowa', 'qar', 'ustawienia', 'dokumentacja',
+                  'kontrola_etapowa.control', 'qar.view_all', 'qar.edit_all', 'qar.stats', 'kj_prestiz.control'},
+    'operator': {'kontrola_etapowa', 'stanowisko', 'kontrola_etapowa.done'},
+    'konstruktor': {'qar', 'dokumentacja', 'qar.view_all', 'qar.edit_all', 'qar.reopen', 'qar.stats'},
     'technolog': {'dashboard'},
 }
 
@@ -89,16 +117,26 @@ class User(UserMixin, db.Model):
         return LEGACY_ROLES.get(self.role, self.role)
 
     def can(self, module):
-        """Czy rola użytkownika ma dostęp do modułu (superuser zawsze). Wynik jest liczony raz na żądanie."""
+        """Czy użytkownik ma uprawnienie (moduł albo 'moduł.akcja'): superuser zawsze, potem wyjątek
+        zapisany na koncie, na końcu uprawnienie roli. Wynik jest liczony raz na żądanie."""
         if self.is_superadmin:
             return True
         from flask import g
+        overrides = g.__dict__.setdefault('_user_perms', {})
+        if self.id not in overrides:
+            overrides[self.id] = {p.perm: p.allowed
+                                  for p in UserPermission.query.filter_by(user_id=self.id).all()}
+        if module in overrides[self.id]:
+            return overrides[self.id][module]
         cache = g.__dict__.setdefault('_role_perms', {})
         perms = cache.get(self.role_key)
         if perms is None:
             rows = RolePermission.query.filter_by(role=self.role_key).all()
             if rows:
                 perms = {r.module for r in rows if r.allowed}
+                saved = {r.module for r in rows}
+                # akcje dodane po zapisaniu macierzy: domyślne uprawnienia roli
+                perms |= {k for k in ACTIONS if k not in saved and k in DEFAULT_PERMISSIONS.get(self.role_key, ())}
             else:  # baza bez zapisanej macierzy: domyślne uprawnienia roli
                 perms = set(DEFAULT_PERMISSIONS.get(self.role_key, ()))
             cache[self.role_key] = perms
@@ -135,6 +173,17 @@ class RolePermission(db.Model):
     module = db.Column(db.String(32), nullable=False)
     allowed = db.Column(db.Boolean, nullable=False, default=False)
     __table_args__ = (db.UniqueConstraint('role', 'module', name='uq_role_permissions'),)
+
+
+class UserPermission(db.Model):
+    """Wyjątek od uprawnień roli dla jednego użytkownika (nadanie albo odebranie modułu lub akcji).
+    Brak wiersza oznacza, że obowiązuje uprawnienie roli."""
+    __tablename__ = 'user_permissions'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    perm = db.Column(db.String(48), nullable=False)
+    allowed = db.Column(db.Boolean, nullable=False, default=False)
+    __table_args__ = (db.UniqueConstraint('user_id', 'perm', name='uq_user_permissions'),)
 
 
 class ChecklistTemplate(db.Model):

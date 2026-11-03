@@ -25,11 +25,11 @@
     </span>
   </div>
   <div class="page-header-actions">
-    {% if current_user.is_admin %}
+    {% if can('kontrola_etapowa.points') %}
     <a href="{{ url_for('kontrola.points') }}" class="btn btn-ghost btn-sm" title="Punkty kontrolne"><i class="bi bi-list-check"></i> Punkty</a>
     <a href="{{ url_for('kontrola.elements') }}" class="btn btn-ghost btn-sm" title="Elementy kontroli"><i class="bi bi-boxes"></i> Elementy</a>
     {% endif %}
-    {% if current_user.is_kontroler %}
+    {% if can('kontrola_etapowa.control') %}
     <button type="button" class="btn btn-outline" id="kz-add-toggle" title="Dodaj zlecenie ręcznie"
             aria-controls="kz-add" aria-expanded="{{ 'false' if (pager.total or filters.zo) else 'true' }}"><i class="bi bi-plus-lg"></i> Dodaj zlecenie</button>
     <a href="{{ url_for('kontrola.scan_page') }}" class="btn btn-primary"><i class="bi bi-qr-code-scan"></i> Skanuj QR</a>
@@ -37,7 +37,7 @@
   </div>
 </div>
 
-{% if current_user.is_kontroler %}
+{% if can('kontrola_etapowa.control') %}
 <div class="kz-add" id="kz-add" {% if pager.total or filters.zo %}hidden{% endif %}>
   <form method="post" action="{{ url_for('kontrola.order_create') }}" class="kz-add-form" autocomplete="off">
     {{ csrf_input() }}
@@ -95,7 +95,7 @@
 {% endcall %}
 </form>
 
-{% if current_user.is_admin and pager.items %}
+{% if can('kontrola_etapowa.delete') and pager.items %}
 <form method="post" action="{{ url_for('kontrola.orders_bulk_delete') }}" id="bulk-form">
   {{ csrf_input() }}
   <div class="bulk-bar" id="bulk-bar">
@@ -119,7 +119,7 @@
       <table class="data-table tbl-cards">
         <thead>
           <tr>
-            {% if current_user.is_admin %}
+            {% if can('kontrola_etapowa.delete') %}
             <th class="th-check" scope="col">
               <label class="sr-only" for="select-all">Zaznacz wszystkie</label>
               <input type="checkbox" id="select-all" title="Zaznacz wszystkie">
@@ -138,7 +138,7 @@
           {% for row in pager.items %}
           {% set o = row.obj %}
           <tr>
-            {% if current_user.is_admin %}
+            {% if can('kontrola_etapowa.delete') %}
             <td class="th-check">
               <label class="sr-only" for="check-{{ row.kind }}-{{ o.id }}">Zaznacz {{ o.product_name or o.zo_number }}</label>
               <input type="checkbox" id="check-{{ row.kind }}-{{ o.id }}" class="row-check"
@@ -147,7 +147,7 @@
             {% endif %}
             <td data-label="Produkt" class="td-title-expandable">
               {% if row.kind == 'legacy' %}{% set href = url_for('kontrola.view_record', record_id=o.id) %}
-              {% elif current_user.is_kontroler %}{% set href = url_for('kontrola.order_page', order_id=o.id) %}
+              {% elif can('kontrola_etapowa.control') %}{% set href = url_for('kontrola.order_page', order_id=o.id) %}
               {% else %}{% set done = o.controls | selectattr('status', 'equalto', 'completed') | list %}{% set href = url_for('kontrola.view_record', record_id=done[0].id) if done else '#' %}{% endif %}
               <a href="{{ href }}"><strong>{{ o.product_name or 'Bez nazwy produktu' }}</strong></a>
               <div class="kz-zo-small">ZO {{ o.zo_number }}</div>
@@ -194,28 +194,28 @@
             </td>
             <td class="td-actions td-collapse-sm" data-label="">
               {% if row.kind == 'order' %}
-                {% if current_user.is_kontroler %}
+                {% if can('kontrola_etapowa.control') %}
                 <a class="btn btn-secondary btn-sm" href="{{ url_for('kontrola.order_page', order_id=o.id) }}">Nowa kontrola</a>
                 {% endif %}
-                {% if current_user.is_admin %}
+                {% if can('kontrola_etapowa.delete') %}
                 <button type="button" class="btn btn-danger btn-sm" title="Usuń zlecenie"
                         data-post-url="{{ url_for('kontrola.order_delete', order_id=o.id) }}"
                         data-post-confirm="Usunąć zlecenie ZO {{ o.zo_number }} razem z kontrolami? Raporty QAR zostają.">Usuń</button>
                 {% endif %}
               {% else %}
-                {% if o.state == 'to_do' and (is_op or current_user.is_admin) %}
+                {% if o.state == 'to_do' and (is_op or can('kontrola_etapowa.done')) %}
                 <button type="button" class="btn btn-primary btn-sm"
                         data-post-url="{{ url_for('kontrola.mark_done', record_id=o.id) }}"
                         data-post-confirm="Oznaczyć ZO {{ o.zo_number }}{% if o.product_name %} ({{ o.product_name }}){% endif %} jako wykonane? Powstanie kontrola sprawdzająca.">Wykonane</button>
                 {% endif %}
-                {% if o.state == 'recheck' and current_user.is_kontroler %}
+                {% if o.state == 'recheck' and can('kontrola_etapowa.control') %}
                 <a class="btn btn-secondary btn-sm" href="{{ url_for('kontrola.view_record', record_id=o.followup.id) }}">Kontroluj</a>
-                {% elif o.state == 'in_control' and current_user.is_kontroler %}
+                {% elif o.state == 'in_control' and can('kontrola_etapowa.control') %}
                 <a class="btn btn-secondary btn-sm" href="{{ url_for('kontrola.view_record', record_id=o.id) }}">Kontynuuj</a>
                 {% else %}
                 <a class="btn btn-outline btn-sm" href="{{ url_for('kontrola.view_record', record_id=o.id) }}">Szczegóły</a>
                 {% endif %}
-                {% if current_user.is_admin %}
+                {% if can('kontrola_etapowa.delete') %}
                 <button type="button" class="btn btn-danger btn-sm"
                         data-post-url="{{ url_for('kontrola.delete_record', record_id=o.id) }}"
                         data-post-confirm="Usunąć kontrolę ZO {{ o.zo_number }} razem z kontrolą sprawdzającą? Raporty QAR zostają.">Usuń</button>
@@ -243,7 +243,7 @@
   </div>
 </div>
 
-{% if current_user.is_admin and pager.items %}
+{% if can('kontrola_etapowa.delete') and pager.items %}
 </form>
 {% endif %}
 {% endblock %}

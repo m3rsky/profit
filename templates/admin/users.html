@@ -31,6 +31,9 @@
           <td data-label="Raporty">{{ u.reports.count() }}</td>
           <td data-label="" class="td-actions">
             <a href="{{ url_for('admin_user_edit', user_id=u.id) }}" class="btn btn-outline btn-sm">Edytuj</a>
+            {% if not u.is_superadmin %}
+            <a href="{{ url_for('admin_user_permissions', user_id=u.id) }}" class="btn btn-outline btn-sm">Uprawnienia</a>
+            {% endif %}
             {% if u.id != current_user.id %}
             <form method="post" action="{{ url_for('admin_user_delete', user_id=u.id) }}" class="form-inline">
               {{ csrf_input() }}

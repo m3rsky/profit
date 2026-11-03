@@ -12,10 +12,10 @@ from . import ustawienia_bp
 # ── Dostęp ────────────────────────────────────────────────────────────────────
 
 def settings_required(f):
-    """admin + kontroler, tak jak dotychczas w Marszrucie."""
+    """Dostęp wg modułu Ustawienia produkcji (macierz uprawnień)."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        if not current_user.is_authenticated or not current_user.is_kontroler:
+        if not current_user.is_authenticated or not current_user.can('ustawienia'):
             abort(403)
         return f(*args, **kwargs)
     return decorated

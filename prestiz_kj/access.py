@@ -19,20 +19,20 @@ def view_required(f):
 
 
 def controller_required(f):
-    """Moduł + rola kontrolera lub administratora."""
+    """Moduł + uprawnienie kj_prestiz.control (aplikacja KJ, meldunki)."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        if not current_user.is_authenticated or not current_user.can(MODULE) or not current_user.is_kontroler:
+        if not current_user.is_authenticated or not current_user.can(MODULE) or not current_user.can('kj_prestiz.control'):
             abort(403)
         return f(*args, **kwargs)
     return decorated
 
 
 def admin_required(f):
-    """Moduł + administrator lub superuser."""
+    """Moduł + uprawnienie kj_prestiz.admin (konfiguracja, zlecenia, zatwierdzanie)."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        if not current_user.is_authenticated or not current_user.can(MODULE) or not current_user.is_admin:
+        if not current_user.is_authenticated or not current_user.can(MODULE) or not current_user.can('kj_prestiz.admin'):
             abort(403)
         return f(*args, **kwargs)
     return decorated

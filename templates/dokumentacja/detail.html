@@ -266,7 +266,7 @@
         {{ n.author.username if n.author else '—' }} · {{ n.created_at | localdt }}
         {% if n.updated_at and n.updated_at != n.created_at %} · edytowano {{ n.updated_at | localdt }}{% endif %}
       </div>
-      {% if current_user.is_admin or n.user_id == current_user.id %}
+      {% if can('dokumentacja.manage_all') or n.user_id == current_user.id %}
       <div style="margin-top:6px;display:flex;gap:6px;">
         <button type="button" class="btn btn-outline btn-xs" onclick="toggleNoteEdit({{ n.id }}, true)">
           <i class="bi bi-pencil"></i> Edytuj

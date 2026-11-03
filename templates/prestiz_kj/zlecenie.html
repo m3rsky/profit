@@ -19,8 +19,8 @@
   <div class="page-header-actions">
     {% if inspections %}<a href="{{ url_for('prestiz_kj.report_card_pdf', order_id=order.id) }}" class="btn btn-outline btn-sm" target="_blank"><i class="bi bi-file-earmark-pdf"></i> Karta kontroli (PDF)</a>{% endif %}
     <a href="{{ url_for('prestiz_kj.order_label', order_id=order.id) }}" class="btn btn-outline btn-sm" target="_blank"><i class="bi bi-qr-code"></i> Etykieta QR</a>
-    {% if current_user.is_kontroler %}<a href="{{ url_for('prestiz_kj.m_order', order_id=order.id) }}" class="btn btn-primary btn-sm"><i class="bi bi-phone"></i> Kontrola w aplikacji KJ</a>{% endif %}
-    {% if current_user.is_admin %}
+    {% if can('kj_prestiz.control') %}<a href="{{ url_for('prestiz_kj.m_order', order_id=order.id) }}" class="btn btn-primary btn-sm"><i class="bi bi-phone"></i> Kontrola w aplikacji KJ</a>{% endif %}
+    {% if can('kj_prestiz.admin') %}
     <button type="button" class="btn btn-danger btn-sm" data-post-url="{{ url_for('prestiz_kj.order_delete', order_id=order.id) }}"
             data-post-confirm="Usunąć zlecenie {{ order.number }} razem z kontrolami i zawrotami?"><i class="bi bi-trash"></i> Usuń</button>
     {% endif %}
@@ -45,7 +45,7 @@
           <td data-label="Zameldowano">{{ o.reported_at | localdt('%d.%m.%Y %H:%M') if o.reported_at else '-' }}</td>
           <td data-label="Wykonawca">{{ o.employee_name or '-' }}</td>
           <td data-label="Meldunek">
-            {% if o.status == 'oczekuje' and not blocked[o.id] and current_user.is_kontroler %}
+            {% if o.status == 'oczekuje' and not blocked[o.id] and can('kj_prestiz.control') %}
             <form method="post" action="{{ url_for('prestiz_kj.order_report', order_id=order.id) }}" class="pkj-new" style="flex-wrap:nowrap;">
               {{ csrf_input() }}
               <input type="hidden" name="oop_id" value="{{ o.id }}">

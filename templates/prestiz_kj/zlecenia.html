@@ -14,7 +14,7 @@
     <span class="text-muted" style="font-size:0.82rem;">Zlecenia z trasą operacji. Meldunek operacji z KJ wstrzymuje RW na materiały do czasu kontroli.</span>
   </div>
   <div class="page-header-actions">
-    {% if current_user.is_admin %}
+    {% if can('kj_prestiz.admin') %}
     <button type="button" class="btn btn-outline" id="pkj-add-toggle" aria-controls="pkj-add" aria-expanded="false"><i class="bi bi-plus-lg"></i> Dodaj zlecenie</button>
     {% endif %}
     <a href="{{ url_for('prestiz_kj.index') }}" class="btn btn-outline"><i class="bi bi-arrow-left"></i> Przegląd</a>
@@ -23,7 +23,7 @@
 
 {% include "prestiz_kj/_demo_bar.html" %}
 
-{% if current_user.is_admin %}
+{% if can('kj_prestiz.admin') %}
 <div class="card" id="pkj-add" hidden style="margin-bottom:1rem;"><div class="card-body">
   <form method="post" action="{{ url_for('prestiz_kj.order_create') }}" autocomplete="off">
     {{ csrf_input() }}
@@ -69,7 +69,7 @@
 {% endcall %}
 </form>
 
-{% if current_user.is_admin and pager.items %}
+{% if can('kj_prestiz.admin') and pager.items %}
 <form method="post" action="{{ url_for('prestiz_kj.orders_bulk_delete') }}" id="bulk-form">
   {{ csrf_input() }}
   <div class="bulk-bar" id="bulk-bar">
@@ -87,7 +87,7 @@
   <div class="table-wrap">
     <table class="data-table tbl-cards">
       <thead><tr>
-        {% if current_user.is_admin %}
+        {% if can('kj_prestiz.admin') %}
         <th class="th-check" scope="col"><label class="sr-only" for="select-all">Zaznacz wszystkie</label>
           <input type="checkbox" id="select-all" title="Zaznacz wszystkie"></th>
         {% endif %}
@@ -98,7 +98,7 @@
         {% for o in pager.items %}
         {% set s = summaries[o.id] %}
         <tr>
-          {% if current_user.is_admin %}
+          {% if can('kj_prestiz.admin') %}
           <td class="th-check"><label class="sr-only" for="check-{{ o.id }}">Zaznacz {{ o.number }}</label>
             <input type="checkbox" id="check-{{ o.id }}" class="row-check" name="order_ids" value="{{ o.id }}"></td>
           {% endif %}
@@ -118,7 +118,7 @@
           <td data-label="Status">{{ order_status(o.status) }}</td>
           <td class="td-actions td-collapse-sm" data-label="">
             <a class="btn btn-outline btn-sm" href="{{ url_for('prestiz_kj.order_page', order_id=o.id) }}">Szczegóły</a>
-            {% if current_user.is_admin %}
+            {% if can('kj_prestiz.admin') %}
             <button type="button" class="btn btn-danger btn-sm" title="Usuń zlecenie"
                     data-post-url="{{ url_for('prestiz_kj.order_delete', order_id=o.id) }}"
                     data-post-confirm="Usunąć zlecenie {{ o.number }} razem z kontrolami i zawrotami?">Usuń</button>
@@ -138,7 +138,7 @@
   <div class="empty-state">Brak zleceń w tym widoku. Wczytaj dane demo w Przeglądzie albo dodaj zlecenie.</div>
   {% endif %}
 </div></div>
-{% if current_user.is_admin and pager.items %}</form>{% endif %}
+{% if can('kj_prestiz.admin') and pager.items %}</form>{% endif %}
 {% endblock %}
 
 {% block scripts %}

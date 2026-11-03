@@ -126,7 +126,7 @@
         ({{ report.photos.count() }} zdjęć)
       </span>
     </span>
-    {% if report.status != 'closed' or current_user.is_admin %}
+    {% if report.status != 'closed' or can('qar.edit_closed') %}
     <label class="btn btn-outline btn-sm qar-upload-btn" style="cursor:pointer;border-color:#fff;color:#fff;">
       <i class="bi bi-camera-fill"></i> Dodaj zdjęcie
       <input type="file" id="photo-file-input" accept="image/*" capture="environment" style="display:none;">
@@ -134,7 +134,7 @@
     {% endif %}
   </div>
   <div class="card-body" style="padding:14px;">
-    {% if not report.photos.count() and (report.status != 'closed' or current_user.is_admin) %}
+    {% if not report.photos.count() and (report.status != 'closed' or can('qar.edit_closed')) %}
     <label style="display:flex;flex-direction:column;align-items:center;justify-content:center;
                   border:2px dashed var(--border,#ccc);border-radius:8px;padding:32px;cursor:pointer;
                   color:#888;gap:8px;" for="photo-file-input">
@@ -150,7 +150,7 @@
                style="width:100%;height:150px;object-fit:cover;display:block;">
         </a>
         <div style="padding:8px;">
-          {% if report.status != 'closed' or current_user.is_admin %}
+          {% if report.status != 'closed' or can('qar.edit_closed') %}
           <input type="text" class="form-control photo-caption-input" style="font-size:0.85rem;padding:4px 8px;"
                  placeholder="Podpis…" value="{{ photo.caption or '' }}"
                  data-photo-id="{{ photo.id }}"
@@ -182,7 +182,7 @@
     <i class="bi bi-file-earmark-pdf"></i> PDF
   </a>
 
-  {% if report.status != 'closed' or current_user.is_admin %}
+  {% if report.status != 'closed' or can('qar.edit_closed') %}
   <a href="{{ url_for('qar.edit_report', report_id=report.id) }}" class="btn btn-secondary"
      style="min-height:42px;display:inline-flex;align-items:center;gap:6px;">
     <i class="bi bi-pencil"></i> Edytuj
@@ -199,7 +199,7 @@
   </form>
   {% endif %}
 
-  {% if report.status == 'closed' and current_user.is_admin %}
+  {% if report.status == 'closed' and can('qar.reopen') %}
   <form method="post" action="{{ url_for('qar.reopen_report', report_id=report.id) }}">
     {{ csrf_input() }}
     <button type="submit" class="btn btn-outline" style="min-height:42px;">
@@ -208,7 +208,7 @@
   </form>
   {% endif %}
 
-  {% if current_user.is_admin %}
+  {% if can('qar.delete') %}
   <form method="post" action="{{ url_for('qar.delete_report', report_id=report.id) }}"
         onsubmit="return confirm('Usunąć raport {{ report.number }}? Tej operacji nie można cofnąć.');"
         style="margin-left:auto;">

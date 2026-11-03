@@ -27,33 +27,20 @@ def view_required(f):
     return decorated
 
 
-def controller_required(f):
-    """admin + kontroler"""
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if not current_user.is_authenticated or not current_user.is_kontroler:
-            abort(403)
-        return f(*args, **kwargs)
-    return decorated
+def permission_required(key):
+    """Wymaga uprawnienia szczegółowego modułu (rola albo wyjątek na koncie, zob. models.ACTIONS)."""
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if not current_user.is_authenticated or not current_user.can(key):
+                abort(403)
+            return f(*args, **kwargs)
+        return decorated
+    return decorator
 
 
-def operator_required(f):
-    """admin + operator"""
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if not current_user.is_authenticated or not (current_user.is_admin or current_user.is_operator):
-            abort(403)
-        return f(*args, **kwargs)
-    return decorated
-
-
-def admin_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if not current_user.is_authenticated or not current_user.is_admin:
-            abort(403)
-        return f(*args, **kwargs)
-    return decorated
+controller_required = permission_required('kontrola_etapowa.control')
+operator_required = permission_required('kontrola_etapowa.done')
 
 
 # ── Pomocnicze ────────────────────────────────────────────────────────────────
@@ -631,7 +618,7 @@ def _delete_orders(orders):
 
 @kontrola_bp.route('/zlecenie/usun-zaznaczone', methods=['POST'])
 @login_required
-@admin_required
+@permission_required('kontrola_etapowa.delete')
 def orders_bulk_delete():
     ids = request.form.getlist('order_ids', type=int)
     rec_ids = request.form.getlist('record_ids', type=int)
@@ -648,7 +635,7 @@ def orders_bulk_delete():
 
 @kontrola_bp.route('/zlecenie/<int:order_id>/usun', methods=['POST'])
 @login_required
-@admin_required
+@permission_required('kontrola_etapowa.delete')
 def order_delete(order_id):
     """Admin usuwa zlecenie z listy razem z jego kontrolami (raporty QAR zostają)."""
     order = get_or_404(ControlOrder, order_id)
@@ -706,7 +693,7 @@ def view_record(record_id):
     if current_user.is_operator and rec.round == 1 and rec.state == 'in_control':
         abort(403)
 
-    can_edit = current_user.is_kontroler and rec.status == 'in_progress'
+    can_edit = current_user.can('kontrola_etapowa.control') and rec.status == 'in_progress'
 
     if request.method == 'POST':
         if not can_edit:
@@ -774,7 +761,7 @@ def mark_done(record_id):
 
 @kontrola_bp.route('/<int:record_id>/reopen', methods=['POST'])
 @login_required
-@admin_required
+@permission_required('kontrola_etapowa.reopen')
 def reopen(record_id):
     """Admin cofa zakończenie kontroli (pomyłka kontrolera). Nie dotyczy kontroli
     wstępnej, po której operator już oznaczył wykonanie."""
@@ -805,7 +792,7 @@ def _delete_cycles(records):
 
 @kontrola_bp.route('/<int:record_id>/delete', methods=['POST'])
 @login_required
-@admin_required
+@permission_required('kontrola_etapowa.delete')
 def delete_record(record_id):
     rec = get_or_404(ControlRecord, record_id)
     zo = rec.zo_number
@@ -820,7 +807,7 @@ def delete_record(record_id):
 
 @kontrola_bp.route('/bulk-delete', methods=['POST'])
 @login_required
-@admin_required
+@permission_required('kontrola_etapowa.delete')
 def bulk_delete():
     ids = request.form.getlist('record_ids', type=int)
     records = ControlRecord.query.filter(ControlRecord.id.in_(ids)).all() if ids else []
@@ -843,7 +830,7 @@ def _element_usage(el):
 
 @kontrola_bp.route('/elementy')
 @login_required
-@admin_required
+@permission_required('kontrola_etapowa.points')
 def elements():
     items = _all_elements()
     return render_template('kontrola/elements.html', elements=items,
@@ -852,7 +839,7 @@ def elements():
 
 @kontrola_bp.route('/elementy/dodaj', methods=['POST'])
 @login_required
-@admin_required
+@permission_required('kontrola_etapowa.points')
 def element_add():
     name = ' '.join(request.form.get('name', '').split())
     if not name:
@@ -870,7 +857,7 @@ def element_add():
 
 @kontrola_bp.route('/elementy/<int:element_id>/zapisz', methods=['POST'])
 @login_required
-@admin_required
+@permission_required('kontrola_etapowa.points')
 def element_save(element_id):
     el = get_or_404(ControlElement, element_id)
     name = ' '.join(request.form.get('name', '').split())
@@ -930,7 +917,7 @@ def _apply_elements_form(form):
 
 @kontrola_bp.route('/elementy/zapisz-wszystko', methods=['POST'])
 @login_required
-@admin_required
+@permission_required('kontrola_etapowa.points')
 def elements_save_all():
     """Jeden zapis wszystkich zmian na stronie elementów: edycje istniejących i nowy element."""
     changed, added, errors = _apply_elements_form(request.form)
@@ -952,7 +939,7 @@ def elements_save_all():
 
 @kontrola_bp.route('/elementy/<int:element_id>/przesun/<direction>', methods=['POST'])
 @login_required
-@admin_required
+@permission_required('kontrola_etapowa.points')
 def element_move(element_id, direction):
     if request.form.get('save_first'):
         _apply_elements_form(request.form)        # niezapisane zmiany nie giną przy przesuwaniu
@@ -972,7 +959,7 @@ def element_move(element_id, direction):
 
 @kontrola_bp.route('/elementy/<int:element_id>/usun', methods=['POST'])
 @login_required
-@admin_required
+@permission_required('kontrola_etapowa.points')
 def element_delete(element_id):
     """Usunięcie elementu. Element z przypisanymi punktami nie może zniknąć (punkty zmieniłyby zasięg),
     w zakończonych i rozpoczętych kontrolach zostaje kopia nazwy."""
@@ -999,7 +986,7 @@ def element_delete(element_id):
 
 @kontrola_bp.route('/points')
 @login_required
-@admin_required
+@permission_required('kontrola_etapowa.points')
 def points():
     dept_filter = request.args.get('dzial', type=int)
     element_filter = request.args.get('element', type=int)
@@ -1019,7 +1006,7 @@ def points():
 
 @kontrola_bp.route('/points/add', methods=['POST'])
 @login_required
-@admin_required
+@permission_required('kontrola_etapowa.points')
 def point_add():
     title = request.form.get('title', '').strip()
     if not title:
@@ -1038,7 +1025,7 @@ def point_add():
 
 @kontrola_bp.route('/points/<int:point_id>/save', methods=['POST'])
 @login_required
-@admin_required
+@permission_required('kontrola_etapowa.points')
 def point_save(point_id):
     pt = get_or_404(ControlPoint, point_id)
     title = request.form.get('title', '').strip()
@@ -1129,7 +1116,7 @@ def _back_to_points():
 
 @kontrola_bp.route('/points/zapisz-wszystko', methods=['POST'])
 @login_required
-@admin_required
+@permission_required('kontrola_etapowa.points')
 def points_save_all():
     """Jeden zapis wszystkich zmian na stronie punktów: edycje istniejących i nowy punkt."""
     changed, added, errors = _apply_points_form(request.form)
@@ -1151,7 +1138,7 @@ def points_save_all():
 
 @kontrola_bp.route('/points/<int:point_id>/move/<direction>', methods=['POST'])
 @login_required
-@admin_required
+@permission_required('kontrola_etapowa.points')
 def point_move(point_id, direction):
     if request.form.get('save_first'):
         _apply_points_form(request.form)          # niezapisane zmiany nie giną przy przesuwaniu
@@ -1171,7 +1158,7 @@ def point_move(point_id, direction):
 
 @kontrola_bp.route('/points/<int:point_id>/delete', methods=['POST'])
 @login_required
-@admin_required
+@permission_required('kontrola_etapowa.points')
 def point_delete(point_id):
     pt = get_or_404(ControlPoint, point_id)
     if request.form.get('save_first'):

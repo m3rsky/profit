@@ -15,7 +15,7 @@
   </div>
   <div class="page-header-actions">
     <a href="{{ url_for('new_checklist') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nowa kontrola</a>
-    {% if current_user.is_admin %}
+    {% if can('kontrola_koncowa.edit') %}
     <a href="{{ url_for('report_edit', report_id=report.id) }}" class="btn btn-secondary">Edytuj raport</a>
     {% endif %}
     {% if report.status == 'in_progress' %}
@@ -30,7 +30,7 @@
   <i class="bi bi-lock-fill"></i>
   Raport jest aktualnie edytowany przez <strong>{{ report.locked_by.username }}</strong>.
   Automatyczne odblokowanie o <strong>{{ report.lock_expires_at | localdt('%H:%M') }}</strong>.
-  {% if current_user.is_admin %}
+  {% if can('kontrola_koncowa.unlock') %}
   <form method="post" action="{{ url_for('report_force_unlock', report_id=report.id) }}" class="inline-form">
     {{ csrf_input() }}
     <button type="submit" class="btn btn-danger btn-sm"><i class="bi bi-unlock-fill"></i> Wymuś odblokowanie</button>

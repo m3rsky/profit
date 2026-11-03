@@ -83,7 +83,7 @@
         {% elif c.result == 'OK' %}<span class="badge badge-success">zgodna</span>
         {% else %}<span class="badge badge-danger">niezgodna ({{ c.ng_count }})</span>{% endif %}
       </div>
-      {% if current_user.is_admin %}
+      {% if can('kontrola_etapowa.delete') %}
       <form method="post" action="{{ url_for('kontrola.delete_record', record_id=c.id) }}">
         {{ csrf_input() }}
         <button type="submit" class="btn btn-danger btn-sm" title="Usuń kontrolę" data-confirm="Usunąć tę kontrolę z historii zlecenia? Raport QAR zostaje."><i class="bi bi-trash"></i></button>
@@ -108,7 +108,7 @@
     {% endfor %}
   </div>
 
-  {% if current_user.is_admin %}
+  {% if can('kontrola_etapowa.delete') %}
   <form method="post" action="{{ url_for('kontrola.order_delete', order_id=order.id) }}">
     {{ csrf_input() }}
     <button type="submit" class="btn btn-danger btn-sm" data-confirm="Usunąć zlecenie ZO {{ order.zo_number }} z listy razem z jego kontrolami? Raporty QAR zostają.">

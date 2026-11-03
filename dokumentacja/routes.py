@@ -80,16 +80,16 @@ def _upload_dir():
 
 
 def _can_edit_entry(entry):
-    return current_user.is_admin or entry.user_id == current_user.id
+    return current_user.can('dokumentacja.manage_all') or entry.user_id == current_user.id
 
 
 def _can_edit_file(f):
-    return (current_user.is_admin or f.entry.user_id == current_user.id
+    return (current_user.can('dokumentacja.manage_all') or f.entry.user_id == current_user.id
             or f.user_id == current_user.id)
 
 
 def _can_edit_note(note):
-    return current_user.is_admin or note.user_id == current_user.id
+    return current_user.can('dokumentacja.manage_all') or note.user_id == current_user.id
 
 
 def _remove_disk_files(f):
