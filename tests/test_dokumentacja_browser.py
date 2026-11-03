@@ -25,3 +25,17 @@ def test_step_viewer_loads_model_in_real_browser():
     assert 'Błąd' not in out['info'], f"podgląd zgłosił błąd: {out['info']}"
     assert 'brył' in out['info'] and 'gabaryt' in out['info'], out['info']
     assert out['enabled'] and out['canvas']
+
+    # panel elementów, przekrój, klik w model, rentgen
+    assert 'plate' in out['labels'] and 'rod-assembly' in out['labels'], out['labels']
+    assert 'l-bracket-assembly #1' in out['labels'] and 'l-bracket-assembly #2' in out['labels'], out['labels']
+    assert out['rows'] >= len(out['labels'])
+    assert not out['auto_colors'], 'plik z własnymi kolorami nie powinien dostać kolorów automatycznych'
+    assert out['hidden_after_uncheck'] == out['plate_meshes'] > 0, 'oko nie ukryło elementu'
+    assert out['hidden_after_showall'] == 0, '"Pokaż wszystko" nie przywróciło widoczności'
+    assert out['plate_opacity'] and all(abs(o - 0.3) < 0.01 for o in out['plate_opacity']), out['plate_opacity']
+    assert out['picked'], 'klik w model nie zaznaczył żadnego elementu'
+    assert 0 < out['visible_after_iso'] < 18, 'Izoluj nie ukryło reszty'
+    assert out['clip_on'] == 1 and out['clip_off'] == 0, 'przekrój nie włącza się i wyłącza'
+    assert out['xray_transparent'], 'tryb rentgen nie uczynił modelu półprzezroczystym'
+    assert out['xray_off']

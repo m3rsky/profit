@@ -63,5 +63,45 @@ with sync_playwright() as p:
     out['info'] = v.inner_text('#info')
     out['enabled'] = not v.is_disabled('[data-view=iso]')
     out['canvas'] = v.evaluate("document.querySelector('#stage canvas').width > 0")
+
+    # drzewo komponentów: nazwy, numeracja powtórzeń
+    out['labels'] = v.evaluate("window.viewer3d.allNodes.filter(n => !n.body).map(n => n.label)")
+    out['rows'] = v.locator('#tree .tr').count()
+    out['auto_colors'] = v.evaluate("document.getElementById('colors').classList.contains('on')")
+
+    # ukrywanie elementu odznaczeniem oka
+    v.locator('#tree .tr', has_text='plate').locator('input[type=checkbox]').uncheck()
+    out['hidden_after_uncheck'] = v.evaluate("window.viewer3d.parts.filter(p => !p.visible).length")
+    out['plate_meshes'] = v.evaluate("window.viewer3d.allNodes.find(n => n.label === 'plate').all.length")
+    v.click('#showall')
+    out['hidden_after_showall'] = v.evaluate("window.viewer3d.parts.filter(p => !p.visible).length")
+
+    # przezroczystość elementu suwakiem
+    v.locator('#tree .tr', has_text='plate').locator('input[type=range]').fill('30')
+    out['plate_opacity'] = v.evaluate("window.viewer3d.allNodes.find(n => n.label === 'plate').all.map(i => window.viewer3d.parts[i].mesh.material.opacity)")
+
+    # klik w model zaznacza komponent; izolacja ukrywa resztę
+    v.click('#showall')
+    out['picked'] = v.evaluate("""() => { const r = document.querySelector('#stage canvas').getBoundingClientRect();
+        for (let fx = 0.3; fx <= 0.7; fx += 0.05) for (let fy = 0.3; fy <= 0.7; fy += 0.05) {
+          window.viewer3d.pickAt(r.left + r.width * fx, r.top + r.height * fy);
+          if (window.viewer3d.selected()) return window.viewer3d.selected(); }
+        return null; }""")
+    if out['picked']:
+        v.click('#s-iso')
+        out['visible_after_iso'] = v.evaluate("window.viewer3d.parts.filter(p => p.visible).length")
+    v.click('#showall')
+
+    # przekrój
+    v.click('#clipaxis [data-axis=x]')
+    out['clip_on'] = v.evaluate("window.viewer3d.clipCount()")
+    v.click('#clipaxis [data-axis=""]')
+    out['clip_off'] = v.evaluate("window.viewer3d.clipCount()")
+
+    # rentgen
+    v.click('#xray')
+    out['xray_transparent'] = v.evaluate("window.viewer3d.parts.every(p => p.mesh.material.transparent)")
+    v.click('#xray')
+    out['xray_off'] = v.evaluate("window.viewer3d.parts.every(p => !p.mesh.material.transparent || p.opacity < 1)")
     b.close()
 print('STEP_RESULT ' + json.dumps(out))

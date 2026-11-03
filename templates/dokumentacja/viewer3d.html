@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Podgląd 3D: {{ f.original_name or f.filename }}</title>
 <style>
-  :root { --bg:#f4f5f7; --panel:#fff; --txt:#1d2329; --muted:#6b7480; --acc:#c8102e; --line:#dde1e6; }
+  :root { --bg:#f4f5f7; --panel:#fff; --txt:#1d2329; --muted:#6b7480; --acc:#c8102e; --line:#dde1e6; --sel:#fdecef; }
   * { box-sizing:border-box; }
   html, body { height:100%; }
   body { margin:0; font-family:system-ui,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--txt); display:flex; flex-direction:column; }
@@ -16,12 +16,50 @@
   button:disabled { opacity:.45; cursor:default; }
   button.on { border-color:var(--acc); color:var(--acc); }
   #info { font-size:12px; color:var(--muted); padding:4px 12px; min-height:22px; }
-  #stage { position:relative; flex:1; min-height:300px; margin:0 12px 12px; background:var(--panel); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  #layout { flex:1; min-height:0; display:flex; gap:12px; margin:0 12px 12px; }
+  #stage { position:relative; flex:1; min-width:0; min-height:300px; background:var(--panel); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
   #stage canvas { display:block; width:100%; height:100%; touch-action:none; }
   #hint { position:absolute; left:0; right:0; bottom:8px; text-align:center; color:var(--muted); font-size:12px; pointer-events:none; padding:0 12px; }
-  #busy { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(255,255,255,.75); font-size:14px; }
+  #busy { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(255,255,255,.75); font-size:14px; z-index:3; }
   #busy.show { display:flex; }
   .err { color:var(--acc); }
+
+  /* chip zaznaczenia nad modelem */
+  #sel { position:absolute; left:8px; top:8px; right:8px; display:none; flex-wrap:wrap; align-items:center; gap:6px; background:rgba(255,255,255,.94); border:1px solid var(--line); border-radius:8px; padding:6px 8px; font-size:13px; z-index:2; }
+  #sel.show { display:flex; }
+  #sel .nm { font-weight:600; min-width:0; overflow-wrap:anywhere; margin-right:auto; }
+  #sel button { padding:4px 10px; font-size:12px; }
+
+  /* panel boczny */
+  #panel { width:320px; flex:none; overflow:auto; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px; font-size:13px; }
+  #panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:12px 0 6px; }
+  #panel h2:first-child { margin-top:0; }
+  .seg { display:flex; gap:4px; flex-wrap:wrap; }
+  .seg button { padding:5px 10px; font-size:12px; }
+  .clip-row { display:flex; align-items:center; gap:8px; margin-top:8px; }
+  .clip-row input[type=range] { flex:1; min-width:0; }
+  .clip-val { font-size:12px; color:var(--muted); min-width:74px; text-align:right; }
+  .tools { display:flex; gap:4px; flex-wrap:wrap; margin-bottom:6px; }
+  .tools button { padding:4px 9px; font-size:12px; }
+  .tr { display:flex; align-items:center; gap:4px; padding:3px 4px; border-radius:6px; }
+  .tr:hover { background:#f4f5f7; }
+  .tr.sel { background:var(--sel); }
+  .tg { width:20px; padding:0; border:0; background:none; color:var(--muted); font-size:12px; flex:none; }
+  .tr .nm { flex:1; min-width:0; cursor:pointer; overflow-wrap:anywhere; line-height:1.25; }
+  .tr input[type=range] { width:64px; flex:none; }
+  .tr input[type=checkbox] { flex:none; width:16px; height:16px; }
+  .kids { display:none; }
+  .kids.open { display:block; }
+  @media (max-width: 800px) {
+    #layout { margin:0 8px 8px; }
+    header { gap:4px; padding:6px 8px; }
+    button, a.btn { padding:5px 8px; font-size:12px; }
+    #info { padding:2px 8px; }
+    #panel { position:fixed; left:0; right:0; bottom:0; width:auto; max-height:56vh; border-radius:14px 14px 0 0; box-shadow:0 -6px 24px rgba(0,0,0,.18); z-index:10; display:none; }
+    #panel.open { display:block; }
+    .tr input[type=range] { width:80px; }
+    .tr { padding:6px 4px; }
+  }
 </style>
 <script type="importmap">
 { "imports": {
@@ -40,13 +78,45 @@
   <button data-view="top" disabled>Góra</button>
   <button data-view="side" disabled>Bok</button>
   <button id="edges" class="on" disabled>Krawędzie</button>
+  <button id="xray" disabled title="Cały model półprzezroczysty, zaznaczony element pełny">Rentgen</button>
+  <button id="colors" disabled title="Różne kolory dla komponentów">Kolory</button>
+  <button id="panelbtn" disabled>Elementy</button>
   <a class="btn" href="{{ download_url }}">Pobierz</a>
   <a class="btn" href="{{ url_for('dokumentacja.entry_detail', entry_id=entry.id) }}#dokumenty">Teczka</a>
 </header>
 <div id="info"></div>
-<div id="stage">
-  <div id="hint">Obrót: lewy przycisk · Przesuw: prawy · Zoom: kółko · Na telefonie: palce</div>
-  <div id="busy">Wczytywanie modelu…</div>
+<div id="layout">
+  <div id="stage">
+    <div id="sel">
+      <span class="nm" id="selname"></span>
+      <button id="s-hide">Ukryj</button>
+      <button id="s-iso">Izoluj</button>
+      <button id="s-clear">Odznacz</button>
+    </div>
+    <div id="hint">Obrót: lewy przycisk · Przesuw: prawy · Zoom: kółko · Klik w element: zaznacz · Na telefonie: palce</div>
+    <div id="busy">Wczytywanie modelu…</div>
+  </div>
+  <aside id="panel" aria-label="Elementy i przekrój">
+    <h2>Przekrój</h2>
+    <div class="seg" id="clipaxis">
+      <button data-axis="">Wyłączony</button>
+      <button data-axis="x">X</button>
+      <button data-axis="y">Y</button>
+      <button data-axis="z">Z</button>
+      <button id="clipflip" title="Odwróć stronę cięcia">Odwróć</button>
+    </div>
+    <div class="clip-row">
+      <input type="range" id="clippos" min="0" max="1000" value="500" disabled aria-label="Położenie przekroju">
+      <span class="clip-val" id="clipval"></span>
+    </div>
+    <h2>Elementy</h2>
+    <div class="tools">
+      <button id="showall">Pokaż wszystko</button>
+      <button id="expand">Rozwiń</button>
+      <button id="collapse">Zwiń</button>
+    </div>
+    <div id="tree"></div>
+  </aside>
 </div>
 
 <script type="module">
@@ -58,17 +128,27 @@ const MODEL_NAME = {{ (f.original_name or f.filename) | tojson }};
 const MODEL_SIZE = {{ (f.size_bytes or 0) | tojson }};
 const WORKER_URL = {{ url_for('static', filename='podglad3d/lib/occt-import-js-worker.js') | tojson }};
 
+const EDGE_TRI_LIMIT = 600000;   // krawędzie tylko dla rozsądnych rozmiarów
+const MAX_GROUP = 12;            // komponent z większą liczbą brył zaznacza się bryłami
+
 const stage = document.getElementById('stage');
 const hint  = document.getElementById('hint');
 const busy  = document.getElementById('busy');
 const info  = document.getElementById('info');
 const viewBtns = document.querySelectorAll('[data-view]');
 const edgesBtn = document.getElementById('edges');
+const xrayBtn  = document.getElementById('xray');
+const colorsBtn = document.getElementById('colors');
+const panelBtn = document.getElementById('panelbtn');
+const panel = document.getElementById('panel');
+const treeEl = document.getElementById('tree');
+const selBox = document.getElementById('sel');
 
 // --- scena ---
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setClearColor(0xffffff);
+renderer.clippingPlanes = [];
 stage.prepend(renderer.domElement);
 
 const scene  = new THREE.Scene();
@@ -82,8 +162,18 @@ scene.add(camera);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 
-let model = null, edgeGroup = null, box = null;
+let model = null, box = null;
 const timing = {};
+
+// stan podglądu
+const parts = [];            // {mesh, edges, node, visible, opacity, fileColor, autoColor, hasVC}
+const allNodes = [];
+let rootNode = null;
+let edgesOn = true, xray = false, autoColors = false;
+let selected = null;         // węzeł drzewa
+let selSet = new Set();
+const clip = { axis: '', t: 0.5, flip: false };
+const clipPlane = new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0);
 
 function resize() {
   const w = stage.clientWidth, h = stage.clientHeight;
@@ -93,14 +183,18 @@ function resize() {
 }
 new ResizeObserver(resize).observe(stage);
 resize();
-renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+// bez modelu nie ma co rysować: oszczędza procesor dla analizy STEP w tle (ważne na telefonie)
+renderer.setAnimationLoop(() => { if (!model) return; controls.update(); renderer.render(scene, camera); });
 
 // --- widoki ---
 function setView(name = 'iso') {
   if (!box) return;
   const c = box.getCenter(new THREE.Vector3());
   const r = box.getSize(new THREE.Vector3()).length() / 2;
-  const dist = r / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2)) * 1.05;
+  // w pionowym ekranie (telefon) o zmieszczeniu modelu decyduje kąt poziomy
+  const vHalf = THREE.MathUtils.degToRad(camera.fov / 2);
+  const hHalf = Math.atan(Math.tan(vHalf) * camera.aspect);
+  const dist = r / Math.sin(Math.min(vHalf, hHalf)) * 1.05;
   const dirs = { iso: [1, 0.8, 1], front: [0, 0, 1], top: [0, 1, 0.0001], side: [1, 0, 0] };
   const d = new THREE.Vector3(...dirs[name]).normalize();
   camera.position.copy(c).addScaledVector(d, dist);
@@ -110,32 +204,34 @@ function setView(name = 'iso') {
   controls.update();
 }
 viewBtns.forEach(b => b.onclick = () => setView(b.dataset.view));
-edgesBtn.onclick = () => {
-  if (!edgeGroup) return;
-  edgeGroup.visible = !edgeGroup.visible;
-  edgesBtn.classList.toggle('on', edgeGroup.visible);
-};
 
 // --- budowa modelu z wyniku occt-import-js ---
+function autoColor(k) {
+  return new THREE.Color().setHSL(((k * 137.508) % 360) / 360, 0.55, 0.62);
+}
+
 function buildModel(result) {
-  const group = new THREE.Group();
-  const edges = new THREE.Group();
+  const root = new THREE.Group();
   let tris = 0;
-  for (const m of result.meshes) {
+  for (const m of result.meshes) tris += m.index.array.length / 3;
+  const withEdges = tris < EDGE_TRI_LIMIT;
+  const tE = performance.now();
+  let edgeMs = 0;
+
+  result.meshes.forEach((m, i) => {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(m.attributes.position.array, 3));
     if (m.attributes.normal) geo.setAttribute('normal', new THREE.Float32BufferAttribute(m.attributes.normal.array, 3));
     geo.setIndex(new THREE.Uint32BufferAttribute(m.index.array, 1));
     if (!m.attributes.normal) geo.computeVertexNormals();
-    tris += m.index.array.length / 3;
 
     const base = m.color ? new THREE.Color(...m.color) : new THREE.Color(0.75, 0.77, 0.8);
-    let vertexColors = false;
+    let hasVC = false;
     if (m.brep_faces && m.brep_faces.some(f => f.color)) {
       // kolory pojedynczych ścian
       const n = m.attributes.position.array.length / 3;
       const cols = new Float32Array(n * 3);
-      for (let i = 0; i < n; i++) cols.set([base.r, base.g, base.b], i * 3);
+      for (let v = 0; v < n; v++) cols.set([base.r, base.g, base.b], v * 3);
       const idx = m.index.array;
       for (const f of m.brep_faces) {
         if (!f.color) continue;
@@ -143,28 +239,322 @@ function buildModel(result) {
           for (let k = 0; k < 3; k++) cols.set(f.color, idx[t * 3 + k] * 3);
       }
       geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
-      vertexColors = true;
+      hasVC = true;
     }
     const mat = new THREE.MeshStandardMaterial({
-      color: vertexColors ? 0xffffff : base, vertexColors,
+      color: hasVC ? 0xffffff : base, vertexColors: hasVC,
       metalness: 0.15, roughness: 0.6, side: THREE.DoubleSide,
       polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1
     });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.name = m.name || '';
-    group.add(mesh);
+    mesh.userData.i = i;
+    root.add(mesh);
+
+    let edges = null;
+    if (withEdges) {
+      const t0 = performance.now();
+      edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 30),
+        new THREE.LineBasicMaterial({ color: 0x222222 }));
+      edgeMs += performance.now() - t0;
+      root.add(edges);
+    }
+    parts[i] = {
+      mesh, edges, node: null, visible: true, opacity: 1, hasVC,
+      fileColor: base.clone(), hasOwnColor: !!(m.color || hasVC), autoColor: null,
+    };
+  });
+  timing.edges = edgeMs;
+  return { root, tris, parts: result.meshes.length, withEdges };
+}
+
+// --- drzewo komponentów ---
+let nodeSeq = 0;
+function newNode(name, parent, body) {
+  const n = { id: nodeSeq++, name: name || '', label: name || '', parent, kids: [], meshes: [], all: [], body: !!body, el: null };
+  allNodes.push(n);
+  return n;
+}
+
+function convertTree(src, parent) {
+  const node = newNode(src.name, parent, false);
+  const own = src.meshes || [];
+  (src.children || []).forEach(c => node.kids.push(convertTree(c, node)));
+  if (own.length === 1 && !node.kids.length) {
+    node.meshes = [own[0]];
+  } else {
+    own.forEach((mi, k) => {
+      const b = newNode('Bryła ' + (k + 1), node, true);
+      b.meshes = [mi];
+      node.kids.push(b);
+    });
   }
-  const tMesh = performance.now();
-  // krawędzie tylko dla rozsądnych rozmiarów (przy dużych złożeniach mulą)
-  if (tris < 600000) {
-    const lineMat = new THREE.LineBasicMaterial({ color: 0x222222 });
-    group.children.forEach(mesh => edges.add(new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry, 30), lineMat)));
+  return node;
+}
+
+function collectAll(node) {
+  node.all = node.meshes.slice();
+  node.kids.forEach(k => { collectAll(k); node.all.push(...k.all); });
+}
+
+function buildTree(result) {
+  allNodes.length = 0; nodeSeq = 0;
+  let src = result.root || { name: '', meshes: result.meshes.map((_, i) => i), children: [] };
+  // pomijamy puste opakowania bez nazwy
+  while (!src.name && (src.children || []).length === 1 && !(src.meshes || []).length) src = src.children[0];
+  rootNode = convertTree(src, null);
+  if (!rootNode.name) rootNode.label = 'Model';
+
+  // bryły spoza drzewa
+  const used = new Set();
+  const mark = n => { n.meshes.forEach(i => used.add(i)); n.kids.forEach(mark); };
+  mark(rootNode);
+  const missing = result.meshes.map((_, i) => i).filter(i => !used.has(i));
+  if (missing.length) {
+    const g = newNode('Pozostałe', rootNode, false);
+    missing.forEach((mi, k) => { const b = newNode('Bryła ' + (k + 1), g, true); b.meshes = [mi]; g.kids.push(b); });
+    rootNode.kids.push(g);
   }
-  timing.edges = performance.now() - tMesh;
-  // SolidWorks: oś Y w górę – tak samo jak w podglądzie, bez obracania
-  const root = new THREE.Group();
-  root.add(group, edges);
-  return { root, edges, tris, parts: result.meshes.length };
+
+  // czytelne etykiety: bez przedrostka rodzica, numeracja powtórzeń
+  allNodes.forEach(n => {
+    if (n.parent && !n.body && n.name) {
+      const pre = n.parent.name + '_';
+      n.label = (n.parent.name && n.name.startsWith(pre) && n.name.length > pre.length) ? n.name.slice(pre.length) : n.name;
+    } else if (!n.body) {
+      n.label = n.parent ? ((n.parent.label || 'Element') + ' (bez nazwy)') : n.label;
+    }
+  });
+  allNodes.forEach(n => {
+    const same = n.kids.filter(k => !k.body);
+    const count = {};
+    same.forEach(k => { count[k.label] = (count[k.label] || 0) + 1; });
+    const seen = {};
+    same.forEach(k => { if (count[k.label] > 1) { seen[k.label] = (seen[k.label] || 0) + 1; k.label += ' #' + seen[k.label]; } });
+  });
+
+  collectAll(rootNode);
+  // powiązanie bryły z liściem i kolor automatyczny wg komponentu
+  let comp = 0;
+  const visit = (n) => {
+    if (!n.kids.length || n.kids.every(k => k.body)) {
+      const c = autoColor(comp++);
+      n.all.forEach(i => { parts[i].autoColor = c; });
+    }
+    n.kids.forEach(visit);
+  };
+  visit(rootNode);
+  allNodes.forEach(n => n.meshes.forEach(i => { parts[i].node = n; }));
+}
+
+// zaznaczanie: komponent (jeśli niewielki) albo pojedyncza bryła
+function unitFor(part) {
+  const n = part.node;
+  if (n.body && n.parent && n.parent.all.length <= MAX_GROUP) return n.parent;
+  return n;
+}
+
+// --- stosowanie stanu na model ---
+function applyPart(i) {
+  const p = parts[i];
+  const focus = selSet.has(i);
+  p.mesh.visible = p.visible;
+  if (p.edges) p.edges.visible = p.visible && edgesOn;
+  let eff = p.opacity;
+  if (xray) eff *= selSet.size ? (focus ? 1 : 0.12) : 0.25;
+  const m = p.mesh.material;
+  const tr = eff < 0.999;
+  if (m.transparent !== tr) { m.transparent = tr; m.needsUpdate = true; }
+  m.opacity = eff;
+  m.depthWrite = !tr;
+  m.emissive.set(focus ? 0xc8102e : 0x000000);
+  m.emissiveIntensity = focus ? 0.35 : 0;
+  if (p.edges) {
+    const em = p.edges.material;
+    if (em.transparent !== tr) { em.transparent = tr; em.needsUpdate = true; }
+    em.opacity = Math.min(1, eff * 1.3);
+  }
+}
+function applyAll() { parts.forEach((_, i) => applyPart(i)); }
+
+function applyColors() {
+  parts.forEach(p => {
+    const m = p.mesh.material;
+    if (autoColors) {
+      if (m.vertexColors) { m.vertexColors = false; m.needsUpdate = true; }
+      m.color.copy(p.autoColor || p.fileColor);
+    } else {
+      if (p.hasVC !== m.vertexColors) { m.vertexColors = p.hasVC; m.needsUpdate = true; }
+      m.color.set(p.hasVC ? 0xffffff : p.fileColor);
+    }
+  });
+}
+
+// --- panel drzewa ---
+let syncQueued = false;
+function syncTree() {
+  if (syncQueued) return;
+  syncQueued = true;
+  requestAnimationFrame(() => {
+    syncQueued = false;
+    allNodes.forEach(n => {
+      if (!n.el) return;
+      const total = n.all.length;
+      const on = n.all.filter(i => parts[i].visible).length;
+      n.el.cb.disabled = total === 0;
+      n.el.cb.checked = total > 0 && on === total;
+      n.el.cb.indeterminate = on > 0 && on < total;
+      if (total) {
+        const avg = n.all.reduce((s, i) => s + parts[i].opacity, 0) / total;
+        n.el.sl.value = Math.round(avg * 100);
+      }
+      n.el.row.classList.toggle('sel', n === selected);
+    });
+  });
+}
+
+function setVisible(node, v) { node.all.forEach(i => { parts[i].visible = v; applyPart(i); }); syncTree(); }
+function setOpacity(node, o) { node.all.forEach(i => { parts[i].opacity = o; applyPart(i); }); syncTree(); }
+
+function select(node) {
+  selected = node;
+  selSet = new Set(node ? node.all : []);
+  applyAll();
+  if (node) {
+    document.getElementById('selname').textContent = pathOf(node);
+    selBox.classList.add('show');
+    // pokaż wiersz w drzewie
+    for (let p = node.parent; p; p = p.parent) openNode(p, true);
+    node.el && node.el.row.scrollIntoView({ block: 'nearest' });
+  } else {
+    selBox.classList.remove('show');
+  }
+  syncTree();
+}
+function pathOf(node) {
+  const names = [];
+  for (let n = node; n; n = n.parent) names.unshift(n.label || 'Element');
+  return names.length > 2 ? names.slice(-2).join(' › ') : names.join(' › ');
+}
+
+function openNode(n, open) {
+  if (!n.el || !n.el.box) return;
+  n.el.box.classList.toggle('open', open);
+  n.el.tg.textContent = open ? '▾' : '▸';
+}
+
+function renderTree() {
+  treeEl.textContent = '';
+  const build = (node, depth, host) => {
+    const wrap = document.createElement('div');
+    const row = document.createElement('div');
+    row.className = 'tr';
+    row.style.paddingLeft = (4 + depth * 14) + 'px';
+    const tg = document.createElement('button');
+    tg.className = 'tg';
+    tg.textContent = node.kids.length ? '▸' : '';
+    tg.disabled = !node.kids.length;
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = true; cb.title = 'Widoczność';
+    const nm = document.createElement('span');
+    nm.className = 'nm'; nm.textContent = node.label;
+    const sl = document.createElement('input');
+    sl.type = 'range'; sl.min = 0; sl.max = 100; sl.value = 100; sl.title = 'Krycie (w lewo: przezroczysty)';
+    row.append(tg, cb, nm, sl);
+    wrap.append(row);
+    let kidsBox = null;
+    if (node.kids.length) {
+      kidsBox = document.createElement('div');
+      kidsBox.className = 'kids';
+      node.kids.forEach(k => build(k, depth + 1, kidsBox));
+      wrap.append(kidsBox);
+      tg.onclick = () => openNode(node, !kidsBox.classList.contains('open'));
+    }
+    cb.onchange = () => setVisible(node, cb.checked);
+    sl.oninput = () => setOpacity(node, sl.value / 100);
+    nm.onclick = () => select(selected === node ? null : node);
+    node.el = { row, cb, sl, tg, box: kidsBox };
+    host.append(wrap);
+  };
+  build(rootNode, 0, treeEl);
+  // domyślnie rozwinięte: korzeń i komponenty pierwszego poziomu
+  const autoOpen = (n, d) => {
+    if (d < 2 && n.kids.some(k => !k.body)) { openNode(n, true); n.kids.forEach(k => autoOpen(k, d + 1)); }
+  };
+  autoOpen(rootNode, 0);
+  syncTree();
+}
+
+document.getElementById('showall').onclick = () => {
+  parts.forEach((p, i) => { p.visible = true; p.opacity = 1; });
+  select(null);
+  applyAll();
+  syncTree();
+};
+document.getElementById('expand').onclick = () => allNodes.forEach(n => openNode(n, true));
+document.getElementById('collapse').onclick = () => { allNodes.forEach(n => openNode(n, false)); openNode(rootNode, true); };
+
+document.getElementById('s-hide').onclick = () => { if (selected) { const n = selected; select(null); setVisible(n, false); } };
+document.getElementById('s-iso').onclick = () => {
+  if (!selected) return;
+  const keep = new Set(selected.all);
+  parts.forEach((p, i) => { p.visible = keep.has(i); applyPart(i); });
+  syncTree();
+};
+document.getElementById('s-clear').onclick = () => select(null);
+
+// --- przełączniki ---
+edgesBtn.onclick = () => { edgesOn = !edgesOn; edgesBtn.classList.toggle('on', edgesOn); applyAll(); };
+xrayBtn.onclick = () => { xray = !xray; xrayBtn.classList.toggle('on', xray); applyAll(); };
+colorsBtn.onclick = () => { autoColors = !autoColors; colorsBtn.classList.toggle('on', autoColors); applyColors(); };
+panelBtn.onclick = () => { panel.classList.toggle('open'); panelBtn.classList.toggle('on', panel.classList.contains('open')); resize(); };
+
+// --- przekrój ---
+const clipPos = document.getElementById('clippos');
+const clipVal = document.getElementById('clipval');
+const axisBtns = document.querySelectorAll('#clipaxis [data-axis]');
+const flipBtn = document.getElementById('clipflip');
+function updateClip() {
+  axisBtns.forEach(b => b.classList.toggle('on', b.dataset.axis === clip.axis));
+  clipPos.disabled = !clip.axis;
+  flipBtn.disabled = !clip.axis;
+  flipBtn.classList.toggle('on', clip.flip && !!clip.axis);
+  if (!clip.axis || !box) { renderer.clippingPlanes = []; clipVal.textContent = ''; return; }
+  const lo = box.min[clip.axis], hi = box.max[clip.axis];
+  const pos = lo + (hi - lo) * clip.t;
+  const n = new THREE.Vector3();
+  n[clip.axis] = clip.flip ? 1 : -1;
+  // zostaje strona, po której normalna·p + stała >= 0
+  clipPlane.normal.copy(n);
+  clipPlane.constant = clip.flip ? -pos : pos;
+  renderer.clippingPlanes = [clipPlane];
+  clipVal.textContent = clip.axis.toUpperCase() + ' = ' + pos.toFixed(1) + ' mm';
+}
+axisBtns.forEach(b => b.onclick = () => { clip.axis = b.dataset.axis; updateClip(); });
+flipBtn.onclick = () => { clip.flip = !clip.flip; updateClip(); };
+clipPos.oninput = () => { clip.t = clipPos.value / 1000; updateClip(); };
+
+// --- klik w element ---
+const raycaster = new THREE.Raycaster();
+let down = null;
+renderer.domElement.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!down || !model) return;
+  const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
+  const dt = performance.now() - down.t;
+  down = null;
+  if (moved > 6 || dt > 600) return;   // to było obracanie, nie klik
+  pick(e.clientX, e.clientY);
+});
+function pick(cx, cy) {
+  const r = renderer.domElement.getBoundingClientRect();
+  raycaster.setFromCamera(new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), camera);
+  const targets = parts.filter(p => p.visible && p.mesh.material.opacity > 0.05).map(p => p.mesh);
+  const hits = raycaster.intersectObjects(targets, false);
+  const cut = renderer.clippingPlanes.length ? renderer.clippingPlanes[0] : null;
+  const hit = hits.find(h => !cut || cut.distanceToPoint(h.point) >= 0);
+  if (!hit) { select(null); return; }
+  select(unitFor(parts[hit.object.userData.i]));
 }
 
 // --- wczytywanie przez worker (lokalne biblioteki, bez CDN) ---
@@ -201,14 +591,29 @@ async function load() {
     await new Promise(requestAnimationFrame);
     const t2 = performance.now();
     const built = buildModel(result);
+    buildTree(result);
     timing.build = performance.now() - t2;
-    model = built.root; edgeGroup = built.edges;
+    model = built.root;
     scene.add(model);
     box = new THREE.Box3().setFromObject(model);
     setView('iso');
+    renderTree();
+
+    autoColors = !parts.some(p => p.hasOwnColor);   // plik bez kolorów (np. STEP AP203): kolory komponentów
+    colorsBtn.classList.toggle('on', autoColors);
+    applyColors();
+    applyAll();
+
     viewBtns.forEach(b => b.disabled = false);
-    edgesBtn.disabled = !edgeGroup.children.length;
-    edgesBtn.classList.toggle('on', !!edgeGroup.children.length);
+    edgesBtn.disabled = !built.withEdges;
+    edgesBtn.classList.toggle('on', built.withEdges);
+    edgesOn = built.withEdges;
+    xrayBtn.disabled = false;
+    colorsBtn.disabled = false;
+    panelBtn.disabled = false;
+    if (window.innerWidth > 800) { panel.classList.add('open'); panelBtn.classList.add('on'); resize(); }
+    updateClip();
+
     const s = box.getSize(new THREE.Vector3());
     info.textContent += ` · ${built.parts} brył · ${Math.round(built.tris).toLocaleString('pl')} trójkątów · ` +
       `gabaryt ${s.x.toFixed(0)}×${s.y.toFixed(0)}×${s.z.toFixed(0)} mm · ${((performance.now() - t0) / 1000).toFixed(1)} s ` +
@@ -222,6 +627,14 @@ async function load() {
     busy.classList.remove('show');
   }
 }
+
+// uchwyt dla testów w przeglądarce
+window.viewer3d = {
+  parts, allNodes,
+  clipCount: () => renderer.clippingPlanes.length,
+  selected: () => (selected ? selected.label : null),
+  pickAt: (x, y) => pick(x, y),
+};
 load();
 </script>
 </body>
