@@ -3416,3 +3416,15 @@ body.nav-editing [data-nav-sortable] > [data-nav-key] {
 body.nav-editing [data-nav-sortable] > [data-nav-key].nav-dragging {
   cursor: grabbing; background: rgba(59,130,246,.25) !important; outline-color: #3b82f6;
 }
+
+/* Kontrola etapowa w raporcie Kontroli Końcowej */
+.sc-warnings { list-style: none; margin: 0; padding: 10px 14px; display: flex; flex-direction: column; gap: 4px; }
+.sc-stage { padding: 12px 14px; border-top: 1px solid var(--erp-border, #e0e0e0); }
+.sc-stage-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.sc-stage-meta { color: #666; font-size: 13px; margin: 4px 0 8px; }
+.sc-link { margin-left: auto; font-size: 13px; }
+.sc-points .sc-group td { font-weight: 600; background: rgba(0,0,0,.04); }
+.sc-note, .sc-range { color: #666; font-size: 12px; }
+body.dark .sc-stage-meta, body.dark .sc-note, body.dark .sc-range { color: #aaa; }
+body.dark .sc-points .sc-group td { background: rgba(255,255,255,.06); }
+@media (max-width: 600px) { .sc-link { margin-left: 0; } }

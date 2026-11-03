@@ -1,0 +1,63 @@
+{# Kontrola etapowa w raporcie Kontroli Końcowej (stan na żywo, kontrola/report_link.py). #}
+{% if stage_controls %}
+<div class="checklist-category sc-section">
+  <div class="category-header">
+    Kontrola etapowa
+    <small>{{ stage_controls.stages | length }} {{ 'kontrola' if stage_controls.stages | length == 1 else 'kontrole' }}</small>
+  </div>
+
+  {% if stage_controls.warnings %}
+  <ul class="sc-warnings">
+    {% for level, text in stage_controls.warnings %}
+    <li><span class="rs rs-{{ level }}"><i class="bi bi-{{ 'x-circle' if level == 'ng' else ('info-circle' if level == 'info' else 'exclamation-triangle') }}"></i> {{ text }}</span></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% for s in stage_controls.stages %}
+  <div class="sc-stage">
+    <div class="sc-stage-head">
+      <strong>{{ s.department }}{% if s.elements %} ({{ s.elements }}){% endif %}</strong>
+      {% if s.status != 'completed' %}
+      <span class="rs rs-warn"><i class="bi bi-hourglass-split"></i> W trakcie</span>
+      {% elif s.result == 'NG' %}
+      <span class="rs rs-ng"><i class="bi bi-x-circle"></i> NG</span>
+      {% else %}
+      <span class="rs rs-ok"><i class="bi bi-check2-circle"></i> OK</span>
+      {% endif %}
+      {% if can('kontrola_etapowa') %}
+      <a href="{{ url_for('kontrola.order_page', order_id=s.order_id) }}" class="sc-link">Otwórz zlecenie</a>
+      {% endif %}
+    </div>
+    <div class="sc-stage-meta">
+      Osoba odpowiedzialna: <strong>{{ s.performer or 'nie wskazano' }}</strong>
+      · Kontroler: {{ s.controller or '-' }}
+      · {{ s.when | localdt }}
+      {% if s.attempt > 1 %}· kontrola nr {{ s.attempt }} (poprzednie w historii zlecenia){% endif %}
+    </div>
+    <table class="data-table sc-points">
+      <thead><tr><th>Punkt</th><th>Wynik</th><th>Wartość</th></tr></thead>
+      <tbody>
+        {% for g in s.groups %}
+        {% if g.name %}<tr class="sc-group"><td colspan="3">{{ g.name }}</td></tr>{% endif %}
+        {% for r in g.results %}
+        <tr>
+          <td>{{ r.title }}{% if r.notes %}<div class="sc-note">{{ r.notes }}</div>{% endif %}</td>
+          <td>
+            {% if r.result == 'OK' %}<span class="rs rs-ok"><i class="bi bi-check2-circle"></i> OK</span>
+            {% elif r.result == 'NG' %}<span class="rs rs-ng"><i class="bi bi-x-circle"></i> NG</span>
+            {% else %}<span class="rs rs-muted">-</span>{% endif %}
+          </td>
+          <td>
+            {% if r.is_measure %}{{ r.value_text or '-' }}{% if r.unit %} {{ r.unit }}{% endif %}
+            <span class="sc-range">(zakres {{ r.limits_label }})</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}

@@ -98,7 +98,7 @@ def _s(font='DVSans', size=9, color=DARK, bold=False, italic=False,
     )
 
 
-def generate_pdf(report, items_by_category, upload_folder):
+def generate_pdf(report, items_by_category, upload_folder, stage_controls=None):
     _register_fonts()
     buf = BytesIO()
     doc = SimpleDocTemplate(
@@ -166,6 +166,9 @@ def generate_pdf(report, items_by_category, upload_folder):
         _append_category(story, cat, items, content_width, upload_folder)
         story.append(Spacer(1, 6 * mm))
 
+    if stage_controls:
+        _append_stage_controls(story, stage_controls, content_width)
+
     # ── Stopka ───────────────────────────────────────────────────────────────
     story.append(HRFlowable(width='100%', thickness=0.5, color=colors.grey,
                             spaceBefore=4, spaceAfter=4))
@@ -192,6 +195,77 @@ def generate_pdf(report, items_by_category, upload_folder):
         f"filename*=UTF-8''{utf8_name}"
     )
     return response
+
+
+def _esc(text):
+    return str(text or '').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+
+def _append_stage_controls(story, data, content_width):
+    """Sekcja "Kontrola etapowa": ostrzeżenia, potem każdy etap z osobą odpowiedzialną i punktami."""
+    head = Table([[Paragraph('KONTROLA ETAPOWA', _s(size=10, bold=True, color=WHITE))]],
+                 colWidths=[content_width])
+    head.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), PRIMARY),
+        ('TOPPADDING', (0, 0), (-1, -1), 5), ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8), ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+    ]))
+    story.append(head)
+    warn_colors = {'ng': ERROR, 'warn': colors.HexColor('#b7791f'), 'info': SECONDARY}
+    for level, text in data['warnings']:
+        story.append(Paragraph(_esc(text), _s(size=8.5, bold=True, color=warn_colors.get(level, DARK),
+                                              after=2, indent=4)))
+    for st in data['stages']:
+        if st['status'] != 'completed':
+            res, res_color = 'W trakcie', warn_colors['warn']
+        elif st['result'] == 'NG':
+            res, res_color = 'NG', ERROR
+        else:
+            res, res_color = 'OK', SUCCESS
+        label = st['department'] + (f" ({st['elements']})" if st['elements'] else '')
+        story.append(Spacer(1, 3 * mm))
+        story.append(Paragraph(f'<b>{_esc(label)}</b> &nbsp; <font color="{res_color.hexval()}">'
+                               f'<b>{res}</b></font>', _s(size=9.5, after=1)))
+        meta = (f"Osoba odpowiedzialna: {_esc(st['performer'] or 'nie wskazano')} | "
+                f"Kontroler: {_esc(st['controller'] or '-')} | {_ldt(st['when'])}")
+        if st['attempt'] > 1:
+            meta += f" | kontrola nr {st['attempt']}"
+        story.append(Paragraph(meta, _s(size=7.5, color=SECONDARY, after=3)))
+        rows = []
+        for g in st['groups']:
+            if g['name']:
+                rows.append([Paragraph(f"<b>{_esc(g['name'])}</b>", _s(size=8)), '', ''])
+            for r in g['results']:
+                if r.result == 'OK':
+                    sym, col = 'OK', SUCCESS
+                elif r.result == 'NG':
+                    sym, col = 'NG', ERROR
+                else:
+                    sym, col = '–', colors.HexColor('#aaaaaa')
+                value = ''
+                if r.is_measure:
+                    unit = f' {_esc(r.unit)}' if r.unit else ''
+                    value = f'{_esc(r.value_text or "-")}{unit} (zakres {_esc(r.limits_label)})'
+                title = _esc(r.title) + (f'<br/><i>{_esc(r.notes)}</i>' if r.notes else '')
+                rows.append([Paragraph(title, _s(size=8.5)),
+                             Paragraph(sym, _s(size=8.5, bold=True, color=col, align=1)),
+                             Paragraph(value, _s(size=8))])
+        if not rows:
+            continue
+        table = Table(rows, colWidths=[content_width * 0.52, 14 * mm, content_width * 0.48 - 14 * mm])
+        style = [
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+            ('LEFTPADDING', (0, 0), (-1, -1), 5), ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+            ('LINEBELOW', (0, 0), (-1, -2), 0.3, colors.HexColor('#e0e0e0')),
+            ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#cccccc')),
+        ]
+        for i, row in enumerate(rows):
+            if row[1] == '':
+                style += [('SPAN', (0, i), (-1, i)), ('BACKGROUND', (0, i), (-1, i), NEUTRAL)]
+        table.setStyle(TableStyle(style))
+        story.append(table)
+    story.append(Spacer(1, 4 * mm))
 
 
 def _initials(name):

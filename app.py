@@ -1083,8 +1083,11 @@ def report_detail(report_id):
             continue
         cat = item.task.category
         items_by_category.setdefault(cat, []).append(item)
+    from kontrola.report_link import stage_controls_for_report
     return render_template('report_detail.html', report=report,
-                           items_by_category=items_by_category)
+                           items_by_category=items_by_category,
+                           stage_controls=stage_controls_for_report(report)
+                           if report.report_type == 'kontroler' else None)
 
 
 # ── Edit / Reopen reports (admin) ────────────────────────────────────────────
@@ -1499,7 +1502,9 @@ def export_pdf(report_id):
             continue  # zadanie zostalo usuniete po utworzeniu raportu
         cat = item.task.category
         items_by_category.setdefault(cat, []).append(item)
-    return generate_pdf(report, items_by_category, app.config['UPLOAD_FOLDER'])
+    from kontrola.report_link import stage_controls_for_report
+    stage_controls = stage_controls_for_report(report) if report.report_type == 'kontroler' else None
+    return generate_pdf(report, items_by_category, app.config['UPLOAD_FOLDER'], stage_controls)
 
 
 # ── Admin: Audit log ──────────────────────────────────────────────────────────
