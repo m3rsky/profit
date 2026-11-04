@@ -390,6 +390,66 @@ class TestNotes:
         assert resp.status_code == 403
 
 
+class TestMeasurementLabelOffsets:
+    """Położenie czerwonej etykiety wymiaru (piksele w 3D, mm na wykroju) zapisuje się przy pomiarze."""
+
+    def _mk(self, client, **extra):
+        login(client, 'oper', 'Oper1234!')
+        fid = _step_file(client)
+        payload = _meas_payload()
+        payload['data'].update(extra)
+        mid = _post_json(client, f'/dokumentacja/podglad3d/{fid}/pomiary', payload).get_json()
+        return fid, mid
+
+    def test_offsets_saved_with_measurement(self, client):
+        fid, rec = self._mk(client, offsets={'3d': [80, -40], 'flat': [12.5, 3]})
+        assert rec['data']['offsets'] == {'3d': [80.0, -40.0], 'flat': [12.5, 3.0]}
+        got = client.get(f'/dokumentacja/podglad3d/{fid}/pomiary').get_json()[0]['data']
+        assert got['offsets']['3d'] == [80.0, -40.0]
+
+    def test_no_offsets_by_default(self, client):
+        _, rec = self._mk(client)
+        assert 'offsets' not in rec['data']
+
+    def test_offsets_changed_without_touching_label(self, client):
+        fid, rec = self._mk(client)
+        url = f"/dokumentacja/pomiar/{rec['id']}/edytuj"
+        r = _post_json(client, url, {'offsets': {'3d': [10, 20]}}).get_json()
+        assert r['label'] == 'Otwór do krawędzi' and r['data']['offsets'] == {'3d': [10.0, 20.0]}
+        r = _post_json(client, url, {'offsets': {'flat': [1, 2]}}).get_json()           # scalanie widoków
+        assert r['data']['offsets'] == {'3d': [10.0, 20.0], 'flat': [1.0, 2.0]}
+        r = _post_json(client, url, {'label': 'Nowa'}).get_json()                       # nazwa nie kasuje położenia
+        assert r['label'] == 'Nowa' and r['data']['offsets'] == {'3d': [10.0, 20.0], 'flat': [1.0, 2.0]}
+
+    def test_reset_offsets_with_null(self, client):
+        _, rec = self._mk(client, offsets={'3d': [5, 5], 'flat': [1, 1]})
+        url = f"/dokumentacja/pomiar/{rec['id']}/edytuj"
+        r = _post_json(client, url, {'offsets': {'3d': None}}).get_json()
+        assert r['data']['offsets'] == {'flat': [1.0, 1.0]}
+        r = _post_json(client, url, {'offsets': {'flat': None}}).get_json()
+        assert 'offsets' not in r['data']
+
+    def test_invalid_offsets_rejected(self, client):
+        fid, rec = self._mk(client)
+        url = f"/dokumentacja/pomiar/{rec['id']}/edytuj"
+        for bad in ({'inny': [1, 2]}, {'3d': [1]}, {'3d': 'x'}, {'3d': [float('nan'), 0]}, 'x'):
+            assert _post_json(client, url, {'offsets': bad}).status_code == 400, bad
+        payload = _meas_payload()
+        payload['data']['offsets'] = {'3d': [1]}
+        assert _post_json(client, f'/dokumentacja/podglad3d/{fid}/pomiary', payload).status_code == 400
+
+    def test_offsets_are_clamped(self, client):
+        _, rec = self._mk(client, offsets={'3d': [999999, -999999]})
+        assert rec['data']['offsets']['3d'] == [5000.0, -5000.0]
+
+    def test_other_user_cannot_move_label(self, client, other_user):
+        _, rec = self._mk(client)
+        logout(client)
+        login(client, other_user, 'Other1234!')
+        r = _post_json(client, f"/dokumentacja/pomiar/{rec['id']}/edytuj", {'offsets': {'3d': [1, 1]}})
+        assert r.status_code == 403
+
+
 # ── Numer ZO ─────────────────────────────────────────────────────────────────
 
 class TestZoNumber:

@@ -101,7 +101,7 @@ export function initFlatDims(ctx) {
       if (r.A.part !== st.part || r.B.part !== st.part) { st.skipped.push({ name, reason: 'dotyczy innej bryły niż ta rozwinięta' }); return; }
       const m = mapRecord(st.res, { A: r.A, B: r.B });
       if (!m.ok) { st.skipped.push({ name, reason: m.reason }); return; }
-      st.items.push({ id: ++seq, src: '3d', saved: r.saved, label: r.label || '', visible: true, drawable: true, A: m.A, B: m.B, rows: m.rows, segs: m.segs, rows3d: r.rows, note: '' });
+      st.items.push({ id: ++seq, src: '3d', saved: r.saved, dbId: r.dbId, offsets: r.offsets, label: r.label || '', visible: true, drawable: true, A: m.A, B: m.B, rows: m.rows, segs: m.segs, rows3d: r.rows, note: '' });
     });
   }
 
@@ -111,7 +111,7 @@ export function initFlatDims(ctx) {
     const same = Math.abs((d.K === undefined ? st.res.K : d.K) - st.res.K) < 1e-6;
     st.items.push({
       id: ++seq, dbId: rec.id, saved: true, src: 'flat', label: rec.label || '', visible: true, author: rec.author, canEdit: rec.can_edit,
-      A: d.A, B: d.B, rows: d.rows, segs: d.segs, drawable: same,
+      A: d.A, B: d.B, rows: d.rows, segs: d.segs, drawable: same, offsets: Object.assign({}, d.offsets || {}),
       note: same ? '' : 'Zapisany dla K=' + Number(d.K).toFixed(2) + ', ustaw to K, aby go zobaczyć.',
     });
   }
@@ -158,10 +158,46 @@ export function initFlatDims(ctx) {
       const A = st.pending; st.pending = null;
       const m = G.measurePair(A, f);
       if (!m.segs.length) { st.hint = 'Dla tej pary cech nie ma wymiaru.'; render(); return; }
-      st.items.push({ id: ++seq, src: 'flat', saved: false, A, B: f, rows: m.rows, segs: m.segs, visible: true, drawable: true, label: '', note: '' });
+      st.items.push({ id: ++seq, src: 'flat', saved: false, A, B: f, rows: m.rows, segs: m.segs, visible: true, drawable: true, label: '', note: '', offsets: {} });
       st.hint = 'Pomiar #' + seq + ': ' + m.rows[0][0] + ' ' + m.rows[0][1] + '. Zapisz go lub mierz dalej.';
     }
     render();
+  }
+
+  // przeciąganie etykiety wymiaru po rysunku: przesunięcie w mm względem domyślnego miejsca, zapamiętywane przy zapisanym pomiarze
+  function persistOffset(i) {
+    if (!i.saved || !ctx.api || !ctx.api.setOffsets) return;
+    ctx.api.setOffsets(i.dbId, { flat: (i.offsets && i.offsets.flat) || null }).catch(() => { st.hint = 'Nie udało się zapisać położenia etykiety.'; render(); });
+  }
+  function bindLabelDrag(lg, leader, i, mx, my, cy, tsz) {
+    let drag = null;
+    lg.addEventListener('pointerdown', e => {
+      e.preventDefault(); e.stopPropagation();           // nie jest to wskazywanie cechy
+      lg.setPointerCapture(e.pointerId);
+      drag = { x: e.clientX, y: e.clientY, o: ((i.offsets && i.offsets.flat) || [0, 0]).slice(), k: st.svg.getScreenCTM().a, moved: false };
+      lg.style.cursor = 'grabbing';
+    });
+    lg.addEventListener('pointermove', e => {
+      if (!drag) return;
+      const px = e.clientX - drag.x, py = e.clientY - drag.y;
+      if (Math.abs(px) + Math.abs(py) > 3) drag.moved = true;
+      const o = [drag.o[0] + px / drag.k, drag.o[1] - py / drag.k];
+      if (!i.offsets) i.offsets = {};
+      i.offsets.flat = [Math.round(o[0] * 100) / 100, Math.round(o[1] * 100) / 100];
+      lg.setAttribute('transform', `translate(${o[0]} ${-o[1]})`);
+      leader.setAttribute('x2', mx + o[0]); leader.setAttribute('y2', cy - o[1]);
+      leader.style.display = Math.abs(o[0]) + Math.abs(o[1]) > tsz * 0.8 ? '' : 'none';
+    });
+    const end = () => {
+      if (!drag) return;
+      const moved = drag.moved;
+      drag = null;
+      lg.style.cursor = 'grab';
+      if (moved) persistOffset(i);
+    };
+    lg.addEventListener('pointerup', end);
+    lg.addEventListener('pointercancel', end);
+    lg.addEventListener('dblclick', e => { e.stopPropagation(); if (i.offsets) delete i.offsets.flat; persistOffset(i); redraw(); });
   }
 
   // ── rysowanie na wykroju ──────────────────────────────────────────────────
@@ -187,10 +223,20 @@ export function initFlatDims(ctx) {
         // etykiety na jednej linii nie mogą się nakładać: przesuwamy w górę
         while (placed.some(q => Math.abs(q.top - top) < tsz * 1.3 && Math.abs(q.x - mx) < (q.w + w) / 2)) top -= tsz * 1.35;
         placed.push({ x: mx, top, w });
-        g.append(el('rect', { x: mx - w / 2, y: top, width: w, height: tsz * 1.25, rx: tsz / 5, fill: '#c8102e' }));
+        const off = (i.offsets && i.offsets.flat) || [0, 0];
+        const cy = top + tsz * 0.625;
+        const far = Math.abs(off[0]) + Math.abs(off[1]) > tsz * 0.8;
+        const leader = el('line', { x1: mx, y1: my, x2: mx + off[0], y2: cy - off[1], stroke: '#c8102e', 'stroke-width': sw * 0.9, 'stroke-dasharray': `${tsz / 4} ${tsz / 5}` });
+        leader.style.display = far ? '' : 'none';
+        g.append(leader);
+        const lg = el('g', { 'class': 'dim-label', style: 'cursor:grab;touch-action:none' });
+        lg.setAttribute('transform', `translate(${off[0]} ${-off[1]})`);
+        lg.append(el('rect', { x: mx - w / 2, y: top, width: w, height: tsz * 1.25, rx: tsz / 5, fill: '#c8102e' }));
         const t = el('text', { x: mx, y: top + tsz * 0.92, 'font-size': tsz, fill: '#fff', 'text-anchor': 'middle', 'font-family': 'system-ui,sans-serif', 'font-weight': '600' });
         t.textContent = txt;
-        g.append(t);
+        lg.append(t);
+        g.append(lg);
+        bindLabelDrag(lg, leader, i, mx, my, cy, tsz);
       }
     });
   }
@@ -199,7 +245,7 @@ export function initFlatDims(ctx) {
   async function saveItem(i) {
     if (!ctx.api || i.saved || i.src !== 'flat') return;
     try {
-      const rec = await ctx.api.save({ label: i.label, element: st.body, data: { space: 'flat', K: st.res.K, A: plain(i.A), B: plain(i.B), rows: i.rows, segs: i.segs } });
+      const rec = await ctx.api.save({ label: i.label, element: st.body, data: { space: 'flat', K: st.res.K, A: plain(i.A), B: plain(i.B), rows: i.rows, segs: i.segs, offsets: i.offsets } });
       i.dbId = rec.id; i.saved = true; i.author = rec.author; i.canEdit = rec.can_edit;
       if (ctx.measure) ctx.measure.addFlatRecord(rec);            // zapisany pomiar z wykroju pojawia się też na modelu 3D
       st.hint = 'Zapisano pomiar #' + i.id + '.';
@@ -231,6 +277,7 @@ export function initFlatDims(ctx) {
     bar.append(tog, show, hide, all, drafts);
     host.append(bar);
     if (st.hint) host.append(mk('div', st.hint, 'fd-hint'));
+    host.append(mk('div', 'Czerwoną etykietę wymiaru przeciągnij w wygodne miejsce (dwuklik przywraca położenie).', 'fd-note'));
 
     const group = (title, items) => {
       if (!items.length) return;

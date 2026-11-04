@@ -84,6 +84,21 @@ def test_step_viewer_loads_model_in_real_browser():
     assert sorted((x['src'], x['saved'], x['drawable']) for x in out['fd_restored']) == [('3d', True, True), ('flat', True, True)], out['fd_restored']
     assert out['fd_server_after_delete'] == ['3d'], out['fd_server_after_delete']
 
+    # przeciąganie czerwonej etykiety wymiaru: w 3D (piksele) i na wykroju (mm), zapis na serwerze
+    assert abs(out['label_moved'][0] - 90) <= 2 and abs(out['label_moved'][1] - 50) <= 2, out['label_moved']
+    assert out['label_offset'] and abs(out['label_offset'][0] - 90) <= 2 and abs(out['label_offset'][1] - 50) <= 2, out['label_offset']
+    assert out['leader_shown'], 'po przesunięciu etykiety powinna być widoczna linia łącząca'
+    assert out['label_offset_server'] == out['label_offset'], (out['label_offset_server'], out['label_offset'])
+    assert out['label_offset_restored'] == out['label_offset'], 'położenie etykiety nie wróciło po przeładowaniu'
+    assert out['label_offset_after_reset'], 'dwuklik nie przywrócił domyślnego położenia'
+    assert out['label_hidden'] and out['leader_hidden'], 'ukryty pomiar nie może zostawiać linii łączącej na ekranie'
+    assert out['leader_back'], 'po ponownym pokazaniu pomiaru linia łącząca powinna wrócić'
+    flat_moved = {(x['src'], x['saved']): x['flat'] for x in out['fd_offsets']}
+    assert flat_moved[('flat', True)] and flat_moved[('3d', True)], out['fd_offsets']
+    assert out['fd_leaders'] >= 2, 'przesunięte etykiety na wykroju powinny mieć linię łączącą'
+    assert out['fd_offsets_server'] == ['3d', 'flat'], out['fd_offsets_server']
+    assert sorted((x['src'], x['has']) for x in out['fd_offsets_restored'] if x['src'] == 'flat') == [('flat', True)], out['fd_offsets_restored']
+
     # telefon: szuflada na dole sterowana palcem
     assert out['mob_start']['state'] == 'min' and out['mob_start']['h'] == 52, out['mob_start']
     assert out['mob_up']['state'] == 'mid' and out['mob_up']['h'] > 250, out['mob_up']

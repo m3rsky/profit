@@ -22,6 +22,13 @@ export function initMeasure(ctx) {
   const listEl = document.getElementById('meas-list');
   const hintEl = document.getElementById('meas-hint');
   const labelsEl = document.getElementById('meas-labels');
+  // cienkie linie od miejsca pomiaru do przesuniętej etykiety
+  let leaders = null;
+  if (labelsEl) {
+    leaders = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    leaders.setAttribute('class', 'meas-leaders');
+    labelsEl.append(leaders);
+  }
 
   const red = new THREE.LineBasicMaterial({ color: 0xc8102e, depthTest: false, transparent: true });
   const blue = new THREE.LineBasicMaterial({ color: 0x1a6e8a, depthTest: false, transparent: true });
@@ -183,7 +190,7 @@ export function initMeasure(ctx) {
   async function save(r) {
     if (!ctx.api || r.saved) return;
     try {
-      const rec = await ctx.api.save({ label: r.label || '', element: r.element || '', data: { A: plain(r.A), B: plain(r.B), rows: r.rows, segs: r.segs } });
+      const rec = await ctx.api.save({ label: r.label || '', element: r.element || '', data: { A: plain(r.A), B: plain(r.B), rows: r.rows, segs: r.segs, offsets: r.offsets } });
       r.dbId = rec.id; r.saved = true; r.author = rec.author; r.canEdit = rec.can_edit;
       say('Zapisano pomiar #' + r.id + '.');
     } catch (e) { say('Nie udało się zapisać pomiaru (' + e.message + ').'); }
@@ -200,7 +207,7 @@ export function initMeasure(ctx) {
     if (i < 0) return;
     r.group.parent && r.group.parent.remove(r.group);
     clearGroup(r.group);
-    r.labelEl && r.labelEl.remove();
+    r.labelEl && r.labelEl.remove(); r.leader && r.leader.remove();
     results.splice(i, 1);
     renderList();
   }
@@ -208,7 +215,7 @@ export function initMeasure(ctx) {
     [...results].filter(r => !onlyDrafts || !r.saved).forEach(r => {
       r.group.parent && r.group.parent.remove(r.group);
       clearGroup(r.group);
-      r.labelEl && r.labelEl.remove();
+      r.labelEl && r.labelEl.remove(); r.leader && r.leader.remove();
       results.splice(results.indexOf(r), 1);
     });
     pending = null; clearGroup(pendingGroup);
@@ -222,6 +229,7 @@ export function initMeasure(ctx) {
       id: ++seq, A, B, rows, segs, group: new THREE.Group(), labelEl: null, visible: true,
       saved: !!meta.saved, dbId: meta.dbId || null, label: meta.label || '', element: meta.element || '',
       author: meta.author || '', canEdit: meta.canEdit, space: meta.space || '3d', note: meta.note || '',
+      offsets: Object.assign({}, meta.offsets || {}), leader: null,
     };
     featureObjects(A, blue, ptBlue).forEach(o => r.group.add(o));
     featureObjects(B, blue, ptBlue).forEach(o => r.group.add(o));
@@ -232,11 +240,43 @@ export function initMeasure(ctx) {
     root.add(r.group);
     if (labelsEl) {
       const el = mk('div', rows[0] ? rows[0][1] : '', 'mlabel');
+      el.title = 'Przeciągnij, aby ustawić etykietę w wygodnym miejscu (dwuklik przywraca położenie)';
       labelsEl.append(el);
       r.labelEl = el;
+      bindLabelDrag(r, el);
     }
     results.push(r);
     return r;
+  }
+  // położenie etykiety względem domyślnego (piksele ekranu), pamiętane przy pomiarze i zapisywane na serwerze
+  function persistOffset(r) {
+    if (!r.saved || !ctx.api || !ctx.api.setOffsets) return;
+    ctx.api.setOffsets(r.dbId, { '3d': r.offsets['3d'] || null }).catch(() => say('Nie udało się zapisać położenia etykiety.'));
+  }
+  function bindLabelDrag(r, el) {
+    let drag = null;
+    el.addEventListener('pointerdown', e => {
+      e.preventDefault(); e.stopPropagation();
+      el.setPointerCapture(e.pointerId);
+      drag = { x: e.clientX, y: e.clientY, o: (r.offsets['3d'] || [0, 0]).slice(), moved: false };
+      el.classList.add('dragging');
+    });
+    el.addEventListener('pointermove', e => {
+      if (!drag) return;
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
+      r.offsets['3d'] = [Math.round(drag.o[0] + dx), Math.round(drag.o[1] + dy)];
+    });
+    const end = () => {
+      if (!drag) return;
+      const moved = drag.moved;
+      drag = null;
+      el.classList.remove('dragging');
+      if (moved) persistOffset(r);
+    };
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+    el.addEventListener('dblclick', e => { e.stopPropagation(); delete r.offsets['3d']; persistOffset(r); });
   }
   function elementsOf(A, B) {
     const names = [...new Set([A.part, B.part].filter(x => x !== undefined).map(i => (ctx.elementOf ? ctx.elementOf(i) : '')).filter(Boolean))];
@@ -284,9 +324,9 @@ export function initMeasure(ctx) {
     if (d.space === 'flat') {
       const m = fromFlat(rec);
       if (!m) return false;
-      addResult(m.A, m.B, d.rows || [], m.segs, { saved: true, dbId: rec.id, label: rec.label, element: rec.element, author: rec.author, canEdit: rec.can_edit, space: 'flat', note: m.note });
+      addResult(m.A, m.B, d.rows || [], m.segs, { saved: true, dbId: rec.id, label: rec.label, element: rec.element, author: rec.author, canEdit: rec.can_edit, space: 'flat', note: m.note, offsets: d.offsets });
     } else {
-      addResult(d.A, d.B, d.rows || [], d.segs || [], { saved: true, dbId: rec.id, label: rec.label, element: rec.element, author: rec.author, canEdit: rec.can_edit });
+      addResult(d.A, d.B, d.rows || [], d.segs || [], { saved: true, dbId: rec.id, label: rec.label, element: rec.element, author: rec.author, canEdit: rec.can_edit, offsets: d.offsets });
     }
     return true;
   }
@@ -300,7 +340,7 @@ export function initMeasure(ctx) {
     if (!r) return;
     r.group.parent && r.group.parent.remove(r.group);
     clearGroup(r.group);
-    r.labelEl && r.labelEl.remove();
+    r.labelEl && r.labelEl.remove(); r.leader && r.leader.remove();
     results.splice(results.indexOf(r), 1);
     renderList();
   }
@@ -339,13 +379,34 @@ export function initMeasure(ctx) {
       const el = r.labelEl;
       if (!el) return;
       const s0 = r.segs[0];
-      if (!s0 || !r.visible || exploded) { el.style.display = 'none'; return; }
+      if (!s0 || !r.visible || exploded) {          // ukryty pomiar: znika też linia łącząca etykietę
+        el.style.display = 'none';
+        if (r.leader) r.leader.style.display = 'none';
+        return;
+      }
       const mid = [(s0[0][0] + s0[1][0]) / 2, (s0[0][1] + s0[1][1]) / 2, (s0[0][2] + s0[1][2]) / 2];
       const sc = toScreen(mid);
       el.style.display = sc[2] < 1 ? '' : 'none';
-      el.style.left = (sc[0] - host.left) + 'px';
-      el.style.top = (sc[1] - host.top) + 'px';
+      const off = r.offsets['3d'] || [0, 0];
+      const ax = sc[0] - host.left, ay = sc[1] - host.top;
+      el.style.left = (ax + off[0]) + 'px';
+      el.style.top = (ay + off[1]) + 'px';
+      updateLeader(r, ax, ay, off, el, sc[2] < 1);
     });
+  }
+  // linia od punktu pomiaru do etykiety, widoczna tylko po przesunięciu
+  function updateLeader(r, ax, ay, off, el, visible) {
+    if (!leaders) return;
+    const far = Math.abs(off[0]) + Math.abs(off[1]) > 10;
+    if (!far || !visible || el.style.display === 'none') { if (r.leader) r.leader.style.display = 'none'; return; }
+    if (!r.leader) {
+      r.leader = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      leaders.append(r.leader);
+    }
+    const h = el.offsetHeight || 20;
+    r.leader.style.display = '';
+    r.leader.setAttribute('x1', ax); r.leader.setAttribute('y1', ay);
+    r.leader.setAttribute('x2', ax + off[0]); r.leader.setAttribute('y2', ay + off[1] - h * 0.3);
   }
 
   function setActive(on) {

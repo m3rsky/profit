@@ -113,6 +113,7 @@ with sync_playwright() as p:
     # Kontrola sprawdzająca: tylko punkt, który był NOK
     m.goto(base + '/m/?q=ZP-DEMO-001')
     m.click('text=Rozpocznij kontrolę sprawdzającą')
+    m.wait_for_selector('.m-pt', timeout=8000)                                                     # strona kontroli się wczytała
     out['recheck_points'] = m.locator('.m-pt').count()
     m.locator('.m-pt .m-b-ok').first.click()
     m.wait_for_selector('.m-pt .m-b-ok.on', timeout=8000)                                         # zapis zakończony

@@ -769,6 +769,27 @@ def _clean_feature(f):
     return out
 
 
+_OFFSET_VIEWS = ('3d', 'flat')
+
+
+def _clean_offsets(offs):
+    """Położenie etykiety wymiaru względem domyślnego: {'3d': [dx, dy] w pikselach, 'flat': [dx, dy] w mm}.
+    Wartość None (tylko przy zmianie) oznacza powrót do położenia domyślnego."""
+    if not isinstance(offs, dict):
+        raise ValueError('przesunięcia')
+    out = {}
+    for view, v in offs.items():
+        if view not in _OFFSET_VIEWS:
+            raise ValueError('widok')
+        if v is None:
+            out[view] = None
+            continue
+        if not isinstance(v, (list, tuple)) or len(v) != 2:
+            raise ValueError('przesunięcie')
+        out[view] = [max(-5000.0, min(5000.0, _num(v[0]))), max(-5000.0, min(5000.0, _num(v[1])))]
+    return out
+
+
 def _clean_measurement(data):
     """Zostawia tylko znane pola pomiaru (cechy, wiersze wyniku, odcinki) i odrzuca resztę."""
     if not isinstance(data, dict):
@@ -799,6 +820,10 @@ def _clean_measurement(data):
         if not 0 <= k <= 1.5:
             raise ValueError('K')
         out['K'] = k
+    if data.get('offsets') is not None:
+        offs = {k: v for k, v in _clean_offsets(data['offsets']).items() if v is not None}
+        if offs:
+            out['offsets'] = offs
     if len(json.dumps(out)) > _MEAS_MAX_BYTES:
         raise ValueError('rozmiar')
     return out
@@ -862,7 +887,25 @@ def edit_measurement(mid):
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict):
         return jsonify(error='Brak danych.'), 400
-    m.label = (str(payload.get('label') or '').strip()[:128] or None)
+    if 'label' in payload:
+        m.label = (str(payload.get('label') or '').strip()[:128] or None)
+    if 'offsets' in payload:                                  # położenie etykiety wymiaru w danym widoku
+        try:
+            new_offs = _clean_offsets(payload['offsets'])
+        except ValueError:
+            return jsonify(error='Nieprawidłowe położenie etykiety.'), 400
+        data = json.loads(m.data)
+        offs = data.get('offsets', {})
+        for view, v in new_offs.items():
+            if v is None:
+                offs.pop(view, None)
+            else:
+                offs[view] = v
+        if offs:
+            data['offsets'] = offs
+        else:
+            data.pop('offsets', None)
+        m.data = json.dumps(data)
     db.session.commit()
     return jsonify(_meas_json(m))
 
