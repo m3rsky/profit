@@ -4,7 +4,7 @@ import pytest
 
 from app import db
 from models import (User, Alert, QARReport, ControlPoint, ControlRecord, ControlResult, ControlOrder,
-                    ProductionDepartment, DepartmentEmployee)
+                    ProductionDepartment, DepartmentEmployee, UserPermission)
 from test_app import login, _csrf
 
 QR = {'p': 'Szafa PSH', 'c': 'Klient X', 'o': 'ZO/900/2026', 'q': 3}
@@ -511,7 +511,23 @@ class TestListLayout:
         assert 'value="in_progress"' not in opts and 'value="new"' not in opts
 
 
-class TestScanButtonLabel:
+class TestOperatorWithControlException:
+    def test_sees_orders_waiting_for_first_control(self, client, app, setup, operator_user):
+        login(client, 'oper', 'Oper1234!')
+        _scan(client)                                  # zlecenie czeka na pierwszą kontrolę
+        client.get('/logout')
+        login(client, operator_user, 'Operator123!')
+        assert 'ZO/900/2026' not in client.get('/kontrola/').get_data(as_text=True)   # sama rola: odczyt
+        with app.app_context():
+            uid = User.query.filter_by(username=operator_user).first().id
+            db.session.add(UserPermission(user_id=uid, perm='kontrola_etapowa.control', allowed=True))
+            db.session.commit()
+        page = client.get('/kontrola/').get_data(as_text=True)
+        assert 'ZO/900/2026' in page and 'value="new"' in page
+        with app.app_context():
+            UserPermission.query.delete()
+            db.session.commit()
+
     def _lookup(self, client, qr=QR):
         return client.post('/kontrola/qr-lookup', json=qr, headers={'X-CSRF-Token': _csrf(client)}).get_json()
 

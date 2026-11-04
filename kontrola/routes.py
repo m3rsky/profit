@@ -352,6 +352,12 @@ def _order_status(order, only_completed):
     return 'completed' if ctrls else 'new'
 
 
+def _read_only_view():
+    """Widok operatora linii (tylko zakończone kontrole): rola operator bez uprawnienia do kontrolowania.
+    Operator z wyjątkiem `kontrola_etapowa.control` widzi też zlecenia czekające na pierwszą kontrolę."""
+    return current_user.is_operator and not current_user.can('kontrola_etapowa.control')
+
+
 def _legacy_status(rec):
     return {'in_control': 'in_progress', 'closed': 'completed'}.get(rec.state, rec.state)
 
@@ -369,7 +375,7 @@ def _parse_day(raw):
 def list_records():
     """Lista zleceń z kontrolami po działach oraz starych kontroli ogólnych, w jednej tabeli
     (układ jak lista Kontroli Końcowej: filtry, zaznaczanie, paginacja)."""
-    is_op = current_user.is_operator
+    is_op = _read_only_view()
     zo_filter = request.args.get('zo', '').strip()
     dept_filter = request.args.get('dzial', type=int)
     element_filter = request.args.get('element', type=int)
@@ -690,7 +696,7 @@ def order_start(order_id):
 @view_required
 def view_record(record_id):
     rec = get_or_404(ControlRecord, record_id)
-    if current_user.is_operator and rec.round == 1 and rec.state == 'in_control':
+    if _read_only_view() and rec.round == 1 and rec.state == 'in_control':
         abort(403)
 
     can_edit = current_user.can('kontrola_etapowa.control') and rec.status == 'in_progress'
