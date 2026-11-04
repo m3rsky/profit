@@ -867,18 +867,41 @@ class ProductComponentStage(db.Model):
 
 
 class DocEntry(db.Model):
-    """Teczka dokumentacji — tytuł + opcjonalny opis, z załączonymi
-    dokumentami, zdjęciami i notatkami."""
+    """Wpis Dokumentacji z załączonymi plikami, zdjęciami i notatkami. Dwa rodzaje:
+    projekt (Nr ZO, Nr rysunku, Klient, Produkt, wszystkie pola opcjonalne) i dokument
+    (tytuł, kategoria, opcjonalnie powiązany z projektem)."""
     __tablename__ = 'doc_entries'
+    KIND_PROJECT = 'project'
+    KIND_DOCUMENT = 'document'
     id          = db.Column(db.Integer, primary_key=True)
-    title       = db.Column(db.String(256), nullable=False)
+    kind        = db.Column(db.String(16), nullable=False, default='project', index=True)
+    title       = db.Column(db.String(256), nullable=False, default='')   # projekt: nazwa (opcjonalna), dokument: tytuł
     description = db.Column(db.Text, nullable=True)
     zo_number   = db.Column(db.String(64), nullable=True)   # numer ZO (opcjonalnie)
+    drawing_number = db.Column(db.String(128), nullable=True)   # numer rysunku (projekt)
+    client      = db.Column(db.String(256), nullable=True)      # klient (projekt)
+    product     = db.Column(db.String(256), nullable=True)      # produkt (projekt)
+    category    = db.Column(db.String(128), nullable=True)      # kategoria (dokument)
+    project_id  = db.Column(db.Integer, db.ForeignKey('doc_entries.id'), nullable=True, index=True)  # dokument -> projekt
     user_id     = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     created_at  = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
     updated_at  = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
 
     author = db.relationship('User', foreign_keys=[user_id])
+    project = db.relationship('DocEntry', remote_side=[id], foreign_keys=[project_id],
+                              backref=db.backref('linked_documents', lazy='dynamic'))
+
+    @property
+    def is_project(self):
+        return self.kind == self.KIND_PROJECT
+
+    @property
+    def display_title(self):
+        """Nazwa do pokazania: wpisana albo złożona z pól projektu (wszystkie są opcjonalne)."""
+        if self.title:
+            return self.title
+        parts = [p for p in (self.zo_number, self.drawing_number, self.client, self.product) if p]
+        return ' · '.join(parts) or ('Projekt bez danych' if self.is_project else 'Dokument bez tytułu')
     files  = db.relationship('DocFile', backref='entry', lazy='dynamic',
                              cascade='all, delete-orphan')
     notes  = db.relationship('DocNote', backref='entry', lazy='dynamic',

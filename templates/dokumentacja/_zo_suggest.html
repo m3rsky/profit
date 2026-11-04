@@ -1,0 +1,64 @@
+{# Podpowiedzi klienta i produktu po numerze ZO (Kontrola etapowa, Lista produkcyjna, wcześniejsze projekty).
+   Działa w każdym formularzu mającym pola zo_number, client i product. Jedno dopasowanie uzupełnia puste pola,
+   kilka dopasowań daje przyciski wyboru. Pola zawsze można poprawić ręcznie. #}
+<style>
+.zo-suggest { font-size: .82rem; color: #1a6e8a; background: #eef5fb; border-radius: 6px; padding: 6px 10px; margin-top: 6px; line-height: 1.5; }
+.zo-suggest .btn { margin: 4px 6px 0 0; }
+</style>
+<script>
+(function () {
+  var URL = {{ url_for('dokumentacja.zo_info') | tojson }};
+  document.querySelectorAll('form').forEach(function (form) {
+    var zo = form.querySelector('input[name=zo_number]');
+    var client = form.querySelector('input[name=client]');
+    var product = form.querySelector('input[name=product]');
+    if (!zo || !client || !product) return;
+    var box = document.createElement('div');
+    box.className = 'zo-suggest';
+    box.hidden = true;
+    (zo.closest('.form-group') || zo.parentNode).appendChild(box);
+    var timer = null, last = '';
+
+    function pick(it) {
+      client.value = it.client || '';
+      product.value = it.product || '';
+      box.textContent = 'Wybrano: ' + [it.client, it.product].filter(Boolean).join(' · ') + '. Możesz poprawić pola.';
+    }
+    function handle(items) {
+      box.textContent = '';
+      if (!items.length) { box.hidden = true; return; }
+      box.hidden = false;
+      if (items.length === 1) {
+        var it = items[0], filled = false;
+        if (!client.value && it.client) { client.value = it.client; filled = true; }
+        if (!product.value && it.product) { product.value = it.product; filled = true; }
+        box.textContent = 'Znaleziono dla tego ZO (' + it.source + '): ' + [it.client, it.product].filter(Boolean).join(' · ') +
+          (filled ? '. Uzupełniono puste pola, możesz je poprawić.' : '.');
+        return;
+      }
+      box.append('Dla tego ZO znaleziono kilka pozycji, wybierz właściwą:');
+      box.append(document.createElement('br'));
+      items.forEach(function (it) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'btn btn-outline btn-sm';
+        b.textContent = [it.client, it.product].filter(Boolean).join(' · ') + ' (' + it.source + ')';
+        b.onclick = function () { pick(it); };
+        box.append(b);
+      });
+    }
+    function ask() {
+      var v = zo.value.trim();
+      if (v === last) return;
+      last = v;
+      if (v.length < 2) { box.hidden = true; return; }
+      fetch(URL + '?zo=' + encodeURIComponent(v), { credentials: 'same-origin' })
+        .then(function (r) { return r.ok ? r.json() : { items: [] }; })
+        .then(function (d) { if (zo.value.trim() === v) handle(d.items || []); })
+        .catch(function () { /* brak sieci: pola zostają do ręcznego wypełnienia */ });
+    }
+    zo.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(ask, 400); });
+    zo.addEventListener('blur', ask);
+  });
+})();
+</script>

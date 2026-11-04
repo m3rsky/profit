@@ -1,50 +1,98 @@
 {% extends "base.html" %}
-{% block title %}Nowa teczka dokumentacji{% endblock %}
+{% set is_doc = (kind == 'document') %}
+{% block title %}{{ 'Nowy dokument' if is_doc else 'Nowy projekt' }}{% endblock %}
 
 {% block head %}
 <style>
 @media (max-width: 640px) {
   .form-control, textarea.form-control { font-size: 16px; } /* bez zoom na iOS */
 }
+.dk-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+@media (max-width: 640px) { .dk-form-grid { grid-template-columns: 1fr; } }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="page-header" style="margin-bottom:20px;">
-  <a href="{{ url_for('dokumentacja.list_entries') }}" class="btn btn-outline btn-sm" style="margin-bottom:8px;">
-    <i class="bi bi-arrow-left"></i> Powrót
-  </a>
-  <h1 class="page-title" style="font-size:1.3rem;margin:0;">
-    <i class="bi bi-folder-plus" style="color:var(--accent,#1a6e8a);margin-right:6px;"></i>
-    Nowa teczka dokumentacji
-  </h1>
+<div class="page-header" style="margin-bottom:12px;">
+  <div>
+    <h1 class="page-title" style="font-size:1.3rem;margin:0;">
+      <i class="bi bi-folder-plus" style="color:var(--accent,#1a6e8a);margin-right:6px;"></i>
+      {{ 'Nowy dokument' if is_doc else 'Nowy projekt' }}
+    </h1>
+  </div>
 </div>
 
-<div class="card" style="max-width:720px;">
+{% include "dokumentacja/_tabs.html" %}
+
+<div class="card" style="max-width:760px;">
   <div class="card-body">
-    <form method="post">
+    <form method="post" autocomplete="off">
       {{ csrf_input() }}
+      <input type="hidden" name="rodzaj" value="{{ 'dokument' if is_doc else 'projekt' }}">
+
+      {% if is_doc %}
       <div class="form-group" style="margin-bottom:14px;">
         <label class="form-label">Tytuł <span style="color:#c0392b;">*</span></label>
         <input type="text" name="title" class="form-control" required maxlength="256"
-               value="{{ form.get('title', '') }}"
-               placeholder="np. Dokumentacja techniczna szafy PSH-1200"
-               style="font-size:16px;" autofocus>
+               value="{{ form.get('title', '') }}" placeholder="np. Instrukcja montażu zamków" style="font-size:16px;" autofocus>
+      </div>
+      <div class="dk-form-grid">
+        <div class="form-group" style="margin-bottom:14px;">
+          <label class="form-label">Kategoria <span class="text-muted">(opcjonalnie)</span></label>
+          <input type="text" name="category" class="form-control" maxlength="128" list="dk-categories"
+                 value="{{ form.get('category', '') }}" placeholder="np. Instrukcje" style="font-size:16px;">
+          <datalist id="dk-categories">
+            {% for c in categories %}<option value="{{ c }}">{% endfor %}
+          </datalist>
+        </div>
+        <div class="form-group" style="margin-bottom:14px;">
+          <label class="form-label">Powiązany projekt <span class="text-muted">(opcjonalnie)</span></label>
+          <select name="project_id" class="form-control" style="font-size:16px;">
+            <option value="">Bez projektu</option>
+            {% for p in projects %}
+            <option value="{{ p.id }}" {% if form.get('project_id') == p.id|string %}selected{% endif %}>
+              {{ [p.zo_number, p.drawing_number, p.client, p.product] | select | join(' · ') or p.display_title }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      {% else %}
+      <div class="dk-form-grid">
+        <div class="form-group" style="margin-bottom:14px;">
+          <label class="form-label">Nr ZO</label>
+          <input type="text" name="zo_number" class="form-control" maxlength="64"
+                 value="{{ form.get('zo_number', '') }}" placeholder="np. ZO/123/2026" style="font-size:16px;" autofocus>
+        </div>
+        <div class="form-group" style="margin-bottom:14px;">
+          <label class="form-label">Nr rysunku</label>
+          <input type="text" name="drawing_number" class="form-control" maxlength="128"
+                 value="{{ form.get('drawing_number', '') }}" placeholder="np. 327-10-26" style="font-size:16px;">
+        </div>
+        <div class="form-group" style="margin-bottom:14px;">
+          <label class="form-label">Klient</label>
+          <input type="text" name="client" class="form-control" maxlength="256"
+                 value="{{ form.get('client', '') }}" style="font-size:16px;">
+        </div>
+        <div class="form-group" style="margin-bottom:14px;">
+          <label class="form-label">Produkt</label>
+          <input type="text" name="product" class="form-control" maxlength="256"
+                 value="{{ form.get('product', '') }}" placeholder="np. PSH 600x800x300" style="font-size:16px;">
+        </div>
       </div>
       <div class="form-group" style="margin-bottom:14px;">
-        <label class="form-label">Numer ZO <span class="text-muted">(opcjonalnie)</span></label>
-        <input type="text" name="zo_number" class="form-control" maxlength="64"
-               value="{{ form.get('zo_number', '') }}" placeholder="np. ZO/123/2026"
-               style="font-size:16px;">
+        <label class="form-label">Nazwa projektu <span class="text-muted">(opcjonalnie)</span></label>
+        <input type="text" name="title" class="form-control" maxlength="256"
+               value="{{ form.get('title', '') }}" style="font-size:16px;">
       </div>
+      {% endif %}
+
       <div class="form-group" style="margin-bottom:14px;">
         <label class="form-label">Opis <span class="text-muted">(opcjonalnie)</span></label>
-        <textarea name="description" class="form-control" rows="4"
-                  placeholder="Krótki opis zawartości teczki…"
-                  style="font-size:16px;">{{ form.get('description', '') }}</textarea>
+        <textarea name="description" class="form-control" rows="4" style="font-size:16px;">{{ form.get('description', '') }}</textarea>
       </div>
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;flex-wrap:wrap;">
-        <a href="{{ url_for('dokumentacja.list_entries') }}" class="btn btn-outline" style="flex:1;text-align:center;min-width:100px;">Anuluj</a>
+        <a href="{{ url_for('dokumentacja.list_documents' if is_doc else 'dokumentacja.list_entries') }}" class="btn btn-outline" style="flex:1;text-align:center;min-width:100px;">Anuluj</a>
         <button type="submit" class="btn btn-primary" style="flex:2;min-width:160px;">
           <i class="bi bi-check-lg"></i> Utwórz i dodaj pliki
         </button>
@@ -52,4 +100,5 @@
     </form>
   </div>
 </div>
+{% if not is_doc %}{% include "dokumentacja/_zo_suggest.html" %}{% endif %}
 {% endblock %}

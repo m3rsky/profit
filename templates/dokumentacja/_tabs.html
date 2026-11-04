@@ -1,0 +1,20 @@
+{# Zakładki modułu Dokumentacja: Projekty i Dokumenty. Wymaga zmiennych: tab ('projects'|'documents'), totals. #}
+<style>
+.doc-tabs { display: flex; gap: 4px; margin: 0 0 14px; border-bottom: 1px solid var(--border, #dde1e6); flex-wrap: wrap; }
+.doc-tab { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; font-size: .92rem; font-weight: 600;
+  color: var(--text-muted, #64748b); text-decoration: none; border-bottom: 3px solid transparent; margin-bottom: -1px; }
+.doc-tab:hover { color: var(--text, #1d2329); }
+.doc-tab.active { color: var(--accent, #1a6e8a); border-bottom-color: var(--accent, #1a6e8a); }
+.doc-tab-count { font-weight: 500; font-size: .78rem; background: var(--hover-row, #f1f3f5); border-radius: 10px; padding: 1px 8px; }
+@media (max-width: 640px) { .doc-tab { flex: 1; justify-content: center; padding: 10px 8px; } }
+</style>
+<nav class="doc-tabs" aria-label="Dokumentacja">
+  <a class="doc-tab {% if tab == 'projects' %}active{% endif %}" href="{{ url_for('dokumentacja.list_entries') }}"
+     {% if tab == 'projects' %}aria-current="page"{% endif %}>
+    <i class="bi bi-diagram-3"></i> Projekty <span class="doc-tab-count">{{ totals.projects }}</span>
+  </a>
+  <a class="doc-tab {% if tab == 'documents' %}active{% endif %}" href="{{ url_for('dokumentacja.list_documents') }}"
+     {% if tab == 'documents' %}aria-current="page"{% endif %}>
+    <i class="bi bi-file-earmark-text"></i> Dokumenty <span class="doc-tab-count">{{ totals.documents }}</span>
+  </a>
+</nav>

@@ -7,6 +7,19 @@
 <style>
   :root { --bg:#f4f5f7; --panel:#fff; --txt:#1d2329; --muted:#6b7480; --acc:#c8102e; --line:#dde1e6; --sel:#fdecef; }
   * { box-sizing:border-box; }
+  /* zainstalowana aplikacja (nakładka na pasek tytułu): własny pasek, żeby przyciski okna nie zasłaniały nagłówka */
+  :root { --titlebar-h: 0px; }
+  .app-titlebar { display:none; }
+  @media (display-mode: window-controls-overlay) {
+    :root { --titlebar-h: env(titlebar-area-height, 34px); }
+    body { padding-top:var(--titlebar-h); }
+    .app-titlebar { display:flex; align-items:center; gap:8px; position:fixed; top:0; left:0; right:0; height:var(--titlebar-h);
+      padding:0 calc(100% - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100%)) 0 12px; background:#eef4fc;
+      border-bottom:1px solid #d5e2f3; color:#0f172a; -webkit-app-region:drag; app-region:drag; user-select:none; z-index:1000; }
+    .app-titlebar-logo { height:calc(var(--titlebar-h) - 12px); width:auto; display:block; }
+    .app-titlebar-title { font-size:12px; font-weight:800; letter-spacing:.3px; }
+    .app-titlebar-sub { font-size:11px; opacity:.65; }
+  }
   html, body { height:100%; }
   body { margin:0; font-family:system-ui,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--txt); display:flex; flex-direction:column; }
   header { display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding:8px 12px; background:var(--panel); border-bottom:1px solid var(--line); }
@@ -161,9 +174,10 @@
 </script>
 </head>
 <body>
+{% include "_titlebar.html" %}
 <header>
   <h1>{{ f.original_name or f.filename }}
-    <small>Teczka: {{ entry.title }}{% if entry.zo_number %} · ZO {{ entry.zo_number }}{% endif %}</small>
+    <small>{{ 'Projekt' if entry.is_project else 'Dokument' }}: {{ entry.display_title }}{% if entry.title and entry.zo_number %} · ZO {{ entry.zo_number }}{% endif %}</small>
   </h1>
   <button data-view="iso" disabled>Izometria</button>
   <button data-view="front" disabled>Przód</button>
@@ -175,7 +189,7 @@
   <button id="measbtn" disabled title="Pomiar odległości, otworów i kątów">Pomiar</button>
   <button id="panelbtn" disabled>Elementy</button>
   <a class="btn" href="{{ download_url }}">Pobierz</a>
-  <a class="btn" href="{{ url_for('dokumentacja.entry_detail', entry_id=entry.id) }}#dokumenty">Teczka</a>
+  <a class="btn" href="{{ url_for('dokumentacja.entry_detail', entry_id=entry.id) }}#dokumenty">{{ 'Projekt' if entry.is_project else 'Dokument' }}</a>
 </header>
 <div id="info"></div>
 <div id="layout">

@@ -1,72 +1,205 @@
 {% extends "base.html" %}
 {% from "_list_search.html" import list_search %}
-{% block title %}Dokumentacja{% endblock %}
+{% block title %}Dokumentacja: Projekty{% endblock %}
 
 {% block head %}
 <style>
-.doc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
-.doc-tile {
-  display: block; border: 1px solid var(--border, #ddd); border-radius: 8px;
-  padding: 16px; background: var(--card-bg, #fff); text-decoration: none; color: inherit;
-  transition: box-shadow .15s, transform .15s;
-}
-.doc-tile:hover { box-shadow: 0 4px 14px rgba(0,0,0,.08); transform: translateY(-1px); }
-.doc-tile-title { font-weight: 600; font-size: .98rem; margin-bottom: 6px; overflow-wrap: break-word; }
-.doc-tile-zo { font-size: .8rem; color: #1a6e8a; font-weight: 600; margin-bottom: 6px; }
-.doc-tile-desc { color: #777; font-size: .84rem; line-height: 1.5; margin-bottom: 10px;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.doc-tile-meta { display: flex; flex-wrap: wrap; gap: 10px; font-size: .78rem; color: #888; }
-.doc-tile-meta .chip i { margin-right: 3px; }
-@media (max-width: 640px) { .doc-grid { grid-template-columns: 1fr; } }
+.dk-mobile-only { display: none; }
+@media (max-width: 768px) { .dk-mobile-only { display: block; } }
+.dk-main { min-width: 0; flex: 1; }
+.dk-zo { font-weight: 600; }
+.dk-sub { color: var(--text-muted, #64748b); font-size: .78rem; line-height: 1.25; margin-top: .1rem; overflow-wrap: anywhere; }
+.dk-chips { display: flex; flex-wrap: wrap; gap: .3rem; font-size: .78rem; color: var(--text-muted, #64748b); }
+.dk-chips span { white-space: nowrap; }
+.dk-chips i { margin-right: 2px; }
+.th-sort { color: inherit; text-decoration: none; white-space: nowrap; }
+.th-sort:hover { text-decoration: underline; }
+.th-sort i { font-size: .7rem; }
 </style>
 {% endblock %}
+
+{% macro sort_th(key, label) %}
+  {% set nd = 'asc' if (sort == key and direction == 'desc') else 'desc' %}
+  <th scope="col"><a class="th-sort" href="{{ url_for('dokumentacja.list_entries', q=q, klient=klient, per_page=per_page, sort=key, dir=nd) }}">{{ label }}{% if sort == key %} <i class="bi bi-caret-{{ 'up' if direction == 'asc' else 'down' }}-fill"></i>{% endif %}</a></th>
+{% endmacro %}
 
 {% block content %}
 <div class="page-header">
   <div>
     <h1 class="page-title"><i class="bi bi-folder2-open"></i> Dokumentacja</h1>
-    <span class="text-muted" style="font-size:.82rem;">Teczki z dokumentami, zdjęciami i notatkami</span>
+    <span class="text-muted" style="font-size:.82rem;">Projekty z plikami, zdjęciami i modelami 3D</span>
   </div>
   <div class="page-header-actions">
-    <a href="{{ url_for('dokumentacja.new_entry') }}" class="btn btn-primary">
-      <i class="bi bi-plus-lg"></i> Nowa teczka
+    <a href="{{ url_for('dokumentacja.new_entry', rodzaj='projekt') }}" class="btn btn-primary">
+      <i class="bi bi-plus-lg"></i> Nowy projekt
     </a>
   </div>
 </div>
 
-<div class="card card--spaced-top">
-  <div class="card-body" style="padding-bottom:0;">
-    <form method="get" class="filter-bar filter-bar--rows" style="margin-bottom:1rem;">
-      {{ list_search('q', q, 'Szukaj po tytule, opisie lub numerze ZO…', clear_url=url_for('dokumentacja.list_entries')) }}
-    </form>
-  </div>
+{% include "dokumentacja/_tabs.html" %}
 
-  <div class="card-body">
-    {% if entries %}
-    <div class="doc-grid">
-      {% for e in entries %}
-      <a class="doc-tile" href="{{ url_for('dokumentacja.entry_detail', entry_id=e.id) }}">
-        <div class="doc-tile-title">{{ e.title }}</div>
-        {% if e.zo_number %}<div class="doc-tile-zo"><i class="bi bi-hash"></i>ZO {{ e.zo_number }}</div>{% endif %}
-        {% if e.description %}<div class="doc-tile-desc">{{ e.description }}</div>{% endif %}
-        <div class="doc-tile-meta">
-          <span class="chip"><i class="bi bi-file-earmark"></i>{{ e.document_count }}</span>
-          <span class="chip"><i class="bi bi-image"></i>{{ e.image_count }}</span>
-          <span class="chip"><i class="bi bi-sticky"></i>{{ e.note_count }}</span>
-          <span class="chip" style="margin-left:auto;"><i class="bi bi-clock"></i>{{ e.created_at | localdt }}</span>
-        </div>
-      </a>
+{% set active_filters = [klient] | select | list | length %}
+<form method="get" action="{{ url_for('dokumentacja.list_entries') }}" class="filter-bar filter-bar--rows">
+  <input type="hidden" name="sort" value="{{ sort }}">
+  <input type="hidden" name="dir" value="{{ direction }}">
+{% call list_search('q', q, 'Szukaj: Nr ZO, Nr rysunku, klient, produkt…', qr=True, active=active_filters, uid='dk-filter-more') %}
+  <div class="filter-row">
+    <select class="form-control filter-select" name="klient" title="Filtruj po kliencie">
+      <option value="">Wszyscy klienci</option>
+      {% for c in clients %}
+      <option value="{{ c }}" {% if klient == c %}selected{% endif %}>{{ c }}</option>
       {% endfor %}
+    </select>
+    <select class="form-control filter-select filter-perpage" name="per_page" title="Pozycji na stronę" onchange="this.form.submit()">
+      {% for n in per_page_choices %}
+      <option value="{{ n }}" {% if per_page == n %}selected{% endif %}>{{ n }} / stronę</option>
+      {% endfor %}
+    </select>
+    <a href="{{ url_for('dokumentacja.list_entries') }}" class="btn btn-ghost btn-sm"><i class="bi bi-x-lg"></i> Wyczyść</a>
+  </div>
+{% endcall %}
+</form>
+
+{% if editable and pager.items %}
+<form method="post" action="{{ url_for('dokumentacja.bulk_delete') }}" id="bulk-form">
+  {{ csrf_input() }}
+  <input type="hidden" name="back" value="projects">
+  <div class="bulk-bar" id="bulk-bar">
+    <span class="bulk-count" id="bulk-count">0 zaznaczonych</span>
+    <div class="bulk-actions">
+      <button type="button" id="btn-select-all" class="btn btn-outline btn-sm" onclick="toggleSelectAll()">Zaznacz wszystkie</button>
+      <button type="submit" class="btn btn-danger btn-sm" id="btn-delete-selected"
+              data-confirm="Usunąć zaznaczone projekty razem z plikami, zdjęciami i notatkami? Tej operacji nie można cofnąć.">
+        Usuń zaznaczone
+      </button>
+    </div>
+  </div>
+{% endif %}
+
+<div class="card">
+  <div class="card-body card-body--flush">
+    {% if pager.items %}
+    <div class="table-wrap">
+      <table class="data-table tbl-cards">
+        <thead>
+          <tr>
+            {% if editable %}
+            <th class="th-check" scope="col">
+              <label class="sr-only" for="select-all">Zaznacz wszystkie</label>
+              <input type="checkbox" id="select-all" title="Zaznacz wszystkie">
+            </th>
+            {% endif %}
+            {{ sort_th('zo', 'Nr ZO') }}
+            {{ sort_th('rys', 'Nr rysunku') }}
+            {{ sort_th('klient', 'Klient') }}
+            {{ sort_th('produkt', 'Produkt') }}
+            <th scope="col">Zawartość</th>
+            {{ sort_th('data', 'Dodano') }}
+            <th scope="col"><span class="sr-only">Akcje</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in pager.items %}
+          {% set c = counts[e.id] %}
+          <tr>
+            {% if editable %}
+            <td class="th-check">
+              {% if e.id in editable %}
+              <label class="sr-only" for="check-{{ e.id }}">Zaznacz {{ e.display_title }}</label>
+              <input type="checkbox" id="check-{{ e.id }}" class="row-check" name="entry_ids" value="{{ e.id }}">
+              {% endif %}
+            </td>
+            {% endif %}
+            <td data-label="Nr ZO" class="td-title-expandable">
+              <div class="dk-main">
+                <a href="{{ url_for('dokumentacja.entry_detail', entry_id=e.id) }}">
+                  <span class="dk-zo">{{ e.zo_number or (e.title or 'Bez numeru ZO') }}</span>
+                </a>
+                {% if e.title and e.zo_number %}<div class="dk-sub">{{ e.title }}</div>{% endif %}
+                {% set mob = [e.drawing_number, e.client, e.product] | select | join(' · ') %}{% if mob %}<div class="dk-sub dk-mobile-only">{{ mob }}</div>{% endif %}
+              </div>
+              <button type="button" class="row-expand-btn" aria-expanded="false" aria-label="Rozwiń szczegóły">
+                <i class="bi bi-chevron-down row-expand-chevron"></i>
+              </button>
+            </td>
+            <td data-label="Nr rysunku" class="td-collapse-sm">{{ e.drawing_number or '-' }}</td>
+            <td data-label="Klient" class="td-collapse-sm">{{ e.client or '-' }}</td>
+            <td data-label="Produkt" class="td-collapse-sm">{{ e.product or '-' }}</td>
+            <td data-label="Zawartość" class="td-collapse-sm">
+              <div class="dk-chips">
+                <span title="Pliki"><i class="bi bi-file-earmark"></i>{{ c.files }}</span>
+                <span title="Zdjęcia"><i class="bi bi-image"></i>{{ c.images }}</span>
+                <span title="Notatki"><i class="bi bi-sticky"></i>{{ c.notes }}</span>
+                <span title="Powiązane dokumenty"><i class="bi bi-link-45deg"></i>{{ c.linked }}</span>
+              </div>
+            </td>
+            <td data-label="Dodano" class="td-collapse-sm">{{ e.created_at | localdt('%d.%m.%Y') }}</td>
+            <td class="td-actions td-collapse-sm" data-label="">
+              <a class="btn btn-outline btn-sm" href="{{ url_for('dokumentacja.entry_detail', entry_id=e.id) }}">Otwórz</a>
+              {% if e.id in editable %}
+              <button type="button" class="btn btn-danger btn-sm"
+                      data-post-url="{{ url_for('dokumentacja.delete_entry', entry_id=e.id) }}"
+                      data-post-confirm="Usunąć projekt „{{ e.display_title }}” razem z plikami, zdjęciami i notatkami? Tej operacji nie można cofnąć.">Usuń</button>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pagination">
+      {% if pager.has_prev %}
+      <a href="{{ url_for('dokumentacja.list_entries', q=q, klient=klient, sort=sort, dir=direction, per_page=per_page, page=pager.prev_num) }}" class="btn btn-outline btn-sm"><i class="bi bi-arrow-left"></i> Poprzednia</a>
+      {% endif %}
+      <span>{{ pager.page }} / {{ pager.pages }} ({{ pager.total }} pozycji)</span>
+      {% if pager.has_next %}
+      <a href="{{ url_for('dokumentacja.list_entries', q=q, klient=klient, sort=sort, dir=direction, per_page=per_page, page=pager.next_num) }}" class="btn btn-outline btn-sm">Następna <i class="bi bi-arrow-right"></i></a>
+      {% endif %}
     </div>
     {% else %}
     <div class="empty-state" style="text-align:center;padding:48px 0;color:#888;">
-      <i class="bi bi-folder2-open" style="font-size:3rem;display:block;margin-bottom:12px;"></i>
-      <p>{% if q %}Brak teczek pasujących do wyszukiwania.{% else %}Brak teczek dokumentacji.{% endif %}</p>
-      <a href="{{ url_for('dokumentacja.new_entry') }}" class="btn btn-primary" style="margin-top:8px;">
-        <i class="bi bi-plus-lg"></i> Utwórz pierwszą teczkę
+      <i class="bi bi-diagram-3" style="font-size:3rem;display:block;margin-bottom:12px;"></i>
+      <p>{% if q or klient %}Brak projektów pasujących do wyszukiwania.{% else %}Brak projektów.{% endif %}</p>
+      <a href="{{ url_for('dokumentacja.new_entry', rodzaj='projekt') }}" class="btn btn-primary" style="margin-top:8px;">
+        <i class="bi bi-plus-lg"></i> Utwórz pierwszy projekt
       </a>
     </div>
     {% endif %}
   </div>
 </div>
+
+{% if editable and pager.items %}
+</form>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* Akordeon wierszy na telefonie (jak na pozostałych listach) */
+document.addEventListener('click', function (e) {
+  var btn = e.target.closest('.row-expand-btn');
+  if (!btn) return;
+  var row = btn.closest('tr');
+  var expanded = btn.getAttribute('aria-expanded') === 'true';
+  row.classList.toggle('row-expanded', !expanded);
+  btn.setAttribute('aria-expanded', String(!expanded));
+  var chevron = btn.querySelector('.row-expand-chevron');
+  if (chevron) chevron.className = expanded ? 'bi bi-chevron-down row-expand-chevron' : 'bi bi-chevron-up row-expand-chevron';
+});
+
+/* Akcje wiersza (usuń) wysyłane poza formularzem zbiorczym */
+document.addEventListener('click', function (e) {
+  var btn = e.target.closest('[data-post-url]');
+  if (!btn) return;
+  if (btn.dataset.postConfirm && !confirm(btn.dataset.postConfirm)) return;
+  var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+  var f = document.createElement('form');
+  f.method = 'POST';
+  f.action = btn.dataset.postUrl;
+  f.innerHTML = '<input type="hidden" name="_csrf_token" value="' + csrf + '">';
+  document.body.appendChild(f);
+  f.submit();
+});
+</script>
 {% endblock %}

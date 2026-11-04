@@ -90,11 +90,11 @@ class TestEntryCrud:
             assert e is not None
             assert e.description == 'komplet rysunków'
 
-    def test_create_entry_requires_title(self, client):
+    def test_create_document_requires_title(self, client):
         login(client, 'oper', 'Oper1234!')
         token = _csrf(client)
         resp = client.post('/dokumentacja/nowa', data={
-            'title': '  ', 'description': 'x', '_csrf_token': token,
+            'rodzaj': 'dokument', 'title': '  ', 'description': 'x', '_csrf_token': token,
         })
         assert resp.status_code == 200
         assert 'wymagany'.encode('utf-8') in resp.data
@@ -783,3 +783,306 @@ class TestMeasurements:
         for payload in (bad_space, bad_k, nan_k):
             assert _post_json(client, url, payload).status_code == 400
 
+
+
+# ── Podział na Projekty i Dokumenty ──────────────────────────────────────────
+
+def _oper_id():
+    with flask_app.app_context():
+        return User.query.filter_by(username='oper').first().id
+
+
+def _db_entry(kind='project', user_id=None, **fields):
+    with flask_app.app_context():
+        e = DocEntry(kind=kind, title=fields.pop('title', ''), user_id=user_id or _oper_id(), **fields)
+        db.session.add(e)
+        db.session.commit()
+        return e.id
+
+
+def _post_project(http, **fields):
+    data = {'rodzaj': 'projekt', '_csrf_token': _csrf(http)}
+    data.update(fields)
+    http.post('/dokumentacja/nowa', data=data, follow_redirects=True)
+
+
+class TestProjects:
+    def test_all_project_fields_are_optional(self, client):
+        login(client, 'oper', 'Oper1234!')
+        resp = client.post('/dokumentacja/nowa', data={'rodzaj': 'projekt', '_csrf_token': _csrf(client)})
+        assert resp.status_code == 302
+        with flask_app.app_context():
+            e = DocEntry.query.one()
+            assert e.kind == 'project' and e.display_title == 'Projekt bez danych'
+
+    def test_project_fields_saved_and_listed(self, client):
+        login(client, 'oper', 'Oper1234!')
+        _post_project(client, zo_number=' ZO/12/2026 ', drawing_number='RYS-327', client='ACME Sp. z o.o.', product='PSH 600x800')
+        with flask_app.app_context():
+            e = DocEntry.query.one()
+            assert (e.zo_number, e.drawing_number, e.client, e.product) == ('ZO/12/2026', 'RYS-327', 'ACME Sp. z o.o.', 'PSH 600x800')
+        html = client.get('/dokumentacja/').get_data(as_text=True)
+        for text in ('Nr ZO', 'Nr rysunku', 'Klient', 'Produkt', 'ZO/12/2026', 'RYS-327', 'ACME Sp. z o.o.', 'PSH 600x800'):
+            assert text in html
+
+    @pytest.mark.parametrize('q', ['12/2026', 'rys-327', 'acme', 'psh 600'])
+    def test_search_by_each_column(self, client, q):
+        login(client, 'oper', 'Oper1234!')
+        _db_entry(zo_number='ZO/12/2026', drawing_number='RYS-327', client='ACME', product='PSH 600x800')
+        _db_entry(zo_number='ZO/99/2026', drawing_number='INNY', client='Beta', product='RW-N')
+        html = client.get('/dokumentacja/', query_string={'q': q}).get_data(as_text=True)
+        assert 'ZO/12/2026' in html and 'ZO/99/2026' not in html
+
+    def test_search_treats_wildcards_literally(self, client):
+        login(client, 'oper', 'Oper1234!')
+        _db_entry(zo_number='ZO/1', product='A')
+        _db_entry(zo_number='ZO/2', product='B')
+        html = client.get('/dokumentacja/', query_string={'q': '%'}).get_data(as_text=True)
+        assert 'ZO/1' not in html and 'ZO/2' not in html
+
+    def test_client_filter_and_sorting(self, client):
+        login(client, 'oper', 'Oper1234!')
+        _db_entry(zo_number='ZO/B', client='Beta')
+        _db_entry(zo_number='ZO/A', client='Alfa')
+        _db_entry(zo_number='ZO/C', client='Alfa')
+        only = client.get('/dokumentacja/', query_string={'klient': 'Alfa'}).get_data(as_text=True)
+        assert 'ZO/A' in only and 'ZO/C' in only and 'ZO/B' not in only
+        asc = client.get('/dokumentacja/', query_string={'sort': 'zo', 'dir': 'asc'}).get_data(as_text=True)
+        assert asc.index('ZO/A') < asc.index('ZO/B') < asc.index('ZO/C')
+        desc = client.get('/dokumentacja/', query_string={'sort': 'zo', 'dir': 'desc'}).get_data(as_text=True)
+        assert desc.index('ZO/C') < desc.index('ZO/B') < desc.index('ZO/A')
+
+    def test_pagination(self, client):
+        login(client, 'oper', 'Oper1234!')
+        for i in range(25):
+            _db_entry(zo_number=f'ZO/{i:03d}')
+        p1 = client.get('/dokumentacja/', query_string={'per_page': 10, 'sort': 'zo', 'dir': 'asc'}).get_data(as_text=True)
+        p3 = client.get('/dokumentacja/', query_string={'per_page': 10, 'sort': 'zo', 'dir': 'asc', 'page': 3}).get_data(as_text=True)
+        assert 'ZO/000' in p1 and 'ZO/010' not in p1 and '1 / 3 (25 pozycji)' in p1
+        assert 'ZO/020' in p3 and 'ZO/019' not in p3
+
+    def test_several_projects_under_one_zo_with_duplicate_warning(self, client):
+        login(client, 'oper', 'Oper1234!')
+        _post_project(client, zo_number='ZO/5', drawing_number='R1', product='Szafa A')
+        _post_project(client, zo_number='ZO/5', drawing_number='R2', product='Szafa B')
+        with flask_app.app_context():
+            assert DocEntry.query.filter_by(zo_number='ZO/5').count() == 2
+        resp = client.post('/dokumentacja/nowa', data={'rodzaj': 'projekt', 'zo_number': 'zo/5', 'product': 'SZAFA A',
+                                                       '_csrf_token': _csrf(client)}, follow_redirects=True)
+        assert 'istnieje już projekt'.encode() in resp.data      # tylko ostrzeżenie
+        with flask_app.app_context():
+            assert DocEntry.query.filter_by(kind='project').count() == 3
+
+
+class TestDocumentsSplit:
+    def test_projects_and_documents_are_separate_lists(self, client):
+        login(client, 'oper', 'Oper1234!')
+        _db_entry('project', zo_number='ZO/PROJ')
+        _db_entry('document', title='Instrukcja montazu', category='Instrukcje')
+        projects = client.get('/dokumentacja/').get_data(as_text=True)
+        documents = client.get('/dokumentacja/dokumenty').get_data(as_text=True)
+        assert 'ZO/PROJ' in projects and 'Instrukcja montazu' not in projects
+        assert 'Instrukcja montazu' in documents and 'ZO/PROJ' not in documents
+        assert 'Instrukcje' in documents
+        assert 'doc-tab-count' in projects and 'Dokumenty' in projects and 'Projekty' in documents
+
+    def test_document_search_and_category_filter(self, client):
+        login(client, 'oper', 'Oper1234!')
+        _db_entry('document', title='Norma EN 1090', category='Normy')
+        _db_entry('document', title='Procedura NG', category='Procedury')
+        html = client.get('/dokumentacja/dokumenty', query_string={'kategoria': 'Normy'}).get_data(as_text=True)
+        assert 'Norma EN 1090' in html and 'Procedura NG' not in html
+        html = client.get('/dokumentacja/dokumenty', query_string={'q': 'procedura'}).get_data(as_text=True)
+        assert 'Procedura NG' in html and 'Norma EN 1090' not in html
+
+    def test_document_can_be_linked_to_project(self, client):
+        login(client, 'oper', 'Oper1234!')
+        pid = _db_entry('project', zo_number='ZO/LINK', product='Szafa')
+        other_doc = _db_entry('document', title='Inny dokument')
+        resp = client.post('/dokumentacja/nowa', data={'rodzaj': 'dokument', 'title': 'Karta pomiarowa',
+                                                       'project_id': str(pid), '_csrf_token': _csrf(client)})
+        assert resp.status_code == 302
+        with flask_app.app_context():
+            d = DocEntry.query.filter_by(title='Karta pomiarowa').one()
+            assert d.project_id == pid and d.project.zo_number == 'ZO/LINK'
+        # projekt pokazuje powiązane dokumenty, lista dokumentów filtruje po projekcie
+        detail = client.get(f'/dokumentacja/{pid}').get_data(as_text=True)
+        assert 'Dokumenty powiązane' in detail and 'Karta pomiarowa' in detail and 'Inny dokument' not in detail
+        listed = client.get('/dokumentacja/dokumenty', query_string={'projekt': pid}).get_data(as_text=True)
+        assert 'Karta pomiarowa' in listed and 'Inny dokument' not in listed
+        only_free = client.get('/dokumentacja/dokumenty', query_string={'powiazanie': 'nie'}).get_data(as_text=True)
+        assert 'Inny dokument' in only_free and 'Karta pomiarowa' not in only_free
+        # powiązać można tylko z projektem (nie z dokumentem ani nieistniejącym wpisem)
+        for bad in (str(other_doc), '99999', 'abc'):
+            client.post('/dokumentacja/nowa', data={'rodzaj': 'dokument', 'title': f'Zly {bad}', 'project_id': bad,
+                                                    '_csrf_token': _csrf(client)})
+        with flask_app.app_context():
+            assert all(e.project_id is None for e in DocEntry.query.filter(DocEntry.title.like('Zly %')))
+
+    def test_new_document_form_preselects_project(self, client):
+        login(client, 'oper', 'Oper1234!')
+        pid = _db_entry('project', zo_number='ZO/PRE')
+        html = client.get('/dokumentacja/nowa', query_string={'rodzaj': 'dokument', 'projekt': pid}).get_data(as_text=True)
+        assert f'value="{pid}" selected' in html
+
+    def test_deleting_project_keeps_linked_documents(self, client):
+        login(client, 'oper', 'Oper1234!')
+        pid = _db_entry('project', zo_number='ZO/DEL')
+        did = _db_entry('document', title='Zostaje', project_id=pid)
+        client.post(f'/dokumentacja/{pid}/usun', data={'_csrf_token': _csrf(client)})
+        with flask_app.app_context():
+            assert db.session.get(DocEntry, pid) is None
+            assert db.session.get(DocEntry, did).project_id is None
+
+    def test_edit_document_category_and_project(self, client):
+        login(client, 'oper', 'Oper1234!')
+        pid = _db_entry('project', zo_number='ZO/E')
+        did = _db_entry('document', title='Dok')
+        client.post(f'/dokumentacja/{did}/edytuj', data={'title': 'Dok 2', 'category': 'Normy', 'project_id': str(pid),
+                                                         '_csrf_token': _csrf(client)})
+        with flask_app.app_context():
+            d = db.session.get(DocEntry, did)
+            assert (d.title, d.category, d.project_id) == ('Dok 2', 'Normy', pid)
+        client.post(f'/dokumentacja/{pid}/edytuj', data={'zo_number': 'ZO/E2', 'client': 'K', 'product': 'P',
+                                                         'drawing_number': 'D', '_csrf_token': _csrf(client)})
+        with flask_app.app_context():
+            p = db.session.get(DocEntry, pid)
+            assert (p.zo_number, p.client, p.product, p.drawing_number) == ('ZO/E2', 'K', 'P', 'D')
+
+    def test_change_kind_both_ways(self, client):
+        login(client, 'oper', 'Oper1234!')
+        pid = _db_entry('project', zo_number='ZO/K', client='Klient', product='Prod')
+        did = _db_entry('document', title='Dokument', category='Normy')
+        child = _db_entry('document', title='Dziecko', project_id=pid)
+        client.post(f'/dokumentacja/{pid}/rodzaj', data={'rodzaj': 'dokument', '_csrf_token': _csrf(client)})
+        client.post(f'/dokumentacja/{did}/rodzaj', data={'rodzaj': 'projekt', '_csrf_token': _csrf(client)})
+        with flask_app.app_context():
+            p, d, c = db.session.get(DocEntry, pid), db.session.get(DocEntry, did), db.session.get(DocEntry, child)
+            assert p.kind == 'document' and 'ZO/K' in p.title and c.project_id is None
+            assert d.kind == 'project' and d.category is None and d.project_id is None
+
+    def test_change_kind_forbidden_for_other_user(self, client, other_user):
+        login(client, 'oper', 'Oper1234!')
+        pid = _db_entry('project', zo_number='ZO/F')
+        logout(client)
+        login(client, other_user, 'Other1234!')
+        resp = client.post(f'/dokumentacja/{pid}/rodzaj', data={'rodzaj': 'dokument', '_csrf_token': _csrf(client)})
+        assert resp.status_code == 403
+
+
+class TestBulkDelete:
+    def test_bulk_delete_own_entries_and_skip_foreign(self, client, other_user):
+        with flask_app.app_context():
+            other_id = User.query.filter_by(username=other_user).first().id
+        mine = [_db_entry(zo_number=f'ZO/M{i}') for i in range(3)]
+        foreign = _db_entry(zo_number='ZO/OBCY', user_id=other_id)
+        login(client, 'oper', 'Oper1234!')
+        resp = client.post('/dokumentacja/usun-zaznaczone', data={'entry_ids': [str(i) for i in mine + [foreign]],
+                                                                   'back': 'projects', '_csrf_token': _csrf(client)},
+                           follow_redirects=True)
+        assert 'Usunięto pozycji: 3'.encode() in resp.data and 'Pominięto'.encode() in resp.data
+        with flask_app.app_context():
+            assert DocEntry.query.count() == 1 and db.session.get(DocEntry, foreign) is not None
+
+    def test_bulk_delete_by_admin_and_nothing_selected(self, client):
+        ids = [_db_entry('document', title=f'D{i}') for i in range(2)]
+        login(client, 'admin', 'Admin1234!')
+        resp = client.post('/dokumentacja/usun-zaznaczone', data={'back': 'documents', '_csrf_token': _csrf(client)},
+                           follow_redirects=True)
+        assert 'Nie zaznaczono'.encode() in resp.data
+        client.post('/dokumentacja/usun-zaznaczone', data={'entry_ids': [str(i) for i in ids], 'back': 'documents',
+                                                          '_csrf_token': _csrf(client)})
+        with flask_app.app_context():
+            assert DocEntry.query.count() == 0
+
+    def test_bulk_delete_removes_files_from_disk(self, client, _isolated_upload_dir):
+        login(client, 'oper', 'Oper1234!')
+        eid = _mk_entry(client)
+        token = _csrf(client)
+        client.post(f'/dokumentacja/{eid}/dokumenty', data={'files': (io.BytesIO(b'%PDF-1.4'), 'a.pdf'),
+                                                           '_csrf_token': token}, content_type='multipart/form-data')
+        with flask_app.app_context():
+            fname = DocFile.query.filter_by(entry_id=eid).first().filename
+        assert os.path.exists(os.path.join(_isolated_upload_dir, fname))
+        client.post('/dokumentacja/usun-zaznaczone', data={'entry_ids': [str(eid)], '_csrf_token': _csrf(client)})
+        assert not os.path.exists(os.path.join(_isolated_upload_dir, fname))
+
+
+class TestZoSuggestions:
+    def test_requires_login_and_min_length(self, client):
+        logout(client)
+        assert client.get('/dokumentacja/zo-info?zo=ZO1').status_code in (302, 401)
+        login(client, 'oper', 'Oper1234!')
+        assert client.get('/dokumentacja/zo-info?zo=Z').get_json() == {'items': []}
+        assert client.get('/dokumentacja/zo-info?zo=ZO/NIEMA/1').get_json() == {'items': []}
+
+    def test_suggestions_from_kontrola_produkcja_and_projects(self, client):
+        from models import ControlOrder, ProdSheet, ProdRow
+        import json as _json
+        login(client, 'oper', 'Oper1234!')
+        with flask_app.app_context():
+            db.session.add(ControlOrder(zo_number='ZO/777', product_name='PSH 600x800', client='ACME'))
+            sheet = ProdSheet(name='TEST-ZO-INFO', columns_json='["ZO","Nazwa towaru","Odbiorca"]',
+                              mapping_json=_json.dumps({'zo': 0, 'product': 1, 'client': 2}))
+            db.session.add(sheet)
+            db.session.flush()
+            db.session.add(ProdRow(sheet_id=sheet.id, position=1, zo='ZO/777',
+                                   data=_json.dumps(['ZO/777', 'RW-N 400x600', 'Beta Sp. z o.o.'])))
+            db.session.commit()
+            sheet_id = sheet.id
+        _db_entry(zo_number='ZO/777', client='Gamma', product='Szafa G')
+        try:
+            items = client.get('/dokumentacja/zo-info', query_string={'zo': 'zo/777'}).get_json()['items']
+            got = {(i['client'], i['product'], i['source']) for i in items}
+            assert ('ACME', 'PSH 600x800', 'Kontrola etapowa') in got
+            assert ('Beta Sp. z o.o.', 'RW-N 400x600', 'Lista produkcyjna') in got
+            assert ('Gamma', 'Szafa G', 'Dokumentacja') in got
+        finally:
+            with flask_app.app_context():
+                ProdRow.query.filter_by(sheet_id=sheet_id).delete()
+                ProdSheet.query.filter_by(id=sheet_id).delete()
+                ControlOrder.query.filter_by(zo_number='ZO/777').delete()
+                db.session.commit()
+
+    def test_identical_pairs_are_returned_once(self, client):
+        login(client, 'oper', 'Oper1234!')
+        _db_entry(zo_number='ZO/DUP', client='K', product='P')
+        _db_entry(zo_number='ZO/DUP', client='k', product='p')
+        items = client.get('/dokumentacja/zo-info', query_string={'zo': 'ZO/DUP'}).get_json()['items']
+        assert len(items) == 1
+
+    def test_form_includes_suggestion_script(self, client):
+        login(client, 'oper', 'Oper1234!')
+        html = client.get('/dokumentacja/nowa').get_data(as_text=True)
+        assert '/dokumentacja/zo-info' in html and 'name="zo_number"' in html
+
+
+class TestKindMigration:
+    def test_existing_entries_are_classified(self, app):
+        """Stare teczki: z numerem ZO albo plikiem STEP trafiają do Projektów, reszta do Dokumentów."""
+        from sqlalchemy import create_engine, text
+        import app as app_module
+        engine = create_engine('sqlite:///:memory:')
+        with engine.begin() as conn:
+            conn.execute(text('CREATE TABLE doc_entries (id INTEGER PRIMARY KEY, title VARCHAR(256), '
+                              'description TEXT, zo_number VARCHAR(64))'))
+            conn.execute(text('CREATE TABLE doc_files (id INTEGER PRIMARY KEY, entry_id INTEGER, original_name VARCHAR(256))'))
+            conn.execute(text("INSERT INTO doc_entries (id, title, zo_number) VALUES "
+                              "(1, 'Z numerem ZO', 'ZO/1'), (2, 'Ze STEP', NULL), (3, 'Instrukcja', NULL), (4, 'Pusty ZO', '')"))
+            conn.execute(text("INSERT INTO doc_files (entry_id, original_name) VALUES (2, 'Czesc.STEP'), (3, 'instr.pdf')"))
+
+        class FakeDb:
+            pass
+        FakeDb.engine = engine
+        real = app_module.db
+        app_module.db = FakeDb
+        try:
+            app_module._migrate_schema()
+            app_module._migrate_schema()          # drugi raz niczego nie zmienia
+        finally:
+            app_module.db = real
+        with engine.connect() as conn:
+            kinds = dict(conn.execute(text('SELECT id, kind FROM doc_entries')).fetchall())
+            cols = {r[1] for r in conn.execute(text('PRAGMA table_info(doc_entries)')).fetchall()}
+        assert kinds == {1: 'project', 2: 'project', 3: 'document', 4: 'document'}
+        assert {'drawing_number', 'client', 'product', 'category', 'project_id', 'kind'} <= cols

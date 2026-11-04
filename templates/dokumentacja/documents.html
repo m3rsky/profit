@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+{% from "_list_search.html" import list_search %}
+{% block title %}Dokumentacja: Dokumenty{% endblock %}
+
+{% block head %}
+<style>
+.dk-mobile-only { display: none; }
+@media (max-width: 768px) { .dk-mobile-only { display: block; } }
+.dk-main { min-width: 0; flex: 1; }
+.dk-sub { color: var(--text-muted, #64748b); font-size: .78rem; line-height: 1.25; margin-top: .1rem; overflow-wrap: anywhere; }
+.dk-chips { display: flex; flex-wrap: wrap; gap: .3rem; font-size: .78rem; color: var(--text-muted, #64748b); }
+.dk-chips span { white-space: nowrap; }
+.dk-chips i { margin-right: 2px; }
+.th-sort { color: inherit; text-decoration: none; white-space: nowrap; }
+.th-sort:hover { text-decoration: underline; }
+.th-sort i { font-size: .7rem; }
+.dk-filterbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 12px; padding: 8px 12px;
+  background: var(--hover-row, #f1f3f5); border-radius: 8px; font-size: .88rem; }
+</style>
+{% endblock %}
+
+{% macro sort_th(key, label) %}
+  {% set nd = 'asc' if (sort == key and direction == 'desc') else 'desc' %}
+  <th scope="col"><a class="th-sort" href="{{ url_for('dokumentacja.list_documents', q=q, kategoria=kategoria, powiazanie=powiazanie, projekt=projekt, per_page=per_page, sort=key, dir=nd) }}">{{ label }}{% if sort == key %} <i class="bi bi-caret-{{ 'up' if direction == 'asc' else 'down' }}-fill"></i>{% endif %}</a></th>
+{% endmacro %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-folder2-open"></i> Dokumentacja</h1>
+    <span class="text-muted" style="font-size:.82rem;">Dokumenty ogólne: instrukcje, procedury, normy</span>
+  </div>
+  <div class="page-header-actions">
+    <a href="{{ url_for('dokumentacja.new_entry', rodzaj='dokument', projekt=projekt) }}" class="btn btn-primary">
+      <i class="bi bi-plus-lg"></i> Nowy dokument
+    </a>
+  </div>
+</div>
+
+{% include "dokumentacja/_tabs.html" %}
+
+{% if project_filter %}
+<div class="dk-filterbar">
+  <i class="bi bi-link-45deg"></i>
+  <span>Dokumenty projektu: <a href="{{ url_for('dokumentacja.entry_detail', entry_id=project_filter.id) }}"><strong>{{ project_filter.display_title }}</strong></a></span>
+  <a href="{{ url_for('dokumentacja.list_documents') }}" class="btn btn-ghost btn-sm" style="margin-left:auto;"><i class="bi bi-x-lg"></i> Pokaż wszystkie</a>
+</div>
+{% endif %}
+
+{% set active_filters = [kategoria, powiazanie] | select | list | length %}
+<form method="get" action="{{ url_for('dokumentacja.list_documents') }}" class="filter-bar filter-bar--rows">
+  <input type="hidden" name="sort" value="{{ sort }}">
+  <input type="hidden" name="dir" value="{{ direction }}">
+  {% if projekt %}<input type="hidden" name="projekt" value="{{ projekt }}">{% endif %}
+{% call list_search('q', q, 'Szukaj: tytuł, kategoria, opis…', active=active_filters, uid='dk-doc-filter-more') %}
+  <div class="filter-row">
+    <select class="form-control filter-select" name="kategoria" title="Filtruj po kategorii">
+      <option value="">Wszystkie kategorie</option>
+      {% for c in categories %}
+      <option value="{{ c }}" {% if kategoria == c %}selected{% endif %}>{{ c }}</option>
+      {% endfor %}
+    </select>
+    <select class="form-control filter-select" name="powiazanie" title="Powiązanie z projektem">
+      <option value="">Z projektem i bez</option>
+      <option value="tak" {% if powiazanie == 'tak' %}selected{% endif %}>Powiązane z projektem</option>
+      <option value="nie" {% if powiazanie == 'nie' %}selected{% endif %}>Bez projektu</option>
+    </select>
+    <select class="form-control filter-select filter-perpage" name="per_page" title="Pozycji na stronę" onchange="this.form.submit()">
+      {% for n in per_page_choices %}
+      <option value="{{ n }}" {% if per_page == n %}selected{% endif %}>{{ n }} / stronę</option>
+      {% endfor %}
+    </select>
+    <a href="{{ url_for('dokumentacja.list_documents') }}" class="btn btn-ghost btn-sm"><i class="bi bi-x-lg"></i> Wyczyść</a>
+  </div>
+{% endcall %}
+</form>
+
+{% if editable and pager.items %}
+<form method="post" action="{{ url_for('dokumentacja.bulk_delete') }}" id="bulk-form">
+  {{ csrf_input() }}
+  <input type="hidden" name="back" value="documents">
+  <div class="bulk-bar" id="bulk-bar">
+    <span class="bulk-count" id="bulk-count">0 zaznaczonych</span>
+    <div class="bulk-actions">
+      <button type="button" id="btn-select-all" class="btn btn-outline btn-sm" onclick="toggleSelectAll()">Zaznacz wszystkie</button>
+      <button type="submit" class="btn btn-danger btn-sm" id="btn-delete-selected"
+              data-confirm="Usunąć zaznaczone dokumenty razem z plikami i notatkami? Tej operacji nie można cofnąć.">
+        Usuń zaznaczone
+      </button>
+    </div>
+  </div>
+{% endif %}
+
+<div class="card">
+  <div class="card-body card-body--flush">
+    {% if pager.items %}
+    <div class="table-wrap">
+      <table class="data-table tbl-cards">
+        <thead>
+          <tr>
+            {% if editable %}
+            <th class="th-check" scope="col">
+              <label class="sr-only" for="select-all">Zaznacz wszystkie</label>
+              <input type="checkbox" id="select-all" title="Zaznacz wszystkie">
+            </th>
+            {% endif %}
+            {{ sort_th('tytul', 'Tytuł') }}
+            {{ sort_th('kategoria', 'Kategoria') }}
+            <th scope="col">Projekt</th>
+            <th scope="col">Zawartość</th>
+            {{ sort_th('data', 'Dodano') }}
+            <th scope="col"><span class="sr-only">Akcje</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in pager.items %}
+          {% set c = counts[e.id] %}
+          <tr>
+            {% if editable %}
+            <td class="th-check">
+              {% if e.id in editable %}
+              <label class="sr-only" for="check-{{ e.id }}">Zaznacz {{ e.display_title }}</label>
+              <input type="checkbox" id="check-{{ e.id }}" class="row-check" name="entry_ids" value="{{ e.id }}">
+              {% endif %}
+            </td>
+            {% endif %}
+            <td data-label="Tytuł" class="td-title-expandable">
+              <div class="dk-main">
+                <a href="{{ url_for('dokumentacja.entry_detail', entry_id=e.id) }}"><strong>{{ e.display_title }}</strong></a>
+                {% if e.description %}<div class="dk-sub">{{ e.description | truncate(110) }}</div>{% endif %}
+                {% if e.category or e.project %}<div class="dk-sub dk-mobile-only">{{ [e.category, (e.project.zo_number or e.project.display_title) if e.project else None] | select | join(' · ') }}</div>{% endif %}
+              </div>
+              <button type="button" class="row-expand-btn" aria-expanded="false" aria-label="Rozwiń szczegóły">
+                <i class="bi bi-chevron-down row-expand-chevron"></i>
+              </button>
+            </td>
+            <td data-label="Kategoria" class="td-collapse-sm">{{ e.category or '-' }}</td>
+            <td data-label="Projekt" class="td-collapse-sm">
+              {% if e.project %}
+              <a href="{{ url_for('dokumentacja.entry_detail', entry_id=e.project.id) }}">{{ e.project.zo_number or e.project.display_title }}</a>
+              {% if e.project.product %}<div class="dk-sub">{{ e.project.product }}</div>{% endif %}
+              {% else %}-{% endif %}
+            </td>
+            <td data-label="Zawartość" class="td-collapse-sm">
+              <div class="dk-chips">
+                <span title="Pliki"><i class="bi bi-file-earmark"></i>{{ c.files }}</span>
+                <span title="Zdjęcia"><i class="bi bi-image"></i>{{ c.images }}</span>
+                <span title="Notatki"><i class="bi bi-sticky"></i>{{ c.notes }}</span>
+              </div>
+            </td>
+            <td data-label="Dodano" class="td-collapse-sm">{{ e.created_at | localdt('%d.%m.%Y') }}</td>
+            <td class="td-actions td-collapse-sm" data-label="">
+              <a class="btn btn-outline btn-sm" href="{{ url_for('dokumentacja.entry_detail', entry_id=e.id) }}">Otwórz</a>
+              {% if e.id in editable %}
+              <button type="button" class="btn btn-danger btn-sm"
+                      data-post-url="{{ url_for('dokumentacja.delete_entry', entry_id=e.id) }}"
+                      data-post-confirm="Usunąć dokument „{{ e.display_title }}” razem z plikami i notatkami? Tej operacji nie można cofnąć.">Usuń</button>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pagination">
+      {% if pager.has_prev %}
+      <a href="{{ url_for('dokumentacja.list_documents', q=q, kategoria=kategoria, powiazanie=powiazanie, projekt=projekt, sort=sort, dir=direction, per_page=per_page, page=pager.prev_num) }}" class="btn btn-outline btn-sm"><i class="bi bi-arrow-left"></i> Poprzednia</a>
+      {% endif %}
+      <span>{{ pager.page }} / {{ pager.pages }} ({{ pager.total }} pozycji)</span>
+      {% if pager.has_next %}
+      <a href="{{ url_for('dokumentacja.list_documents', q=q, kategoria=kategoria, powiazanie=powiazanie, projekt=projekt, sort=sort, dir=direction, per_page=per_page, page=pager.next_num) }}" class="btn btn-outline btn-sm">Następna <i class="bi bi-arrow-right"></i></a>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="empty-state" style="text-align:center;padding:48px 0;color:#888;">
+      <i class="bi bi-file-earmark-text" style="font-size:3rem;display:block;margin-bottom:12px;"></i>
+      <p>{% if q or kategoria or powiazanie or projekt %}Brak dokumentów pasujących do wyszukiwania.{% else %}Brak dokumentów.{% endif %}</p>
+      <a href="{{ url_for('dokumentacja.new_entry', rodzaj='dokument', projekt=projekt) }}" class="btn btn-primary" style="margin-top:8px;">
+        <i class="bi bi-plus-lg"></i> Dodaj pierwszy dokument
+      </a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% if editable and pager.items %}
+</form>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('click', function (e) {
+  var btn = e.target.closest('.row-expand-btn');
+  if (!btn) return;
+  var row = btn.closest('tr');
+  var expanded = btn.getAttribute('aria-expanded') === 'true';
+  row.classList.toggle('row-expanded', !expanded);
+  btn.setAttribute('aria-expanded', String(!expanded));
+  var chevron = btn.querySelector('.row-expand-chevron');
+  if (chevron) chevron.className = expanded ? 'bi bi-chevron-down row-expand-chevron' : 'bi bi-chevron-up row-expand-chevron';
+});
+document.addEventListener('click', function (e) {
+  var btn = e.target.closest('[data-post-url]');
+  if (!btn) return;
+  if (btn.dataset.postConfirm && !confirm(btn.dataset.postConfirm)) return;
+  var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+  var f = document.createElement('form');
+  f.method = 'POST';
+  f.action = btn.dataset.postUrl;
+  f.innerHTML = '<input type="hidden" name="_csrf_token" value="' + csrf + '">';
+  document.body.appendChild(f);
+  f.submit();
+});
+</script>
+{% endblock %}

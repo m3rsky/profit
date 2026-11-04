@@ -172,7 +172,12 @@ Dodany 2026-10-14. Kontrola zamówienia po stałych, edytowalnych punktach (zami
 
 ## Moduł "Dokumentacja" (`/dokumentacja`)
 
-Teczki (`DocEntry`: tytuł, opis, numer ZO) z dokumentami, zdjęciami i notatkami (`DocFile`, `DocNote`). Kod: pakiet `dokumentacja/`, szablony `templates/dokumentacja/`.
+Moduł ma dwie zakładki (od 2026-11-04): **Projekty** (`/dokumentacja/`) i **Dokumenty** (`/dokumentacja/dokumenty`). Oba to wpisy `DocEntry` z plikami, zdjęciami i notatkami (`DocFile`, `DocNote`), rozróżnione polem `kind` (`project` albo `document`). Kod: pakiet `dokumentacja/`, szablony `templates/dokumentacja/` (`_tabs.html` zakładki, `list.html` Projekty, `documents.html` Dokumenty, `new.html`, `detail.html`).
+
+- **Projekt:** Nr ZO (`zo_number`), Nr rysunku (`drawing_number`), Klient (`client`), Produkt (`product`), opcjonalna nazwa (`title`) i opis, **wszystkie pola opcjonalne**. Pod jednym ZO może być wiele projektów, powtórzenie ZO i produktu daje tylko ostrzeżenie (`_duplicate_project`). Lista po kolumnach Nr ZO, Nr rys., Klient, Produkt (szukanie po wszystkich, filtr klienta, sortowanie, paginacja, zbiorcze usuwanie). `DocEntry.display_title` składa nazwę z pól, gdy brak `title`.
+- **Dokument:** tytuł (wymagany), kategoria (wolny tekst z podpowiedziami istniejących), opis i opcjonalne powiązanie z projektem (`project_id`, tylko wpis rodzaju projekt). Projekt pokazuje powiązane dokumenty (`linked_documents`), lista dokumentów filtruje po projekcie (`?projekt=<id>`). Usunięcie projektu zostawia dokumenty bez projektu.
+- **Podpowiedzi po ZO** (`GET /dokumentacja/zo-info?zo=`): klient i produkt z Kontroli etapowej (`ControlOrder`), Listy produkcyjnej (`ProdRow` przez mapowanie arkusza, bez sprawdzania dostępu do arkuszy, tylko dla dokładnie wpisanego ZO) i wcześniejszych projektów; formularz (`_zo_suggest.html`) przy jednym dopasowaniu uzupełnia puste pola, przy kilku daje przyciski wyboru.
+- **Zmiana rodzaju** (`POST /<id>/rodzaj`): przenoszenie wpisu między Projektami i Dokumentami. **Migracja** (`_migrate_schema`, jednorazowa przy dodaniu kolumny `kind`): dotychczasowe teczki z numerem ZO albo plikiem STEP stały się projektami (dawna nazwa została nazwą projektu), pozostałe dokumentami.
 
 - **Pliki leżą poza `static`:** `instance/dokumentacja_uploads/` (`Config.DOKUMENTACJA_UPLOAD_FOLDER`), serwowane tylko przez `GET /dokumentacja/plik/<nazwa>` z logowaniem. Dawny folder `static/dokumentacja_uploads/` jest przenoszony przy starcie (`init_db` wywołuje `dokumentacja/storage.py: migrate_legacy_uploads`, bezpieczne do powtórzeń, nie nadpisuje).
 - **Numer ZO:** `DocEntry.zo_number` (opcjonalny, do 64 znaków), szukany na liście. Migracja: `ALTER TABLE doc_entries ADD COLUMN zo_number` w `_migrate_schema`.

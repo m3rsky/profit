@@ -6,7 +6,8 @@ LISTS = [
     ('/kontrola/', True, True),
     ('/reports', True, True),
     ('/qar/', True, True),
-    ('/dokumentacja/', False, False),
+    ('/dokumentacja/', True, True),             # Projekty: skan QR numeru ZO, filtr klienta
+    ('/dokumentacja/dokumenty', False, True),   # Dokumenty: filtry kategorii i powiązania, bez QR
     ('/produkcja/historia', True, False),
 ]
 

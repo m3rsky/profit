@@ -3057,6 +3057,22 @@ def _migrate_schema():
             if 'zo_number' not in cols:
                 conn.execute(text('ALTER TABLE doc_entries ADD COLUMN zo_number VARCHAR(64)'))
                 conn.commit()
+            for name, ddl in (('drawing_number', 'VARCHAR(128)'), ('client', 'VARCHAR(256)'),
+                              ('product', 'VARCHAR(256)'), ('category', 'VARCHAR(128)'),
+                              ('project_id', 'INTEGER')):
+                if name not in cols:
+                    conn.execute(text(f'ALTER TABLE doc_entries ADD COLUMN {name} {ddl}'))
+                    conn.commit()
+            if 'kind' not in cols:
+                # Podział Dokumentacji na Projekty i Dokumenty: dotychczasowe teczki z numerem ZO albo plikiem
+                # STEP stają się projektami (dawna nazwa zostaje jako nazwa projektu), pozostałe dokumentami.
+                conn.execute(text("ALTER TABLE doc_entries ADD COLUMN kind VARCHAR(16) NOT NULL DEFAULT 'project'"))
+                step_files = ("AND id NOT IN (SELECT entry_id FROM doc_files WHERE lower(original_name) LIKE '%.step' "
+                              "OR lower(original_name) LIKE '%.stp')") if 'doc_files' in insp.get_table_names() else ''
+                conn.execute(text(
+                    "UPDATE doc_entries SET kind = 'document' "
+                    "WHERE (zo_number IS NULL OR zo_number = '') " + step_files))
+                conn.commit()
         if 'prod_entries' in insp.get_table_names():
             cols = [c['name'] for c in insp.get_columns('prod_entries')]
             if 'employee_name' not in cols:
