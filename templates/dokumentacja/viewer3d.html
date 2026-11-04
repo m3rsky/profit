@@ -63,6 +63,10 @@
   .tr:hover { background:#f4f5f7; }
   .tr.sel { background:var(--sel); }
   .tg { width:20px; padding:0; border:0; background:none; color:var(--muted); font-size:12px; flex:none; }
+  .tr .ren { flex:none; border:0; background:none; padding:0 4px; font-size:13px; color:var(--muted); opacity:.35; cursor:pointer; }
+  .tr:hover .ren, .tr.sel .ren, .tr .ren:focus { opacity:1; }
+  @media (hover: none) { .tr .ren { opacity:1; padding:4px 8px; } }
+  .tr input.rename { flex:1; min-width:0; font:inherit; font-size:13px; padding:2px 6px; border:1px solid var(--acc); border-radius:4px; }
   .tr .nm { flex:1; min-width:0; cursor:pointer; overflow-wrap:anywhere; line-height:1.25; }
   .tr input[type=range] { width:64px; flex:none; }
   .tr input[type=checkbox] { flex:none; width:16px; height:16px; }
@@ -193,7 +197,7 @@
   <button id="measbtn" disabled title="Pomiar odległości, otworów i kątów">Pomiar</button>
   <button id="panelbtn" disabled>Elementy</button>
   <a class="btn" href="{{ download_url }}">Pobierz</a>
-  <a class="btn" href="{{ url_for('dokumentacja.entry_detail', entry_id=entry.id) }}#dokumenty">{{ 'Projekt' if entry.is_project else 'Dokument' }}</a>
+  <a class="btn" href="{{ url_for('dokumentacja.entry_detail', entry_id=entry.id) }}#dokumenty" title="Wróć do strony {{ 'projektu' if entry.is_project else 'dokumentu' }}">&larr; {{ 'Projekt' if entry.is_project else 'Dokument' }}</a>
 </header>
 <div id="info"></div>
 <div id="layout">
@@ -203,6 +207,7 @@
       <button id="s-hide">Ukryj</button>
       <button id="s-iso">Izoluj</button>
       <button id="s-flat" title="Rozwinięcie elementu z blachy do płaskiego wykroju">Rozwiń blachę</button>
+      <button id="s-ren" title="Zmień nazwę zaznaczonego elementu">Zmień nazwę</button>
       <button id="s-clear">Odznacz</button>
       <span id="selsize"></span>
     </div>
@@ -312,6 +317,9 @@ const MODEL_NAME = {{ (f.original_name or f.filename) | tojson }};
 const MODEL_SIZE = {{ (f.size_bytes or 0) | tojson }};
 const WORKER_URL = {{ url_for('static', filename='podglad3d/lib/occt-import-js-worker.js') | tojson }};
 const MEAS_URL = {{ measurements_url | tojson }};
+const NAMES_URL = {{ element_names_url | tojson }};
+const ELEMENT_NAMES = {{ element_names | tojson }};      // klucz elementu -> własna nazwa
+const CAN_RENAME_ELEMENTS = {{ can_rename_elements | tojson }};   // uprawnienie dokumentacja.rename_elements
 const MEAS_EDIT_URL = {{ measurement_edit_url | tojson }};
 const MEAS_DEL_URL = {{ measurement_delete_url | tojson }};
 const CSRF = {{ csrf_token() | tojson }};
@@ -529,6 +537,14 @@ function buildTree(result) {
     same.forEach(k => { if (count[k.label] > 1) { seen[k.label] = (seen[k.label] || 0) + 1; k.label += ' #' + seen[k.label]; } });
   });
 
+  // klucz elementu = ścieżka indeksów w drzewie (stała dla danego pliku); własne nazwy z serwera
+  const keyOf = (n, key) => {
+    n.key = key; n.auto = n.label;
+    if (ELEMENT_NAMES[key]) { n.label = ELEMENT_NAMES[key]; n.custom = true; }
+    n.kids.forEach((k, i) => keyOf(k, key + '/' + i));
+  };
+  keyOf(rootNode, 'r');
+
   collectAll(rootNode);
   // powiązanie bryły z liściem i kolor automatyczny wg komponentu
   let comp = 0;
@@ -661,7 +677,10 @@ function renderTree() {
     nm.className = 'nm'; nm.textContent = node.label;
     const sl = document.createElement('input');
     sl.type = 'range'; sl.min = 0; sl.max = 100; sl.value = 100; sl.title = 'Krycie (w lewo: przezroczysty)';
-    row.append(tg, cb, nm, sl);
+    const ren = document.createElement('button');
+    ren.type = 'button'; ren.className = 'ren'; ren.textContent = '✎'; ren.title = 'Zmień nazwę elementu';
+    ren.onclick = e => { e.stopPropagation(); startRename(node); };
+    if (CAN_RENAME_ELEMENTS) row.append(tg, cb, nm, ren, sl); else row.append(tg, cb, nm, sl);
     wrap.append(row);
     let kidsBox = null;
     if (node.kids.length) {
@@ -674,7 +693,8 @@ function renderTree() {
     cb.onchange = () => setVisible(node, cb.checked);
     sl.oninput = () => setOpacity(node, sl.value / 100);
     nm.onclick = () => select(selected === node ? null : node);
-    node.el = { row, cb, sl, tg, box: kidsBox };
+    if (CAN_RENAME_ELEMENTS) nm.ondblclick = () => startRename(node);
+    node.el = { row, cb, sl, tg, box: kidsBox, nm };
     host.append(wrap);
   };
   build(rootNode, 0, treeEl);
@@ -684,6 +704,61 @@ function renderTree() {
   };
   autoOpen(rootNode, 0);
   syncTree();
+}
+
+// zmiana nazwy elementu: pole w wierszu drzewa (Enter zatwierdza, Esc anuluje, pusta nazwa przywraca oryginalną)
+function startRename(node) {
+  if (!CAN_RENAME_ELEMENTS) return;
+  openPanel();
+  const sec = sectionEl('tree');
+  if (sec) setSection(sec, false);
+  for (let p = node.parent; p; p = p.parent) openNode(p, true);
+  const nm = node.el.nm;
+  node.el.row.scrollIntoView({ block: 'nearest' });
+  const input = document.createElement('input');
+  input.type = 'text'; input.className = 'rename'; input.maxLength = 128;
+  input.value = node.label; input.placeholder = node.auto;
+  input.setAttribute('aria-label', 'Nazwa elementu');
+  input.title = 'Enter zatwierdza, Esc anuluje, pusta nazwa przywraca oryginalną';
+  nm.replaceWith(input);
+  input.focus(); input.select();
+  let done = false;
+  const finish = ok => {
+    if (done) return;
+    done = true;
+    input.replaceWith(nm);
+    if (ok) commitRename(node, input.value);
+  };
+  input.onkeydown = e => {
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  };
+  input.onblur = () => finish(true);
+  input.onclick = e => e.stopPropagation();
+}
+let renamePending = 0;                                  // zapisy nazw w drodze do serwera (dla testów)
+async function commitRename(node, value) {
+  let v = (value || '').trim().slice(0, 128);
+  if (v === node.auto) v = '';                         // taka sama jak oryginalna: bez własnej nazwy
+  const newLabel = v || node.auto;
+  if (newLabel === node.label) return;
+  const old = node.label, oldCustom = node.custom;
+  node.label = newLabel; node.custom = !!v;
+  node.el.nm.textContent = newLabel;
+  if (selected === node) document.getElementById('selname').textContent = pathOf(node);
+  if (measure) measure.renameElement(old, newLabel);   // grupy pomiarów po elementach
+  renamePending++;
+  try {
+    await api(NAMES_URL, { key: node.key, name: v, old_label: old, new_label: newLabel });
+  } catch (e) {                                         // nie zapisano: wracamy do poprzedniej nazwy
+    node.label = old; node.custom = oldCustom;
+    node.el.nm.textContent = old;
+    if (selected === node) document.getElementById('selname').textContent = pathOf(node);
+    if (measure) measure.renameElement(newLabel, old);
+    info.textContent = 'Nie udało się zapisać nazwy elementu (' + e.message + ').';
+  } finally {
+    renamePending--;
+  }
 }
 
 document.getElementById('showall').onclick = () => {
@@ -703,6 +778,8 @@ document.getElementById('s-iso').onclick = () => {
   syncTree();
 };
 document.getElementById('s-clear').onclick = () => select(null);
+document.getElementById('s-ren').onclick = () => { if (selected) startRename(selected); };
+if (!CAN_RENAME_ELEMENTS) document.getElementById('s-ren').remove();
 
 // --- przełączniki ---
 edgesBtn.onclick = () => { edgesOn = !edgesOn; edgesBtn.classList.toggle('on', edgesOn); applyAll(); };
@@ -1008,6 +1085,7 @@ async function load() {
 // uchwyt dla testów w przeglądarce
 window.viewer3d = {
   parts, allNodes, getGeom, castRay, G, meshData, geomCache,
+  renamePending: () => renamePending,
   saveMeasurement: p => api(MEAS_URL, p), listMeasurements: () => api(MEAS_URL),
   tools: () => ({ measure, explode, flat }),
   project: p => { const v = new THREE.Vector3(p[0], p[1], p[2]).project(camera); const r = renderer.domElement.getBoundingClientRect(); return [(v.x * 0.5 + 0.5) * r.width + r.left, (-v.y * 0.5 + 0.5) * r.height + r.top]; },

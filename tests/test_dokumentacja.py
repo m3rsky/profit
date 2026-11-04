@@ -6,8 +6,11 @@ import pytest
 from PIL import Image
 
 from app import app as flask_app, db
-from models import User, DocEntry, DocFile, DocNote, DocMeasurement
+from models import User, DocEntry, DocFile, DocNote, DocMeasurement, DocElementName, UserPermission, RolePermission
 from test_app import login, logout, _csrf
+
+
+RENAME_PERM = 'dokumentacja.rename_elements'
 
 
 @pytest.fixture(autouse=True)
@@ -27,6 +30,10 @@ def _clean_tables():
     with flask_app.app_context():
         DocNote.query.delete()
         DocMeasurement.query.delete()
+        DocElementName.query.delete()
+        UserPermission.query.filter_by(perm=RENAME_PERM).delete()
+        RolePermission.query.filter_by(role='konstruktor', module='qar').delete()
+        User.query.filter_by(username='dok_konstr').delete()
         DocFile.query.delete()
         DocEntry.query.delete()
         db.session.commit()
@@ -448,6 +455,207 @@ class TestMeasurementLabelOffsets:
         login(client, other_user, 'Other1234!')
         r = _post_json(client, f"/dokumentacja/pomiar/{rec['id']}/edytuj", {'offsets': {'3d': [1, 1]}})
         assert r.status_code == 403
+
+
+def _grant(username, allowed=True):
+    """Wyjątek na koncie użytkownika dla uprawnienia zmiany nazw elementów."""
+    with flask_app.app_context():
+        uid = User.query.filter_by(username=username).first().id
+        row = UserPermission.query.filter_by(user_id=uid, perm=RENAME_PERM).first()
+        if row:
+            row.allowed = allowed
+        else:
+            db.session.add(UserPermission(user_id=uid, perm=RENAME_PERM, allowed=allowed))
+        db.session.commit()
+
+
+class TestElementNames:
+    """Własne nazwy elementów modelu (drzewo w podglądzie 3D), wspólne dla wszystkich użytkowników."""
+
+    def _file(self, client):
+        _grant('oper')
+        login(client, 'oper', 'Oper1234!')
+        return _step_file(client)
+
+    def _set(self, client, fid, key, name, **extra):
+        return _post_json(client, f'/dokumentacja/podglad3d/{fid}/nazwy', dict(key=key, name=name, **extra))
+
+    def test_name_saved_and_embedded_in_viewer(self, client):
+        fid = self._file(client)
+        resp = self._set(client, fid, 'r/2/0', '  Zamek T9  ')
+        assert resp.status_code == 200 and resp.get_json() == {'key': 'r/2/0', 'name': 'Zamek T9'}
+        html = client.get(f'/dokumentacja/podglad3d/{fid}').get_data(as_text=True)
+        assert '"r/2/0": "Zamek T9"' in html
+
+    def test_update_replaces_and_empty_name_resets(self, client):
+        fid = self._file(client)
+        self._set(client, fid, 'r/1', 'Pierwsza')
+        self._set(client, fid, 'r/1', 'Druga')
+        with flask_app.app_context():
+            rows = DocElementName.query.filter_by(file_id=fid).all()
+            assert [r.name for r in rows] == ['Druga']
+        assert self._set(client, fid, 'r/1', '   ').status_code == 200
+        with flask_app.app_context():
+            assert DocElementName.query.filter_by(file_id=fid).count() == 0
+        assert '"r/1"' not in client.get(f'/dokumentacja/podglad3d/{fid}').get_data(as_text=True)
+
+    def test_invalid_keys_and_payloads(self, client):
+        fid = self._file(client)
+        for key in ('', 'x', 'r/a', '../etc', 'r/1/', 'r//1', 'r/' + '1/' * 30 + '1', 7, None):
+            assert self._set(client, fid, key, 'Nazwa').status_code == 400, key
+        assert _post_json(client, f'/dokumentacja/podglad3d/{fid}/nazwy', 'x').status_code == 400
+        with flask_app.app_context():
+            assert DocElementName.query.count() == 0
+
+    def test_name_is_clipped(self, client):
+        fid = self._file(client)
+        r = self._set(client, fid, 'r', 'N' * 300).get_json()
+        assert len(r['name']) == 128
+
+    def test_requires_login_csrf_and_step_file(self, client):
+        fid = self._file(client)
+        no_csrf = client.post(f'/dokumentacja/podglad3d/{fid}/nazwy', json={'key': 'r', 'name': 'x'})
+        assert no_csrf.status_code == 403
+        eid = _mk_entry(client, 'Teczka z PDF')
+        token = _csrf(client)
+        client.post(f'/dokumentacja/{eid}/dokumenty', data={'files': (io.BytesIO(b'%PDF-1.4'), 'x.pdf'), '_csrf_token': token},
+                    content_type='multipart/form-data')
+        with flask_app.app_context():
+            pdf = DocFile.query.filter_by(entry_id=eid).first().id
+        assert self._set(client, pdf, 'r', 'x').status_code == 404
+        logout(client)
+        assert self._set(client, fid, 'r', 'x').status_code in (302, 401)
+
+    def test_names_are_shared_between_users(self, client, other_user):
+        fid = self._file(client)
+        self._set(client, fid, 'r/3', 'Moja nazwa')
+        logout(client)
+        _grant(other_user)
+        login(client, other_user, 'Other1234!')
+        assert '"r/3": "Moja nazwa"' in client.get(f'/dokumentacja/podglad3d/{fid}').get_data(as_text=True)
+        assert self._set(client, fid, 'r/3', 'Cudza poprawka').status_code == 200
+
+    def test_deleting_file_removes_names(self, client):
+        fid = self._file(client)
+        self._set(client, fid, 'r/1', 'A')
+        self._set(client, fid, 'r/2', 'B')
+        client.post(f'/dokumentacja/plik/{fid}/usun', data={'_csrf_token': _csrf(client)}, follow_redirects=True)
+        with flask_app.app_context():
+            assert DocElementName.query.count() == 0
+
+    def test_saved_measurements_get_new_element_name(self, client):
+        fid = self._file(client)
+        url = f'/dokumentacja/podglad3d/{fid}/pomiary'
+        _post_json(client, url, _meas_payload(element='Zamek D5 / 03'))
+        _post_json(client, url, _meas_payload(element='Zamek D5'))
+        _post_json(client, url, _meas_payload(element='Inny'))
+        self._set(client, fid, 'r/2', 'Zamek T9', old_label='Zamek D5', new_label='Zamek T9')
+        elements = sorted(m['element'] for m in client.get(url).get_json())
+        assert elements == ['Inny', 'Zamek T9', 'Zamek T9 / 03']
+
+
+
+class TestElementRenamePermission:
+    """Zmiana nazw elementów to osobne uprawnienie (rola albo wyjątek per użytkownik w panelu uprawnień)."""
+
+    def _file(self, client):
+        login(client, 'oper', 'Oper1234!')
+        fid = _step_file(client)
+        logout(client)
+        return fid
+
+    def _rename(self, client, fid, name='Nowa nazwa'):
+        return _post_json(client, f'/dokumentacja/podglad3d/{fid}/nazwy', {'key': 'r/1', 'name': name})
+
+    def test_action_is_registered_with_defaults(self):
+        from models import ACTIONS, DEFAULT_PERMISSIONS
+        assert ACTIONS[RENAME_PERM][0] == 'dokumentacja'
+        assert RENAME_PERM in DEFAULT_PERMISSIONS['administrator'] and RENAME_PERM in DEFAULT_PERMISSIONS['konstruktor']
+        for role in ('kontroler', 'operator', 'technolog'):
+            assert RENAME_PERM not in DEFAULT_PERMISSIONS[role]
+
+    def test_role_without_permission_is_refused(self, client):
+        fid = self._file(client)
+        login(client, 'oper', 'Oper1234!')                      # kontroler: brak uprawnienia
+        resp = self._rename(client, fid)
+        assert resp.status_code == 403 and 'uprawnienia' in resp.get_json()['error']
+        with flask_app.app_context():
+            assert DocElementName.query.count() == 0
+
+    def test_administrator_and_constructor_allowed_by_default(self, client):
+        fid = self._file(client)
+        login(client, 'admin', 'Admin1234!')
+        assert self._rename(client, fid, 'Admin').status_code == 200
+        logout(client)
+        with flask_app.app_context():
+            u = User(username='dok_konstr', email='dok_konstr@test.pl', role='konstruktor')
+            u.set_password('Konstr1234!')
+            db.session.add(u)
+            db.session.commit()
+        login(client, 'dok_konstr', 'Konstr1234!')
+        assert self._rename(client, fid, 'Konstruktor').status_code == 200
+
+    def test_allow_exception_for_single_user(self, client):
+        fid = self._file(client)
+        _grant('oper', True)
+        login(client, 'oper', 'Oper1234!')
+        assert self._rename(client, fid).status_code == 200
+
+    def test_deny_exception_overrides_role(self, client):
+        fid = self._file(client)
+        _grant('admin', False)                                  # administrator z odebranym uprawnieniem
+        login(client, 'admin', 'Admin1234!')
+        assert self._rename(client, fid).status_code == 403
+
+    def test_superuser_always_allowed(self, client):
+        fid = self._file(client)
+        _grant('super', False)
+        login(client, 'super', 'Super1234!')
+        assert self._rename(client, fid).status_code == 200
+
+    def test_exception_applies_only_to_that_user(self, client, other_user):
+        fid = self._file(client)
+        _grant('oper', True)
+        login(client, other_user, 'Other1234!')                 # inny kontroler bez wyjątku
+        assert self._rename(client, fid).status_code == 403
+
+    def test_viewer_hides_rename_controls_without_permission(self, client):
+        fid = self._file(client)
+        login(client, 'oper', 'Oper1234!')
+        no = client.get(f'/dokumentacja/podglad3d/{fid}').get_data(as_text=True)
+        assert 'const CAN_RENAME_ELEMENTS = false' in no
+        _grant('oper', True)
+        yes = client.get(f'/dokumentacja/podglad3d/{fid}').get_data(as_text=True)
+        assert 'const CAN_RENAME_ELEMENTS = true' in yes
+
+    def test_names_stay_visible_for_everyone(self, client):
+        fid = self._file(client)
+        login(client, 'admin', 'Admin1234!')
+        self._rename(client, fid, 'Widoczna dla wszystkich')
+        logout(client)
+        login(client, 'oper', 'Oper1234!')                      # bez uprawnienia, ale widzi nazwę
+        assert '"r/1": "Widoczna dla wszystkich"' in client.get(f'/dokumentacja/podglad3d/{fid}').get_data(as_text=True)
+
+    def test_default_applies_when_role_matrix_was_saved_earlier(self, client):
+        """Na produkcji macierz ról jest już zapisana (bez nowej akcji): obowiązuje domyślne uprawnienie roli."""
+        with flask_app.app_context():
+            u = User(username='dok_konstr', email='dok_konstr@test.pl', role='konstruktor')
+            u.set_password('Konstr1234!')
+            db.session.add(u)
+            db.session.add(RolePermission(role='konstruktor', module='qar', allowed=True))
+            db.session.commit()
+        with flask_app.test_request_context():
+            u = User.query.filter_by(username='dok_konstr').first()
+            assert u.can(RENAME_PERM) is True
+            k = User.query.filter_by(username='oper').first()
+            assert k.can(RENAME_PERM) is False
+
+    def test_permission_panels_list_the_action(self, client):
+        login(client, 'super', 'Super1234!')
+        assert 'Zmienia nazwy elementów'.encode() in client.get('/admin/users/uprawnienia').data
+        with flask_app.app_context():
+            oper_id = User.query.filter_by(username='oper').first().id
+        assert 'Zmienia nazwy elementów'.encode() in client.get(f'/admin/users/{oper_id}/uprawnienia').data
 
 
 # ── Numer ZO ─────────────────────────────────────────────────────────────────

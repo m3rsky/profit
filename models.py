@@ -65,6 +65,7 @@ ACTIONS = {
     'lista_produkcyjna.import': ('lista_produkcyjna', 'Wczytuje pliki, pobiera kopie, przydziela arkusze i ustawia zasady wpisów'),
     'lista_produkcyjna.all_sheets': ('lista_produkcyjna', 'Widzi wszystkie arkusze (bez przydziału)'),
     'dokumentacja.manage_all': ('dokumentacja', 'Edytuje i usuwa cudze teczki, pliki i notatki'),
+    'dokumentacja.rename_elements': ('dokumentacja', 'Zmienia nazwy elementów modelu w podglądzie 3D'),
     'kj_prestiz.control': ('kj_prestiz', 'Kontroluje w aplikacji KJ i melduje operacje'),
     'kj_prestiz.admin': ('kj_prestiz', 'Konfiguruje moduł, zarządza zleceniami i zatwierdza zawroty'),
     'statystyki.briefing': ('statystyki', 'Generuje Poranny Briefing (AI)'),
@@ -75,7 +76,7 @@ DEFAULT_PERMISSIONS = {
     'kontroler': {'dashboard', 'kontrola_etapowa', 'kontrola_koncowa', 'qar', 'ustawienia', 'dokumentacja',
                   'kontrola_etapowa.control', 'qar.view_all', 'qar.edit_all', 'qar.stats', 'kj_prestiz.control'},
     'operator': {'kontrola_etapowa', 'stanowisko', 'kontrola_etapowa.done'},
-    'konstruktor': {'qar', 'dokumentacja', 'qar.view_all', 'qar.edit_all', 'qar.reopen', 'qar.stats'},
+    'konstruktor': {'qar', 'dokumentacja', 'dokumentacja.rename_elements', 'qar.view_all', 'qar.edit_all', 'qar.reopen', 'qar.stats'},
     'technolog': {'dashboard'},
 }
 
@@ -954,6 +955,8 @@ class DocFile(db.Model):
     author = db.relationship('User', foreign_keys=[user_id])
     measurements = db.relationship('DocMeasurement', backref='file', lazy='dynamic',
                                    cascade='all, delete-orphan')
+    element_names = db.relationship('DocElementName', backref='file', lazy='dynamic',
+                                    cascade='all, delete-orphan')
 
     @property
     def ext(self):
@@ -1022,6 +1025,21 @@ class DocNote(db.Model):
 
     def __repr__(self):
         return f'<DocNote {self.id} entry={self.entry_id}>'
+
+
+class DocElementName(db.Model):
+    """Własna nazwa elementu modelu STEP w podglądzie 3D (np. komponentu w drzewie). Element wskazuje klucz
+    ścieżki w drzewie podzespołów (np. 'r/2/0'), stały dla danego pliku."""
+    __tablename__ = 'doc_element_names'
+    id         = db.Column(db.Integer, primary_key=True)
+    file_id    = db.Column(db.Integer, db.ForeignKey('doc_files.id'), nullable=False, index=True)
+    node_key   = db.Column(db.String(512), nullable=False)
+    name       = db.Column(db.String(128), nullable=False)
+    user_id    = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+
+    def __repr__(self):
+        return f'<DocElementName {self.file_id} {self.node_key}>'
 
 
 class DocMeasurement(db.Model):

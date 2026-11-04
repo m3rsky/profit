@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import math
 import uuid
@@ -11,7 +12,7 @@ from flask_login import login_required, current_user
 from sqlalchemy import func
 from werkzeug.utils import secure_filename
 
-from models import db, get_or_404, AuditLog, DocEntry, DocFile, DocNote, DocMeasurement
+from models import db, get_or_404, AuditLog, DocEntry, DocFile, DocNote, DocMeasurement, DocElementName
 from . import dokumentacja_bp
 
 UTC = timezone.utc
@@ -726,6 +727,9 @@ def view_3d(file_id):
         model_url=url_for('dokumentacja.serve_file', filename=f.filename),
         download_url=url_for('dokumentacja.serve_file', filename=f.filename, download=1),
         measurements_url=url_for('dokumentacja.measurements', file_id=f.id),
+        element_names={n.node_key: n.name for n in f.element_names},
+        can_rename_elements=current_user.can('dokumentacja.rename_elements'),
+        element_names_url=url_for('dokumentacja.element_names', file_id=f.id),
         measurement_edit_url=url_for('dokumentacja.edit_measurement', mid=0),
         measurement_delete_url=url_for('dokumentacja.delete_measurement', mid=0),
     )
@@ -921,6 +925,51 @@ def delete_measurement(mid):
     db.session.commit()
     _audit('doc_measure_delete', entry_id, f'file={name} measurement={mid}')
     return jsonify(ok=True)
+
+
+# ── Własne nazwy elementów w podglądzie 3D ──────────────────────────────────
+
+_NODE_KEY_RE = re.compile(r'^r(/\d{1,5}){0,24}$')       # ścieżka indeksów w drzewie podzespołów
+
+
+@dokumentacja_bp.route('/podglad3d/<int:file_id>/nazwy', methods=['POST'])
+@login_required
+def element_names(file_id):
+    """Ustawia (albo kasuje, gdy nazwa pusta) własną nazwę elementu modelu. Wymaga uprawnienia
+    'dokumentacja.rename_elements' (rola albo wyjątek na koncie użytkownika). Nazwy są wspólne dla wszystkich
+    oglądających plik. Zapisane pomiary pliku dostają nową nazwę w polu elementu."""
+    f = _step_file_or_404(file_id)
+    if not current_user.can('dokumentacja.rename_elements'):
+        return jsonify(error='Brak uprawnienia do zmiany nazw elementów.'), 403
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify(error='Brak danych.'), 400
+    key = payload.get('key')
+    if not isinstance(key, str) or not _NODE_KEY_RE.match(key):
+        return jsonify(error='Nieprawidłowy element.'), 400
+    name = str(payload.get('name') or '').strip()[:128]
+    row = f.element_names.filter_by(node_key=key).first()
+    if name:
+        if row:
+            row.name, row.user_id, row.updated_at = name, current_user.id, datetime.now(UTC)
+        else:
+            if f.element_names.count() >= 2000:
+                return jsonify(error='Za dużo nazw elementów dla tego pliku.'), 400
+            db.session.add(DocElementName(file_id=f.id, node_key=key, name=name, user_id=current_user.id))
+    elif row:
+        db.session.delete(row)
+    # pomiary zapisane z dawną nazwą elementu: podmieniamy ją w polu elementu ("A / B")
+    old = str(payload.get('old_label') or '').strip()[:128]
+    new = str(payload.get('new_label') or '').strip()[:128]
+    if old and new and old != new:
+        for m in f.measurements:
+            if m.element:
+                parts = m.element.split(' / ')
+                if old in parts:
+                    m.element = ' / '.join(new if p == old else p for p in parts)[:256]
+    db.session.commit()
+    _audit('doc_element_rename', f.entry_id, f'file={f.original_name} key={key} name={name}')
+    return jsonify(key=key, name=name)
 
 
 # ── Serwowanie plików ──────────────────────────────────────────────────────

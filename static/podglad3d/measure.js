@@ -222,6 +222,16 @@ export function initMeasure(ctx) {
     renderList();
     say(HINT);
   }
+  // element zmienił nazwę: pomiary tej sesji dostają nową nazwę w grupie (zapisane poprawia serwer)
+  function renameElement(oldName, newName) {
+    let changed = false;
+    results.forEach(r => {
+      if (!r.element) return;
+      const parts = r.element.split(' / ');
+      if (parts.includes(oldName)) { r.element = parts.map(x => (x === oldName ? newName : x)).join(' / '); changed = true; }
+    });
+    if (changed) renderList();
+  }
   function setAllVisible(v) { results.forEach(r => setVisible(r, v)); renderList(); }
 
   function addResult(A, B, rows, segs, meta = {}) {
@@ -415,5 +425,5 @@ export function initMeasure(ctx) {
     say(on ? HINT : 'Pomiar wyłączony.');
   }
 
-  return { pick, update, clear, setActive, isActive: () => active, results: () => results, featureAt, compose: complete, save, saveAll, load, addFlatRecord, dropByDbId, setAllVisible, setVisible };
+  return { pick, update, clear, setActive, isActive: () => active, results: () => results, featureAt, compose: complete, save, saveAll, load, addFlatRecord, dropByDbId, renameElement, setAllVisible, setVisible };
 }

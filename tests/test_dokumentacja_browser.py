@@ -25,6 +25,8 @@ def test_step_viewer_loads_model_in_real_browser():
     assert 'Błąd' not in out['info'], f"podgląd zgłosił błąd: {out['info']}"
     assert 'brył' in out['info'] and 'gabaryt' in out['info'], out['info']
     assert out['enabled'] and out['canvas']
+    assert out['back_to_project'], 'przycisk powrotu powinien wrócić do projektu w tym samym oknie'
+    assert out['same_window'], 'podgląd 3D powinien otwierać się w tym samym oknie, bez nowej karty'
 
     # panel elementów, przekrój, klik w model, rentgen
     assert 'plate' in out['labels'] and 'rod-assembly' in out['labels'], out['labels']
@@ -98,6 +100,13 @@ def test_step_viewer_loads_model_in_real_browser():
     assert out['fd_leaders'] >= 2, 'przesunięte etykiety na wykroju powinny mieć linię łączącą'
     assert out['fd_offsets_server'] == ['3d', 'flat'], out['fd_offsets_server']
     assert sorted((x['src'], x['has']) for x in out['fd_offsets_restored'] if x['src'] == 'flat') == [('flat', True)], out['fd_offsets_restored']
+
+    # zmiana nazwy elementu w drzewie
+    assert out['ren_tree'] == {'label': 'Płyta montażowa', 'custom': True, 'text': True}, out['ren_tree']
+    assert out['ren_chip'].endswith('Płyta montażowa'), out['ren_chip']
+    assert out['ren_chip_button'].endswith('Płyta 2'), out['ren_chip_button']
+    assert out['ren_after_reload'] == 'Płyta 2', 'własna nazwa elementu nie przetrwała przeładowania'
+    assert out['ren_reset'] is False and out['ren_reset_after_reload'] == 'plate', 'pusta nazwa powinna przywrócić oryginalną'
 
     # telefon: szuflada na dole sterowana palcem
     assert out['mob_start']['state'] == 'min' and out['mob_start']['h'] == 52, out['mob_start']

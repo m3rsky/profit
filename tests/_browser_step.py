@@ -54,9 +54,10 @@ with sync_playwright() as p:
     pg.wait_for_load_state()
     out['zo_shown'] = 'ZO/5/2026' in pg.content()
 
-    with ctx.expect_page() as popup:
-        pg.click('text=Podgląd 3D')
-    v = popup.value
+    pg.click('text=Podgląd 3D')                                   # podgląd otwiera się w tym samym oknie co aplikacja
+    pg.wait_for_url('**/podglad3d/*')
+    out['same_window'] = len(ctx.pages) == 1
+    v = pg
     v.on('pageerror', lambda e: out['errors'].append(str(e)))
     v.wait_for_function("document.getElementById('info').textContent.includes('brył') "
                         "|| document.getElementById('info').textContent.startsWith('Błąd')", timeout=60000)
@@ -270,8 +271,39 @@ with sync_playwright() as p:
     v.wait_for_function(f"{items}.filter(i => i.src === 'flat').length === 0", timeout=15000)
     out['fd_server_after_delete'] = v.evaluate("window.viewer3d.listMeasurements().then(l => l.map(r => r.data.space || '3d'))")
 
+    # zmiana nazwy elementu: ołówek w drzewie, przycisk przy zaznaczonym, zapamiętanie po przeładowaniu, powrót do oryginału
+    v.click('#flat-close')                                      # okno rozwinięcia z poprzedniego etapu zasłania drzewo
+    row = v.locator('#tree .tr', has_text='plate')
+    row.locator('.ren').click()
+    v.locator('#tree .tr input.rename').fill('Płyta montażowa')
+    v.keyboard.press('Enter')
+    v.wait_for_function("window.viewer3d.renamePending() === 0", timeout=15000)      # zapis nazwy dotarł do serwera
+    out['ren_tree'] = v.evaluate("({ label: window.viewer3d.allNodes.find(n => n.auto === 'plate').label, custom: window.viewer3d.allNodes.find(n => n.auto === 'plate').custom, text: [...document.querySelectorAll('#tree .nm')].some(e => e.textContent === 'Płyta montażowa') })")
+    v.locator('#tree .tr', has_text='Płyta montażowa').locator('.nm').click()
+    out['ren_chip'] = v.inner_text('#selname')
+    v.click('#s-ren')                                           # przycisk przy zaznaczonym elemencie
+    v.locator('#tree .tr input.rename').fill('Płyta 2')
+    v.keyboard.press('Enter')
+    out['ren_chip_button'] = v.inner_text('#selname')
+    v.wait_for_function("window.viewer3d.renamePending() === 0", timeout=15000)      # zapis nazwy dotarł do serwera
+    v.reload()
+    v.wait_for_function("window.viewer3d && window.viewer3d.allNodes && window.viewer3d.allNodes.length > 3", timeout=60000)
+    out['ren_after_reload'] = v.evaluate("window.viewer3d.allNodes.find(n => n.auto === 'plate').label")
+    v.locator('#tree .tr', has_text='Płyta 2').locator('.nm').dblclick()      # dwuklik też zmienia nazwę
+    v.locator('#tree .tr input.rename').fill('')
+    v.keyboard.press('Enter')
+    v.wait_for_function("window.viewer3d.allNodes.find(n => n.auto === 'plate').label === 'plate'", timeout=10000)
+    v.wait_for_function("window.viewer3d.renamePending() === 0", timeout=15000)      # zapis nazwy dotarł do serwera
+    out['ren_reset'] = v.evaluate("window.viewer3d.allNodes.find(n => n.auto === 'plate').custom")
+    v.reload()
+    v.wait_for_function("window.viewer3d && window.viewer3d.allNodes && window.viewer3d.allNodes.length > 3", timeout=60000)
+    out['ren_reset_after_reload'] = v.evaluate("window.viewer3d.allNodes.find(n => n.auto === 'plate').label")
+
     # telefon: panel jako dolna szuflada przesuwana palcem (prawdziwe zdarzenia dotyku), sekcje zwijane dotknięciem
     viewer_url = v.url
+    v.click('header a.btn:has-text("Projekt")')                   # powrót do projektu też w tym samym oknie
+    v.wait_for_url(lambda u: '/podglad3d/' not in u)
+    out['back_to_project'] = '/dokumentacja/' in v.url and '/podglad3d/' not in v.url and len(ctx.pages) == 1
     v.close()                      # programowy WebGL tej strony zabierałby procesor analizie STEP na stronie telefonu
     mctx = b.new_context(viewport={'width': 390, 'height': 800}, is_mobile=True, has_touch=True, storage_state=ctx.storage_state())
     mp = mctx.new_page()
