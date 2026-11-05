@@ -1501,3 +1501,141 @@ class ProductTemplateControl(db.Model):
     template    = db.relationship('ProductTemplate', backref=db.backref(
         'control_plan', cascade='all, delete-orphan', lazy='select'))
     stage       = db.relationship('ProductionStage')
+
+
+# ---------------------------------------------------------------------------
+# Kontrola międzyetapowa (zgłoszenia wykonania, bufory, niezgodności, poprawki).
+# Plan: PLAN_KONTROLA_MIEDZYETAPOWA.md. Tabele tworzy db.create_all(), bez ALTER.
+# Nazwy pracownika, działu i etapu są kopiowane przy zapisie (statystyki, historia).
+# ---------------------------------------------------------------------------
+
+class DefectCause(db.Model):
+    """Przyczyna wady (słownik edytowalny w Ustawieniach produkcji)."""
+    __tablename__ = 'defect_causes'
+    id         = db.Column(db.Integer, primary_key=True)
+    name       = db.Column(db.String(128), unique=True, nullable=False)
+    order      = db.Column(db.Integer, default=0)
+    is_active  = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+
+
+class StageReport(db.Model):
+    """Zgłoszenie wykonania etapu zlecenia: ilość zgodna i niezgodna, wykonawca."""
+    __tablename__ = 'stage_reports'
+    id               = db.Column(db.Integer, primary_key=True)
+    control_order_id = db.Column(db.Integer, db.ForeignKey('control_orders.id'), nullable=False, index=True)
+    stage_id         = db.Column(db.Integer, db.ForeignKey('production_stages.id'), nullable=True)
+    stage_name       = db.Column(db.String(64), nullable=True)
+    employee_id      = db.Column(db.Integer, db.ForeignKey('department_employees.id'), nullable=True)
+    employee_name    = db.Column(db.String(128), nullable=True)
+    department_name  = db.Column(db.String(64), nullable=True)
+    user_id          = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    machine_id       = db.Column(db.Integer, db.ForeignKey('machines.id'), nullable=True)
+    qty_ok           = db.Column(db.Integer, nullable=False, default=0)
+    qty_ng           = db.Column(db.Integer, nullable=False, default=0)
+    kind             = db.Column(db.String(16), nullable=False, default='wykonanie')  # wykonanie | poprawka
+    created_at       = db.Column(db.DateTime, default=lambda: datetime.now(UTC), index=True)
+    control_order    = db.relationship('ControlOrder', backref=db.backref(
+        'stage_reports', lazy='dynamic', order_by='StageReport.id'))
+    stage            = db.relationship('ProductionStage')
+    employee         = db.relationship('DepartmentEmployee')
+
+
+class BufferEntry(db.Model):
+    """Ilość zlecenia leżąca na buforze (wózku). Wpis nie jest kasowany, tylko zdejmowany
+    (`removed_at`, `removed_reason`: przeniesienie, pobranie, poprawa, zlom, reczne, koniec)."""
+    __tablename__ = 'buffer_entries'
+    id               = db.Column(db.Integer, primary_key=True)
+    buffer_id        = db.Column(db.Integer, db.ForeignKey('buffers.id'), nullable=False, index=True)
+    control_order_id = db.Column(db.Integer, db.ForeignKey('control_orders.id'), nullable=False, index=True)
+    report_id        = db.Column(db.Integer, db.ForeignKey('stage_reports.id'), nullable=True)
+    qty              = db.Column(db.Integer, nullable=False, default=0)
+    stage_name       = db.Column(db.String(64), nullable=True)   # etap, po którym ilość czeka
+    employee_name    = db.Column(db.String(128), nullable=True)
+    placed_by_id     = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    placed_at        = db.Column(db.DateTime, default=lambda: datetime.now(UTC), index=True)
+    # czeka | pozytywna | negatywna | wstrzymana
+    check_status     = db.Column(db.String(16), nullable=False, default='czeka')
+    recheck          = db.Column(db.Boolean, default=False)       # ponowna kontrola po poprawce
+    check_started_at   = db.Column(db.DateTime, nullable=True)
+    check_completed_at = db.Column(db.DateTime, nullable=True)
+    checked_by_id    = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    removed_at       = db.Column(db.DateTime, nullable=True, index=True)
+    removed_reason   = db.Column(db.String(24), nullable=True)
+    buffer           = db.relationship('Buffer', backref=db.backref('entries', lazy='dynamic'))
+    control_order    = db.relationship('ControlOrder', backref=db.backref('buffer_entries', lazy='dynamic'))
+
+    @property
+    def is_active_entry(self):
+        return self.removed_at is None and (self.qty or 0) > 0
+
+
+class BufferTransport(db.Model):
+    """Wywiezienie bufora przez transport (nie zdejmuje wpisów z bufora)."""
+    __tablename__ = 'buffer_transports'
+    id        = db.Column(db.Integer, primary_key=True)
+    buffer_id = db.Column(db.Integer, db.ForeignKey('buffers.id'), nullable=False, index=True)
+    user_id   = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    at        = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    buffer    = db.relationship('Buffer')
+
+
+class Nonconformity(db.Model):
+    """Zgłoszona niezgodność (alert "Niezgodność do weryfikacji"). Odpowiedzialny to wykonawca
+    etapu powstania wady (kontroler może wskazać inny etap niż ostatni meldunek)."""
+    __tablename__ = 'nonconformities'
+    id               = db.Column(db.Integer, primary_key=True)
+    control_order_id = db.Column(db.Integer, db.ForeignKey('control_orders.id'), nullable=False, index=True)
+    report_id        = db.Column(db.Integer, db.ForeignKey('stage_reports.id'), nullable=True)
+    buffer_entry_id  = db.Column(db.Integer, db.ForeignKey('buffer_entries.id'), nullable=True)
+    qty              = db.Column(db.Integer, nullable=False, default=1)
+    stage_id         = db.Column(db.Integer, db.ForeignKey('production_stages.id'), nullable=True)
+    stage_name       = db.Column(db.String(64), nullable=True)   # etap powstania wady
+    employee_id      = db.Column(db.Integer, db.ForeignKey('department_employees.id'), nullable=True)
+    employee_name    = db.Column(db.String(128), nullable=True)  # odpowiedzialny
+    department_name  = db.Column(db.String(64), nullable=True)
+    cause_id         = db.Column(db.Integer, db.ForeignKey('defect_causes.id'), nullable=True)
+    cause_name       = db.Column(db.String(128), nullable=True)
+    note             = db.Column(db.Text, nullable=True)
+    status           = db.Column(db.String(16), nullable=False, default='do_weryfikacji')  # | zweryfikowana
+    decision         = db.Column(db.String(16), nullable=True)   # poprawa | zlom | zgodne | odlozone
+    decided_by_id    = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    decided_at       = db.Column(db.DateTime, nullable=True)
+    created_at       = db.Column(db.DateTime, default=lambda: datetime.now(UTC), index=True)
+    control_order    = db.relationship('ControlOrder', backref=db.backref(
+        'nonconformities', lazy='dynamic', order_by='Nonconformity.id'))
+
+
+class ReworkItem(db.Model):
+    """Poprawka: ilość wraca do wskazanego etapu. Zamyka ją zgłoszenie 'Poprawka wykonana'."""
+    __tablename__ = 'rework_items'
+    id               = db.Column(db.Integer, primary_key=True)
+    nonconformity_id = db.Column(db.Integer, db.ForeignKey('nonconformities.id'), nullable=False, index=True)
+    control_order_id = db.Column(db.Integer, db.ForeignKey('control_orders.id'), nullable=False, index=True)
+    qty              = db.Column(db.Integer, nullable=False, default=1)
+    stage_id         = db.Column(db.Integer, db.ForeignKey('production_stages.id'), nullable=True)
+    stage_name       = db.Column(db.String(64), nullable=True)
+    status           = db.Column(db.String(16), nullable=False, default='do_poprawy')  # | wykonana | nieudana
+    done_report_id   = db.Column(db.Integer, db.ForeignKey('stage_reports.id'), nullable=True)
+    created_at       = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    done_at          = db.Column(db.DateTime, nullable=True)
+    nonconformity    = db.relationship('Nonconformity', backref=db.backref('rework_items', lazy='dynamic'))
+
+
+class RemakeItem(db.Model):
+    """Pozycja listy "Do wykonania od nowa" (złom albo nieudana poprawka)."""
+    __tablename__ = 'remake_items'
+    id               = db.Column(db.Integer, primary_key=True)
+    control_order_id = db.Column(db.Integer, db.ForeignKey('control_orders.id'), nullable=False, index=True)
+    nonconformity_id = db.Column(db.Integer, db.ForeignKey('nonconformities.id'), nullable=True)
+    qty              = db.Column(db.Integer, nullable=False, default=1)
+    description      = db.Column(db.String(256), nullable=True)   # element/opis, wolny tekst
+    start_stage_id   = db.Column(db.Integer, db.ForeignKey('production_stages.id'), nullable=True)
+    start_stage_name = db.Column(db.String(64), nullable=True)
+    reason           = db.Column(db.String(24), nullable=True)    # zlom | nieudana_poprawka
+    status           = db.Column(db.String(16), nullable=False, default='otwarte')  # | w_toku | wykonane
+    qty_done         = db.Column(db.Integer, nullable=False, default=0)
+    created_at       = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    closed_at        = db.Column(db.DateTime, nullable=True)
+    control_order    = db.relationship('ControlOrder', backref=db.backref(
+        'remake_items', lazy='dynamic', order_by='RemakeItem.id'))
