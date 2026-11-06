@@ -173,3 +173,66 @@ def admin_employees(dept_id):
                                                       ProductionDepartment.name).all()
     return render_template('ustawienia/admin_employees.html', department=dept, employees=employees,
                            departments=departments)
+
+
+# ── Przyczyny wad (kontrola międzyetapowa) ────────────────────────────────────
+
+@ustawienia_bp.route('/przyczyny', methods=['GET', 'POST'])
+@login_required
+@settings_required
+def defect_causes():
+    from models import DefectCause, Nonconformity
+    from produkcja.meldunki import seed_defect_causes
+    if request.method == 'POST':
+        action = request.form.get('action')
+        cause = db.session.get(DefectCause, request.form.get('cause_id', type=int) or 0)
+        name = request.form.get('name', '').strip()[:128]
+        if action == 'add':
+            if not name:
+                flash('Nazwa przyczyny jest wymagana.', 'warning')
+            elif DefectCause.query.filter(func.lower(DefectCause.name) == name.lower()).first():
+                flash(f'Przyczyna „{name}" już istnieje.', 'warning')
+            else:
+                top = db.session.query(func.max(DefectCause.order)).scalar() or 0
+                db.session.add(DefectCause(name=name, order=top + 1))
+                db.session.commit()
+                _audit('ustawienia_cause_add', 'DefectCause', None, name)
+                flash(f'Dodano przyczynę „{name}".', 'success')
+        elif cause is None:
+            flash('Nie znaleziono przyczyny.', 'warning')
+        elif action == 'rename':
+            clash = DefectCause.query.filter(func.lower(DefectCause.name) == name.lower(),
+                                             DefectCause.id != cause.id).first()
+            if not name or clash:
+                flash('Podaj unikalną nazwę przyczyny.', 'warning')
+            else:
+                cause.name = name
+                db.session.commit()
+                flash('Zmieniono nazwę przyczyny.', 'success')
+        elif action == 'toggle':
+            cause.is_active = not cause.is_active
+            db.session.commit()
+        elif action in ('up', 'down'):
+            items = DefectCause.query.order_by(DefectCause.order, DefectCause.id).all()
+            i = items.index(cause)
+            j = i - 1 if action == 'up' else i + 1
+            if 0 <= j < len(items):
+                items[i], items[j] = items[j], items[i]
+                for pos, c in enumerate(items, start=1):
+                    c.order = pos
+                db.session.commit()
+        elif action == 'delete':
+            if Nonconformity.query.filter_by(cause_id=cause.id).count():
+                cause.is_active = False
+                db.session.commit()
+                flash('Przyczyna jest użyta w zgłoszeniach, więc tylko ją wyłączono.', 'info')
+            else:
+                db.session.delete(cause)
+                db.session.commit()
+                _audit('ustawienia_cause_delete', 'DefectCause', None, cause.name)
+                flash('Usunięto przyczynę.', 'success')
+        return redirect(url_for('ustawienia.defect_causes'))
+    seed_defect_causes()
+    from models import DefectCause as DC
+    return render_template('ustawienia/defect_causes.html',
+                           causes=DC.query.order_by(DC.order, DC.id).all())

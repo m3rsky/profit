@@ -24,6 +24,16 @@
 .st-btn.done .val{color:var(--text,#0f172a);font-weight:600}
 .st-btn:disabled{opacity:.45;cursor:not-allowed}
 .st-manual{max-width:640px;margin:.75rem auto 0;display:flex;gap:.5rem}
+.rp-card{max-width:640px;margin:1rem auto 0}
+.rp-badge{display:inline-block;font-size:.75rem;padding:1px 8px;border-radius:999px;background:var(--info-bg,#eff6ff);color:var(--info,#2563eb);margin-left:.4rem}
+.rp-stages{width:100%;border-collapse:collapse;font-size:.85rem;margin:.5rem 0}
+.rp-stages td,.rp-stages th{padding:3px 6px;border-bottom:1px solid var(--border,#e2e8f0);text-align:left}
+.rp-row{display:flex;gap:.75rem;flex-wrap:wrap;margin:.6rem 0}
+.rp-field{flex:1 1 140px}
+.rp-field label{display:block;font-size:.8rem;color:var(--text-muted,#64748b);margin-bottom:2px}
+.rp-qty{display:flex;gap:4px}
+.rp-qty input{text-align:center;min-width:0;flex:1}
+.rp-qty button{min-width:44px;min-height:44px;font-size:1.2rem}
 </style>
 {% endblock %}
 
@@ -61,7 +71,9 @@
     emp: "{{ url_for('produkcja.scan_employee') }}",
     out: "{{ url_for('produkcja.scan_logout') }}",
     order: "{{ url_for('produkcja.scan_order') }}",
-    entry: "{{ url_for('produkcja.scan_entry') }}"
+    entry: "{{ url_for('produkcja.scan_entry') }}",
+    rorder: "{{ url_for('produkcja.report_order') }}",
+    rsubmit: "{{ url_for('produkcja.report_submit') }}"
   };
   var elEmp = document.getElementById('st-emp'), elEmpText = document.getElementById('st-emp-text');
   var elLogout = document.getElementById('st-logout'), elMsg = document.getElementById('st-msg');
@@ -79,7 +91,9 @@
   function renderEmployee() {
     if (employee) {
       elEmp.className = 'st-emp ok';
-      elEmpText.textContent = 'Pracownik: ' + employee.name + ' (' + employee.initials + ')';
+      elEmpText.textContent = employee.kind === 'dep'
+        ? 'Pracownik: ' + employee.name + (employee.department ? ' (' + employee.department + ')' : '')
+        : 'Pracownik: ' + employee.name + ' (' + employee.initials + ')';
       elLogout.hidden = false;
     } else {
       elEmp.className = 'st-emp none';
@@ -103,6 +117,97 @@
       msg('', '');
       renderOrders(res.d.orders);
     }).catch(function () { msg('Błąd sieci. Spróbuj ponownie.', 'error'); });
+  }
+
+  // ── Zgłoszenie wykonania (plakietka pracownika działu) ──
+  function el(tag, cls, text) {
+    var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e;
+  }
+  function reportLookup(payload) {
+    msg('Szukam zlecenia…', 'info');
+    post(urls.rorder, payload).then(function (res) {
+      if (res.status === 401) { employee = null; renderEmployee(); }
+      if (!res.ok) { elOrders.textContent = ''; msg(res.d.error || 'Błąd.', 'error'); return; }
+      msg(res.d.order.is_new ? 'Zlecenie dodano do systemu.' : '', 'info');
+      renderReport(res.d.order, res.d.order.causes || []);
+    }).catch(function () { msg('Błąd sieci. Spróbuj ponownie.', 'error'); });
+  }
+  var lastCauses = [];
+  function qtyField(label, id) {
+    var wrap = el('div', 'rp-field'); var lab = el('label', '', label); lab.htmlFor = id;
+    var box = el('div', 'rp-qty');
+    var minus = el('button', 'btn btn-outline', '−'); minus.type = 'button';
+    var inp = el('input', 'form-control'); inp.type = 'number'; inp.min = '0'; inp.id = id; inp.value = '0'; inp.inputMode = 'numeric';
+    var plus = el('button', 'btn btn-outline', '+'); plus.type = 'button';
+    minus.addEventListener('click', function () { inp.value = Math.max(0, (parseInt(inp.value, 10) || 0) - 1); inp.dispatchEvent(new Event('input')); });
+    plus.addEventListener('click', function () { inp.value = (parseInt(inp.value, 10) || 0) + 1; inp.dispatchEvent(new Event('input')); });
+    box.appendChild(minus); box.appendChild(inp); box.appendChild(plus); wrap.appendChild(lab); wrap.appendChild(box);
+    return {wrap: wrap, input: inp};
+  }
+  function renderReport(o, causes) {
+    if (causes && causes.length) lastCauses = causes;
+    elOrders.textContent = '';
+    var card = el('div', 'card rp-card'), body = el('div', 'card-body');
+    var h = el('h3', '', o.product || '(bez nazwy)');
+    if (o.is_new) h.appendChild(el('span', 'rp-badge', 'nowe w systemie'));
+    body.appendChild(h);
+    body.appendChild(el('div', 'st-meta', [o.client, o.qty ? o.qty + ' szt.' : '', 'ZO ' + o.zo].filter(Boolean).join(' · ')));
+    if (o.open_nonconformities) {
+      body.appendChild(el('div', 'st-msg error', 'Niezweryfikowane niezgodności: ' + o.open_nonconformities));
+    }
+    var done = o.stages.filter(function (s) { return s.ok || s.ng; });
+    if (done.length) {
+      var t = el('table', 'rp-stages'), hr = el('tr');
+      ['Etap', 'Zgodne', 'Niezgodne'].forEach(function (x) { hr.appendChild(el('th', '', x)); });
+      t.appendChild(hr);
+      done.forEach(function (s) {
+        var r = el('tr'); r.appendChild(el('td', '', s.name)); r.appendChild(el('td', '', String(s.ok))); r.appendChild(el('td', '', String(s.ng))); t.appendChild(r);
+      });
+      body.appendChild(t);
+    }
+    var row1 = el('div', 'rp-row'), f1 = el('div', 'rp-field'); f1.appendChild(el('label', '', 'Etap'));
+    var sel = el('select', 'form-control'); sel.id = 'rp-stage';
+    o.stages.forEach(function (s) {
+      var op = el('option', '', s.name); op.value = s.id;
+      if (employee && employee.department_id && s.department_id === employee.department_id) op.selected = true;
+      sel.appendChild(op);
+    });
+    f1.appendChild(sel); row1.appendChild(f1);
+    var fm = el('div', 'rp-field'); fm.appendChild(el('label', '', 'Maszyna')); var msel = el('select', 'form-control'); fm.appendChild(msel);
+    function fillMachines() {
+      var st = o.stages.filter(function (s) { return String(s.id) === sel.value; })[0];
+      msel.textContent = ''; var ms = (st && st.machines) || [];
+      fm.hidden = !ms.length;
+      ms.forEach(function (m) { var op = el('option', '', m.name); op.value = m.id; msel.appendChild(op); });
+    }
+    sel.addEventListener('change', fillMachines); fillMachines(); row1.appendChild(fm); body.appendChild(row1);
+    var row2 = el('div', 'rp-row'), qa = qtyField('Zgodne', 'rp-ok'), qb = qtyField('Niezgodne', 'rp-ng');
+    row2.appendChild(qa.wrap); row2.appendChild(qb.wrap); body.appendChild(row2);
+    var row3 = el('div', 'rp-row'); row3.hidden = true;
+    var fc = el('div', 'rp-field'); fc.appendChild(el('label', '', 'Przyczyna niezgodności'));
+    var csel = el('select', 'form-control'); csel.id = 'rp-cause';
+    var c0 = el('option', '', 'Wybierz przyczynę…'); c0.value = ''; csel.appendChild(c0);
+    lastCauses.forEach(function (c) { var op = el('option', '', c.name); op.value = c.id; csel.appendChild(op); });
+    fc.appendChild(csel); row3.appendChild(fc);
+    var fn = el('div', 'rp-field'); fn.appendChild(el('label', '', 'Uwagi (opcjonalnie)'));
+    var note = el('input', 'form-control'); note.maxLength = 300; fn.appendChild(note); row3.appendChild(fn);
+    body.appendChild(row3);
+    qb.input.addEventListener('input', function () { row3.hidden = !(parseInt(qb.input.value, 10) > 0); });
+    var go = el('button', 'btn btn-primary', 'Zgłoś wykonanie'); go.type = 'button';
+    function send(confirmed) {
+      go.disabled = true;
+      post(urls.rsubmit, {order_id: o.id, stage_id: parseInt(sel.value, 10), machine_id: fm.hidden ? null : msel.value,
+        qty_ok: parseInt(qa.input.value, 10) || 0, qty_ng: parseInt(qb.input.value, 10) || 0,
+        cause_id: csel.value || null, note: note.value, confirm: confirmed}).then(function (res) {
+        go.disabled = false;
+        if (res.status === 401) { employee = null; renderEmployee(); msg(res.d.error, 'error'); return; }
+        if (res.d.status === 'confirm') { if (window.confirm(res.d.message)) send(true); return; }
+        if (!res.ok) { msg(res.d.error || 'Nie udało się zapisać zgłoszenia.', 'error'); return; }
+        renderReport(res.d.order, null); msg(res.d.message, 'info');
+      }).catch(function () { go.disabled = false; msg('Błąd sieci, zgłoszenie nie zostało zapisane.', 'error'); });
+    }
+    go.addEventListener('click', function () { send(false); });
+    body.appendChild(go); card.appendChild(body); elOrders.appendChild(card);
   }
 
   function renderOrders(orders) {
@@ -168,7 +273,11 @@
     }
     var obj = null;
     try { obj = JSON.parse(text); } catch (e) {}
-    if (obj && obj.o) { lookupOrder({o: String(obj.o).trim(), p: obj.p ? String(obj.p).trim() : ''}); }
+    if (obj && obj.o && employee && employee.kind === 'dep') {
+      reportLookup({o: String(obj.o).trim(), p: obj.p ? String(obj.p).trim() : '',
+                    c: obj.c ? String(obj.c).trim() : '', q: obj.q || 1});
+    }
+    else if (obj && obj.o) { lookupOrder({o: String(obj.o).trim(), p: obj.p ? String(obj.p).trim() : ''}); }
     else { handlePlain(text); }
   }
 
@@ -179,6 +288,8 @@
       if (res.ok) {
         employee = res.d.employee; renderEmployee(); elOrders.textContent = '';
         msg('Witaj, ' + employee.name + '. Zeskanuj kod zlecenia.', 'info');
+      } else if (employee && employee.kind === 'dep') {
+        msg('Zeskanuj kod QR zlecenia (z numerem ZO i produktem), samo ZO nie wystarczy.', 'error');
       } else {
         lookupOrder({o: text, p: ''});
       }

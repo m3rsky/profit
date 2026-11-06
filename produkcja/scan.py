@@ -8,11 +8,12 @@ from flask import render_template, request, jsonify, session, abort
 from flask_login import login_required, current_user
 from sqlalchemy import func
 
-from models import db, ProdEmployee, ProdRow, ProdSheet, ProdStageColumn
+from models import db, ProdEmployee, ProdRow, ProdSheet, ProdStageColumn, DepartmentEmployee
 from . import produkcja_bp, excel_io
 from .entries import apply_entry, employee_allowed
 from .routes import _data, _display
 from .staff import BADGE_PREFIX, norm_code
+from ustawienia.lookup import BADGE_PREFIX as DEP_PREFIX, find_department_employee
 
 UTC = timezone.utc
 SESSION_KEY = 'prod_emp'
@@ -31,7 +32,7 @@ def station_required(f):
 def _current_employee():
     """Pracownik zeskanowany na tym urządzeniu (ważny SESSION_HOURS godzin)."""
     data = session.get(SESSION_KEY)
-    if not data:
+    if not data or data.get('kind') == 'dep':
         return None
     try:
         at = datetime.fromisoformat(data['at'])
@@ -48,8 +49,32 @@ def _current_employee():
     return emp
 
 
+def current_dep_employee():
+    """Pracownik działu zeskanowany plakietką PSH-DEP na tym urządzeniu (zgłoszenia wykonania)."""
+    data = session.get(SESSION_KEY)
+    if not data or data.get('kind') != 'dep':
+        return None
+    try:
+        at = datetime.fromisoformat(data['at'])
+    except (KeyError, ValueError):
+        session.pop(SESSION_KEY, None)
+        return None
+    if datetime.now(UTC) - at > timedelta(hours=SESSION_HOURS):
+        session.pop(SESSION_KEY, None)
+        return None
+    emp = db.session.get(DepartmentEmployee, data.get('id'))
+    if not emp or not emp.is_active:
+        session.pop(SESSION_KEY, None)
+        return None
+    return emp
+
+
 def _emp_json(emp):
-    return {'id': emp.id, 'name': emp.name, 'initials': emp.initials}
+    if isinstance(emp, DepartmentEmployee):
+        return {'id': emp.id, 'name': emp.name, 'initials': emp.name, 'kind': 'dep',
+                'department': emp.department.name if emp.department else '',
+                'department_id': emp.department_id}
+    return {'id': emp.id, 'name': emp.name, 'initials': emp.initials, 'kind': 'prod'}
 
 
 def _norm(s):
@@ -60,7 +85,7 @@ def _norm(s):
 @login_required
 @station_required
 def scan_page():
-    emp = _current_employee()
+    emp = _current_employee() or current_dep_employee()
     return render_template('produkcja/scan.html', employee=_emp_json(emp) if emp else None,
                            badge_prefix=BADGE_PREFIX)
 
@@ -70,6 +95,12 @@ def scan_page():
 @station_required
 def scan_employee():
     code = ((request.get_json(silent=True) or {}).get('code') or '').strip()
+    dep = find_department_employee(code)
+    if dep:   # plakietka pracownika działu: zgłoszenia wykonania
+        session[SESSION_KEY] = {'id': dep.id, 'at': datetime.now(UTC).isoformat(), 'kind': 'dep'}
+        return jsonify({'ok': True, 'employee': _emp_json(dep)})
+    if code.upper().startswith(DEP_PREFIX):
+        return jsonify({'error': 'Nieznany lub nieaktywny kod pracownika.'}), 404
     token = code[len(BADGE_PREFIX):] if code.startswith(BADGE_PREFIX) else code
     emp = None
     if token:

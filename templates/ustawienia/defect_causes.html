@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Przyczyny niezgodności – Ustawienia produkcji{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title"><i class="bi bi-exclamation-diamond"></i> Przyczyny niezgodności</h1>
+  <div class="page-header-actions">
+    <a href="{{ url_for('ustawienia.admin_departments') }}" class="btn btn-outline">
+      <i class="bi bi-arrow-left"></i> Działy i pracownicy
+    </a>
+  </div>
+</div>
+
+<div class="sp-ops-grid">
+  <div class="card">
+    <div class="card-header">Dodaj przyczynę</div>
+    <div class="card-body">
+      <form method="post">
+        {{ csrf_input() }}
+        <input type="hidden" name="action" value="add">
+        <div class="form-group">
+          <label class="form-label" for="name">Nazwa</label>
+          <input type="text" id="name" name="name" class="form-control" maxlength="128" placeholder="np. Gratowanie" required>
+        </div>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Dodaj</button>
+      </form>
+      <p class="text-muted" style="font-size:.85rem;margin-top:.75rem;">
+        Pracownik wybiera przyczynę na Stanowisku przy zgłoszeniu ilości niezgodnej.
+        Użytych przyczyn nie da się usunąć, tylko wyłączyć.
+      </p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">Lista przyczyn</div>
+    <div class="table-wrap">
+      <table class="data-table tbl-cards">
+        <thead><tr><th>#</th><th>Nazwa</th><th>Status</th><th class="th-actions"></th></tr></thead>
+        <tbody>
+          {% for c in causes %}
+          <tr>
+            <td data-label="Kolejność" class="tpl-cell">{{ loop.index }}</td>
+            <td data-label="Nazwa" class="tpl-cell">
+              <form method="post" class="form-inline">
+                {{ csrf_input() }}
+                <input type="hidden" name="action" value="rename">
+                <input type="hidden" name="cause_id" value="{{ c.id }}">
+                <input type="text" name="name" class="form-control form-control--sm" value="{{ c.name }}" maxlength="128" required>
+                <button type="submit" class="btn btn-xs btn-primary" title="Zapisz nazwę"><i class="bi bi-check-lg"></i></button>
+              </form>
+            </td>
+            <td data-label="Status" class="tpl-cell">
+              <span class="rs {{ 'rs-ok' if c.is_active else 'rs-na' }}">{{ 'Aktywna' if c.is_active else 'Wyłączona' }}</span>
+            </td>
+            <td class="tpl-cell">
+              <form method="post" class="form-inline">
+                {{ csrf_input() }}
+                <input type="hidden" name="cause_id" value="{{ c.id }}">
+                <button name="action" value="up" class="btn btn-xs btn-outline" title="W górę"><i class="bi bi-arrow-up"></i></button>
+                <button name="action" value="down" class="btn btn-xs btn-outline" title="W dół"><i class="bi bi-arrow-down"></i></button>
+                <button name="action" value="toggle" class="btn btn-xs btn-outline">{{ 'Wyłącz' if c.is_active else 'Włącz' }}</button>
+                <button name="action" value="delete" class="btn btn-xs btn-outline" onclick="return confirm('Usunąć przyczynę?')" title="Usuń"><i class="bi bi-trash"></i></button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

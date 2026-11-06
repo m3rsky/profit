@@ -307,7 +307,8 @@ _STATYSTYKI_ENDPOINTS = {
 }
 _BLUEPRINT_MODULES = {'kontrola': 'kontrola_etapowa', 'qar': 'qar', 'dokumentacja': 'dokumentacja',
                       'ustawienia': 'ustawienia', 'prestiz_kj': 'kj_prestiz'}
-_STANOWISKO_ENDPOINTS = {'scan_employee', 'scan_entry', 'scan_logout', 'scan_order', 'scan_page'}
+_STANOWISKO_ENDPOINTS = {'scan_employee', 'scan_entry', 'scan_logout', 'scan_order', 'scan_page',
+                         'report_order', 'report_submit'}
 
 
 def _module_for_endpoint(endpoint):

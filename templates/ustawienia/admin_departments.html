@@ -12,6 +12,9 @@
     {% if departments %}
     <span class="drag-hint"><i class="bi bi-arrows-expand-vertical"></i> Przeciągnij wiersze by zmienić kolejność</span>
     {% endif %}
+    <a href="{{ url_for('ustawienia.defect_causes') }}" class="btn btn-outline">
+      <i class="bi bi-exclamation-diamond"></i> Przyczyny niezgodności
+    </a>
     <a href="{{ url_for('ustawienia.employee_badges') }}" class="btn btn-outline">
       <i class="bi bi-person-badge"></i> Plakietki wszystkich (PDF)
     </a>
