@@ -161,13 +161,9 @@ def generate_pdf(report, items_by_category, upload_folder, stage_controls=None):
     story.append(HRFlowable(width='100%', thickness=1.5, color=PRIMARY,
                             spaceBefore=6, spaceAfter=10))
 
-    # ── Kategorie ────────────────────────────────────────────────────────────
-    for cat, items in items_by_category.items():
-        _append_category(story, cat, items, content_width, upload_folder)
-        story.append(Spacer(1, 6 * mm))
-
-    if stage_controls:
-        _append_stage_controls(story, stage_controls, content_width)
+    # ── Jedna lista kontrolna (Końcowa + etapowe) ───────────────────────────
+    _append_unified_controls(story, report, items_by_category, stage_controls,
+                             content_width, upload_folder)
 
     # ── Stopka ───────────────────────────────────────────────────────────────
     story.append(HRFlowable(width='100%', thickness=0.5, color=colors.grey,
@@ -201,17 +197,141 @@ def _esc(text):
     return str(text or '').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 
 
-def _append_stage_controls(story, data, content_width):
-    """Sekcja "Kontrola etapowa": ostrzeżenia, potem każdy etap z osobą odpowiedzialną i punktami."""
-    head = Table([[Paragraph('KONTROLA ETAPOWA', _s(size=10, bold=True, color=WHITE))]],
-                 colWidths=[content_width])
+def _kind_label(text):
+    return Paragraph(text.upper(), _s(size=7, bold=True, color=colors.HexColor('#888888'), after=1))
+
+
+def _block_header(story, kind, title, res, res_color, meta):
+    """Nagłówek bloku kontroli (Końcowej albo etapowej): rodzaj, nazwa z wynikiem, linia meta."""
+    story.append(Spacer(1, 3 * mm))
+    story.append(_kind_label(kind))
+    story.append(Paragraph(f'<b>{_esc(title)}</b> &nbsp; <font color="{res_color.hexval()}">'
+                           f'<b>{res}</b></font>', _s(size=9.5, after=1)))
+    story.append(Paragraph(meta, _s(size=7.5, color=SECONDARY, after=3)))
+
+
+def _points_table(story, spec, content_width):
+    """Tabela Punkt / Wynik / Wartość wspólna dla obu rodzajów kontroli.
+    spec: ('group', nazwa) albo ('row', tytuł_html, wynik, kolor, wartość_html)."""
+    head_style = _s(size=7, bold=True, color=colors.HexColor('#666666'))
+    rows = [[Paragraph('PUNKT', head_style), Paragraph('WYNIK', _s(size=7, bold=True, color=colors.HexColor('#666666'), align=1)),
+             Paragraph('WARTOŚĆ', head_style)]]
+    group_rows = []
+    for entry in spec:
+        if entry[0] == 'group':
+            group_rows.append(len(rows))
+            rows.append([Paragraph(f'<b>{_esc(entry[1])}</b>', _s(size=8)), '', ''])
+        else:
+            _, title, sym, col, value = entry
+            rows.append([Paragraph(title, _s(size=8.5)),
+                         Paragraph(sym, _s(size=8.5, bold=True, color=col, align=1)),
+                         Paragraph(value, _s(size=8))])
+    if len(rows) == 1:
+        return
+    table = Table(rows, colWidths=[content_width * 0.52, 14 * mm, content_width * 0.48 - 14 * mm],
+                  repeatRows=1)
+    style = [
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('LEFTPADDING', (0, 0), (-1, -1), 5), ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+        ('LINEBELOW', (0, 0), (-1, -2), 0.3, colors.HexColor('#e0e0e0')),
+        ('LINEBELOW', (0, 0), (-1, 0), 0.8, colors.HexColor('#bbbbbb')),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f7f8fa')),
+        ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#cccccc')),
+    ]
+    for i in group_rows:
+        style += [('SPAN', (0, i), (-1, i)), ('BACKGROUND', (0, i), (-1, i), NEUTRAL)]
+    table.setStyle(TableStyle(style))
+    story.append(table)
+
+
+def _result_cell(result):
+    """('OK'|'NG'|inne) -> (symbol, kolor)."""
+    r = (result or '').upper()
+    if r == 'OK':
+        return 'OK', SUCCESS
+    if r == 'NG':
+        return 'NG', ERROR
+    return '–', colors.HexColor('#aaaaaa')
+
+
+def _final_value(item):
+    unit = f' {_esc(item.task.unit)}' if item.task.unit else ''
+    if item.task.task_type == 'installer' and item.installers.count():
+        inst_rows = item.installers.all()
+        parts = []
+        for ri in inst_rows:
+            label = _initials(ri.installer.name)
+            if ri.role:
+                label = f'{ri.role}: {label}'
+            if item.result == 'ng' and len(inst_rows) > 1 and ri.is_at_fault:
+                label += ' (zawinił)'
+            parts.append(_esc(label))
+        return ' / '.join(parts)
+    if item.task.task_type in ('numeric', 'text') and item.value_text:
+        return f'{_esc(item.value_text)}{unit}'
+    if item.task.task_type == 'measurements' and item.value_text:
+        vals = ' / '.join(v for v in item.value_text.split('|') if v)
+        return f'{_esc(vals)}{unit}' if vals else ''
+    return ''
+
+
+def _append_unified_controls(story, report, items_by_category, stage_controls,
+                             content_width, upload_folder):
+    """Jedna lista w raporcie: Kontrola Końcowa, potem kontrole etapowe, w tym samym układzie
+    (nagłówek z wynikiem, meta, tabela Punkt / Wynik / Wartość). Odpowiada widokowi ekranowemu."""
+    all_items = [it for items in items_by_category.values() for it in items]
+    n_stages = len(stage_controls['stages']) if stage_controls else 0
+    summary = 'Końcowa' if not n_stages else (
+        f"Końcowa + {n_stages} {'kontrola etapowa' if n_stages == 1 else 'kontrole etapowe'}")
+    head = Table([[Paragraph('LISTA KONTROLNA', _s(size=10, bold=True, color=WHITE)),
+                   Paragraph(summary, _s(size=8, color=WHITE, align=2))]],
+                 colWidths=[content_width * 0.5, content_width * 0.5])
     head.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), PRIMARY),
+        ('BACKGROUND', (0, 0), (-1, -1), PRIMARY), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('TOPPADDING', (0, 0), (-1, -1), 5), ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
         ('LEFTPADDING', (0, 0), (-1, -1), 8), ('RIGHTPADDING', (0, 0), (-1, -1), 8),
     ]))
     story.append(head)
+
+    # Kontrola Końcowa
+    if report.status != 'completed':
+        res, res_color = 'W trakcie', colors.HexColor('#b7791f')
+    elif any(it.result == 'ng' for it in all_items):
+        res, res_color = 'NG', ERROR
+    else:
+        res, res_color = 'OK', SUCCESS
+    when = _ldt(report.completed_at or report.created_at)
+    _block_header(story, 'Kontrola Końcowa', report.title, res, res_color,
+                  f'Kontroler: {_esc(report.author.username)} | {when}')
+    spec = []
+    for cat, items in items_by_category.items():
+        spec.append(('group', cat.name))
+        for item in items:
+            sym, col = _result_cell(item.result)
+            title = _esc(item.task.title)
+            if item.notes:
+                title += f'<br/><i>{_esc(item.notes)}</i>'
+            if item.qar_report:
+                title += f'<br/><font size="7" color="#888888">{_esc(item.qar_report.number)}</font>'
+            spec.append(('row', title, sym, col, _final_value(item)))
+    _points_table(story, spec, content_width)
+    photo_table = _build_photo_table(all_items, upload_folder, content_width)
+    if photo_table:
+        story.append(Spacer(1, 2 * mm))
+        story.append(photo_table)
+
+    # Kontrole etapowe
+    if stage_controls:
+        _append_stage_controls(story, stage_controls, content_width)
+    story.append(Spacer(1, 4 * mm))
+
+
+def _append_stage_controls(story, data, content_width):
+    """Ostrzeżenia, potem każdy etap z osobą odpowiedzialną i punktami (ten sam układ co Kontrola Końcowa)."""
     warn_colors = {'ng': ERROR, 'warn': colors.HexColor('#b7791f'), 'info': SECONDARY}
+    if data['warnings']:
+        story.append(Spacer(1, 2 * mm))
     for level, text in data['warnings']:
         story.append(Paragraph(_esc(text), _s(size=8.5, bold=True, color=warn_colors.get(level, DARK),
                                               after=2, indent=4)))
@@ -223,49 +343,24 @@ def _append_stage_controls(story, data, content_width):
         else:
             res, res_color = 'OK', SUCCESS
         label = st['department'] + (f" ({st['elements']})" if st['elements'] else '')
-        story.append(Spacer(1, 3 * mm))
-        story.append(Paragraph(f'<b>{_esc(label)}</b> &nbsp; <font color="{res_color.hexval()}">'
-                               f'<b>{res}</b></font>', _s(size=9.5, after=1)))
         meta = (f"Osoba odpowiedzialna: {_esc(st['performer'] or 'nie wskazano')} | "
                 f"Kontroler: {_esc(st['controller'] or '-')} | {_ldt(st['when'])}")
         if st['attempt'] > 1:
             meta += f" | kontrola nr {st['attempt']}"
-        story.append(Paragraph(meta, _s(size=7.5, color=SECONDARY, after=3)))
-        rows = []
+        _block_header(story, 'Kontrola etapowa', label, res, res_color, meta)
+        spec = []
         for g in st['groups']:
             if g['name']:
-                rows.append([Paragraph(f"<b>{_esc(g['name'])}</b>", _s(size=8)), '', ''])
+                spec.append(('group', g['name']))
             for r in g['results']:
-                if r.result == 'OK':
-                    sym, col = 'OK', SUCCESS
-                elif r.result == 'NG':
-                    sym, col = 'NG', ERROR
-                else:
-                    sym, col = '–', colors.HexColor('#aaaaaa')
+                sym, col = _result_cell(r.result)
                 value = ''
                 if r.is_measure:
                     unit = f' {_esc(r.unit)}' if r.unit else ''
                     value = f'{_esc(r.value_text or "-")}{unit} (zakres {_esc(r.limits_label)})'
                 title = _esc(r.title) + (f'<br/><i>{_esc(r.notes)}</i>' if r.notes else '')
-                rows.append([Paragraph(title, _s(size=8.5)),
-                             Paragraph(sym, _s(size=8.5, bold=True, color=col, align=1)),
-                             Paragraph(value, _s(size=8))])
-        if not rows:
-            continue
-        table = Table(rows, colWidths=[content_width * 0.52, 14 * mm, content_width * 0.48 - 14 * mm])
-        style = [
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
-            ('LEFTPADDING', (0, 0), (-1, -1), 5), ('RIGHTPADDING', (0, 0), (-1, -1), 5),
-            ('LINEBELOW', (0, 0), (-1, -2), 0.3, colors.HexColor('#e0e0e0')),
-            ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#cccccc')),
-        ]
-        for i, row in enumerate(rows):
-            if row[1] == '':
-                style += [('SPAN', (0, i), (-1, i)), ('BACKGROUND', (0, i), (-1, i), NEUTRAL)]
-        table.setStyle(TableStyle(style))
-        story.append(table)
-    story.append(Spacer(1, 4 * mm))
+                spec.append(('row', title, sym, col, value))
+        _points_table(story, spec, content_width)
 
 
 def _initials(name):
@@ -274,80 +369,6 @@ def _initials(name):
     if not parts:
         return name
     return '.'.join(p[0].upper() for p in parts) + '.'
-
-
-def _append_category(story, cat, items, content_width, upload_folder):
-    # Nagłówek kategorii
-    cat_table = Table(
-        [[Paragraph(cat.name.upper(), _s(size=10, bold=True, color=WHITE))]],
-        colWidths=[content_width],
-    )
-    cat_table.setStyle(TableStyle([
-        ('BACKGROUND',    (0, 0), (-1, -1), PRIMARY),
-        ('TOPPADDING',    (0, 0), (-1, -1), 5),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-        ('LEFTPADDING',   (0, 0), (-1, -1), 8),
-        ('RIGHTPADDING',  (0, 0), (-1, -1), 8),
-    ]))
-    story.append(cat_table)
-
-    # Wiersze zadań – każda komórka to pojedynczy Paragraph
-    rows = []
-    for item in items:
-        if item.result == 'ok':
-            sym, sym_color = 'OK', SUCCESS
-        elif item.result == 'ng':
-            sym, sym_color = 'NG', ERROR
-        else:
-            sym, sym_color = '–', colors.HexColor('#aaaaaa')
-        check_cell = Paragraph(sym, _s(size=9, bold=True, color=sym_color, align=1))
-
-        lines = [f'<b>{item.task.title}</b>']
-        if item.task.task_type == 'installer' and item.installers.count():
-            inst_rows = item.installers.all()
-            parts = []
-            for ri in inst_rows:
-                label = _initials(ri.installer.name)
-                if ri.role:
-                    label = f'{ri.role}: {label}'
-                if item.result == 'ng' and len(inst_rows) > 1 and ri.is_at_fault:
-                    label += ' (zawinił)'
-                parts.append(label)
-            lines.append(' / '.join(parts))
-        elif item.task.task_type in ('numeric', 'text') and item.value_text:
-            unit = f' {item.task.unit}' if item.task.unit else ''
-            lines.append(f'{item.value_text}{unit}')
-        elif item.task.task_type == 'measurements' and item.value_text:
-            unit = f' {item.task.unit}' if item.task.unit else ''
-            vals = ' / '.join(v for v in item.value_text.split('|') if v)
-            if vals:
-                lines.append(f'{vals}{unit}')
-        if item.notes:
-            lines.append(f'<i>Odnotuj: {item.notes}</i>')
-        if item.checked_at:
-            ts = _ldt(item.checked_at)
-            lines.append(f'<font size="7"><font color="#888888">Oceniono: {ts}</font></font>')
-        task_cell = Paragraph('<br/>'.join(lines), _s(size=9))
-        rows.append([check_cell, task_cell])
-
-    task_table = Table(rows, colWidths=[14 * mm, content_width - 14 * mm])
-    task_table.setStyle(TableStyle([
-        ('VALIGN',         (0, 0), (-1, -1), 'TOP'),
-        ('TOPPADDING',     (0, 0), (-1, -1), 5),
-        ('BOTTOMPADDING',  (0, 0), (-1, -1), 5),
-        ('LEFTPADDING',    (0, 0), (-1, -1), 5),
-        ('RIGHTPADDING',   (0, 0), (-1, -1), 5),
-        ('LINEBELOW',      (0, 0), (-1, -2), 0.3, colors.HexColor('#e0e0e0')),
-        ('ROWBACKGROUNDS', (0, 0), (-1, -1), [WHITE, NEUTRAL]),
-        ('BOX',            (0, 0), (-1, -1), 0.5, colors.HexColor('#cccccc')),
-    ]))
-    story.append(task_table)
-
-    # Zdjęcia
-    photo_table = _build_photo_table(items, upload_folder, content_width)
-    if photo_table:
-        story.append(Spacer(1, 2 * mm))
-        story.append(photo_table)
 
 
 def _build_photo_table(items, upload_folder, content_width):
