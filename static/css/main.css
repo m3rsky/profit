@@ -3422,6 +3422,10 @@ body.nav-editing [data-nav-sortable] > [data-nav-key].nav-dragging {
 .sc-stage { padding: 12px 14px; border-top: 1px solid var(--erp-border, #e0e0e0); }
 .sc-stage-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .sc-stage-meta { color: #666; font-size: 13px; margin: 4px 0 8px; }
+.sc-stage--first { border-top: 0; }
+.sc-kind { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: #888; margin-bottom: 2px; }
+.sc-points .photo-thumbs { margin-top: 6px; }
+.sc-points .qar-item-row { margin-top: 6px; }
 .sc-link { margin-left: auto; font-size: 13px; }
 .sc-points .sc-group td { font-weight: 600; background: rgba(0,0,0,.04); }
 .sc-note, .sc-range { color: #666; font-size: 12px; }

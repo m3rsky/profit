@@ -1,11 +1,86 @@
-{# Kontrola etapowa w raporcie Kontroli Końcowej (stan na żywo, kontrola/report_link.py). #}
-{% if stage_controls %}
+{# Jedna wspólna lista w raporcie: Kontrola Końcowa (punkty raportu) i Kontrola etapowa (stan na żywo, kontrola/report_link.py).
+   Oba bloki mają ten sam układ: nagłówek z wynikiem, meta, tabela Punkt / Wynik / Wartość. #}
+{% set ns = namespace(ng=false, total=0) %}
+{% for cat, items in items_by_category.items() %}
+  {% for item in items %}{% set ns.total = ns.total + 1 %}{% if item.result == 'ng' %}{% set ns.ng = true %}{% endif %}{% endfor %}
+{% endfor %}
+{% set n_stages = stage_controls.stages | length if stage_controls else 0 %}
 <div class="checklist-category sc-section">
   <div class="category-header">
-    Kontrola etapowa
-    <small>{{ stage_controls.stages | length }} {{ 'kontrola' if stage_controls.stages | length == 1 else 'kontrole' }}</small>
+    Lista kontrolna
+    <small>{% if n_stages %}Końcowa + {{ n_stages }} {{ 'kontrola etapowa' if n_stages == 1 else 'kontrole etapowe' }}{% else %}Końcowa{% endif %}</small>
   </div>
 
+  {# ---- Kontrola Końcowa ---- #}
+  <div class="sc-stage sc-stage--first">
+    <div class="sc-kind">Kontrola Końcowa</div>
+    <div class="sc-stage-head">
+      <strong>{{ report.title }}</strong>
+      {% if report.status != 'completed' %}
+      <span class="rs rs-warn"><i class="bi bi-hourglass-split"></i> W trakcie</span>
+      {% elif ns.ng %}
+      <span class="rs rs-ng"><i class="bi bi-x-circle"></i> NG</span>
+      {% else %}
+      <span class="rs rs-ok"><i class="bi bi-check2-circle"></i> OK</span>
+      {% endif %}
+    </div>
+    <div class="sc-stage-meta">
+      Kontroler: {{ report.author.username }}
+      · {{ (report.completed_at or report.created_at) | localdt }}
+    </div>
+    <table class="data-table sc-points">
+      <thead><tr><th>Punkt</th><th>Wynik</th><th>Wartość</th></tr></thead>
+      <tbody>
+        {% for cat, items in items_by_category.items() %}
+        <tr class="sc-group"><td colspan="3">{{ cat.name }}</td></tr>
+        {% for item in items %}
+        <tr>
+          <td>
+            {{ item.task.title }}
+            {% if item.notes %}<div class="sc-note">{{ item.notes }}</div>{% endif %}
+            {% if item.photos.count() > 0 %}
+            <div class="photo-thumbs">
+              {% for photo in item.photos %}
+              <div class="photo-thumb">
+                <img src="{{ url_for('uploaded_file', filename=photo.filename) }}" alt="zdjęcie"
+                     class="photo-zoomable" data-src="{{ url_for('uploaded_file', filename=photo.filename) }}">
+              </div>
+              {% endfor %}
+            </div>
+            {% endif %}
+            {% if item.qar_report %}
+            <div class="qar-item-row">
+              <a class="qar-chip" href="{{ url_for('qar.detail_report', report_id=item.qar_report.id) }}"
+                 target="_blank" rel="noopener">
+                <i class="bi bi-clipboard2-check-fill"></i> {{ item.qar_report.number }}
+              </a>
+            </div>
+            {% endif %}
+          </td>
+          <td>
+            {% if item.result == 'ok' %}<span class="rs rs-ok"><i class="bi bi-check2-circle"></i> OK</span>
+            {% elif item.result == 'ng' %}<span class="rs rs-ng"><i class="bi bi-x-circle"></i> NG</span>
+            {% else %}<span class="rs rs-muted">-</span>{% endif %}
+          </td>
+          <td>
+            {% if item.task.task_type in ('numeric', 'text') and item.value_text %}
+              {{ item.value_text }}{% if item.task.unit %} {{ item.task.unit }}{% endif %}
+            {% elif item.task.task_type == 'installer' and item.installers.count() %}
+              {% set inst_rows_ro = item.installers.all() %}
+              {% for ri in inst_rows_ro %}{% if ri.role %}{{ ri.role }}: {% endif %}{{ ri.installer.name }}{% if item.result == 'ng' and inst_rows_ro|length > 1 and ri.is_at_fault %} (zawinił){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
+            {% elif item.task.task_type == 'measurements' and item.value_text %}
+              {{ item.value_text.split('|') | select | list | join(' / ') }}{% if item.task.unit %} {{ item.task.unit }}{% endif %}
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {# ---- Kontrola etapowa ---- #}
+  {% if stage_controls %}
   {% if stage_controls.warnings %}
   <ul class="sc-warnings">
     {% for level, text in stage_controls.warnings %}
@@ -16,6 +91,7 @@
 
   {% for s in stage_controls.stages %}
   <div class="sc-stage">
+    <div class="sc-kind">Kontrola etapowa</div>
     <div class="sc-stage-head">
       <strong>{{ s.department }}{% if s.elements %} ({{ s.elements }}){% endif %}</strong>
       {% if s.status != 'completed' %}
@@ -59,5 +135,5 @@
     </table>
   </div>
   {% endfor %}
+  {% endif %}
 </div>
-{% endif %}
