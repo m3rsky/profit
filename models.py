@@ -450,6 +450,8 @@ class Photo(db.Model):
     filename = db.Column(db.String(256), nullable=False)
     original_name = db.Column(db.String(256), nullable=True)
     uploaded_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    # Kiedy plik został zmniejszony (przy zapisie albo zadaniem konserwacji). Puste: oryginał.
+    optimized_at = db.Column(db.DateTime, nullable=True)
 
     def __repr__(self):
         return f'<Photo {self.filename}>'
@@ -1242,6 +1244,26 @@ class ProdSetting(db.Model):
             row.value = value
         else:
             db.session.add(ProdSetting(key=key, value=value))
+
+
+class AppSetting(db.Model):
+    """Ustawienia całej aplikacji (klucz i wartość tekstowa), np. kompresja i retencja zdjęć."""
+    __tablename__ = 'app_settings'
+    key   = db.Column(db.String(64), primary_key=True)
+    value = db.Column(db.String(256), nullable=True)
+
+    @staticmethod
+    def get(key, default=None):
+        row = db.session.get(AppSetting, key)
+        return row.value if row and row.value is not None else default
+
+    @staticmethod
+    def set(key, value):
+        row = db.session.get(AppSetting, key)
+        if row:
+            row.value = str(value)
+        else:
+            db.session.add(AppSetting(key=key, value=str(value)))
 
 
 # ── Kontrola zamówień (stałe punkty kontrolne) ─────────────────────────────────

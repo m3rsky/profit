@@ -214,6 +214,19 @@ Dodany 2026-10-28 (plan: `PLAN_MODUL_KJ_PRESTIZ.md` i `PLAN_MODUL_KJ_PRESTIZ_REA
 
 ---
 
+## Zdjęcia i dysk (`/admin/zdjecia`, od 2026-11-21)
+
+Powstało po zapełnieniu dysku hostingu (limit 50 GB, zajęte 49 GB, z czego 47 GB to zdjęcia Kontroli Końcowej: oryginały z telefonu po ok. 5 MB, przyrost ok. 10 GB miesięcznie). Strona **tylko dla superusera** (pozycja "Zdjęcia i dysk" w sekcji Zarządzanie, `zdjecia.py`, blueprint `zdjecia_bp`, szablon `templates/admin/zdjecia.html`, logika w `photo_tools.py`).
+
+- **Ustawienia** (tabela `app_settings`, model `AppSetting`, domyślne i zakresy w `photo_tools.SETTINGS`): Kontrola Końcowa dłuższy bok 1600 px i jakość JPEG 80, QAR dłuższy bok 0 (bez zmniejszania) i jakość 88, zmniejszanie starych zdjęć po 30 dniach, usuwanie zdjęć po 90 dniach, limit planu 50 GB (pasek zajętości). Wartość 0 przy dniach i pikselach wyłącza operację.
+- **Przy zapisie** (`photo_tools.save_upload`): zdjęcie z Kontroli Końcowej (`upload_photo` w `app.py`) i z QAR (`qar/routes.py`) jest obracane wg EXIF, zmniejszane i zapisywane jako JPEG, a przy błędzie zapisuje się oryginał. Zdjęcie kopiowane z punktu kontroli do QAR ma rozdzielczość Kontroli Końcowej (kopia pliku). Na zdjęciu z telefonu 4,7 MB wynik to ok. 100 do 140 KB.
+- **Jednorazowe zmniejszenie** istniejących zdjęć Kontroli Końcowej starszych niż N dni (`run_compress`): nieodwracalne, plik zastępowany pod tą samą nazwą przez plik tymczasowy, tylko gdy jest mniejszy. Znacznik `Photo.optimized_at` (kolumna dodana w `_migrate_schema`) sprawia, że zdjęcie jest przetwarzane raz, a brakujący plik albo błąd nie zapętlają partii. Zdjęć QAR nie dotyka.
+- **Retencja** (`run_purge`): usuwa plik i wiersz zdjęć Kontroli Końcowej starszych niż N dni (wg `uploaded_at`), tylko z raportów zakończonych. Zdjęcia QAR nie są usuwane. Zapis w Dzienniku zdarzeń (`photos_purge`). Wymaga potwierdzenia (`confirm` w żądaniu).
+- **Uruchamianie:** hosting przerywa długie żądania, więc `POST /admin/zdjecia/uruchom/kompresja` i `.../usuwanie` robią partię do 15 s, a skrypt na stronie powtarza wywołania, aż nic nie zostanie (strona musi zostać otwarta, przerwanie można wznowić). Nie ma schedulera, więc retencja i zmniejszanie nie uruchamiają się same, tylko przyciskiem.
+- Testy: `tests/test_zdjecia.py`. Znany błąd niezwiązany ze zdjęciami: `tests/test_prestiz_kj_reports.py::TestEmployeesAndTime::test_inspection_time` pada też na czystym `main` (2026-11-21).
+
+---
+
 ## Moduł "Lista produkcyjna" (`/produkcja`)
 
 Wdrożony 2026-10-13. Wczytuje ręcznie plik Excel z listą produkcyjną (wszystkie niepuste arkusze, także ukryte), pozwala go przeglądać i edytować w aplikacji, dodawać i usuwać zlecenia, tworzyć z nich listy kontrolne i wpisywać pracowników w kolumny etapów skanem QR.

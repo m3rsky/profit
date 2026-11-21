@@ -180,6 +180,13 @@
         <span>Użytkownicy</span>
       </a>
       {% endif %}
+      {% if current_user.is_superadmin %}
+      <a href="{{ url_for('zdjecia.index') }}"
+         class="{% if request.endpoint and request.endpoint.startswith('zdjecia.') %}active{% endif %}">
+        <span class="nav-icon"><i class="bi bi-images"></i></span>
+        <span>Zdjęcia i dysk</span>
+      </a>
+      {% endif %}
       {% if can('statystyki') %}
       <a href="{{ url_for('admin_stats') }}"
          class="{% if request.endpoint == 'admin_stats' %}active{% endif %}">

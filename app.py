@@ -47,6 +47,7 @@ app.register_blueprint(kosztorys_bp)
 
 from qar import qar_bp  # noqa: E402
 app.register_blueprint(qar_bp)
+import photo_tools  # noqa: E402
 from qar.routes import _next_qar_number  # noqa: E402 — reużyte przez /api/v1/qar
 
 
@@ -69,6 +70,9 @@ app.register_blueprint(kontrola_bp)
 
 from prestiz_kj import prestiz_kj_bp  # noqa: E402
 app.register_blueprint(prestiz_kj_bp)
+
+from zdjecia import zdjecia_bp  # noqa: E402
+app.register_blueprint(zdjecia_bp)
 
 
 # ── Logging ────────────────────────────────────────────────────────────────────
@@ -1450,10 +1454,13 @@ def upload_photo(item_id):
     unique_name = f"{uuid.uuid4().hex}.{ext}"
     upload_path = app.config['UPLOAD_FOLDER']
     os.makedirs(upload_path, exist_ok=True)
-    file.save(os.path.join(upload_path, unique_name))
+    cfg = photo_tools.get_settings()
+    shrunk = photo_tools.save_upload(file, os.path.join(upload_path, unique_name),
+                                     cfg['photo_kk_max_px'], cfg['photo_kk_quality'])
     photo = Photo(report_item_id=item_id,
                   filename=unique_name,
-                  original_name=secure_filename(file.filename))
+                  original_name=secure_filename(file.filename),
+                  optimized_at=datetime.now(UTC) if shrunk else None)
     db.session.add(photo)
     db.session.commit()
     return jsonify({'ok': True, 'photo_id': photo.id,
@@ -3052,6 +3059,10 @@ def _migrate_schema():
     engine = db.engine
     insp = inspect(engine)
     with engine.connect() as conn:
+        if 'photos' in insp.get_table_names():
+            if 'optimized_at' not in [c['name'] for c in insp.get_columns('photos')]:
+                conn.execute(text('ALTER TABLE photos ADD COLUMN optimized_at DATETIME'))
+                conn.commit()
         if 'doc_entries' in insp.get_table_names():
             cols = [c['name'] for c in insp.get_columns('doc_entries')]
             if 'zo_number' not in cols:

@@ -13,6 +13,7 @@ from sqlalchemy import func
 from models import (db, get_or_404, AuditLog, QARReport, QARPhoto, QARCategory,
                     ProductionDepartment, DepartmentEmployee,
                     ReportItem)
+import photo_tools
 from . import qar_bp
 
 UTC = timezone.utc
@@ -450,7 +451,9 @@ def upload_photo(report_id):
     unique_name = f'qar_{uuid.uuid4().hex}.{ext}'
     upload_dir = current_app.config.get('QAR_UPLOAD_FOLDER', '')
     os.makedirs(upload_dir, exist_ok=True)
-    file.save(os.path.join(upload_dir, unique_name))
+    cfg = photo_tools.get_settings()
+    photo_tools.save_upload(file, os.path.join(upload_dir, unique_name),
+                            cfg['photo_qar_max_px'], cfg['photo_qar_quality'])
     caption = request.form.get('caption', '').strip() or None
     photo = QARPhoto(
         report_id=report_id,
