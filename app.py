@@ -71,6 +71,10 @@ app.register_blueprint(kontrola_bp)
 from prestiz_kj import prestiz_kj_bp  # noqa: E402
 app.register_blueprint(prestiz_kj_bp)
 
+from poczta import poczta_bp  # noqa: E402
+app.register_blueprint(poczta_bp)
+import mailer  # noqa: E402
+
 from zdjecia import zdjecia_bp  # noqa: E402
 app.register_blueprint(zdjecia_bp)
 
@@ -929,6 +933,7 @@ def complete_checklist(report_id):
     _create_ng_alerts_on_complete(report)
     db.session.commit()
     _audit('report_complete', 'report', report.id, report.title)
+    mailer.notify_report_done(report)
     sc = report.score
     score_msg = f' Ocena: {sc["grade"]}/6 ({sc["pct"]}% — {sc["ok"]}/{sc["scored"]} pkt).' if sc else ''
 
@@ -2839,6 +2844,7 @@ def api_desktop_complete_report(report_id):
     report.duration_seconds = int((now_utc - ref).total_seconds())
     db.session.commit()
     _audit('complete_report', 'report', report.id)
+    mailer.notify_report_done(report)
     return jsonify({'ok': True})
 
 
@@ -3648,6 +3654,7 @@ def api_v1_complete_checklist(report_id):
     db.session.flush()
     db.session.commit()
     _audit('api_checklist_complete', 'report', report.id, report.title)
+    mailer.notify_report_done(report)
     return jsonify(_api_checklist_dict(report))
 
 

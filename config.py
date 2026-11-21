@@ -41,3 +41,10 @@ class Config:
     DOC_CONFIRM_MB = 50
     API_KEY = os.environ.get('API_KEY', 'change-this-api-key')
     ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
+    # Poczta (konto założone w panelu hostingu). Dane w .env; włączenie i adresatów ustawia
+    # superuser w /admin/poczta (tabela app_settings), więc bez wpisów nic nie jest wysyłane.
+    MAIL_USER = os.environ.get('POST_NAME', '')
+    MAIL_PASSWORD = os.environ.get('POST_PASS', '')
+    MAIL_SMTP_HOST = os.environ.get('SERV_SMTP', '')
+    MAIL_POP_HOST = os.environ.get('SERV_POP', '')
+    MAIL_PORT = int(os.environ.get('SERV_PORT', '587') or 587)

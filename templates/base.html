@@ -187,6 +187,13 @@
         <span>Zdjęcia i dysk</span>
       </a>
       {% endif %}
+      {% if current_user.is_superadmin %}
+      <a href="{{ url_for('poczta.index') }}"
+         class="{% if request.endpoint and request.endpoint.startswith('poczta.') %}active{% endif %}">
+        <span class="nav-icon"><i class="bi bi-envelope"></i></span>
+        <span>Poczta</span>
+      </a>
+      {% endif %}
       {% if can('statystyki') %}
       <a href="{{ url_for('admin_stats') }}"
          class="{% if request.endpoint == 'admin_stats' %}active{% endif %}">

@@ -1,0 +1,87 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Poczta{% endblock %}
+{% block admin_content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-envelope"></i> Poczta</h1>
+    <span class="text-muted" style="font-size:0.82rem;">Wysyłka wiadomości z systemu. Dostęp tylko dla superusera. Hasło do konta jest w pliku .env na serwerze i nie jest tu pokazywane.</span>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:1rem;">
+  <div class="card-header">Konto pocztowe</div>
+  <div class="card-body">
+    {% if configured %}
+    <p style="margin:0;"><i class="bi bi-check-circle"></i> Skonfigurowane w .env. Serwer SMTP: <strong>{{ account.smtp }}</strong>, port <strong>{{ account.port }}</strong>, konto: <strong>{{ account.user }}</strong>.</p>
+    {% else %}
+    <p style="margin:0;"><i class="bi bi-exclamation-triangle"></i> Konto nie jest skonfigurowane. Uzupełnij w pliku .env zmienne POST_NAME, POST_PASS, SERV_SMTP i SERV_PORT i zrestartuj aplikację.</p>
+    {% endif %}
+    <p class="text-muted" style="font-size:0.82rem;margin:.5rem 0 0;">Wysłano w ostatniej godzinie: {{ sent_hour }} z {{ settings.hourly_limit }}.</p>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:1rem;">
+  <div class="card-header">Ustawienia</div>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('poczta.save') }}">
+      {{ csrf_input() }}
+      <div class="form-group">
+        <label><input type="checkbox" name="mail_enabled" value="1" {% if settings.enabled %}checked{% endif %}> Wysyłka włączona (wyłączenie zatrzymuje wszystkie wiadomości poza próbną)</label>
+      </div>
+      <div class="form-group">
+        <label><input type="checkbox" name="mail_report_done" value="1" {% if settings.report_done %}checked{% endif %}> Wiadomość o ukończeniu kontroli (jedna na całą serię)</label>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="mail_recipients">Adresaci powiadomień (do 10, rozdzielone przecinkiem)</label>
+        <input class="form-control" type="text" id="mail_recipients" name="mail_recipients" maxlength="250"
+               value="{{ settings.recipients|join(', ') }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="mail_hourly_limit">Limit wiadomości na godzinę (1 do 500)</label>
+        <input class="form-control" type="number" min="1" max="500" id="mail_hourly_limit" name="mail_hourly_limit"
+               value="{{ settings.hourly_limit }}" style="max-width:140px;">
+      </div>
+      <button class="btn btn-primary" type="submit"><i class="bi bi-check2"></i> Zapisz ustawienia</button>
+    </form>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:1rem;">
+  <div class="card-header">Wiadomość próbna</div>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('poczta.test_message') }}" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:flex-end;">
+      {{ csrf_input() }}
+      <div class="form-group" style="margin:0;">
+        <label class="form-label" for="to">Wyślij na adres</label>
+        <input class="form-control" type="email" id="to" name="to" value="{{ current_user.email }}" required style="min-width:260px;">
+      </div>
+      <button class="btn btn-outline" type="submit" {% if not configured %}disabled{% endif %}><i class="bi bi-send"></i> Wyślij próbną</button>
+    </form>
+    <p class="text-muted" style="font-size:0.82rem;margin:.5rem 0 0;">Wiadomość próbna działa niezależnie od przełącznika wysyłki, ale liczy się do limitu na godzinę.</p>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">Ostatnie zdarzenia poczty</div>
+  <div class="card-body card-body--flush">
+    {% if logs %}
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>Data</th><th>Wynik</th><th>Szczegóły</th></tr></thead>
+        <tbody>
+          {% for l in logs %}
+          <tr>
+            <td class="text-nowrap">{{ l.created_at | localdt }}</td>
+            <td>{% if l.action == 'mail_sent' %}wysłano{% else %}błąd{% endif %}</td>
+            <td>{{ l.detail }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-muted" style="padding:1rem;margin:0;">Brak wysłanych wiadomości.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

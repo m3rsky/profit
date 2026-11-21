@@ -1266,6 +1266,14 @@ class AppSetting(db.Model):
             db.session.add(AppSetting(key=key, value=str(value)))
 
 
+class SentNotice(db.Model):
+    """Znacznik wysłanego powiadomienia e-mail (klucz np. `report_done:<seria>`), żeby to samo zdarzenie
+    nie wysłało wiadomości drugi raz."""
+    __tablename__ = 'sent_notices'
+    key        = db.Column(db.String(128), primary_key=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+
+
 # ── Kontrola zamówień (stałe punkty kontrolne) ─────────────────────────────────
 
 class ControlPoint(db.Model):

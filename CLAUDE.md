@@ -227,6 +227,19 @@ Powstało po zapełnieniu dysku hostingu (limit 50 GB, zajęte 49 GB, z czego 47
 
 ---
 
+## Poczta (`/admin/poczta`, od 2026-11-21, etap 1 planu)
+
+Wysyłka wiadomości z systemu przez konto założone w panelu IQHost. Plan etapów: 1 moduł wysyłki z wiadomością o ukończeniu kontroli (ten), 2 powiadomienia o alertach, 3 reset hasła, 4 wysyłka raportów i PDF, 5 odbieranie (POP3, konto ma tylko POP3, bez IMAP). Strona **tylko dla superusera** (`poczta.py`, `templates/admin/poczta.html`), logika w `mailer.py`.
+
+- **Dane konta w `.env`** (lokalnie i na serwerze): `POST_NAME` (pełny adres skrzynki, login), `POST_PASS`, `SERV_SMTP`, `SERV_POP`, `SERV_PORT` (587, SMTP ze STARTTLS, port 465 obsługuje SSL). Czytane w `config.py` jako `MAIL_USER`, `MAIL_PASSWORD`, `MAIL_SMTP_HOST`, `MAIL_POP_HOST`, `MAIL_PORT`. Hasła nie widać nigdzie w aplikacji.
+- **Włączenie i adresaci nie są w `.env`**, tylko w tabeli `app_settings` (ustawia superuser na stronie Poczta): `mail_enabled` (domyślnie 0), `mail_report_done` (0), `mail_recipients` (do 10 adresów, 250 znaków), `mail_hourly_limit` (30). Bez włączenia i adresatów nic nie wychodzi, a wiadomość próbna działa niezależnie od przełącznika.
+- **Wysyłka** (`mailer.send`): w tle (wątek), zawsze z zapisem w Dzienniku zdarzeń (`mail_sent`, `mail_failed`, bez treści i haseł), limit na godzinę liczony z `mail_sent`, nigdy nie zgłasza wyjątku do wywołującego (błąd poczty nie psuje zamykania raportu). W testach (`app.testing`) idzie synchronicznie, a `mailer._smtp_send` trzeba podmienić (testy nigdy nie łączą się z prawdziwym serwerem, a lokalny `.env` ma prawdziwe dane).
+- **Ukończenie kontroli** (`mailer.notify_report_done`, wywoływane po zamknięciu listy w `complete_checklist`, `api_v1_complete_checklist` i `api_desktop_complete_report`): **jedna wiadomość na całą serię** (`batch_id`), wysyłana dopiero gdy ostatnia lista serii jest zakończona, albo na pojedynczą listę bez serii. Treść: klient, ZO, produkt (z `qr_key`), ilość, kontroler, czas ukończenia, link do raportu. Powtórne zamknięcie nie wysyła drugi raz (`SentNotice`, klucz `report_done:<seria>`). Na razie bez wyniku NG w treści (świadoma decyzja: sama informacja o ukończeniu).
+- Pierwszy test na prawdziwej skrzynce zrobiony 2026-11-21 (SMTP 587 i odbiór POP3 działają).
+- Testy: `tests/test_poczta.py`.
+
+---
+
 ## Moduł "Lista produkcyjna" (`/produkcja`)
 
 Wdrożony 2026-10-13. Wczytuje ręcznie plik Excel z listą produkcyjną (wszystkie niepuste arkusze, także ukryte), pozwala go przeglądać i edytować w aplikacji, dodawać i usuwać zlecenia, tworzyć z nich listy kontrolne i wpisywać pracowników w kolumny etapów skanem QR.
@@ -327,6 +340,11 @@ Plik `.env` w katalogu projektu (lokalnie i na serwerze) musi zawierać:
 SECRET_KEY=...         # klucz sesji Flask
 API_KEY=...            # klucz do autoryzacji /api/v1/* (integracje zewnętrzne, np. Streamsoft, narzędzie bulk_checklist_entry.py)
 ANTHROPIC_API_KEY=...  # klucz do Claude API (moduł "Poranny Briefing", /admin/briefing/*)
+POST_NAME=...          # konto pocztowe (pełny adres), patrz sekcja "Poczta"
+POST_PASS=...
+SERV_SMTP=...          # serwer SMTP
+SERV_POP=...           # serwer POP3
+SERV_PORT=587          # port SMTP (STARTTLS)
 ```
 
 - Bez `API_KEY` w `.env` na serwerze `Config.API_KEY` spada na wartość domyślną `change-this-api-key` - upewnij się, że serwer produkcyjny ma ustawiony własny, wygenerowany klucz.
