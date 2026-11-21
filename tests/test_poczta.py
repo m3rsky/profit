@@ -71,13 +71,34 @@ class TestUstawienia:
 
     def test_zapis_i_walidacja(self, app):
         with app.app_context():
-            ok = {'mail_enabled': '1', 'mail_recipients': 'a@b.pl, c@d.pl', 'mail_hourly_limit': '10'}
+            ok = {'mail_enabled': '1', 'mail_recipients': 'a@b.pl, c@d.pl', 'mail_hourly_limit': '10',
+                  'mail_from_name': 'PSH QC'}
             assert mailer.save_settings(ok) == []
             s = mailer.get_settings()
             assert s['enabled'] and not s['report_done'] and s['recipients'] == ['a@b.pl', 'c@d.pl']
             assert mailer.save_settings({**ok, 'mail_recipients': 'to nie adres'})
             assert mailer.save_settings({**ok, 'mail_hourly_limit': '0'})
             assert mailer.save_settings({**ok, 'mail_recipients': ', '.join(f'u{i}@x.pl' for i in range(11))})
+
+    def test_nazwa_nadawcy(self, app):
+        with app.app_context():
+            base = {'mail_recipients': 'a@b.pl', 'mail_hourly_limit': '10'}
+            assert mailer.get_settings()['from_name'] == 'PSH QC'   # domyślna
+            assert mailer.save_settings({**base, 'mail_from_name': '  Kontrola   Jakości Kubiak '}) == []
+            assert mailer.get_settings()['from_name'] == 'Kontrola Jakości Kubiak'
+            for bad in ('', '   ', 'x' * 61, 'Jan <jan@x.pl>', 'a\r\nBcc: ktos@x.pl', 'a;b', 'a@b', 'a\x00b', 'a\\b'):
+                assert mailer.save_settings({**base, 'mail_from_name': bad}), repr(bad)
+            assert mailer.get_settings()['from_name'] == 'Kontrola Jakości Kubiak'   # błędny zapis nic nie zmienia
+
+    def test_nazwa_nadawcy_w_wiadomosci(self, client, _mail):
+        with flask_app.app_context():
+            AppSetting.set('mail_from_name', 'Dział Jakości')
+            db.session.commit()
+        login(client, 'super', 'Super1234!')
+        client.post('/admin/poczta/probna', data={'to': 'ja@example.test', '_csrf_token': _csrf(client)})
+        from email.header import decode_header, make_header
+        frm = str(make_header(decode_header(_mail[0]['From'])))
+        assert frm.startswith('Dział Jakości <') and frm.endswith('<psh@example.test>')
 
     def test_strona_tylko_superuser(self, client):
         login(client, 'admin', 'Admin1234!')

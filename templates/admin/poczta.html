@@ -32,6 +32,11 @@
         <label><input type="checkbox" name="mail_report_done" value="1" {% if settings.report_done %}checked{% endif %}> Wiadomość o ukończeniu kontroli (jedna na całą serię)</label>
       </div>
       <div class="form-group">
+        <label class="form-label" for="mail_from_name">Nazwa nadawcy (widoczna jako „od” w skrzynce odbiorcy, do 60 znaków)</label>
+        <input class="form-control" type="text" id="mail_from_name" name="mail_from_name" maxlength="60" required
+               value="{{ settings.from_name }}" style="max-width:340px;">
+      </div>
+      <div class="form-group">
         <label class="form-label" for="mail_recipients">Adresaci powiadomień (do 10, rozdzielone przecinkiem)</label>
         <input class="form-control" type="text" id="mail_recipients" name="mail_recipients" maxlength="250"
                value="{{ settings.recipients|join(', ') }}">

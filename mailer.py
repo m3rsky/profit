@@ -20,7 +20,9 @@ from sqlalchemy.exc import IntegrityError
 from models import db, AppSetting, AuditLog, Report, SentNotice
 
 EMAIL_RE = re.compile(r'^[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+$')
-SETTING_DEFAULTS = {'mail_enabled': '0', 'mail_report_done': '0', 'mail_recipients': '', 'mail_hourly_limit': '30'}
+SETTING_DEFAULTS = {'mail_enabled': '0', 'mail_report_done': '0', 'mail_recipients': '', 'mail_hourly_limit': '30',
+                    'mail_from_name': 'PSH QC'}
+FROM_NAME_MAX = 60
 MAX_RECIPIENTS = 10
 LOCAL_TZ = ZoneInfo('Europe/Warsaw')
 
@@ -38,6 +40,7 @@ def get_settings():
         'report_done': s['mail_report_done'] == '1',
         'recipients': parse_recipients(s['mail_recipients']),
         'hourly_limit': limit,
+        'from_name': (s['mail_from_name'] or '').strip() or SETTING_DEFAULTS['mail_from_name'],
     }
 
 
@@ -73,8 +76,16 @@ def save_settings(form):
     except ValueError:
         errors.append('Limit wiadomości na godzinę: liczba od 1 do 500.')
         limit = None
+    from_name = ' '.join(str(form.get('mail_from_name', '')).split())
+    if not from_name:
+        errors.append('Nazwa nadawcy nie może być pusta.')
+    elif len(from_name) > FROM_NAME_MAX:
+        errors.append(f'Nazwa nadawcy: najwyżej {FROM_NAME_MAX} znaków.')
+    elif re.search(r'[<>"@;,\\\x00-\x1f\x7f]', from_name):
+        errors.append('Nazwa nadawcy nie może zawierać znaków: < > " @ ; , ukośnika ani znaków sterujących.')
     if errors:
         return errors
+    AppSetting.set('mail_from_name', from_name)
     AppSetting.set('mail_enabled', '1' if form.get('mail_enabled') else '0')
     AppSetting.set('mail_report_done', '1' if form.get('mail_report_done') else '0')
     AppSetting.set('mail_recipients', joined)
@@ -137,7 +148,7 @@ def _deliver(app, subject, body, recipients):
         cfg = app.config
         try:
             msg = _build(subject, body, recipients, cfg['MAIL_USER'],
-                         AppSetting.get('mail_from_name', 'PSH QC'))
+                         AppSetting.get('mail_from_name', 'PSH QC') or 'PSH QC')
             _smtp_send(msg, cfg)
         except Exception as exc:
             err = f'{type(exc).__name__}: {exc}'[:200]
