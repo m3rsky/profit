@@ -152,6 +152,23 @@ class TestUkonczenieSerii:
         assert _complete(rid) is True
         assert 'Ilość: 1 szt.' in _mail[0].get_content()
 
+    def test_ponownie_uzyty_numer_listy(self, _mail):
+        """Po usunięciu raportu jego numer bywa przydzielony nowej liście: powiadomienie ma wyjść znowu."""
+        _enable()
+        (rid,) = _series(1, batch=False)
+        assert _complete(rid) is True
+        with flask_app.app_context():
+            Report.query.filter_by(id=rid).delete()
+            db.session.commit()
+            user = User.query.filter_by(username='oper').first()
+            tmpl = ChecklistTemplate.query.filter_by(name='Test szablon').first()
+            db.session.add(Report(id=rid, user_id=user.id, template_id=tmpl.id, title='MAIL-ponownie',
+                                  status='in_progress', report_type='kontroler',
+                                  created_at=datetime(2030, 1, 1, 12, 0, 0)))
+            db.session.commit()
+        assert _complete(rid) is True
+        assert len(_mail) == 2
+
     def test_wylaczone_nic_nie_wysyla(self, _mail):
         ids = _series(1, batch=False)
         assert _complete(ids[0]) is False   # domyślnie wyłączone

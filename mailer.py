@@ -221,7 +221,9 @@ def notify_report_done(report):
                 return False
             key, qty, last = f'report_done:{report.batch_id}', len(reports), report
         else:
-            key, qty, last = f'report_done:r{report.id}', 1, report
+            # Numer listy bywa używany ponownie po usunięciu raportu, więc do klucza dochodzi czas utworzenia.
+            created = report.created_at.strftime('%Y%m%d%H%M%S%f') if report.created_at else '0'
+            key, qty, last = f'report_done:r{report.id}:{created}', 1, report
         if db.session.get(SentNotice, key):
             return False
         db.session.add(SentNotice(key=key))
