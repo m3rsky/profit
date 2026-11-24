@@ -240,6 +240,20 @@ Wysyłka wiadomości z systemu przez konto założone w panelu IQHost. Plan etap
 
 ---
 
+## Czas pracy nad listą kontrolną (`worktime.py`, `/admin/czas-pracy`, od 2026-11-24)
+
+Naprawa zawyżonych czasów kontroli (np. 17 do 40 godzin w statystykach): odcinek pracy (`ChecklistSession`) bywał otwarty w nieskończoność, a przy zamknięciu listy dostawał koniec "teraz". Przyczyny: odcinek zamykał tylko sygnał `pagehide` (zawodny na telefonach i odrzucany po wygaśnięciu sesji logowania) albo zamknięcie listy, nic nie zapisywało ostatniej aktywności, wejście na listę otwierało kolejny odcinek bez zamykania poprzednich, a heartbeat i odpytywanie alertów odświeżały sesję logowania (otwarta karta nigdy nie wylogowywała).
+
+- **Zasady:** wejście na listę otwiera odcinek, wyjście (inna strona, zamknięcie lub ukrycie karty, zablokowanie ekranu, wylogowanie) go zamyka, powrót otwiera nowy. Czas listy to suma odcinków po scaleniu nakładających się (`total_seconds`). Brak aktywności dłużej niż próg (`work_idle_minutes`, domyślnie 60, zakres 5 do 480, ustawia superuser w `/admin/czas-pracy`) zamyka odcinek w chwili **ostatniej aktywności plus 120 s** (`GRACE`), czyli czas bezczynności się nie liczy. Przerwa krótsza niż próg na otwartej liście się liczy.
+- **Aktywność:** nowa kolumna `ChecklistSession.last_activity_at` (migracja w `_migrate_schema`), odświeżana przy zapisie punktu (wynik, wartość, notatka, zdjęcie, montażyści: `worktime.touch`) oraz przez aktywny heartbeat. Zapis punktu po zamknięciu odcinka otwiera nowy.
+- **Przeglądarka** (`templates/checklist.html`): heartbeat co 60 s wysyła `active` tylko, gdy w ostatnich 90 s był dotyk, klawisz, ruch lub przewijanie, a karta jest widoczna. `visibilitychange` ukryta wysyła `/api/report/<id>/pause`, powrót `/resume`, `pagehide` zwalnia blokadę (`/unlock`). Po wygaśnięciu sesji logowania strona odsyła do logowania z powrotem do tej samej listy.
+- **Zamykanie odcinków:** `worktime.finish` przy zamknięciu listy (web, `/api/v1`, aplikacja desktopowa; desktop bez odcinków zostaje przy dawnym wzorze), `close_user_sessions` przy wylogowaniu i wygaśnięciu sesji logowania, `sweep` przy kolejnych żądaniach (nie częściej niż raz na minutę na proces, bez harmonogramu). Zamknięcie "wyraźne" (wyjście użytkownika) kończy się w `teraz`, o ile ostatnia aktywność nie jest starsza niż próg, inaczej w ostatniej aktywności plus zapas.
+- **Sesja logowania:** `check_session_timeout` nie odświeża `_last_activity` dla endpointów z `_PASSIVE_ENDPOINTS` (`report_heartbeat`, `alerts_poll`); aktywny heartbeat odświeża ją sam. Wylogowanie po godzinie bezczynności działa więc także przy otwartej karcie.
+- **Historia:** celowo nienaruszana (zawyżone raporty usunięto ręcznie). Stare odcinki bez `last_activity_at` zamykają się wg ostatniego zapisu punktu (`last_activity`).
+- Testy: `tests/test_worktime.py`.
+
+---
+
 ## Moduł "Lista produkcyjna" (`/produkcja`)
 
 Wdrożony 2026-10-13. Wczytuje ręcznie plik Excel z listą produkcyjną (wszystkie niepuste arkusze, także ukryte), pozwala go przeglądać i edytować w aplikacji, dodawać i usuwać zlecenia, tworzyć z nich listy kontrolne i wpisywać pracowników w kolumny etapów skanem QR.

@@ -188,6 +188,13 @@
       </a>
       {% endif %}
       {% if current_user.is_superadmin %}
+      <a href="{{ url_for('czas.index') }}"
+         class="{% if request.endpoint and request.endpoint.startswith('czas.') %}active{% endif %}">
+        <span class="nav-icon"><i class="bi bi-stopwatch"></i></span>
+        <span>Czas pracy</span>
+      </a>
+      {% endif %}
+      {% if current_user.is_superadmin %}
       <a href="{{ url_for('poczta.index') }}"
          class="{% if request.endpoint and request.endpoint.startswith('poczta.') %}active{% endif %}">
         <span class="nav-icon"><i class="bi bi-envelope"></i></span>

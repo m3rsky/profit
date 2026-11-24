@@ -1,0 +1,45 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Czas pracy{% endblock %}
+{% block admin_content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-stopwatch"></i> Czas pracy nad listami</h1>
+    <span class="text-muted" style="font-size:0.82rem;">Jak system liczy czas wykonywania list kontrolnych. Dostęp tylko dla superusera.</span>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:1rem;">
+  <div class="card-header">Zasady</div>
+  <div class="card-body">
+    <ul style="margin:0;padding-left:1.2rem;line-height:1.6;">
+      <li>Wejście na listę uruchamia czas, a każde wyjście z niej (inna strona, zamknięcie karty, ukrycie karty, zablokowanie ekranu, wylogowanie) go zatrzymuje.</li>
+      <li>Powrót do listy wznawia liczenie od nowa. Czas listy to suma wszystkich odcinków pracy.</li>
+      <li>Gdy przez czas dłuższy niż poniższy próg nie ma żadnej aktywności, lista jest uznawana za opuszczoną, a czas kończy się w chwili ostatniej aktywności (plus {{ grace }} s zapasu). Godziny bezczynności nie są doliczane.</li>
+      <li>Aktywność to zapis punktu na liście albo dotyk, klawisz lub ruch na otwartej liście.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:1rem;">
+  <div class="card-header">Ustawienie</div>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('czas.save') }}">
+      {{ csrf_input() }}
+      <div class="form-group">
+        <label class="form-label" for="work_idle_minutes">Przerwa uznawana za bezczynność (minuty, od {{ limits[0] }} do {{ limits[1] }})</label>
+        <input class="form-control" type="number" min="{{ limits[0] }}" max="{{ limits[1] }}" step="1"
+               id="work_idle_minutes" name="work_idle_minutes" value="{{ minutes }}" style="max-width:160px;">
+      </div>
+      <button class="btn btn-primary" type="submit"><i class="bi bi-check2"></i> Zapisz</button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">Stan</div>
+  <div class="card-body">
+    <p style="margin:0;">Otwarte odcinki pracy w tej chwili: <strong>{{ open_count }}</strong>.</p>
+    <p class="text-muted" style="font-size:0.82rem;margin:.4rem 0 0;">Odcinki bezczynne dłużej niż próg są zamykane automatycznie przy kolejnych żądaniach do aplikacji (bez harmonogramu).</p>
+  </div>
+</div>
+{% endblock %}

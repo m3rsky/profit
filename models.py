@@ -372,6 +372,8 @@ class ChecklistSession(db.Model):
     report_id  = db.Column(db.Integer, db.ForeignKey('reports.id'), nullable=False)
     started_at = db.Column(db.DateTime, nullable=False)
     ended_at   = db.Column(db.DateTime, nullable=True)
+    # Ostatnia aktywność w odcinku pracy (zapis punktu, aktywny sygnał z przeglądarki). Puste: stare odcinki.
+    last_activity_at = db.Column(db.DateTime, nullable=True)
     report     = db.relationship('Report', back_populates='sessions')
 
     def __repr__(self):

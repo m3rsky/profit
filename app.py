@@ -74,6 +74,9 @@ app.register_blueprint(prestiz_kj_bp)
 from poczta import poczta_bp  # noqa: E402
 app.register_blueprint(poczta_bp)
 import mailer  # noqa: E402
+import worktime  # noqa: E402
+from czas_pracy import czas_bp  # noqa: E402
+app.register_blueprint(czas_bp)
 
 from zdjecia import zdjecia_bp  # noqa: E402
 app.register_blueprint(zdjecia_bp)
@@ -101,6 +104,7 @@ def load_user(user_id):
 
 
 SESSION_TIMEOUT = timedelta(hours=1)
+_PASSIVE_ENDPOINTS = {'report_heartbeat', 'alerts_poll'}
 
 # ── CSRF ───────────────────────────────────────────────────────────────────────
 def _get_csrf_token() -> str:
@@ -220,13 +224,29 @@ def check_session_timeout():
             if last_dt.tzinfo is None:
                 last_dt = last_dt.replace(tzinfo=UTC)
         if last and (now - last_dt) > SESSION_TIMEOUT:
+            worktime.close_user_sessions(current_user.id, expired=True)
             logout_user()
             session.clear()
             if request.path.startswith('/api/'):
                 return jsonify({'error': 'Sesja wygasła'}), 401
             flash('Sesja wygasła. Zaloguj się ponownie.', 'warning')
             return redirect(url_for('login'))
-        session['_last_activity'] = now.isoformat()
+        # Sygnały w tle (odpytywanie alertów, nieaktywny heartbeat) nie są aktywnością użytkownika,
+        # inaczej otwarta karta nigdy nie wylogowywałaby po bezczynności.
+        if request.endpoint not in _PASSIVE_ENDPOINTS:
+            session['_last_activity'] = now.isoformat()
+
+
+@app.before_request
+def sweep_idle_work_sessions():
+    """Zamyka odcinki pracy nad listami bezczynne dłużej niż próg (bez harmonogramu, nie częściej niż raz na minutę)."""
+    if request.endpoint in ('static', 'sw_js', 'manifest_json'):
+        return
+    try:
+        worktime.sweep()
+    except Exception as exc:
+        db.session.rollback()
+        app.logger.error('Czas pracy: sprzątanie odcinków nie powiodło się (%s)', exc)
 
 
 def admin_required(f):
@@ -495,6 +515,7 @@ def login():
 @app.route('/logout')
 @login_required
 def logout():
+    worktime.close_user_sessions(current_user.id)
     logout_user()
     return redirect(url_for('login'))
 
@@ -880,9 +901,7 @@ def checklist_view(report_id):
         now = datetime.now(UTC)
         report.locked_by_id = current_user.id
         report.locked_at    = now
-        if report.started_at is None:
-            report.started_at = now
-        db.session.add(ChecklistSession(report_id=report.id, started_at=now))
+        worktime.open_session(report, now)
         db.session.commit()
     items_by_category = {}
     for item in report.items.all():
@@ -914,21 +933,12 @@ def complete_checklist(report_id):
     if is_kontroler_report and report.user_id != current_user.id:
         report.user_id = current_user.id
     now_utc = datetime.now(UTC)
-    for open_session in ChecklistSession.query.filter_by(
-            report_id=report_id, ended_at=None).all():
-        open_session.ended_at = now_utc
-    total_seconds = 0
-    for s in ChecklistSession.query.filter_by(report_id=report_id).all():
-        if s.ended_at is None:
-            continue
-        s_start = s.started_at if s.started_at.tzinfo else s.started_at.replace(tzinfo=UTC)
-        s_end   = s.ended_at   if s.ended_at.tzinfo   else s.ended_at.replace(tzinfo=UTC)
-        total_seconds += int((s_end - s_start).total_seconds())
+    total_seconds = worktime.finish(report, now_utc)
     report.status           = 'completed'
     report.completed_at     = now_utc
     report.locked_by_id     = None
     report.locked_at        = None
-    report.duration_seconds = total_seconds if total_seconds > 0 else None
+    report.duration_seconds = total_seconds
     db.session.flush()
     _create_ng_alerts_on_complete(report)
     db.session.commit()
@@ -1132,7 +1142,7 @@ def report_reopen(report_id):
     report.started_at       = None
     report.locked_by_id     = current_user.id
     report.locked_at        = now
-    db.session.add(ChecklistSession(report_id=report.id, started_at=now))
+    worktime.open_session(report, now)
     db.session.commit()
     _audit('report_reopen', 'report', report.id, report.title)
     flash('Raport wznowiony – można ponownie edytować.', 'success')
@@ -1142,10 +1152,50 @@ def report_reopen(report_id):
 @app.route('/api/report/<int:report_id>/heartbeat', methods=['POST'])
 @login_required
 def report_heartbeat(report_id):
+    """Sygnał z otwartej listy. Aktywny (użytkownik coś robił w ostatnich chwilach) podtrzymuje blokadę, odcinek
+    pracy i sesję logowania. Nieaktywny nic nie odświeża, więc bezczynność kończy odcinek po progu."""
+    report = get_or_404(Report, report_id)
+    open_ = False
+    if report.status == 'in_progress' and report.locked_by_id == current_user.id:
+        active = bool((request.get_json(silent=True) or {}).get('active'))
+        if active:
+            now = datetime.now(UTC)
+            report.locked_at = now
+            worktime.touch(report, now)
+            db.session.commit()
+            session['_last_activity'] = now.isoformat()
+        open_ = worktime.has_open(report.id)
+    return jsonify({'ok': True, 'open': open_})
+
+
+@app.route('/api/report/<int:report_id>/pause', methods=['POST'])
+@login_required
+def report_pause(report_id):
+    """Użytkownik wyszedł z listy (ukrycie karty, zablokowanie ekranu): czas przestaje biec, blokada zostaje."""
     report = get_or_404(Report, report_id)
     if report.locked_by_id == current_user.id:
-        report.locked_at = datetime.now(UTC)
+        worktime.close_open(report.id, datetime.now(UTC), explicit=True)
         db.session.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/report/<int:report_id>/resume', methods=['POST'])
+@login_required
+def report_resume(report_id):
+    """Powrót do listy: czas biegnie dalej (nowy odcinek pracy)."""
+    report = get_or_404(Report, report_id)
+    if not _can_edit_report(report):
+        return jsonify({'error': 'Forbidden'}), 403
+    if report.status != 'in_progress':
+        return jsonify({'ok': False, 'status': report.status}), 409
+    if report.lock_active and report.locked_by_id != current_user.id:
+        return jsonify({'error': 'Raport jest edytowany przez innego użytkownika'}), 423
+    now = datetime.now(UTC)
+    report.locked_by_id = current_user.id
+    report.locked_at = now
+    if not worktime.has_open(report.id):
+        worktime.open_session(report, now)
+    db.session.commit()
     return jsonify({'ok': True})
 
 
@@ -1154,10 +1204,7 @@ def report_heartbeat(report_id):
 def report_unlock(report_id):
     report = get_or_404(Report, report_id)
     if report.locked_by_id == current_user.id:
-        now = datetime.now(UTC)
-        for open_session in ChecklistSession.query.filter_by(
-                report_id=report_id, ended_at=None).all():
-            open_session.ended_at = now
+        worktime.close_open(report.id, datetime.now(UTC), explicit=True)
         report.locked_by_id = None
         report.locked_at    = None
         db.session.commit()
@@ -1292,6 +1339,7 @@ def set_item_result(item_id):
         return jsonify({'error': 'Raport jest zamknięty'}), 400
     if item.report.lock_active and item.report.locked_by_id != current_user.id:
         return jsonify({'error': 'Raport jest edytowany przez innego użytkownika'}), 423
+    worktime.touch(item.report)
     result = request.json.get('result')
     if result not in ('ok', 'ng', 'na', 'dw', None):
         return jsonify({'error': 'Nieprawidłowy wynik'}), 400
@@ -1316,6 +1364,7 @@ def set_item_value(item_id):
         return jsonify({'error': 'Raport jest zamknięty'}), 400
     if item.report.lock_active and item.report.locked_by_id != current_user.id:
         return jsonify({'error': 'Raport jest edytowany przez innego użytkownika'}), 423
+    worktime.touch(item.report)
     value = request.json.get('value', '').strip()
     if not value:
         item.value_text = None
@@ -1370,6 +1419,7 @@ def set_item_installers(item_id):
         return jsonify({'error': 'Raport jest zamknięty'}), 400
     if item.report.lock_active and item.report.locked_by_id != current_user.id:
         return jsonify({'error': 'Raport jest edytowany przez innego użytkownika'}), 423
+    worktime.touch(item.report)
     entries = request.json.get('installers', [])
     if not isinstance(entries, list):
         return jsonify({'error': 'Nieprawidłowe dane'}), 400
@@ -1437,6 +1487,7 @@ def save_item_notes(item_id):
     item = get_or_404(ReportItem, item_id)
     if not _can_edit_report(item.report):
         return jsonify({'error': 'Forbidden'}), 403
+    worktime.touch(item.report)
     item.notes = request.json.get('notes', '')
     db.session.commit()
     return jsonify({'ok': True})
@@ -1450,6 +1501,7 @@ def upload_photo(item_id):
         return jsonify({'error': 'Forbidden'}), 403
     if item.report.status == 'completed':
         return jsonify({'error': 'Raport jest zamknięty'}), 400
+    worktime.touch(item.report)
     file = request.files.get('photo')
     if not file or not allowed_file(file.filename):
         return jsonify({'error': 'Nieprawidłowy plik'}), 400
@@ -2839,9 +2891,12 @@ def api_desktop_complete_report(report_id):
     now_utc = datetime.now(UTC)
     report.status = 'completed'
     report.completed_at = now_utc
-    ref = report.started_at or report.created_at
-    ref = ref if ref.tzinfo else ref.replace(tzinfo=UTC)
-    report.duration_seconds = int((now_utc - ref).total_seconds())
+    if ChecklistSession.query.filter_by(report_id=report.id).count():
+        report.duration_seconds = worktime.finish(report, now_utc)
+    else:   # aplikacja desktopowa nie zakłada odcinków pracy: dawny wzór (zamknięcie minus początek)
+        ref = report.started_at or report.created_at
+        ref = ref if ref.tzinfo else ref.replace(tzinfo=UTC)
+        report.duration_seconds = int((now_utc - ref).total_seconds())
     db.session.commit()
     _audit('complete_report', 'report', report.id)
     mailer.notify_report_done(report)
@@ -3065,6 +3120,10 @@ def _migrate_schema():
     engine = db.engine
     insp = inspect(engine)
     with engine.connect() as conn:
+        if 'checklist_sessions' in insp.get_table_names():
+            if 'last_activity_at' not in [c['name'] for c in insp.get_columns('checklist_sessions')]:
+                conn.execute(text('ALTER TABLE checklist_sessions ADD COLUMN last_activity_at DATETIME'))
+                conn.commit()
         if 'photos' in insp.get_table_names():
             if 'optimized_at' not in [c['name'] for c in insp.get_columns('photos')]:
                 conn.execute(text('ALTER TABLE photos ADD COLUMN optimized_at DATETIME'))
@@ -3622,9 +3681,7 @@ def api_v1_start_checklist(report_id):
     if report.status == 'completed':
         return jsonify({'error': 'Raport jest już zakończony'}), 400
     now = datetime.now(UTC)
-    if report.started_at is None:
-        report.started_at = now
-    db.session.add(ChecklistSession(report_id=report.id, started_at=now))
+    worktime.open_session(report, now)
     db.session.commit()
     _audit('api_checklist_start', 'report', report.id, report.title)
     return jsonify(_api_checklist_dict(report))
@@ -3637,20 +3694,12 @@ def api_v1_complete_checklist(report_id):
     if report.status == 'completed':
         return jsonify({'error': 'Raport jest już zakończony'}), 400
     now_utc = datetime.now(UTC)
-    for open_session in ChecklistSession.query.filter_by(report_id=report_id, ended_at=None).all():
-        open_session.ended_at = now_utc
-    total_seconds = 0
-    for s in ChecklistSession.query.filter_by(report_id=report_id).all():
-        if s.ended_at is None:
-            continue
-        s_start = s.started_at if s.started_at.tzinfo else s.started_at.replace(tzinfo=UTC)
-        s_end   = s.ended_at   if s.ended_at.tzinfo   else s.ended_at.replace(tzinfo=UTC)
-        total_seconds += int((s_end - s_start).total_seconds())
+    total_seconds = worktime.finish(report, now_utc)
     report.status           = 'completed'
     report.completed_at     = now_utc
     report.locked_by_id     = None
     report.locked_at        = None
-    report.duration_seconds = total_seconds if total_seconds > 0 else None
+    report.duration_seconds = total_seconds
     db.session.flush()
     db.session.commit()
     _audit('api_checklist_complete', 'report', report.id, report.title)

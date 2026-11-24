@@ -473,22 +473,70 @@
 <script>
 (function () {
   const reportId = {{ report.id }};
+  const BASE = `/api/report/${reportId}/`;
+  let lastInteraction = Date.now();
+  let paused = false;
 
-  function heartbeat() {
-    fetch(`/api/report/${reportId}/heartbeat`, {
-      method: 'POST',
+  // Aktywność użytkownika (dotyk, klawisz, ruch, przewijanie): tylko wtedy heartbeat podtrzymuje czas pracy.
+  ['pointerdown', 'keydown', 'touchstart', 'wheel', 'scroll', 'input'].forEach(function (ev) {
+    window.addEventListener(ev, function () { lastInteraction = Date.now(); }, { passive: true, capture: true });
+  });
+
+  function post(path, body) {
+    return fetch(BASE + path, {
+      method: 'POST', credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': _csrf() },
-      body: '{}',
-    }).catch(() => {});
+      body: JSON.stringify(body || {}),
+    });
   }
 
-  setInterval(heartbeat, 4 * 60 * 1000);
-
-  window.addEventListener('pagehide', () => {
+  function beacon(path) {
     const fd = new FormData();
     fd.append('_csrf_token', _csrf());
-    navigator.sendBeacon(`/api/report/${reportId}/unlock`, fd);
+    navigator.sendBeacon(BASE + path, fd);
+  }
+
+  // Sesja wygasła: wróć do logowania i po zalogowaniu do tej samej listy.
+  function expired(r) {
+    if (r.status === 401 || (r.redirected && /\/login/.test(r.url))) {
+      window.location.href = '/login?next=' + encodeURIComponent(window.location.pathname);
+      return true;
+    }
+    return false;
+  }
+
+  function resume() {
+    post('resume').then(function (r) {
+      if (expired(r)) return;
+      if (r.status === 423 || r.status === 409) { window.location.reload(); }
+    }).catch(function () {});
+  }
+
+  function heartbeat() {
+    if (document.visibilityState !== 'visible') return;
+    const active = (Date.now() - lastInteraction) < 90 * 1000;
+    post('heartbeat', { active: active }).then(function (r) {
+      if (expired(r)) return null;
+      return r.json();
+    }).then(function (d) {
+      if (d && d.open === false && active) resume();
+    }).catch(function () {});
+  }
+  setInterval(heartbeat, 60 * 1000);
+
+  // Wyjście z karty (ukrycie, zablokowanie ekranu, inna aplikacja) zatrzymuje czas, powrót go wznawia.
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') {
+      paused = true;
+      beacon('pause');
+    } else if (paused) {
+      paused = false;
+      lastInteraction = Date.now();
+      resume();
+    }
   });
+  window.addEventListener('pageshow', function (e) { if (e.persisted) { lastInteraction = Date.now(); resume(); } });
+  window.addEventListener('pagehide', function () { beacon('unlock'); });
 })();
 </script>
 {% endif %}
