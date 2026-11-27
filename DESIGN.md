@@ -1,94 +1,108 @@
-```markdown
----
-name: Firma Kubiak
-colors:
-  primary: "#1a5276"
-  secondary: "#1a6e8a"
-  tertiary: "#c0392b"
-  neutral: "#f5f5f5"
-  error: "#c0392b"
-  success: "#27ae60"
-typography:
-  h1:
-    fontFamily: sans-serif
-    fontSize: 2.5rem
-    fontWeight: 700
-    lineHeight: 1.2
-    letterSpacing: "-0.01em"
-  body-md:
-    fontFamily: sans-serif
-    fontSize: 1rem
-    fontWeight: 400
-    lineHeight: 1.6
-  label-caps:
-    fontFamily: sans-serif
-    fontSize: 0.75rem
-rounded:
-  sm: 2px
-  md: 4px
-  lg: 8px
-spacing:
-  sm: 8px
-  md: 16px
-  lg: 32px
----
+# Zasady wyglądu aplikacji profit (RP-Sys)
 
-## Overview
+Zaakceptowany kierunek z 2026-11-27. **To jest stan docelowy:** CSS aplikacji nie jest jeszcze do niego dostosowany. Nowe ekrany rób od razu według tego dokumentu, a istniejące zmieniaj etapami.
 
-Firma Kubiak is a Polish industrial manufacturer of electrical enclosures and distribution boards, presenting a professional, trustworthy B2B identity rooted in technical competence. The design emphasises clarity, heritage (since 1995), and product confidence through a structured, no-frills layout with a cool navy-teal palette and bold numeric statistics.
+Listy opisuje osobno `STANDARD_LIST.md` (znaczniki statusu, postęp, serie, kolumny, wyszukiwanie). Ten dokument go nie zastępuje. Tam, gdzie dotyczy rozmiarów i kolorów, obowiązują wartości stąd.
 
-## Colors
+## 1. Dla kogo i po co
 
-- **Primary (`#1a5276`)**: Deep navy blue — used for headings, navigation active states, icon outlines, and key statistic numbers. Communicates industrial reliability and technical authority.
-- **Secondary (`#1a6e8a`)**: Mid teal-blue — used for body link text, icon illustration strokes, and supporting text accents. Provides visual cohesion between informational elements.
-- **Tertiary (`#c0392b`)**: Red — used sparingly for the "Polski Produkt" badge accent and any error/alert states. Signals national pride and urgency.
-- **Neutral (`#f5f5f5`)**: Light grey — the dominant background for the hero statistics section and alternating content panels. Keeps the interface airy and content-focused.
-- **Error (`#c0392b`)**: Matches tertiary red; used for validation feedback and critical notices.
-- **Success (`#27ae60`)**: Not prominently visible in the viewport but inferred for form confirmations and positive states.
+Narzędzie do codziennej pracy na produkcji i w biurze: kontrola jakości, lista produkcyjna, raporty. Używane na komputerze i na telefonie, także na hali. Priorytety w tej kolejności:
 
-## Typography
+1. Czytelność.
+2. Szybkie wykonanie czynności.
+3. Spójność między modułami.
 
-The type system is clean and functional, relying on a system sans-serif stack throughout. No custom webfonts were declared in the scraped content.
+Wygląd ma być prosty i stonowany. Wyraźnie wyróżnia się tylko to, co użytkownik ma teraz zrobić albo sprawdzić.
 
-- **H1**: Large, bold hero headings (e.g. "Doświadczenie od 1995 roku") set at approximately 2.5rem with tight line-height. Used for slide titles and primary section calls-to-action.
-- **Body-md**: Standard paragraph and navigation text at 1rem/1.6 line-height. Used for descriptive copy, menu items, and sub-labels.
-- **Label-caps**: Small-caps style uppercase labels at ~0.75rem, used for statistic descriptors below numeric figures (e.g. "ROK ROZPOCZĘCIA DZIAŁALNOŚCI", "LICZBA PRACOWNIKÓW"). These provide scannable data context in the statistics grid.
+## 2. Kolory
 
-## Layout
+| Rola | Kolor | Użycie |
+|---|---|---|
+| Tekst | `#16202C` | treść, tytuły |
+| Tekst pomocniczy | `#4A586A` | nagłówki tabel, podpowiedzi, opisy |
+| Tło strony | `#EEF1F4` | tło pod panelami |
+| Panel | `#FFFFFF` | panele, tabele, pola |
+| Akcja i linki | `#1257A8` | główny przycisk, linki, fokus, status "do skontrolowania" |
+| Zgodne | `#17623A` | ukończone, zgodne, OK |
+| W trakcie | `#8A4B00` | w trakcie, do wykonania |
+| Niezgodne | `#B3261E` | NG, błędy, usuwanie |
+| Linia | `#CBD3DC` | ramki paneli, podziały |
+| Ramka pola | `#8593A3` | pola formularzy i przyciski drugorzędne |
 
-The layout follows a conventional full-width corporate structure:
+- Kolory tekstu mają na bieli, na tle strony i na jasnym tle nagłówka tabeli (`#F7F9FC`) kontrast co najmniej 5,7:1 (wymagane minimum to 4,5:1).
+- Ramka pola ma 3,1:1 na bieli, ale 2,8:1 na tle strony. Pola umieszczaj na białym panelu.
+- Kolor nigdy nie jest jedyną informacją: status ma też ikonę i słowo.
+- Nie wpisuj kolorów na sztywno w szablonach. Używaj zmiennych CSS.
+- Tryb ciemny zostaje. Jego wartości trzeba dobrać i sprawdzić przy wdrażaniu nowej palety.
 
-- **Grid**: The hero section uses a two-column split — left for text/CTA, right for a 3×2 icon statistics grid. Below the fold, product cards are displayed in a 4-column carousel/slider row.
-- **Spacing**: Generous vertical rhythm with approximately 32px between major sections and 16px internal padding within cards and stat blocks. Icon grid cells maintain ~16px gutters.
-- **Border radius**: Minimal rounding throughout — buttons use ~4px radius, cards are nearly square-cornered (2–4px). The "Kreator" CTA button has a visible rectangular border with ~4px radius.
-- **Philosophy**: Functional over decorative. The layout prioritises product scannability and navigation clarity suited to a B2B industrial audience. Content density is moderate; white space is used strategically to let numerical stats breathe.
+## 3. Pismo
 
-## Components
+Czcionka systemowa: `'Segoe UI', system-ui, -apple-system, sans-serif`. Bez czcionek z zewnętrznych serwerów.
 
-### Navigation Bar
-A sticky top navigation with the Kubiak logo on the left, horizontal menu links centred (with dropdown indicators for "Oferta" and "Realizacje"), and utility elements on the far right (language flags, search, cart badge, Polski Produkt seal, Kreator CTA). The active link "Start" is highlighted in the primary navy colour; other links are in dark grey. Dropdowns are multi-level.
+| Zastosowanie | Rozmiar | Grubość |
+|---|---|---|
+| Tytuł strony | 22 px | 700 |
+| Tytuł sekcji | 18 px | 700 |
+| Pola i przyciski na telefonie | 16 px | 400 lub 600 |
+| Treść, komórki tabel, statusy | 14 px | 400, statusy 600 |
+| Nagłówek tabeli | 13 px | 600 |
+| Podpowiedź pod polem, teksty pomocnicze | 12 px | 400 |
 
-### Hero Carousel / Slider
-Full-width banner with left-side text (H1 + body copy + ghost button) and right-side icon statistics grid. Carousel dots are visible at the bottom. Navigation arrows (chevrons) flank the sides. Statistics icons use thin line-art style in the primary teal-navy palette.
+- **12 px to minimum.** Mniejszych rozmiarów nie używamy.
+- Rozmiary z tabeli to wartości docelowe w pikselach. Bazowy rozmiar w `main.css` to 14 px, więc przeliczając na `rem`, dziel przez 14.
+- Nagłówki, etykiety i przyciski zwykłą wielkością liter, bez wersalików i rozstrzelenia.
+- Linie tekstu ciągłego do około 80 znaków.
 
-### Statistics Grid
-A 3×2 grid of icon + number + label units displayed on the neutral background. Numbers are bold, large (~2rem), and rendered in the primary navy. Labels are uppercase, tracking-wide, small caps at ~0.75rem. Icons are consistent teal outlines.
+## 4. Przyciski
 
-### "Zobacz więcej" (CTA) Button
-Outlined ghost button with a rectangular border, ~4px radius, dark text, and no fill. On hover it likely inverts. Used consistently as a secondary action throughout the page.
+- Na ekranie jest **jedna** pełna niebieska akcja główna.
+- Akcje drugorzędne: białe tło i ramka.
+- Usuwanie: czerwony obrys i tekst, pełne tło dopiero po najechaniu. Wymaga potwierdzenia, które mówi, co zniknie.
+- Napis nazywa czynność ("Zakończ kontrolę", "Zatwierdź kod"). Ta sama czynność ma w całej aplikacji tę samą nazwę.
+- Wyjątek: przy ocenie punktu napisy **OK** i **NG** to wynik kontroli i zostają.
 
-### "Kreator" Button
-Outlined button in the header with a visible border and label "Kreator" — serves as a primary tool shortcut. Slightly bolder than the ghost CTA buttons.
+## 5. Formularze
 
-### Product Card Carousel
-Horizontal scrolling strip of product thumbnail cards. Each card shows a photo with a bold label below. Cards have minimal borders and slight shadow on hover. Labels are bold, sentence-case.
+- Każde pole ma widoczną etykietę. Tekst w pustym polu jej nie zastępuje.
+- Fokus klawiatury jest widoczny na polach, przyciskach i linkach.
+- Dla liczb ustawiaj `inputmode="decimal"`, a zakres i jednostkę pokazuj przy polu.
+- Błąd pokazuj przy polu albo nad przyciskiem, który go wywołał.
 
-### Cart / Query Badge
-Top-right header badge displaying "W zapytaniu: 0, suma: 0 zł" — styled as a dark teal pill/button for high visibility, serving the B2B RFQ workflow.
+## 6. Telefon (ekrany pracownika)
 
-### Cookie Banner
-Full-width bottom-fixed banner in light grey with inline text, a link to the privacy policy, and a "Rozumiem" (Understood) accept button styled as a filled secondary button.
+- Przyciski i pola co najmniej 48 px wysokości.
+- Wybór OK i NG: dwa duże przyciski obok siebie, co najmniej 56 px. Wybrany ma pełne tło.
+- Jedna kolumna, najważniejsza czynność bez szukania.
+- Widać postęp, na przykład "Ocenione 1 z 3".
+- Gdy czegoś brakuje, komunikat mówi czego i pozwala przejść do tego miejsca.
 
-### Social Media Side Panel
-Fixed right-side vertical strip with circular icon buttons for Facebook, Instagram, and Google Maps. These are always-visible floating anchors.
-```
+## 7. Teksty
+
+- Po polsku, prostym językiem, bez nazw technicznych.
+- **Bez długiego myślnika** (znak U+2014). Zamiast niego przecinek, nawias albo osobne zdanie. W pustej komórce pisz "Brak".
+- Listy wyboru: "Wybierz montera".
+- Błąd mówi, co się stało i co zrobić: "Nie zapisano, brak połączenia. Spróbuj ponownie." Samo "Błąd" nie wystarcza.
+- Pusty stan mówi, dlaczego jest pusto i co można zrobić.
+- Nazwy w menu i motywach po polsku ("Pulpit", "Jasny motyw", "Ciemny motyw").
+
+## 8. Ruch i ozdobniki
+
+- Ruch tylko jako odpowiedź na działanie użytkownika (rozwinięcie, potwierdzenie, ładowanie).
+- Bez cyklicznych animacji ozdobnych.
+- Szanuj ustawienie ograniczonego ruchu (`prefers-reduced-motion`).
+- Ramki, numery i etykiety tylko wtedy, gdy coś informują.
+
+## 9. Zasady dla kodu
+
+- Najpierw użyj istniejącej klasy, dopiero potem twórz nową.
+- Bez nowych atrybutów `style="..."` i bloków `<style>` w szablonach. Wyjątek: wartości liczone z danych, na przykład szerokość paska.
+- Nie dodawaj nowych `!important`.
+
+## 10. Kontrola przed oddaniem ekranu
+
+- [ ] Sprawdzony na komputerze i przy szerokości telefonu.
+- [ ] Sprawdzony w jasnym i ciemnym motywie.
+- [ ] Żaden tekst nie jest mniejszy niż 12 px.
+- [ ] Obsługa klawiaturą pokazuje fokus.
+- [ ] Błędy i puste stany mają opis i dalszy krok.
+- [ ] Zmiana listy wpisana do historii w `STANDARD_LIST.md`.

@@ -35,11 +35,16 @@ Każda zmiana w kodzie przechodzi przez następujące kroki:
 2. Uruchom testy lokalnie: `.\venv\Scripts\python.exe -m pytest tests/ -v`
 3. Przedstaw wyniki testów i poczekaj na **akceptację użytkownika**
 4. Po akceptacji: `git add` + `git commit`
-5. `git push origin main`
+5. `git push` na gałąź, na której powstała zmiana (patrz niżej)
 6. Poczekaj na **potwierdzenie użytkownika**
 7. Dopiero wtedy uznaj zadanie za zakończone
 
 Nigdy nie commituj ani nie pushuj bez akceptacji użytkownika.
+
+### Gałęzie
+
+- **Push na `main` wdraża się automatycznie na produkcję.** Merge do `main` i push na `main` tylko za wyraźną zgodą użytkownika.
+- Przed commitem i pushem sprawdź bieżącą gałąź (`git branch --show-current`).
 
 ---
 
@@ -62,12 +67,13 @@ Przykład formatu:
 ## Informacje o projekcie
 
 - **Stack:** Python 3.14 (lokalnie, `venv`), Flask 3.0.3, Flask-SQLAlchemy 3.1.1, Flask-Login, Flask-WTF, SQLite. Pełna lista w `requirements.txt`.
+- **Wygląd interfejsu:** `DESIGN.md` (kolory, pismo, przyciski, formularze, telefon, teksty). Przeczytaj przed zmianą wyglądu.
 - **Standard wyglądu list:** `STANDARD_LIST.md`. Każda nowa lista i każda zmiana wyglądu listy (pulpit, Kontrola Końcowa, Kontrola etapowa i kolejne) ma trzymać się tego standardu (znaczniki `.rs*`, bez powielania statusu), a zmianę trzeba dopisać do sekcji "Historia zmian" w tym pliku.
-- **Testy:** `.\venv\Scripts\python.exe -m pytest tests/ -v` - 536 testów w `tests/` (m.in. `test_app.py`, `test_kontrola.py`, `test_api_v1.py`, `test_briefing.py`, `test_dokumentacja.py`, `test_installer_stats.py`, `test_produkcja.py`, `test_produkcja_stanowisko.py`, `test_qar_employee.py`, `test_qar_from_checklist.py`, `test_prestiz_kj*.py` dla modułu KJ Prestiż), wszystkie muszą przejść (pełny zestaw trwa ok. 4 minuty). Testy w przeglądarce (Playwright) są pomijane bez Chromium. Współdzielone fixture'y są w `tests/conftest.py`.
+- **Testy:** `.\venv\Scripts\python.exe -m pytest tests/ -v`, wszystkie muszą przejść (trwa kilka minut). Testy w przeglądarce (Playwright) są pomijane bez Chromium. Współdzielone fixture'y są w `tests/conftest.py`.
 - **Uruchomienie lokalne:** `.\venv\Scripts\python.exe app.py` → http://127.0.0.1:5000
 - **Pre-commit hook:** automatycznie uruchamia testy przed każdym commitem
 - **Migracje schematu:** wszystkie realizowane przez `_migrate_schema()` w `app.py` - bez Alembic. Nowe kolumny dodawane jako `ALTER TABLE ... ADD COLUMN ...`.
-- **Dokumentacja techniczna w repo:** `API_STREAMSOFT.md`, `DOKUMENTACJA_SYSTEMU.md`, `KOSZTORYSY_DOKUMENTACJA.md`, `DESIGN.md`, `DOKUMENTACJA_KONTROLA_JAKOSCI.md`, `PROCEDURA_NIEZGODNOSCI_NG.md`, `tools/README_bulk_checklist_entry.md`.
+- **Dokumentacja techniczna w repo:** `API_STREAMSOFT.md`, `DOKUMENTACJA_SYSTEMU.md`, `HISTORIA_ZMIAN.md`, `KOSZTORYSY_DOKUMENTACJA.md`, `DESIGN.md`, `DOKUMENTACJA_KONTROLA_JAKOSCI.md`, `PROCEDURA_NIEZGODNOSCI_NG.md`, `tools/README_bulk_checklist_entry.md`.
 
 ---
 
@@ -105,39 +111,21 @@ gdzie `price_bonus` = cena po rabacie powiększona o bonus procentowy.
 
 ---
 
-## Usunięte moduły i "Ustawienia produkcji" (`/ustawienia-produkcji`)
+## Ustawienia produkcji (`/ustawienia-produkcji`)
 
-Zmiana 2026-10-16. Moduły "Kontrola międzyetapowa" (Kontrola etapów, `/spawalnia`) i karty "Marszruty produkcji" (`/marszruta`) zostały usunięte, zastąpiła je Kontrola zamówień. Ich tabele (`spawalnia_records`, `interstage_checks`, `spawalnia_operators`, `giecie_operators`, `ciecie_operators`, `routing_cards`, `routing_card_stages`, `routing_card_photos`) kasuje `_migrate_schema()` przy starcie (nieodwracalnie), konta z rolą `spawacz` przechodzą na `operator`, API `/api/v1/spawalnia` nie istnieje. Zdjęcia kart zostały w `static/marszruta_uploads/` na serwerze (do ręcznego usunięcia).
+Pakiet `ustawienia/` (blueprint `ustawienia_bp`, szablony `templates/ustawienia/`, dostęp przez moduł `ustawienia`).
 
-Z Marszruty zostały dwie części, przeniesione do pakietu `ustawienia/` (od 2026-10-23 zostały tylko Działy i pracownicy: zakładki Ścieżki produkcyjne, Szablony produktów oraz Etapy i bufory wraz z punktami kontrolnymi etapów i etykietami buforów zostały wyłączone jako nieużywane, kod do odzyskania z historii gita, a tabele `production_stages`, `machines`, `buffers`, `routing_templates`, `product_templates` i pokrewne zostają w bazie nietknięte) (blueprint `ustawienia_bp`, szablony `templates/ustawienia/`, dostęp admin + kontroler):
-- **Działy i pracownicy** (`ProductionDepartment`, `DepartmentEmployee`): używane też w QAR (osoba odpowiedzialna), Liście produkcyjnej (działy pracowników) i Porannym Briefingu. Pracownika z raportami QAR nie da się usunąć, tylko dezaktywować.
-- **Ścieżki produkcyjne** (`RoutingTemplate`, `RoutingTemplateStage`): edytowalne, ale na razie nigdzie nieużywane po usunięciu kart.
-- Testy: `tests/test_ustawienia.py` (w tym test migracji usuwającej stare tabele).
+- **Działy i pracownicy** (`ProductionDepartment`, `DepartmentEmployee`): używane też w QAR (osoba odpowiedzialna), Liście produkcyjnej (działy pracowników) i Porannym Briefingu. Pracownika z raportami QAR nie da się usunąć, tylko dezaktywować. Plakietki pracowników działów to QR `PSH-DEP:<token>` (inny przedrostek niż `PSH-EMP:` z Listy produkcyjnej), "Nowy kod" unieważnia plakietkę (`ustawienia/people.py`, tam też przenoszenie do innego działu).
+- Tabele po wyłączonych zakładkach (`production_stages`, `machines`, `buffers`, `routing_templates`, `product_templates` i pokrewne) zostają w bazie.
+- Testy: `tests/test_ustawienia.py`.
 
-### Etapy i bufory (etap 1 planu śledzenia produkcji, `PLAN_SLEDZENIA_PRODUKCJI.md`)
+## Menu
 
-Dodane 2026-10-18 w `ustawienia/` (strona "Etapy i bufory", zakładki Ustawień produkcji). Plan całego modułu (zlecenia, elementy, wpisy na bufory, kontrole etapów) jest w `PLAN_SLEDZENIA_PRODUKCJI.md`, sprawdź go przed kolejnymi etapami.
+Jeden wspólny sidebar, pozycje wg `can('moduł')`. Nazwa w menu "Kontrola etapowa" to moduł `/kontrola`. Administrator i Kontroler mogą przestawiać menu przeciąganiem (`static/js/nav-sort.js`), kolejność zapisuje się na koncie (`User.menu_order`, klucze `NAV_DEFAULT` w `app.py`, `POST /menu/kolejnosc`). Kosztorysy są ukryte w menu, strony działają po adresie. Testy: `tests/test_menu.py`.
 
-- **Modele:** `ProductionStage` (nazwa, kolejność, poziom `element`/`produkt`, `control_required`, jeden dział), `Machine` (maszyny etapu), `Buffer` (kod, nazwa, numer, etap opcjonalny). `DepartmentEmployee.token` (plakietka QR pracownika działu).
-- **Dane startowe:** `_seed_stages()` w `app.py` zakłada jednorazowo 12 etapów, 4 maszyny wycinania i brakujące działy (Wycinanie, Przygotowanie, Kompletacja, Pakowanie); gdy etapy istnieją, nic nie robi. `_backfill_department_tokens()` nadaje tokeny istniejącym pracownikom. Kolumna `token` dodawana w `_migrate_schema()`.
-- **Kod bufora:** QR i Code128 na etykiecie zawierają sam kod (np. `0001`, `A001`, bez przedrostka), normalizacja bez spacji i wielkimi literami (`ustawienia/lookup.py`, `find_buffer`). Istnieje 60 gotowych etykiet 50x100 mm (`0001`-`0010`, `A001`-`E010`) w `D:\Dane\Desktop\KODY QR POLA`, wczytuje się je zakresem kodów. Generator nowych etykiet (`/bufory/etykiety.pdf`) robi ten sam układ 50x100 mm.
-- **Plakietki pracowników działów:** QR `PSH-DEP:<token>` (inny przedrostek niż `PSH-EMP:` z Listy produkcyjnej), PDF pojedynczy, per dział i zbiorczy, "Nowy kod" unieważnia plakietkę. `ustawienia/people.py` zawiera też przenoszenie pracownika do innego działu.
-- Testy: `tests/test_ustawienia_etapy.py`.
+## Usunięte moduły
 
-### Usunięty moduł śledzenia produkcji (2026-10-21)
-
-Moduł "Kontrola produkcji" (`/kontrolaprodukcji`, skrót `/kp`: zlecenia ze skanu QR, wózki z ilościami, przejęcia etapów, składanie, pakowanie, kontrole etapów, decyzje NG, złom, kontrola doraźna, stanowisko) został w całości usunięty jako zbyt skomplikowany do użycia na telefonie (etapy 2 do 5b, wdrożone 2026-10-18 do 2026-10-20, ostatni commit z modułem `caafc08`, kod do odzyskania z historii gita). Tabele `work_orders`, `work_order_components`, `work_order_component_stages`, `work_order_controls`, `stock_positions`, `work_in_progress`, `movements`, `stage_controls`, `stage_control_results`, `scrap_records` są kasowane przy starcie (`init_db`, `_migrate_schema`), a alerty "Do kontroli: ZO..." usuwane.
-
-Zostają: etapy, maszyny, działy, pracownicy z plakietkami, bufory (kody i etykiety), punkty kontrolne etapów (`StageControlPoint`, strony `ustawienia/control_points.py`), szablony produktów (`ProductTemplate` z elementami i trasą, `ProductTemplateControl`), Kontrola Końcowa (listy kontrolne, szablony, zamówienia), Kontrola zamówień `/kontrola` i Lista produkcyjna `/produkcja`. Rola `produkcja` po logowaniu trafia na skanowanie QR Listy produkcyjnej.
-
-Nowy, prostszy moduł (szkic): skan QR zlecenia albo ręczne utworzenie jak w Kontroli Końcowej, wybór szablonu kontrolnego, opcjonalny skan bufora i opcjonalne oznaczenie etapu zlecenia, kontrole etapów z punktami OK/NG i QAR, sztuki zgodne i niezgodne bez wózków. Szczegóły do ustalenia w `PLAN_SLEDZENIA_PRODUKCJI.md`.
-
-## Menu i usunięte moduły (2026-10-21)
-
-- **Menu:** nazwa "Kontrola zamówień" zmieniona na **Kontrola etapowa** (adres `/kontrola` bez zmian). Kolejność domyślna panelu admina i nawigacji kontrolera: Dashboard, Kontrola etapowa, Kontrola Końcowa, (Nowa kontrola, Zlecenia QA kontrolera), Raporty QAR, Lista produkcyjna, Stanowisko, Ustawienia produkcji, Szablony, Dokumentacja, KJ Prestiż (pogląd, od 2026-10-28, tylko Administrator i Superuser). Sekcja Zarządzanie (Użytkownicy, Statystyki, Dziennik) bez zmian.
-- **Przestawianie przeciąganiem** (admin i kontroler): przycisk "Zmień kolejność menu", przeciąganie myszą i dotykiem (pointer events, `static/js/nav-sort.js`), "Zapisz", "Domyślne", "Anuluj". Kolejność zapisuje się na koncie (`User.menu_order`, JSON z kluczami `NAV_DEFAULT` w `app.py`, `POST /menu/kolejnosc`), wizualnie działa przez CSS `order` (`menu_pos(klucz)` w szablonie). Inne role nie mają przestawiania.
-- **Usunięte:** moduł **Zadania QA** (pakiet `zadania_qa`, szablony, `QATask`, tabela `qa_tasks` kasowana przy starcie, testy). **Kosztorysy** i sekcja "Kosztorysy - config" (Ceny materiałów, Stawki robocizny, Typy szaf, Katalog produktów) są ukryte w menu wszystkich ról, strony i dane zostają dostępne po adresie. Moduł **Zamówienia** (strony `/orders`, Import CSV, model `Order`, tabela `orders`, `Report.order_id`, `Alert.order_id`, `/api/v1/orders`, alerty o postępie zamówienia, kafle zamówień na Dashboardzie) oraz role **Monter** (pula i listy montażowe, szablony typu monter) i **Zamawiający** (`order`) zostały usunięte w całości. Przy starcie (`_drop_orders_and_monter` w `init_db`) konta o tych rolach dostają rolę `operator` (odczyt), kasowane są szablony i listy montażowe, kolumny `order_id` (tam gdzie SQLite pozwala) i tabela `orders`. `prod_rows.order_id` zastąpiło `ProdRow.checklists_at` (znacznik utworzenia list z Listy produkcyjnej). Model `Installer` (montażysta wybierany w punktach typu `installer`) i statystyka "Błędy NG wg montera" zostają. `tools/bulk_checklist_entry.py` korzysta z usuniętego `/api/v1/orders` i wymaga przeróbki (odłożone). Testy: `tests/test_removed_modules.py`.
-- Testy: `tests/test_menu.py`.
+Zamówienia (wraz z `/api/v1/orders`), role Monter i Zamawiający, Zadania QA, dawna Kontrola międzyetapowa (`/spawalnia`), Marszruty i śledzenie produkcji (`/kontrolaprodukcji`) zostały usunięte. Nie przywracaj ich bez prośby użytkownika. Szczegóły, kasowane tabele i migracje opisuje `HISTORIA_ZMIAN.md`. `tools/bulk_checklist_entry.py` korzysta z usuniętego `/api/v1/orders` i wymaga przeróbki (odłożone). Testy: `tests/test_removed_modules.py`.
 
 ---
 
@@ -262,7 +250,7 @@ Wdrożony 2026-10-13. Wczytuje ręcznie plik Excel z listą produkcyjną (wszyst
 - **Modele (models.py):** `ProdFile`, `ProdSheet`, `ProdRow`, `ProdSheetAccess`, `ProdEmployee`, `ProdEmployeeDept`, `ProdStageColumn`, `ProdEntry`, `ProdSetting`. Tabele tworzy `db.create_all()`, bez `ALTER`.
 - **Dane w bazie, nie w pliku:** wiersz to JSON z komórkami (`ProdRow.data`), formuły oryginału osobno (`formulas`), zmiany z aplikacji w `changed`. Pliki (import, kopie, backupy) w `instance/produkcja/` (poza `static`).
 - **Eksport:** ładuje wczytany oryginał i nadpisuje tylko zmienione komórki, więc formuły (np. `WORKDAY` w kolumnie terminu), formatowanie i ukryte arkusze zostają. Usunięte zlecenia są czyszczone w tym samym wierszu (przesunięcie wierszy zepsułoby formuły), nowe dopisywane na końcu z przesuniętą formułą. Kolumny liczone formułą są w aplikacji tylko do odczytu. Ponowne wczytanie pliku robi automatyczny backup i zachowuje dostęp do arkuszy, powiązania z listami kontrolnymi i konfigurację etapów (po nazwie kolumny).
-- **Role:** `planowanie` (planista: edycja planu, pracownicy, etapy, listy kontrolne, tylko przydzielone arkusze, przydział w `/produkcja/access` robi admin), `produkcja` (wspólne konto stanowiska, tylko `/produkcja/skan`), `admin` (wszystko, import pliku). Dekoratory `planning_required`, `admin_only`, `station_required`.
+- **Dostęp (wg uprawnień, nie nazw ról):** `planning_required` wymaga modułu `lista_produkcyjna` (edycja planu, pracownicy, etapy, listy kontrolne), `admin_only` akcji `lista_produkcyjna.import`, `station_required` modułu `stanowisko` albo `lista_produkcyjna`. Bez akcji `lista_produkcyjna.all_sheets` widać tylko przydzielone arkusze (przydział w `/produkcja/access`).
 - **Listy kontrolne:** przycisk tworzy serię list przez `_create_checklist_series` (ilość z kolumny `qty`), ustawia `Report.qr_key` (produkt|klient|ZO), więc skan QR kontroli jakości znajduje te listy, a wiersz dostaje `checklists_at`. Bez pasującego szablonu QA listy nie powstają i nie powstaje żadne zamówienie (modułu zamówień już nie ma). Funkcje z `app.py` trafiają do modułu przez `register_helpers()` (nie `from app import`, bo przy `python app.py` załadowałoby to moduł drugi raz).
 - **Pracownicy i skan:** pracownik nie ma loginu, tylko plakietkę QR (`PSH-EMP:<token>`, token losowy, "Nowy kod" unieważnia). Skan plakietki zapisuje pracownika w sesji urządzenia na 12 h, potem skan kodu QR zlecenia (te same pola `p`,`c`,`o`) i wybór etapu wpisuje inicjały. W komórce do 2 osób (`JK/AN`), trzecia i nietypowe wartości (`-`, data, liczba) wymagają potwierdzenia. Historia w `ProdEntry`. Przełącznik `enforce_assignments` (domyślnie wyłączony) ogranicza wpisy do działów pracownika.
 - **Kolumny etapów:** wykrywane po nagłówkach (`STAGE_KEYWORDS` w `excel_io.py`), edytowalne w `/produkcja/sheet/<id>/etapy`. Arkusz `PROFIT` nie ma nagłówków, więc etapy trzeba tam zaznaczyć ręcznie.
