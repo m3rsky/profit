@@ -1,6 +1,6 @@
 # Zasady wyglądu aplikacji profit (RP-Sys)
 
-Zaakceptowany kierunek z 2026-11-27. **To jest stan docelowy:** CSS aplikacji nie jest jeszcze do niego dostosowany. Nowe ekrany rób od razu według tego dokumentu, a istniejące zmieniaj etapami.
+Zaakceptowany kierunek z 2026-11-27. Nowe ekrany rób od razu według tego dokumentu, a istniejące zmieniaj etapami. Etap czytelności (rozmiary od 12 px, brak wersalików, kolory jasnego motywu) jest wprowadzony w CSS. Pozostałe zasady, w tym wymiary na telefonie i porządek w stylach, to nadal stan docelowy.
 
 Listy opisuje osobno `STANDARD_LIST.md` (znaczniki statusu, postęp, serie, kolumny, wyszukiwanie). Ten dokument go nie zastępuje. Tam, gdzie dotyczy rozmiarów i kolorów, obowiązują wartości stąd.
 
@@ -33,7 +33,7 @@ Wygląd ma być prosty i stonowany. Wyraźnie wyróżnia się tylko to, co użyt
 - Ramka pola ma 3,1:1 na bieli, ale 2,8:1 na tle strony. Pola umieszczaj na białym panelu.
 - Kolor nigdy nie jest jedyną informacją: status ma też ikonę i słowo.
 - Nie wpisuj kolorów na sztywno w szablonach. Używaj zmiennych CSS.
-- Tryb ciemny zostaje. Jego wartości trzeba dobrać i sprawdzić przy wdrażaniu nowej palety.
+- Tryb ciemny zachował dotychczasowe kolory. Sprawdzone kolory tekstu i statusów mają tam kontrast co najmniej 5,2:1.
 
 ## 3. Pismo
 

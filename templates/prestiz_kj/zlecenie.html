@@ -11,7 +11,7 @@
 <div class="page-header">
   <div>
     <h1 class="page-title"><i class="bi bi-clipboard2-check"></i> {{ order.number }}</h1>
-    <span class="text-muted" style="font-size:0.82rem;">{{ order.product }}{% if order.client %} · {{ order.client }}{% endif %} · {{ order.quantity }} szt. ·
+    <span class="text-muted" style="font-size:0.858rem;">{{ order.product }}{% if order.client %} · {{ order.client }}{% endif %} · {{ order.quantity }} szt. ·
       {% if order.type == 'ZN' %}zlecenie naprawcze{% if parent %} do <a href="{{ url_for('prestiz_kj.order_page', order_id=parent.id) }}">{{ parent.number }}</a>{% endif %}{% else %}zlecenie produkcyjne{% endif %}</span>
     <div style="margin-top:.4rem;">{{ order_status(order.status) }}</div>
     {% if source %}<div class="pkj-hint" style="margin-top:.4rem;">Zawrót: {{ source.reason_name }}, decyzja: {{ decisions[source.decision]|lower }}, <a href="{{ url_for('prestiz_kj.return_page', return_id=source.id) }}">szczegóły</a></div>{% endif %}

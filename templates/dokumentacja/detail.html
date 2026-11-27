@@ -6,7 +6,7 @@
 .doc-sec-head .dk-head-btn { background: #fff !important; color: #1a3a5c !important; border: 1px solid #fff !important; }
 .doc-sec-head .dk-head-btn:hover { background: #e8eef5 !important; }
 .dk-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px 18px; margin: 0 0 12px; }
-.dk-facts dt { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: #888; }
+.dk-facts dt { font-size: 0.858rem; color: #888; }
 .dk-facts dd { margin: 2px 0 0; font-size: .95rem; font-weight: 600; overflow-wrap: anywhere; }
 .dk-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
 @media (max-width: 640px) { .dk-form-grid { grid-template-columns: 1fr; } }
@@ -16,7 +16,7 @@
   border-radius: var(--radius, 6px) var(--radius, 6px) 0 0;
   display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
 }
-.doc-sec-head .count { font-weight: 400; font-size: .8rem; opacity: .85; margin-left: 6px; }
+.doc-sec-head .count { font-weight: 400; font-size: 0.858rem; opacity: .85; margin-left: 6px; }
 .doc-dropzone {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   border: 2px dashed var(--border, #ccc); border-radius: 8px; padding: 22px; cursor: pointer;
@@ -30,14 +30,14 @@
 }
 .doc-file-row .fi { font-size: 1.4rem; color: #5b7a99; flex-shrink: 0; }
 .doc-file-row .fname { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.doc-file-row .fmeta { color: #999; font-size: .78rem; white-space: nowrap; }
+.doc-file-row .fmeta { color: #999; font-size: 0.858rem; white-space: nowrap; }
 .doc-file-row .facts { display: flex; gap: 4px; flex-shrink: 0; }
 .doc-photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-top: 12px; }
 .doc-photo-card { border: 1px solid var(--border, #ddd); border-radius: 6px; overflow: hidden; background: #fafafa; }
 .doc-photo-card img { width: 100%; height: 140px; object-fit: cover; display: block; cursor: zoom-in; }
 .doc-photo-card .pc-body { padding: 8px; }
 .doc-note { border: 1px solid var(--border, #e3e3e3); border-radius: 6px; padding: 10px 12px; margin-bottom: 10px; background: #fff; }
-.doc-note-meta { font-size: .76rem; color: #999; margin-top: 6px; }
+.doc-note-meta { font-size: 0.858rem; color: #999; margin-top: 6px; }
 .doc-note-body { white-space: pre-wrap; font-size: .9rem; line-height: 1.6; }
 #doc-viewer {
   position: fixed; inset: 0; background: rgba(0,0,0,.8); z-index: 3000;
@@ -90,9 +90,9 @@
       {% if entry.description %}
       <div style="white-space:pre-wrap;font-size:.9rem;line-height:1.7;margin-bottom:8px;">{{ entry.description }}</div>
       {% else %}
-      <div class="text-muted" style="font-size:.85rem;margin-bottom:8px;">Bez opisu.</div>
+      <div class="text-muted" style="font-size:0.858rem;margin-bottom:8px;">Bez opisu.</div>
       {% endif %}
-      <div style="font-size:.78rem;color:#999;">
+      <div style="font-size:0.858rem;color:#999;">
         Autor: <strong>{{ entry.author.username if entry.author else '-' }}</strong> ·
         Utworzono: {{ entry.created_at | localdt }}
         {% if entry.updated_at and entry.updated_at != entry.created_at %} · Zmieniono: {{ entry.updated_at | localdt }}{% endif %}
@@ -207,7 +207,7 @@
       {% endfor %}
     </ul>
     {% else %}
-    <p class="text-muted" style="font-size:.85rem;margin:0;">Brak powiązanych dokumentów.</p>
+    <p class="text-muted" style="font-size:0.858rem;margin:0;">Brak powiązanych dokumentów.</p>
     {% endif %}
   </div>
 </div>
@@ -227,11 +227,11 @@
       <label class="doc-dropzone" for="doc-file-input">
         <i class="bi bi-cloud-arrow-up" style="font-size:1.8rem;"></i>
         <span>Przeciągnij pliki tutaj albo dotknij, aby wybrać z dysku</span>
-        <span class="text-muted" style="font-size:.78rem;">PDF, Word, Excel, PowerPoint, obrazy, archiwa · maks. 32 MB/plik · modele STEP (.step, .stp) do {{ step_max_mb }} MB</span>
+        <span class="text-muted" style="font-size:0.858rem;">PDF, Word, Excel, PowerPoint, obrazy, archiwa · maks. 32 MB/plik · modele STEP (.step, .stp) do {{ step_max_mb }} MB</span>
         <input type="file" id="doc-file-input" name="files" multiple style="display:none;">
       </label>
       <div class="doc-upload-actions" style="display:none;margin-top:10px;gap:8px;align-items:center;flex-wrap:wrap;">
-        <span class="doc-upload-info text-muted" style="font-size:.85rem;"></span>
+        <span class="doc-upload-info text-muted" style="font-size:0.858rem;"></span>
         <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-upload"></i> Wgraj</button>
       </div>
     </form>
@@ -273,7 +273,7 @@
       {% endfor %}
     </ul>
     {% else %}
-    <p class="text-muted" style="font-size:.85rem;margin:12px 0 0;">Brak dokumentów.</p>
+    <p class="text-muted" style="font-size:0.858rem;margin:12px 0 0;">Brak dokumentów.</p>
     {% endif %}
   </div>
 </div>
@@ -291,11 +291,11 @@
       <label class="doc-dropzone" for="doc-img-input">
         <i class="bi bi-camera-fill" style="font-size:1.8rem;"></i>
         <span>Zrób zdjęcie lub wybierz z galerii</span>
-        <span class="text-muted" style="font-size:.78rem;">Można dodać wiele zdjęć naraz</span>
+        <span class="text-muted" style="font-size:0.858rem;">Można dodać wiele zdjęć naraz</span>
         <input type="file" id="doc-img-input" name="images" accept="image/*" capture="environment" multiple style="display:none;">
       </label>
       <div class="doc-upload-actions" style="display:none;margin-top:10px;gap:8px;align-items:center;flex-wrap:wrap;">
-        <span class="doc-upload-info text-muted" style="font-size:.85rem;"></span>
+        <span class="doc-upload-info text-muted" style="font-size:0.858rem;"></span>
         <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-upload"></i> Wgraj</button>
       </div>
     </form>
@@ -312,7 +312,7 @@
           {% if can_edit or f.user_id == current_user.id %}
           <form method="post" action="{{ url_for('dokumentacja.update_file_caption', file_id=f.id) }}">
             {{ csrf_input() }}
-            <input type="text" name="caption" class="form-control" style="font-size:.82rem;padding:4px 8px;"
+            <input type="text" name="caption" class="form-control" style="font-size:0.858rem;padding:4px 8px;"
                    placeholder="Podpis…" value="{{ f.caption or '' }}"
                    onchange="this.form.submit()">
           </form>
@@ -330,14 +330,14 @@
             </form>
           </div>
           {% elif f.caption %}
-          <span style="font-size:.8rem;color:#666;">{{ f.caption }}</span>
+          <span style="font-size:0.858rem;color:#666;">{{ f.caption }}</span>
           {% endif %}
         </div>
       </div>
       {% endfor %}
     </div>
     {% else %}
-    <p class="text-muted" style="font-size:.85rem;margin:12px 0 0;">Brak zdjęć.</p>
+    <p class="text-muted" style="font-size:0.858rem;margin:12px 0 0;">Brak zdjęć.</p>
     {% endif %}
   </div>
 </div>
@@ -389,7 +389,7 @@
       {% endif %}
     </div>
     {% else %}
-    <p class="text-muted" style="font-size:.85rem;">Brak notatek.</p>
+    <p class="text-muted" style="font-size:0.858rem;">Brak notatek.</p>
     {% endfor %}
   </div>
 </div>

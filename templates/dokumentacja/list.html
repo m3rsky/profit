@@ -8,13 +8,13 @@
 @media (max-width: 768px) { .dk-mobile-only { display: block; } }
 .dk-main { min-width: 0; flex: 1; }
 .dk-zo { font-weight: 600; }
-.dk-sub { color: var(--text-muted, #64748b); font-size: .78rem; line-height: 1.25; margin-top: .1rem; overflow-wrap: anywhere; }
-.dk-chips { display: flex; flex-wrap: wrap; gap: .3rem; font-size: .78rem; color: var(--text-muted, #64748b); }
+.dk-sub { color: var(--text-muted, #64748b); font-size: 0.858rem; line-height: 1.25; margin-top: .1rem; overflow-wrap: anywhere; }
+.dk-chips { display: flex; flex-wrap: wrap; gap: .3rem; font-size: 0.858rem; color: var(--text-muted, #64748b); }
 .dk-chips span { white-space: nowrap; }
 .dk-chips i { margin-right: 2px; }
 .th-sort { color: inherit; text-decoration: none; white-space: nowrap; }
 .th-sort:hover { text-decoration: underline; }
-.th-sort i { font-size: .7rem; }
+.th-sort i { font-size: 0.858rem; }
 </style>
 {% endblock %}
 
@@ -27,7 +27,7 @@
 <div class="page-header">
   <div>
     <h1 class="page-title"><i class="bi bi-folder2-open"></i> Dokumentacja</h1>
-    <span class="text-muted" style="font-size:.82rem;">Projekty z plikami, zdjęciami i modelami 3D</span>
+    <span class="text-muted" style="font-size:0.858rem;">Projekty z plikami, zdjęciami i modelami 3D</span>
   </div>
   <div class="page-header-actions">
     <a href="{{ url_for('dokumentacja.new_entry', rodzaj='projekt') }}" class="btn btn-primary">

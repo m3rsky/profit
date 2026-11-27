@@ -10,7 +10,7 @@
 <div class="page-header">
   <div>
     <h1 class="page-title"><i class="bi bi-file-earmark-text"></i> Karta kontroli: {{ order.number }}</h1>
-    <span class="text-muted" style="font-size:0.82rem;">{{ order.product }}{% if order.client %} · {{ order.client }}{% endif %} · {{ order.quantity }} szt.</span>
+    <span class="text-muted" style="font-size:0.858rem;">{{ order.product }}{% if order.client %} · {{ order.client }}{% endif %} · {{ order.quantity }} szt.</span>
   </div>
   <div class="page-header-actions">
     <a href="{{ url_for('prestiz_kj.report_card_pdf', order_id=order.id) }}" class="btn btn-primary" target="_blank"><i class="bi bi-file-earmark-pdf"></i> PDF</a>

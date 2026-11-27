@@ -9,7 +9,7 @@
 <div class="page-header">
   <div>
     <h1 class="page-title"><i class="bi bi-images"></i> Zdjęcia i dysk</h1>
-    <span class="text-muted" style="font-size:0.82rem;">Zmniejszanie zdjęć, usuwanie starych zdjęć Kontroli Końcowej i zajętość miejsca. Dostęp tylko dla superusera.</span>
+    <span class="text-muted" style="font-size:0.858rem;">Zmniejszanie zdjęć, usuwanie starych zdjęć Kontroli Końcowej i zajętość miejsca. Dostęp tylko dla superusera.</span>
   </div>
 </div>
 
@@ -21,7 +21,7 @@
     </div>
     <p style="margin:.6rem 0 0;"><strong>{{ size(u.total) }}</strong> z {{ size(u.limit) }} ({{ '%.0f'|format(pct) }}%).
       Zdjęcia Kontroli Końcowej: <strong>{{ size(u.uploads) }}</strong>, zdjęcia QAR: <strong>{{ size(u.qar) }}</strong>.</p>
-    <p class="text-muted" style="font-size:0.82rem;margin:.3rem 0 0;">Liczone z katalogu aplikacji. Konto hostingu zajmuje jeszcze ok. 0,3 GB poza nim (środowisko Python, poczta).</p>
+    <p class="text-muted" style="font-size:0.858rem;margin:.3rem 0 0;">Liczone z katalogu aplikacji. Konto hostingu zajmuje jeszcze ok. 0,3 GB poza nim (środowisko Python, poczta).</p>
   </div>
 </div>
 
@@ -37,7 +37,7 @@
                value="{{ info.settings[key] }}" style="max-width:180px;">
       </div>
       {% endfor %}
-      <p class="text-muted" style="font-size:0.82rem;">Nowe zdjęcia są zmniejszane przy zapisie według ustawień Kontroli Końcowej albo QAR. Zdjęcia QAR domyślnie zostają w oryginalnej rozdzielczości (wartość 0). Zdjęcia kopiowane z punktu kontroli do QAR mają rozdzielczość Kontroli Końcowej.</p>
+      <p class="text-muted" style="font-size:0.858rem;">Nowe zdjęcia są zmniejszane przy zapisie według ustawień Kontroli Końcowej albo QAR. Zdjęcia QAR domyślnie zostają w oryginalnej rozdzielczości (wartość 0). Zdjęcia kopiowane z punktu kontroli do QAR mają rozdzielczość Kontroli Końcowej.</p>
       <button class="btn btn-primary" type="submit"><i class="bi bi-check2"></i> Zapisz ustawienia</button>
     </form>
   </div>
@@ -50,7 +50,7 @@
     {% if c.enabled %}
     <p>Do zmniejszenia (starsze niż {{ info.settings.photo_compress_days }} dni): <strong>{{ c.count }}</strong> zdjęć, razem {{ size(c.bytes) }}.
        Szacowane odzyskane miejsce: <strong>{{ size(c.estimated_saving) }}</strong> (szacunek z próbki kilku zdjęć).</p>
-    <p class="text-muted" style="font-size:0.82rem;">Operacja jest nieodwracalna: plik jest zastępowany pomniejszoną wersją (do {{ info.settings.photo_kk_max_px or 'bez zmiany rozmiaru' }} px, jakość {{ info.settings.photo_kk_quality }}). Działa partiami, można ją przerwać i wznowić.</p>
+    <p class="text-muted" style="font-size:0.858rem;">Operacja jest nieodwracalna: plik jest zastępowany pomniejszoną wersją (do {{ info.settings.photo_kk_max_px or 'bez zmiany rozmiaru' }} px, jakość {{ info.settings.photo_kk_quality }}). Działa partiami, można ją przerwać i wznowić.</p>
     <button class="btn btn-primary" type="button" id="btn-compress" {% if not c.count %}disabled{% endif %}><i class="bi bi-arrows-collapse"></i> Zmniejsz zdjęcia</button>
     <span id="out-compress" class="text-muted" style="margin-left:.6rem;"></span>
     {% else %}
@@ -65,7 +65,7 @@
   <div class="card-body">
     {% if p.enabled %}
     <p>Do usunięcia (starsze niż {{ info.settings.photo_retention_days }} dni, tylko z zakończonych raportów): <strong>{{ p.count }}</strong> zdjęć, razem {{ size(p.bytes) }}.</p>
-    <p class="text-muted" style="font-size:0.82rem;">Operacja jest nieodwracalna. Raporty i wyniki kontroli zostają, znikają tylko zdjęcia. Zdjęcia QAR nie są usuwane. Usunięcie zapisuje się w Dzienniku zdarzeń.</p>
+    <p class="text-muted" style="font-size:0.858rem;">Operacja jest nieodwracalna. Raporty i wyniki kontroli zostają, znikają tylko zdjęcia. Zdjęcia QAR nie są usuwane. Usunięcie zapisuje się w Dzienniku zdarzeń.</p>
     <button class="btn btn-danger" type="button" id="btn-purge" {% if not p.count %}disabled{% endif %}><i class="bi bi-trash"></i> Usuń stare zdjęcia</button>
     <span id="out-purge" class="text-muted" style="margin-left:.6rem;"></span>
     {% else %}

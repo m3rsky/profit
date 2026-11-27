@@ -268,7 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let data;
         try { data = JSON.parse(text); }
         catch(e) {
-          modalBody.innerHTML = '<pre style="font-size:11px;overflow:auto;max-height:200px">' + escHtml(text.slice(0, 500)) + '</pre>';
+          modalBody.innerHTML = '<pre style="font-size:12px;overflow:auto;max-height:200px">' + escHtml(text.slice(0, 500)) + '</pre>';
           return;
         }
 

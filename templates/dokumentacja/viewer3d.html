@@ -18,7 +18,7 @@
       border-bottom:1px solid #d5e2f3; color:#0f172a; -webkit-app-region:drag; app-region:drag; user-select:none; z-index:1000; }
     .app-titlebar-logo { height:calc(var(--titlebar-h) - 12px); width:auto; display:block; }
     .app-titlebar-title { font-size:12px; font-weight:800; letter-spacing:.3px; }
-    .app-titlebar-sub { font-size:11px; opacity:.65; }
+    .app-titlebar-sub { font-size:12px; opacity:.65; }
   }
   html, body { height:100%; }
   body { margin:0; font-family:system-ui,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--txt); display:flex; flex-direction:column; }
@@ -45,7 +45,7 @@
 
   /* panel boczny */
   #panel { width:320px; flex:none; overflow:auto; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px; font-size:13px; }
-  #panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:12px 0 6px; }
+  #panel h2 { font-size:12px; color:var(--muted); margin:12px 0 6px; }
   #panel .sec:first-child h2 { margin-top:0; }
   #panel .sec-h { cursor:pointer; user-select:none; -webkit-user-select:none; display:flex; align-items:center; gap:6px; }
   #panel .sec-h::before { content:'▾'; width:10px; color:var(--muted); }
@@ -90,15 +90,15 @@
   .mtitle .mchev { color:var(--muted); width:10px; flex:none; }
   .mtitle .mnm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
   .mtitle .mval { color:var(--acc); white-space:nowrap; font-weight:600; }
-  .mrow .msave { padding:2px 8px; font-size:11px; flex:none; }
+  .mrow .msave { padding:2px 8px; font-size:12px; flex:none; }
   .mbody { padding:2px 8px 8px 28px; }
   .mrow .mhead { color:var(--muted); margin-bottom:2px; overflow-wrap:anywhere; }
-  .mnote { color:var(--muted); font-size:11px; }
+  .mnote { color:var(--muted); font-size:12px; }
   .mnamerow { display:flex; gap:6px; margin-top:6px; }
   .mname { flex:1; min-width:0; font:inherit; font-size:12px; padding:3px 6px; border:1px solid var(--line); border-radius:6px; }
   .mbar { display:flex; gap:6px; align-items:center; margin-top:6px; }
-  .mbar .mstate { color:var(--muted); font-size:11px; margin-right:auto; }
-  .mrow button { padding:2px 8px; font-size:11px; }
+  .mbar .mstate { color:var(--muted); font-size:12px; margin-right:auto; }
+  .mrow button { padding:2px 8px; font-size:12px; }
   .mrow .mtitle { padding:3px 0; font-size:12px; }
   #selsize { flex-basis:100%; font-size:12px; color:var(--muted); }
   .rowsel { width:100%; font:inherit; font-size:12px; padding:4px; margin-top:6px; }
@@ -115,7 +115,7 @@
   #flat-svg svg { width:100%; height:100%; display:block; }
   #flat-side { width:330px; flex:none; overflow:auto; font-size:13px; line-height:1.6; }
   #flat-dims { border-top:1px solid var(--line); margin-top:10px; padding-top:6px; }
-  #flat-dims h4 { margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+  #flat-dims h4 { margin:0 0 6px; font-size:12px; color:var(--muted); }
   .fd-bar { display:flex; flex-wrap:wrap; gap:4px; }
   .fd-bar button, .fd-row button { padding:3px 8px; font-size:12px; }
   .fd-hint { font-size:12px; color:var(--muted); margin:6px 0; line-height:1.35; }
@@ -130,12 +130,12 @@
   .fd-title .fd-val { color:var(--acc); white-space:nowrap; font-weight:600; }
   .fd-body { padding:2px 8px 8px 28px; }
   .fd-desc { color:var(--muted); overflow-wrap:anywhere; margin-bottom:2px; }
-  .fd-note { color:var(--muted); font-size:11px; }
+  .fd-note { color:var(--muted); font-size:12px; }
   .fd-namerow { display:flex; gap:6px; margin-top:6px; }
   .fd-name { flex:1; min-width:0; font:inherit; font-size:12px; padding:3px 6px; border:1px solid var(--line); border-radius:6px; }
-  .fd-skipped { font-size:11px; color:#8a5a00; background:#fff8e6; border:1px solid #f0dca8; border-radius:6px; padding:6px 8px; margin-top:8px; line-height:1.45; }
+  .fd-skipped { font-size:12px; color:#8a5a00; background:#fff8e6; border:1px solid #f0dca8; border-radius:6px; padding:6px 8px; margin-top:8px; line-height:1.45; }
   .fd-actions { display:flex; gap:6px; align-items:center; margin-top:4px; }
-  .fd-actions .fd-state { color:var(--muted); font-size:11px; margin-right:auto; }
+  .fd-actions .fd-state { color:var(--muted); font-size:12px; margin-right:auto; }
   #flat-side .warn { color:#8a5a00; font-size:12px; margin-top:6px; }
   #flat-side .note { color:var(--muted); font-size:12px; margin-top:8px; }
   @media (max-width: 800px) {

@@ -11,7 +11,7 @@
 .wizard-step.done    { color:var(--color-success);  border-color:var(--color-success); }
 .wizard-step .step-n { display:inline-flex; align-items:center; justify-content:center;
                         width:22px; height:22px; border-radius:50%; background:var(--border-color);
-                        color:#fff; font-size:11px; margin-bottom:4px; }
+                        color:#fff; font-size:12px; margin-bottom:4px; }
 .wizard-step.active .step-n { background:var(--color-primary); }
 .wizard-step.done   .step-n { background:var(--color-success); }
 
@@ -34,7 +34,7 @@
 .cat-item.selected{ border-color:var(--color-primary); background:#ebf3ff; }
 .cat-item input   { display:none; }
 .cat-dim  { font-weight:600; font-size:13px; margin-bottom:2px; }
-.cat-price{ color:var(--color-primary); font-size:11px; }
+.cat-price{ color:var(--color-primary); font-size:12px; }
 
 /* ── Options grid ── */
 .opts-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:8px; }
@@ -149,7 +149,7 @@
               <label class="cat-item" onclick="selectCatalog(this, {{ prod.width }}, {{ prod.height }}, {{ prod.depth }})">
                 <input type="radio" name="_cat_sel" value="{{ prod.id }}">
                 <div class="cat-dim">{{ prod.width }}×{{ prod.height }}</div>
-                <div style="font-size:11px;color:var(--text-muted)">gł. {{ prod.depth }} mm</div>
+                <div style="font-size:12px;color:var(--text-muted)">gł. {{ prod.depth }} mm</div>
                 <div class="cat-price">{{ '%.0f'|format(prod.catalog_price) }} PLN</div>
               </label>
               {% endfor %}

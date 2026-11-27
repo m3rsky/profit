@@ -10,7 +10,7 @@
 .kz-point-head { display:flex; gap:.6rem; align-items:baseline; flex-wrap:wrap; }
 .kz-lp { color:var(--text-muted,#64748b); font-weight:600; min-width:1.5rem; }
 .kz-title { font-weight:600; flex:1; min-width:10rem; }
-.kz-desc { color:var(--text-muted,#64748b); font-size:.85rem; margin:.15rem 0 .5rem 2.1rem; }
+.kz-desc { color:var(--text-muted,#64748b); font-size:0.858rem; margin:.15rem 0 .5rem 2.1rem; }
 .kz-okng { display:flex; gap:.4rem; margin:.5rem 0 0 2.1rem; }
 .kz-cb { flex:1; display:flex; align-items:center; justify-content:center; min-height:48px; border-radius:9px;
   border:2px solid var(--border,#cbd5e1); cursor:pointer; font-weight:700; user-select:none; }
@@ -20,11 +20,11 @@
 .kz-measure-in { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; margin:.5rem 0 0 2.1rem; }
 .kz-measure-in input { width:9rem; font-size:1.1rem; min-height:48px; text-align:right; }
 .kz-unit { font-weight:600; }
-.kz-range { color:var(--text-muted,#64748b); font-size:.85rem; }
+.kz-range { color:var(--text-muted,#64748b); font-size:0.858rem; }
 .kz-live { min-width:3.2rem; text-align:center; }
 .kz-notes { width:calc(100% - 2.1rem); margin:.5rem 0 0 2.1rem; font-size:.9rem; }
 .kz-ro-notes { margin:.4rem 0 0 2.1rem; font-size:.88rem; }
-.kz-group { padding:.55rem 1rem; background:var(--bg-subtle,#f1f5f9); font-weight:700; font-size:.85rem; border-top:1px solid var(--border,#e2e8f0); }
+.kz-group { padding:.55rem 1rem; background:var(--bg-subtle,#f1f5f9); font-weight:700; font-size:0.858rem; border-top:1px solid var(--border,#e2e8f0); }
 .kz-save { display:flex; gap:.6rem; flex-wrap:wrap; }
 .kz-save .btn { flex:1; min-height:48px; }
 .kz-chain { display:flex; gap:.5rem; flex-wrap:wrap; }
@@ -175,7 +175,7 @@
       </button>
       <button type="submit" name="action" value="complete" class="btn btn-primary">
         <i class="bi bi-check2-all"></i> Zakończ kontrolę
-        <span class="text-muted" style="font-size:.8rem;">({{ rec.rated_count }}/{{ rec.results|length }})</span>
+        <span class="text-muted" style="font-size:0.858rem;">({{ rec.rated_count }}/{{ rec.results|length }})</span>
       </button>
     </div>
     {% endif %}

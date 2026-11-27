@@ -17,7 +17,7 @@
       <i class="bi bi-bar-chart"></i>
       Statystyki QAR: błędy per pracownik
     </h1>
-    <span class="text-muted" style="font-size:0.82rem;">Liczba raportów niezgodności przypisanych do osoby odpowiedzialnej</span>
+    <span class="text-muted" style="font-size:0.858rem;">Liczba raportów niezgodności przypisanych do osoby odpowiedzialnej</span>
   </div>
   <div class="page-header-actions">
     <a href="{{ url_for('qar.list_reports') }}" class="btn btn-outline">
@@ -68,7 +68,7 @@
         <td style="text-align:center;">
           {% if row.closed %}<span class="badge status-success">{{ row.closed }}</span>{% else %}<span style="color:#bbb;">0</span>{% endif %}
         </td>
-        <td style="color:#555;font-size:0.82rem;">
+        <td style="color:#555;font-size:0.858rem;">
           {% for cat, cnt in categories.get(row.emp_id, []) %}
             <span style="white-space:nowrap;">{{ cat }} ({{ cnt }}){% if not loop.last %}, {% endif %}</span>
           {% endfor %}
@@ -92,7 +92,7 @@
 {% endif %}
 
 {% if unassigned %}
-<p class="text-muted" style="font-size:0.82rem;margin-top:12px;">
+<p class="text-muted" style="font-size:0.858rem;margin-top:12px;">
   <i class="bi bi-info-circle"></i>
   Raporty bez przypisanej osoby{% if date_from or date_to %} (w wybranym okresie){% endif %}: <strong>{{ unassigned }}</strong>
 </p>

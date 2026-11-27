@@ -53,7 +53,7 @@
         <tr><th>Osprzęt</th><td class="text-right">{{ '%.2f'|format(calc.hardware_cost) }} PLN</td></tr>
         <tr><th>Robocizna i usługi</th><td class="text-right">{{ '%.2f'|format(calc.services_cost) }} PLN</td></tr>
         <tr style="font-weight:700;background:var(--bg-secondary)">
-          <th>KOSZT WŁASNY</th>
+          <th>Koszt własny</th>
           <td class="text-right" style="color:var(--color-primary)">
             {{ '%.2f'|format(calc.cost_total) }} PLN
           </td>
@@ -64,7 +64,7 @@
         <tr><th>Bonus {{ calc.bonus_pct }}%</th><td class="text-right">{{ '%.2f'|format(calc.price_bonus) }} PLN</td></tr>
         {% endif %}
         <tr style="font-weight:700;background:var(--bg-secondary)">
-          <th>CENA FINALNA</th>
+          <th>Cena finalna</th>
           <td class="text-right" style="font-size:18px">{{ '%.2f'|format(calc.price_discount) }} PLN</td>
         </tr>
         <tr>
@@ -107,7 +107,7 @@
         <tr>
           <td>{{ e.name }}</td>
           <td style="text-align:center">{{ e.qty }}</td>
-          <td style="font-size:11px;color:var(--text-muted)">{{ e.material }}</td>
+          <td style="font-size:12px;color:var(--text-muted)">{{ e.material }}</td>
           <td style="text-align:right;white-space:nowrap">{{ e.L }} × {{ e.W }}</td>
           <td style="text-align:right">{{ e.thickness }}</td>
           <td style="text-align:right">{{ '%.2f'|format(e.weight_total) }}</td>
@@ -120,7 +120,7 @@
         <tr style="background:var(--bg-secondary);font-style:italic">
           <td>{{ calc.waste.name }}</td>
           <td style="text-align:center">1</td>
-          <td style="font-size:11px;color:var(--text-muted)">{{ calc.waste.material }}</td>
+          <td style="font-size:12px;color:var(--text-muted)">{{ calc.waste.material }}</td>
           <td colspan="3" style="color:var(--text-muted);font-size:12px">
             Waga: {{ '%.2f'|format(calc.waste.weight_total) }} kg
           </td>

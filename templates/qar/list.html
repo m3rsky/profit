@@ -19,7 +19,7 @@
     border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
   .qar-card-row { display: flex; align-items: center; justify-content: space-between; }
   .qar-card-title { font-weight: 600; font-size: 0.95rem; color: var(--text, #1a1a1a); }
-  .qar-card-meta { font-size: 0.78rem; color: #666; }
+  .qar-card-meta { font-size: 0.858rem; color: #666; }
 }
 @media (min-width: 641px) {
   .qar-cards { display: none !important; }
@@ -34,7 +34,7 @@
       <i class="bi bi-clipboard2-pulse"></i>
       Raporty QAR
     </h1>
-    <span class="text-muted" style="font-size:0.82rem;">Quality Action Reports, dokumentacja niezgodności</span>
+    <span class="text-muted" style="font-size:0.858rem;">Quality Action Reports, dokumentacja niezgodności</span>
   </div>
   <div class="page-header-actions">
     {% if can('qar.stats') %}
@@ -123,7 +123,7 @@
         <td>
           <a href="{{ url_for('qar.detail_report', report_id=r.id) }}">{{ r.title }}</a>
           {% if r.photos.count() %}
-            <i class="bi bi-camera" style="color:#888;font-size:0.75rem;margin-left:4px;" title="{{ r.photos.count() }} zdjęć"></i>
+            <i class="bi bi-camera" style="color:#888;font-size:0.858rem;margin-left:4px;" title="{{ r.photos.count() }} zdjęć"></i>
           {% endif %}
         </td>
         <td>{{ r.category or 'Brak' }}</td>
@@ -159,7 +159,7 @@
   <div class="qar-card">
     <a href="{{ url_for('qar.detail_report', report_id=r.id) }}" style="text-decoration:none;color:inherit;">
       <div class="qar-card-row">
-        <span class="font-mono" style="font-size:0.8rem;color:var(--accent,#1a6e8a);">{{ r.number }}</span>
+        <span class="font-mono" style="font-size:0.858rem;color:var(--accent,#1a6e8a);">{{ r.number }}</span>
         {{ qar_status(r) }}
       </div>
       <div class="qar-card-title">{{ r.title }}</div>
