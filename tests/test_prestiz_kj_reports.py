@@ -86,7 +86,7 @@ class TestAccessAndRender:
     def test_chart_only_where_there_is_data(self, admin, seeded):
         for slug in ('fpy', 'pareto', 'koszt-zawrotow', 'czas-kontroli'):
             html = admin.get(f'/kj-prestiz/raporty/{slug}').get_data(as_text=True)
-            assert 'id="pkj-chart"' in html and 'chart.js@4.4.4' in html and 'pkj-chart-data' in html
+            assert 'id="pkj-chart"' in html and 'vendor/chartjs/chart.umd.js' in html and 'pkj-chart-data' in html
         for slug in ('niezgodnosci', 'pracownicy'):
             assert 'id="pkj-chart"' not in admin.get(f'/kj-prestiz/raporty/{slug}').get_data(as_text=True)
 

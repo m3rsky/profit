@@ -406,7 +406,7 @@
 {# ══════════════════════════════════════════════════════════════════
    JS: przełącznik zakładek + skaner QR
 ══════════════════════════════════════════════════════════════════ #}
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="{{ url_for('static', filename='vendor/html5-qrcode/html5-qrcode.min.js') }}"></script>
 <script>
 (function () {
   var tabManual  = document.getElementById('tab-manual');

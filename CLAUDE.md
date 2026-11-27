@@ -68,6 +68,7 @@ Przykład formatu:
 
 - **Stack:** Python 3.14 (lokalnie, `venv`), Flask 3.0.3, Flask-SQLAlchemy 3.1.1, Flask-Login, Flask-WTF, SQLite. Pełna lista w `requirements.txt`.
 - **Wygląd interfejsu:** `DESIGN.md` (kolory, pismo, przyciski, formularze, telefon, teksty). Przeczytaj przed zmianą wyglądu.
+- **Biblioteki przeglądarki** (od 2026-11-27) są w `static/vendor/` (html5-qrcode 2.3.8, bootstrap-icons 1.11.3, chart.js 4.4.4, sortablejs 1.15.6, z plikami licencji; podgląd 3D ma własne w `static/podglad3d/lib/`). Nie podłączaj CDN, pilnuje tego `tests/test_biblioteki_lokalne.py`. Przy aktualizacji pobierz paczkę z rejestru npm, sprawdź sumę sha512 i podbij `CACHE_VERSION` w `static/sw.js`.
 - **Standard wyglądu list:** `STANDARD_LIST.md`. Każda nowa lista i każda zmiana wyglądu listy (pulpit, Kontrola Końcowa, Kontrola etapowa i kolejne) ma trzymać się tego standardu (znaczniki `.rs*`, bez powielania statusu), a zmianę trzeba dopisać do sekcji "Historia zmian" w tym pliku.
 - **Testy:** `.\venv\Scripts\python.exe -m pytest tests/ -v`, wszystkie muszą przejść (trwa kilka minut). Testy w przeglądarce (Playwright) są pomijane bez Chromium. Współdzielone fixture'y są w `tests/conftest.py`.
 - **Uruchomienie lokalne:** `.\venv\Scripts\python.exe app.py` → http://127.0.0.1:5000

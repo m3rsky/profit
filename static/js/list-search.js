@@ -48,7 +48,7 @@
   function loadLib(cb) {
     if (window.Html5Qrcode) { cb(); return; }
     var sc = document.createElement('script');
-    sc.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+    sc.src = '/static/vendor/html5-qrcode/html5-qrcode.min.js';
     sc.onload = cb;
     sc.onerror = function () { say('Nie udało się załadować skanera. Sprawdź połączenie.', true); };
     document.head.appendChild(sc);

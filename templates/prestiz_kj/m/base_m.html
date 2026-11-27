@@ -10,7 +10,7 @@
   <title>{% block title %}Aplikacja KJ{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/erp-design.css') }}">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/bootstrap-icons.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/pkj.css') }}">
 </head>
 <body class="light pkj-m">

@@ -3,7 +3,7 @@
 
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pkj.css') }}">
-{% if report.chart %}<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" defer></script>{% endif %}
+{% if report.chart %}<script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.js') }}" defer></script>{% endif %}
 {% endblock %}
 
 {% block content %}
