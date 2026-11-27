@@ -619,7 +619,7 @@ def admin_categories():
         elif action == 'delete':
             cat = get_or_404(QARCategory, request.form.get('cat_id', type=int))
             if QARReport.query.filter_by(category=cat.name).first():
-                flash(f'Nie można usunąć „{cat.name}" — jest użyta w istniejących raportach. '
+                flash(f'Nie można usunąć „{cat.name}”, bo jest użyta w istniejących raportach. '
                       f'Możesz ją dezaktywować.', 'warning')
             else:
                 name = cat.name

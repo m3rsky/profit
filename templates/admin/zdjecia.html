@@ -86,7 +86,7 @@
                   body: JSON.stringify(body)})
         .then(function (r) { return r.json().then(function (j) { return {ok: r.ok, j: j}; }); })
         .then(function (res) {
-          if (!res.ok) { out.textContent = res.j.error || 'Błąd serwera.'; btn.disabled = false; return; }
+          if (!res.ok) { out.textContent = res.j.error || 'Serwer zwrócił błąd. Odśwież stronę i spróbuj ponownie.'; btn.disabled = false; return; }
           done += res.j.done; bytes += (res.j.saved || res.j.freed || 0);
           out.textContent = label + ': ' + done + ' zdjęć, odzyskano ' + fmt(bytes) + ', zostało ' + res.j.remaining + '...';
           if (res.j.finished) { out.textContent = 'Gotowe. ' + label + ': ' + done + ' zdjęć, odzyskano ' + fmt(bytes) + '.'; return; }

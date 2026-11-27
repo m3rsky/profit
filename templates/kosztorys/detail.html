@@ -112,7 +112,7 @@
           <td style="text-align:right">{{ e.thickness }}</td>
           <td style="text-align:right">{{ '%.2f'|format(e.weight_total) }}</td>
           <td style="text-align:right">{{ '%.2f'|format(e.cost_sheet * e.qty) }}</td>
-          <td style="text-align:right">{{ '%.2f'|format(e.cost_paint * e.qty) if e.cost_paint else '—' }}</td>
+          <td style="text-align:right">{{ '%.2f'|format(e.cost_paint * e.qty) if e.cost_paint else 'Brak' }}</td>
           <td style="text-align:right"><strong>{{ '%.2f'|format(e.cost_total) }}</strong></td>
         </tr>
         {% endif %}

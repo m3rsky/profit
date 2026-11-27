@@ -29,7 +29,7 @@ def roles_matching(*roles):
 
 # Moduły widoczne w menu i zarządzane w macierzy uprawnień: klucz -> nazwa
 MODULES = {
-    'dashboard': 'Dashboard',
+    'dashboard': 'Pulpit',
     'kontrola_etapowa': 'Kontrola etapowa',
     'kontrola_koncowa': 'Kontrola Końcowa',
     'qar': 'Raporty QAR',

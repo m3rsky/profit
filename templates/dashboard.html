@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Dashboard{% endblock %}
+{% block title %}Pulpit{% endblock %}
 {% block content %}
 
 
@@ -198,10 +198,10 @@
               {% endif %}
             </td>
             <td data-label="ZO">
-              {{ r.zo or '—' }}
+              {{ r.zo or 'Brak' }}
             </td>
             <td data-label="Ilość" class="text-center">
-              {% if r.batch_total %}{{ r.batch_total }} szt.{% else %}—{% endif %}
+              {% if r.batch_total %}{{ r.batch_total }} szt.{% else %}1 szt.{% endif %}
             </td>
             <td data-label="" class="td-actions">
               <a href="{{ url_for('checklist_view', report_id=r.id) }}" class="btn btn-primary btn-sm">

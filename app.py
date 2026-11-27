@@ -706,7 +706,7 @@ def new_checklist():
             # ── Tryb seryjny ──
             dup = _recent_duplicate_report(current_user.id, tmpl_id, f'{base_title} – 1/{quantity}')
             if dup:
-                flash('Taka seria kontroli została już utworzona — otwieram istniejącą.', 'warning')
+                flash('Taka seria kontroli już istnieje. Otwieram ją.', 'warning')
                 return redirect(url_for('checklist_view', report_id=dup.id))
             bid = uuid.uuid4().hex
             first_id = None
@@ -726,7 +726,7 @@ def new_checklist():
         # ── Tryb pojedynczy ──
         dup = _recent_duplicate_report(current_user.id, tmpl_id, base_title)
         if dup:
-            flash('Taka kontrola została już utworzona — otwieram istniejącą.', 'warning')
+            flash('Taka kontrola już istnieje. Otwieram ją.', 'warning')
             return redirect(url_for('checklist_view', report_id=dup.id))
 
         report = Report(user_id=current_user.id, template_id=tmpl_id, title=base_title)
@@ -844,7 +844,7 @@ def checklist_from_qr():
             'redirect': url_for('checklist_view', report_id=dup.id),
             'template': tmpl.name,
             'quantity': quantity,
-            'msg':      'Taka lista kontrolna została już utworzona — otwieram istniejącą.',
+            'msg':      'Taka lista kontrolna już istnieje. Otwieram ją.',
         })
 
     bid      = uuid.uuid4().hex if quantity > 1 else None
@@ -945,7 +945,7 @@ def complete_checklist(report_id):
     _audit('report_complete', 'report', report.id, report.title)
     mailer.notify_report_done(report)
     sc = report.score
-    score_msg = f' Ocena: {sc["grade"]}/6 ({sc["pct"]}% — {sc["ok"]}/{sc["scored"]} pkt).' if sc else ''
+    score_msg = f' Ocena: {sc["grade"]}/6 ({sc["pct"]}%, {sc["ok"]}/{sc["scored"]} pkt).' if sc else ''
 
     # ── Seria: auto-przejście do następnej kontroli ──
     if report.batch_id and report.batch_index and report.batch_index < report.batch_total:
@@ -1321,7 +1321,7 @@ def _create_ng_alerts_on_complete(report):
         if i.qar_report:
             t += f' ({i.qar_report.number})'
         titles.append(t)
-    msg = f'Niezgodności ({len(ng_items)}): {report.title} — {", ".join(titles)}'
+    msg = f'Niezgodności ({len(ng_items)}): {report.title}. Punkty: {", ".join(titles)}'
     if len(msg) > 512:
         msg = msg[:511] + '…'
     for u in User.query.filter(User.role.in_(roles_matching('administrator', 'kontroler'))).all():
@@ -1655,7 +1655,7 @@ def admin_stats():
 
     def _fmt_dur(secs):
         if secs is None:
-            return '—'
+            return 'Brak'
         secs = int(secs)
         if secs < 60:
             return '< 1 min'
@@ -1771,22 +1771,22 @@ def admin_briefing_generate():
         return jsonify({'success': False, 'error': f'Zakres dat nie może przekraczać {_BRIEFING_MAX_RANGE_DAYS} dni.'}), 400
 
     if not app.config.get('ANTHROPIC_API_KEY'):
-        return jsonify({'success': False, 'error': 'Usługa AI nie jest skonfigurowana — brak klucza API.'}), 400
+        return jsonify({'success': False, 'error': 'Usługa AI nie jest skonfigurowana (brak klucza API). Zgłoś to administratorowi.'}), 400
 
     payload = briefing_service.generate_briefing_payload(start_date, end_date)
 
     try:
         result = briefing_service.call_claude(payload)
     except anthropic.RateLimitError:
-        return jsonify({'success': False, 'error': 'Przekroczono limit zapytań do Claude API — spróbuj ponownie za chwilę.'}), 502
+        return jsonify({'success': False, 'error': 'Przekroczono limit zapytań do Claude API. Spróbuj ponownie za chwilę.'}), 502
     except anthropic.AuthenticationError:
         app.logger.error('Briefing: błąd autoryzacji Claude API (nieprawidłowy klucz)')
-        return jsonify({'success': False, 'error': 'Błąd konfiguracji usługi AI — skontaktuj się z administratorem systemu.'}), 502
+        return jsonify({'success': False, 'error': 'Błąd konfiguracji usługi AI. Skontaktuj się z administratorem systemu.'}), 502
     except anthropic.APIConnectionError:
         return jsonify({'success': False, 'error': 'Brak połączenia z Claude API.'}), 502
     except anthropic.APIStatusError as e:
         app.logger.error('Briefing: błąd Claude API status=%s', e.status_code)
-        return jsonify({'success': False, 'error': 'Usługa AI zwróciła błąd — spróbuj ponownie później.'}), 502
+        return jsonify({'success': False, 'error': 'Usługa AI zwróciła błąd. Spróbuj ponownie później.'}), 502
     except briefing_service.BriefingGenerationError as e:
         return jsonify({'success': False, 'error': str(e)}), 502
 
@@ -1990,13 +1990,13 @@ def api_ng_task_reports():
             continue
         seen.add(r.id)
         try:
-            date_str = r.completed_at.strftime('%d.%m.%Y') if r.completed_at else '—'
+            date_str = r.completed_at.strftime('%d.%m.%Y') if r.completed_at else 'Brak'
         except Exception:
-            date_str = str(r.completed_at)[:10] if r.completed_at else '—'
+            date_str = str(r.completed_at)[:10] if r.completed_at else 'Brak'
         reports_out.append({
             'id':     r.id,
             'title':  r.title,
-            'author': r.author.username if r.author else '—',
+            'author': r.author.username if r.author else 'Brak',
             'date':   date_str,
             'url':    url_for('report_detail', report_id=r.id),
             'status': r.status,
@@ -2027,7 +2027,7 @@ def api_template_duration_reports():
 
     def _fmt(secs):
         if secs is None:
-            return '—'
+            return 'Brak'
         secs = int(secs)
         if secs < 60:
             return '< 1 min'

@@ -140,7 +140,7 @@
               {% if r.duration_str %}
               <span class="duration-cell"><i class="bi bi-stopwatch"></i> {{ r.duration_str }}</span>
               {% else %}
-              <span class="text-muted">—</span>
+              <span class="text-muted">Brak</span>
               {% endif %}
             </td>
             <td data-label="Ocena" class="td-collapse-sm">
@@ -148,7 +148,7 @@
               {% if sc %}
               <span class="rs {% if sc.grade >= 5 %}rs-ok{% elif sc.grade >= 3 %}rs-warn{% else %}rs-ng{% endif %}">{{ sc.grade }}/6</span>
               {% else %}
-              <span class="text-muted">—</span>
+              <span class="text-muted">Brak</span>
               {% endif %}
             </td>
             <td class="td-actions td-collapse-sm" data-label="">

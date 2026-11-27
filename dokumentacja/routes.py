@@ -175,7 +175,7 @@ def _add_file(entry, file, force_kind=None):
         return False, None
     ext = _ext(file.filename)
     if not ext or (not _is_image_ext(ext) and not _is_document_ext(ext)):
-        return False, f'Pominięto „{file.filename}” — niedozwolony typ pliku.'
+        return False, f'Pominięto „{file.filename}”: niedozwolony typ pliku.'
 
     is_step = _is_step_ext(ext)
     size = _stream_size(file)
@@ -196,7 +196,7 @@ def _add_file(entry, file, force_kind=None):
         else:
             data = _store_image(file, ext)
             if data is None:
-                return False, f'Pominięto „{file.filename}” — plik nie jest prawidłowym obrazem.'
+                return False, f'Pominięto „{file.filename}”: plik nie jest prawidłowym obrazem.'
     else:
         data = _store_raw(file, ext)
         data['kind'] = 'document'
@@ -619,7 +619,7 @@ def add_images(entry_id):
         if not file or not file.filename:
             continue
         if not _is_image_ext(_ext(file.filename)):
-            flash(f'Pominięto „{file.filename}” — to nie jest zdjęcie.', 'warning')
+            flash(f'Pominięto „{file.filename}”: to nie jest zdjęcie.', 'warning')
             continue
         ok, err = _add_file(entry, file, force_kind='image')
         if ok:

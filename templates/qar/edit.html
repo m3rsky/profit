@@ -24,7 +24,7 @@
   <div class="card-header" style="padding:12px 18px;border-bottom:1px solid var(--border,#ddd);">
     <h2 style="margin:0;font-size:1.1rem;">
       <i class="bi bi-pencil-square" style="color:var(--accent,#1a6e8a);margin-right:6px;"></i>
-      Edycja — <span class="font-mono">{{ report.number }}</span>
+      Edycja: <span class="font-mono">{{ report.number }}</span>
     </h2>
   </div>
   <div class="card-body" style="padding:18px;">
@@ -54,7 +54,7 @@
         <div class="form-group">
           <label class="form-label">Kategoria</label>
           <select name="category" class="form-control">
-            <option value="">— wybierz kategorię —</option>
+            <option value="">Wybierz kategorię</option>
             {% for cat in categories %}
               <option value="{{ cat }}" {% if report.category == cat %}selected{% endif %}>{{ cat }}</option>
             {% endfor %}

@@ -88,13 +88,13 @@
   function save() {
     post({ order: items.map(function (el) { return el.dataset.navKey; }) }).then(function (res) {
       if (res.ok && res.d.ok) { setEditing(false); } else { alert(res.d.error || 'Nie udało się zapisać kolejności.'); }
-    }).catch(function () { alert('Błąd sieci. Spróbuj ponownie.'); });
+    }).catch(function () { alert('Nie zapisano kolejności menu. Sprawdź połączenie i spróbuj ponownie.'); });
   }
 
   function reset() {
     post({ reset: true }).then(function (res) {
       if (res.ok && res.d.ok) { window.location.reload(); }
-    }).catch(function () { alert('Błąd sieci. Spróbuj ponownie.'); });
+    }).catch(function () { alert('Nie przywrócono domyślnej kolejności menu. Sprawdź połączenie i spróbuj ponownie.'); });
   }
 
   editBtns.forEach(function (b) { b.addEventListener('click', start); });

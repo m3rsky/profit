@@ -26,8 +26,7 @@
     <i class="bi bi-arrow-left"></i> Lista
   </a>
   <h1 class="page-title" style="font-size:1.1rem;margin:0;flex:1;min-width:0;overflow-wrap:break-word;">
-    <span class="font-mono" style="color:var(--accent,#1a6e8a);white-space:nowrap;">{{ report.number }}</span>
-    <span style="color:#999;margin:0 4px;">—</span>{{ report.title }}
+    <span class="font-mono" style="color:var(--accent,#1a6e8a);white-space:nowrap;">{{ report.number }}</span><span style="color:#999;margin-right:6px;">:</span>{{ report.title }}
   </h1>
   <span class="badge {{ report.status_css }}" style="font-size:0.85rem;padding:5px 12px;white-space:nowrap;">
     {{ report.status_label }}
@@ -52,11 +51,11 @@
       {% endif %}
       <div>
         <span class="text-muted">Kategoria</span><br>
-        <strong>{{ report.category or '—' }}</strong>
+        <strong>{{ report.category or 'Brak' }}</strong>
       </div>
       <div>
         <span class="text-muted">Lokalizacja</span><br>
-        <strong>{{ report.location or '—' }}</strong>
+        <strong>{{ report.location or 'Brak' }}</strong>
       </div>
       <div>
         <span class="text-muted">Osoba odpowiedzialna</span><br>
@@ -64,7 +63,7 @@
           <strong>{{ report.employee.name }}</strong><br>
           <span style="color:#666;font-size:0.8rem;">{{ report.employee.department.name }}</span>
         {% else %}
-          <strong>—</strong>
+          <strong>Brak</strong>
         {% endif %}
       </div>
       <div>
@@ -246,10 +245,10 @@ document.getElementById('photo-file-input').addEventListener('change', function(
       const placeholder = document.querySelector('label[for="photo-file-input"]');
       if (placeholder && placeholder !== document.querySelector('.qar-upload-btn')) placeholder.style.display = 'none';
     } else {
-      alert(data.error || 'Błąd wysyłania.');
+      alert(data.error || 'Nie dodano zdjęcia. Spróbuj ponownie.');
     }
   })
-  .catch(() => { document.getElementById('upload-progress').style.display = 'none'; alert('Błąd sieci.'); });
+  .catch(() => { document.getElementById('upload-progress').style.display = 'none'; alert('Nie dodano zdjęcia. Sprawdź połączenie i spróbuj ponownie.'); });
 });
 
 function addPhotoCard(photoId, url) {
@@ -288,7 +287,7 @@ function deletePhoto(photoId) {
       if (card) card.remove();
       updatePhotoCount(-1);
     } else {
-      alert(data.error || 'Błąd usuwania.');
+      alert(data.error || 'Nie usunięto zdjęcia. Odśwież stronę i spróbuj ponownie.');
     }
   });
 }

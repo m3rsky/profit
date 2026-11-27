@@ -91,7 +91,7 @@
 <template id="installer-row-template">
   <div class="installer-row">
     <select class="form-control installer-select" aria-label="Wybór montera">
-      <option value="">— wybierz montera —</option>
+      <option value="">Wybierz montera</option>
       {% for inst in installers %}
       <option value="{{ inst.id }}">{{ inst.name }}</option>
       {% endfor %}
@@ -130,8 +130,7 @@
                  aria-label="Wartość pomiaru">
           {% if item.task.value_min is not none or item.task.value_max is not none %}
           <small class="value-range-hint">
-            Zakres: {{ item.task.value_min if item.task.value_min is not none else '—' }}
-            … {{ item.task.value_max if item.task.value_max is not none else '—' }}{% if item.task.unit %} {{ item.task.unit }}{% endif %}
+            {% if item.task.value_min is not none and item.task.value_max is not none %}Zakres: {{ item.task.value_min }} do {{ item.task.value_max }}{% elif item.task.value_min is not none %}Minimum: {{ item.task.value_min }}{% else %}Maksimum: {{ item.task.value_max }}{% endif %}{% if item.task.unit %} {{ item.task.unit }}{% endif %}
           </small>
           {% endif %}
           <span class="value-result-badge {% if item.result == 'ok' %}badge-success{% elif item.result == 'ng' %}badge-error{% endif %}">
@@ -163,7 +162,7 @@
           {% for ri in inst_rows %}
           <div class="installer-row" data-item-id="{{ item.id }}">
             <select class="form-control installer-select" data-item-id="{{ item.id }}" aria-label="Wybór montera">
-              <option value="">— wybierz montera —</option>
+              <option value="">Wybierz montera</option>
               {% for inst in installers %}
               <option value="{{ inst.id }}" {% if ri.installer_id == inst.id %}selected{% endif %}>{{ inst.name }}</option>
               {% endfor %}
@@ -182,7 +181,7 @@
           {% if not inst_rows %}
           <div class="installer-row" data-item-id="{{ item.id }}">
             <select class="form-control installer-select" data-item-id="{{ item.id }}" aria-label="Wybór montera">
-              <option value="">— wybierz montera —</option>
+              <option value="">Wybierz montera</option>
               {% for inst in installers %}
               <option value="{{ inst.id }}">{{ inst.name }}</option>
               {% endfor %}
@@ -220,19 +219,19 @@
               <small class="text-muted" style="display:block;margin-bottom:2px">Pomiar 1</small>
               <input type="number" step="any" class="form-control measurement-input"
                      data-item-id="{{ item.id }}" data-idx="0"
-                     value="{{ m[0] }}" placeholder="—" aria-label="Pomiar 1">
+                     value="{{ m[0] }}" aria-label="Pomiar 1">
             </div>
             <div style="flex:1;min-width:80px">
               <small class="text-muted" style="display:block;margin-bottom:2px">Pomiar 2</small>
               <input type="number" step="any" class="form-control measurement-input"
                      data-item-id="{{ item.id }}" data-idx="1"
-                     value="{{ m[1] }}" placeholder="—" aria-label="Pomiar 2">
+                     value="{{ m[1] }}" aria-label="Pomiar 2">
             </div>
             <div style="flex:1;min-width:80px">
               <small class="text-muted" style="display:block;margin-bottom:2px">Pomiar 3</small>
               <input type="number" step="any" class="form-control measurement-input"
                      data-item-id="{{ item.id }}" data-idx="2"
-                     value="{{ m[2] }}" placeholder="—" aria-label="Pomiar 3">
+                     value="{{ m[2] }}" aria-label="Pomiar 3">
             </div>
           </div>
           <span class="value-result-badge {% if item.result == 'ok' %}badge-success{% elif item.result == 'ng' %}badge-error{% endif %}">
@@ -265,7 +264,7 @@
         <div class="value-readonly">
           <span class="value-readonly-text">{{ item.value_text }}{% if item.task.unit %} {{ item.task.unit }}{% endif %}</span>
           <span class="badge {% if item.result == 'ok' %}badge-success{% elif item.result == 'ng' %}badge-error{% else %}badge-neutral{% endif %}">
-            {{ item.result | upper if item.result else '—' }}
+            {{ item.result | upper if item.result else 'Brak' }}
           </span>
         </div>
         {% elif item.task.task_type == 'installer' and item.installers.count() %}
@@ -275,7 +274,7 @@
             {% for ri in inst_rows_ro %}{% if ri.role %}{{ ri.role }}: {% endif %}{{ ri.installer.name }}{% if item.result == 'ng' and inst_rows_ro|length > 1 and ri.is_at_fault %} (zawinił){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
           </span>
           <span class="badge {% if item.result == 'ok' %}badge-success{% elif item.result == 'ng' %}badge-error{% else %}badge-neutral{% endif %}">
-            {{ item.result | upper if item.result else '—' }}
+            {{ item.result | upper if item.result else 'Brak' }}
           </span>
         </div>
         {% elif item.task.task_type == 'measurements' %}
@@ -285,7 +284,7 @@
           <span class="value-readonly-text">{{ m | select | list | join(' / ') }}</span>
           {% endif %}
           <span class="badge {% if item.result == 'ok' %}badge-success{% elif item.result == 'ng' %}badge-error{% else %}badge-neutral{% endif %}">
-            {{ item.result | upper if item.result else '—' }}
+            {{ item.result | upper if item.result else 'Brak' }}
           </span>
         </div>
         {% elif item.result %}
@@ -423,7 +422,7 @@
         <div class="form-group">
           <label class="form-label">Kategoria</label>
           <select id="qar-f-category" class="form-control">
-            <option value="">— wybierz —</option>
+            <option value="">Wybierz</option>
             {% for c in qar_categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
         </div>
@@ -435,7 +434,7 @@
       <div class="form-group">
         <label class="form-label">Osoba odpowiedzialna</label>
         <select id="qar-f-employee" class="form-control">
-          <option value="">— nie przypisano —</option>
+          <option value="">Nie przypisano</option>
           {% for dept in qar_departments %}
             {% set emps = dept.employees.filter_by(is_active=True).all() | sort(attribute='name') %}
             {% if emps %}
@@ -803,7 +802,7 @@ document.querySelectorAll('.batch-progress-fill[data-pct]').forEach(function (el
     e.preventDefault();
     const itemId = fItem.value;
     if (!itemId || !/^\d+$/.test(itemId)) {
-      errBox.textContent = 'Nie udało się ustalić punktu kontrolnego — odśwież stronę i spróbuj ponownie.';
+      errBox.textContent = 'Nie udało się ustalić punktu kontrolnego. Odśwież stronę i spróbuj ponownie.';
       errBox.hidden = false;
       return;
     }

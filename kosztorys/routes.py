@@ -137,7 +137,7 @@ def new_quote():
 
         quote = Quote(
             number=_next_quote_number(),
-            client_name=f.get('client_name', '').strip() or '—',
+            client_name=f.get('client_name', '').strip() or 'Brak',
             cabinet_type_id=cabinet_type_id,
             status='draft',
             notes=f.get('notes', '').strip(),
@@ -207,7 +207,7 @@ def kreator():
 
         quote = Quote(
             number=_next_quote_number(),
-            client_name=f.get('client_name', '').strip() or '—',
+            client_name=f.get('client_name', '').strip() or 'Brak',
             cabinet_type_id=cabinet_type_id,
             status='draft',
             notes=f.get('notes', '').strip(),
@@ -256,7 +256,7 @@ def edit_quote(quote_id):
         f = request.form
         action = f.get('_action', 'save')
 
-        quote.client_name     = f.get('client_name', '').strip() or '—'
+        quote.client_name     = f.get('client_name', '').strip() or 'Brak'
         quote.notes           = f.get('notes', '').strip()
         quote.cabinet_type_id = int(f.get('cabinet_type_id', quote.cabinet_type_id))
 

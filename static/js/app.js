@@ -118,7 +118,7 @@ document.querySelectorAll('.btn-result').forEach(btn => {
         body: JSON.stringify({ result: newResult }),
       });
       const data = await res.json();
-      if (!res.ok) { alert(data.error || 'Błąd'); return; }
+      if (!res.ok) { alert(data.error || 'Nie zapisano oceny. Odśwież stronę i spróbuj ponownie.'); return; }
       row.querySelectorAll('.btn-result').forEach(b => b.classList.remove('active'));
       if (data.result) row.querySelector(`.btn-result[data-result="${data.result}"]`)?.classList.add('active');
       row.classList.toggle('result-ok',  data.result === 'ok');
@@ -157,7 +157,7 @@ document.querySelectorAll('.btn-result').forEach(btn => {
         if (pendingNgRow === row) _clearNgNote(row);
       }
     } catch {
-      alert('Błąd połączenia');
+      alert('Nie udało się potwierdzić zapisu oceny. Sprawdź połączenie, odśwież stronę i spróbuj ponownie.');
     }
   });
 });
@@ -288,14 +288,14 @@ async function uploadFile(file, itemId, thumbsContainer) {
     form.append('_csrf_token', _csrf());
     const res  = await fetch(`/api/item/${itemId}/photo`, { method: 'POST', body: form });
     const data = await res.json();
-    if (!res.ok) { alert(data.error || 'Błąd przesyłania'); return; }
+    if (!res.ok) { alert(data.error || 'Nie dodano zdjęcia. Spróbuj ponownie.'); return; }
     if (thumbsContainer) {
       addThumb(thumbsContainer, data.photo_id, data.url);
       const ngRow = thumbsContainer.closest('.checklist-item');
       if (ngRow) _checkNgUnlock(ngRow);
     }
   } catch {
-    alert('Błąd przesyłania zdjęcia');
+    alert('Nie udało się dodać zdjęcia. Sprawdź połączenie i spróbuj ponownie.');
   }
 }
 
@@ -318,7 +318,7 @@ async function deletePhoto(photoId, btn) {
     });
     if (res.ok) btn.closest('.photo-thumb').remove();
   } catch {
-    alert('Błąd usuwania zdjęcia');
+    alert('Nie usunięto zdjęcia. Sprawdź połączenie i spróbuj ponownie.');
   }
 }
 

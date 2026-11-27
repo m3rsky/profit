@@ -77,17 +77,17 @@
         <td data-label="Wymiary">
           {% if q.config %}
             {{ q.config.width }}×{{ q.config.height }}×{{ q.config.depth }} mm
-          {% else %}—{% endif %}
+          {% else %}Brak{% endif %}
         </td>
         <td data-label="Koszt własny">
           {% if calc.cost_total is defined %}
             <strong>{{ '%.2f'|format(calc.cost_total) }} PLN</strong>
-          {% else %}—{% endif %}
+          {% else %}Brak{% endif %}
         </td>
         <td data-label="Cena">
           {% if calc.price_discount is defined %}
             {{ '%.2f'|format(calc.price_discount) }} PLN
-          {% else %}—{% endif %}
+          {% else %}Brak{% endif %}
         </td>
         <td data-label="Status">
           <span class="status-badge {{ q.status_css }}">{{ q.status_label }}</span>

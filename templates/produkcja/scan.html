@@ -40,7 +40,7 @@
 <form class="st-manual" id="st-manual" autocomplete="off">
   <input class="form-control" id="st-scan" placeholder="Zeskanuj kod skanerem (lub wpisz numer ZO i naciśnij Enter)"
          autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" autofocus>
-  <button type="submit" class="btn btn-outline">OK</button>
+  <button type="submit" class="btn btn-outline">Zatwierdź kod</button>
 </form>
 <p class="text-muted" style="text-align:center;font-size:.8rem;margin:.4rem 0;">
   Skaner: kliknij pole powyżej i skanuj, kursor wraca tam automatycznie.
@@ -99,10 +99,10 @@
     msg('Szukam zlecenia…', 'info');
     post(urls.order, payload).then(function (res) {
       if (res.status === 401) { employee = null; renderEmployee(); }
-      if (!res.ok) { elOrders.textContent = ''; msg(res.d.error || 'Błąd.', 'error'); return; }
+      if (!res.ok) { elOrders.textContent = ''; msg(res.d.error || 'Nie wyszukano zlecenia. Spróbuj ponownie.', 'error'); return; }
       msg('', '');
       renderOrders(res.d.orders);
-    }).catch(function () { msg('Błąd sieci. Spróbuj ponownie.', 'error'); });
+    }).catch(function () { msg('Nie wyszukano zlecenia. Sprawdź połączenie i spróbuj ponownie.', 'error'); });
   }
 
   function renderOrders(orders) {
@@ -150,7 +150,7 @@
       } else {
         msg(d.error || d.message || 'Nie udało się zapisać wpisu.', 'error');
       }
-    }).catch(function () { msg('Błąd sieci, wpis nie został zapisany.', 'error'); });
+    }).catch(function () { msg('Błąd sieci, wpis nie został zapisany. Spróbuj ponownie.', 'error'); });
   }
 
   function onScan(text) {
@@ -182,7 +182,7 @@
       } else {
         lookupOrder({o: text, p: ''});
       }
-    }).catch(function () { msg('Błąd sieci. Spróbuj ponownie.', 'error'); });
+    }).catch(function () { msg('Nie odczytano kodu. Sprawdź połączenie i spróbuj ponownie.', 'error'); });
   }
 
   var scanInput = document.getElementById('st-scan');

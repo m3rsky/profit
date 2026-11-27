@@ -57,7 +57,7 @@
         <div class="form-group">
           <label class="form-label">Kategoria</label>
           <select name="category" class="form-control" style="font-size:16px;">
-            <option value="">— wybierz kategorię —</option>
+            <option value="">Wybierz kategorię</option>
             {% for cat in categories %}
               <option value="{{ cat }}" {% if form.get('category') == cat %}selected{% endif %}>{{ cat }}</option>
             {% endfor %}

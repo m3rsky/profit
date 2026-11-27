@@ -361,7 +361,7 @@
     <div class="doc-note" id="note-{{ n.id }}">
       <div class="doc-note-body">{{ n.body }}</div>
       <div class="doc-note-meta">
-        {{ n.author.username if n.author else '—' }} · {{ n.created_at | localdt }}
+        {{ n.author.username if n.author else 'Brak autora' }} · {{ n.created_at | localdt }}
         {% if n.updated_at and n.updated_at != n.created_at %} · edytowano {{ n.updated_at | localdt }}{% endif %}
       </div>
       {% if can('dokumentacja.manage_all') or n.user_id == current_user.id %}

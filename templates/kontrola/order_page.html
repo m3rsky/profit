@@ -47,7 +47,7 @@
     <form method="post" action="{{ url_for('kontrola.order_start', order_id=order.id) }}" class="op-new" autocomplete="off">
       {{ csrf_input() }}
       <select name="department_id" class="form-control" aria-label="Dział kontroli" required>
-        <option value="">— wybierz dział kontroli —</option>
+        <option value="">Wybierz dział kontroli</option>
         {% for d in departments %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}
       </select>
       {% if elements %}

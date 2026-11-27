@@ -127,7 +127,7 @@ def generate_pdf(quote) -> bytes:
             P(N2(e['weight_per'])),
             P(N2(e['weight_total'])),
             P(N2(e['cost_sheet'])),
-            P(N2(e['cost_paint']) if e['cost_paint'] else '—'),
+            P(N2(e['cost_paint']) if e['cost_paint'] else 'Brak'),
             P(N2(e['cost_per'])),
             P(PLN(e['cost_total']), bold),
         ])
@@ -231,7 +231,7 @@ def generate_pdf(quote) -> bytes:
     story.append(Spacer(1, 2*mm))
     footer_txt = (f'Wycena wygenerowana: {datetime.now().strftime("%d.%m.%Y %H:%M")}  |  '
                   f'Autor: {quote.created_by.username}  |  '
-                  f'Dokument wewnętrzny — nie przekazywać klientowi')
+                  f'Dokument wewnętrzny, nie przekazywać klientowi')
     story.append(P(footer_txt, small))
 
     doc.build(story)

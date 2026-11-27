@@ -38,7 +38,7 @@ class TestMenuOrder:
         assert keys[:7] == ['dashboard', 'kontrola_etapowa', 'kontrola_koncowa', 'qar', 'lista_produkcyjna',
                             'stanowisko', 'ustawienia']
         assert 'Kontrola etapowa' in html and 'Kontrola zamówień' not in html
-        assert html.index('>Dashboard<') < html.index('>Kontrola etapowa<') < html.index('>Raporty QAR<')
+        assert html.index('>Pulpit<') < html.index('>Kontrola etapowa<') < html.index('>Raporty QAR<')
 
     def test_removed_and_hidden_items(self, client):
         login(client, 'admin', 'Admin1234!')

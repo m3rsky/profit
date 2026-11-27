@@ -34,7 +34,7 @@
       <i class="bi bi-clipboard2-pulse"></i>
       Raporty QAR
     </h1>
-    <span class="text-muted" style="font-size:0.82rem;">Quality Action Reports — dokumentacja niezgodności</span>
+    <span class="text-muted" style="font-size:0.82rem;">Quality Action Reports, dokumentacja niezgodności</span>
   </div>
   <div class="page-header-actions">
     {% if can('qar.stats') %}
@@ -118,17 +118,17 @@
       {% for r in reports.items %}
       <tr>
         <td><a href="{{ url_for('qar.detail_report', report_id=r.id) }}" class="font-mono">{{ r.number }}</a></td>
-        <td style="color:#555;">{{ r.zo_number or '—' }}</td>
-        <td style="color:#555;">{{ r.drawing_number or '—' }}</td>
+        <td style="color:#555;">{{ r.zo_number or 'Brak' }}</td>
+        <td style="color:#555;">{{ r.drawing_number or 'Brak' }}</td>
         <td>
           <a href="{{ url_for('qar.detail_report', report_id=r.id) }}">{{ r.title }}</a>
           {% if r.photos.count() %}
             <i class="bi bi-camera" style="color:#888;font-size:0.75rem;margin-left:4px;" title="{{ r.photos.count() }} zdjęć"></i>
           {% endif %}
         </td>
-        <td>{{ r.category or '—' }}</td>
-        <td style="color:#555;">{{ r.employee.name if r.employee else '—' }}</td>
-        <td style="color:#555;">{{ r.location or '—' }}</td>
+        <td>{{ r.category or 'Brak' }}</td>
+        <td style="color:#555;">{{ r.employee.name if r.employee else 'Brak' }}</td>
+        <td style="color:#555;">{{ r.location or 'Brak' }}</td>
         <td>{{ qar_status(r) }}</td>
         <td>{{ r.author.username }}</td>
         <td style="color:#666;">{{ r.created_at | localdt('%d.%m.%Y') }}</td>

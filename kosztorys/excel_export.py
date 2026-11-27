@@ -89,7 +89,7 @@ def generate_excel(quote) -> BytesIO:
 
     # ── Nagłówek dokumentu ──────────────────────────────────────────────────
     ws.row_dimensions[1].height = 32
-    merge_write(1, 1, 10, f'KOSZTORYS  {quote.number}  —  {quote.cabinet_type.name}',
+    merge_write(1, 1, 10, f'KOSZTORYS  {quote.number}  |  {quote.cabinet_type.name}',
                 bold=True, bg=C_HEADER, fg=C_WHITE, align='center', size=13)
     merge_write(1, 11, 15, f'Data: {datetime.now().strftime("%d.%m.%Y")}',
                 bold=True, bg=C_HEADER, fg=C_WHITE, align='right', size=11)

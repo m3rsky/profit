@@ -214,7 +214,7 @@ table.prod-table th[data-c="{{ c }}"], table.prod-table td[data-c="{{ c }}"] { w
         if (!res.ok || !res.d.ok) { alert(res.d.error || 'Nie udało się zmienić nazwy.'); return; }
         location.reload();
       })
-      .catch(function () { alert('Błąd sieci, nazwa nie została zmieniona.'); });
+      .catch(function () { alert('Błąd sieci, nazwa nie została zmieniona. Spróbuj ponownie.'); });
   }
   var moveUrl = "{{ url_for('produkcja.column_move', sheet_id=sheet.id) }}";
   function moveCol(key, before) {
@@ -358,7 +358,7 @@ table.prod-table th[data-c="{{ c }}"], table.prod-table td[data-c="{{ c }}"] { w
       method: 'POST',
       headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrf},
       body: JSON.stringify({col: col, width: width})
-    }).catch(function () { alert('Błąd sieci, szerokość kolumny nie została zapisana.'); });
+    }).catch(function () { alert('Błąd sieci, szerokość kolumny nie została zapisana. Spróbuj ponownie.'); });
   }
   table.querySelectorAll('.col-rs').forEach(function (h) {
     var col = h.dataset.c, th = h.parentNode;
@@ -451,7 +451,7 @@ table.prod-table th[data-c="{{ c }}"], table.prod-table td[data-c="{{ c }}"] { w
             tr.querySelectorAll('.flash').forEach(function (x) { x.classList.remove('flash'); });
           }, 1200);
         })
-        .catch(function () { put(old); alert('Błąd sieci, zmiana nie została zapisana.'); });
+        .catch(function () { put(old); alert('Błąd sieci, zmiana nie została zapisana. Spróbuj ponownie.'); });
     }
 
     input.addEventListener('keydown', function (ev) {

@@ -20,7 +20,7 @@
       {% if recent_briefings %}
       <label>Historia
         <select id="briefing-history">
-          <option value="">— wybierz z historii —</option>
+          <option value="">Wybierz z historii</option>
           {% for b in recent_briefings %}
           <option value="{{ b.id }}">{{ b.start_date }} – {{ b.end_date }} ({{ b.generated_at.strftime('%Y-%m-%d %H:%M') }})</option>
           {% endfor %}
@@ -355,7 +355,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         const data = await res.json();
         if (!data.success) {
-          briefingContent.innerHTML = '<p class="ng-modal-empty">' + escHtml(data.error || 'Błąd generowania briefingu.') + '</p>';
+          briefingContent.innerHTML = '<p class="ng-modal-empty">' + escHtml(data.error || 'Nie wygenerowano briefingu. Spróbuj ponownie.') + '</p>';
           return;
         }
         renderBriefing(data.briefing);
