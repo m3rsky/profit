@@ -88,6 +88,42 @@ document.querySelectorAll('.progress-bar[data-pct]').forEach(el => {
   el.style.width = el.dataset.pct + '%';
 });
 
+// ── Zapisy z opóźnieniem ───────────────────────────────────────────────────
+// Każde pole ma własny licznik. Przed zamknięciem listy flush() kończy wszystkie zapisy.
+const saveQueue = {
+  waiting: new Map(),
+  running: new Set(),
+  later(key, fn, ms) {
+    this.cancel(key);
+    this.waiting.set(key, { fn, timer: setTimeout(() => this.now(key, fn), ms) });
+  },
+  cancel(key) {
+    const job = this.waiting.get(key);
+    if (job) { clearTimeout(job.timer); this.waiting.delete(key); }
+  },
+  now(key, fn) {
+    this.cancel(key);
+    const p = Promise.resolve().then(fn).catch(() => {}).finally(() => this.running.delete(p));
+    this.running.add(p);
+    return p;
+  },
+  flush() {
+    [...this.waiting].forEach(([key, job]) => this.now(key, job.fn));
+    return Promise.all([...this.running]);
+  },
+};
+
+document.querySelectorAll('form[data-close-report]').forEach(form => {
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+    form.querySelectorAll('button').forEach(b => { b.disabled = true; });
+    saveQueue.flush().then(() => form.submit());
+  });
+});
+window.addEventListener('pageshow', () => {
+  document.querySelectorAll('form[data-close-report] button').forEach(b => { b.disabled = false; });
+});
+
 // ── OK / NG / N/A result buttons ───────────────────────────────────────────
 let pendingNgRow = null;
 
@@ -99,12 +135,11 @@ document.querySelectorAll('.btn-result').forEach(btn => {
     const current = row.querySelector('.btn-result.active')?.dataset.result ?? null;
     const newResult = current === clicked ? null : clicked;
 
-    // Blokada: inne zadanie NG czeka na adnotację + zdjęcie
+    // Blokada: inne zadanie NG czeka na adnotację
     if (pendingNgRow && pendingNgRow !== row) {
-      const pNotes    = pendingNgRow.querySelector('.item-notes');
-      const pHasPhoto = !!pendingNgRow.querySelector('.photo-thumb');
-      if (pNotes && pNotes.value.trim() && pHasPhoto) {
-        _clearNgNote(pendingNgRow); // oba warunki spełnione — odblokuj
+      const pNotes = pendingNgRow.querySelector('.item-notes');
+      if (pNotes && pNotes.value.trim()) {
+        _clearNgNote(pendingNgRow); // adnotacja jest, odblokuj
       } else {
         _requireNgNote(pendingNgRow);
         return;
@@ -136,20 +171,15 @@ document.querySelectorAll('.btn-result').forEach(btn => {
       if (data.result === 'ng') {
         const notes    = row.querySelector('.item-notes');
         const hasPhoto = !!row.querySelector('.photo-thumb');
-        if (!notes || !notes.value.trim() || !hasPhoto) {
+        if (!notes || !notes.value.trim()) {
           _requireNgNote(row);
           return;
         }
-        scrollToNextItem(row);
+        // Bez zdjęcia zostajemy na punkcie, żeby można je było dodać.
+        if (hasPhoto) scrollToNextItem(row);
       } else if (data.result === 'dw') {
+        // DW: zostajemy na punkcie, komentarz jest dobrowolny.
         if (pendingNgRow === row) _clearNgNote(row);
-        const notes = row.querySelector('.item-notes');
-        if (notes) {
-          const y = notes.getBoundingClientRect().top + window.scrollY - 80;
-          window.scrollTo({ top: y, behavior: 'smooth' });
-          setTimeout(() => { notes.focus(); notes.style.borderColor = '#d97706'; }, 400);
-          notes.addEventListener('blur', () => { notes.style.borderColor = ''; }, { once: true });
-        }
       } else if (newResult !== null) {
         if (pendingNgRow === row) _clearNgNote(row);
         scrollToNextItem(row);
@@ -184,7 +214,7 @@ function scrollToItem(item) {
 
 function _requireNgNote(row) {
   pendingNgRow = row;
-  row.classList.add('ng-note-required', 'ng-photo-required');
+  row.classList.add('ng-note-required');
   if (!row.querySelector('.ng-note-warn')) {
     const warn = document.createElement('p');
     warn.className = 'ng-note-warn';
@@ -202,22 +232,16 @@ function _requireNgNote(row) {
 function _updateNgWarn(row) {
   const warn = row.querySelector('.ng-note-warn');
   if (!warn) return;
-  const hasNote  = !!(row.querySelector('.item-notes')?.value.trim());
-  const hasPhoto = !!row.querySelector('.photo-thumb');
-  let msg;
-  if (!hasNote && !hasPhoto) msg = 'Wymagane: adnotacja i zdjęcie przy wyniku NG';
-  else if (!hasNote)          msg = 'Wpisz adnotację, aby przejść dalej';
-  else                        msg = 'Dodaj zdjęcie, aby przejść dalej';
-  warn.innerHTML = '<i class="bi bi-exclamation-circle-fill"></i> ' + msg;
+  warn.innerHTML = '<i class="bi bi-exclamation-circle-fill"></i> Przy NG wpisz adnotację. Zdjęcie jest zalecane.';
 }
 
 function _checkNgUnlock(row) {
   if (!pendingNgRow || pendingNgRow !== row) return;
   const hasNote  = !!(row.querySelector('.item-notes')?.value.trim());
   const hasPhoto = !!row.querySelector('.photo-thumb');
-  if (hasNote && hasPhoto) {
+  if (hasNote) {
     _clearNgNote(row);
-    scrollToNextItem(row);
+    if (hasPhoto) scrollToNextItem(row);
   } else {
     _updateNgWarn(row);
   }
@@ -225,7 +249,7 @@ function _checkNgUnlock(row) {
 
 function _clearNgNote(row) {
   pendingNgRow = null;
-  row.classList.remove('ng-note-required', 'ng-photo-required');
+  row.classList.remove('ng-note-required');
   row.querySelector('.ng-note-warn')?.remove();
 }
 
@@ -330,7 +354,6 @@ document.querySelectorAll('[data-confirm]').forEach(el => {
 });
 
 // ── Numeric / text value inputs ────────────────────────────────────────────
-let valueTimer = null;
 
 async function saveValue(input, allowAdvance) {
   const itemId = input.dataset.itemId;
@@ -370,21 +393,16 @@ async function saveValue(input, allowAdvance) {
 }
 
 document.querySelectorAll('.value-input').forEach(input => {
-  input.addEventListener('input', function () {
-    clearTimeout(valueTimer);
-    valueTimer = setTimeout(() => saveValue(this, false), 700);
-  });
-  input.addEventListener('blur', function () {
-    clearTimeout(valueTimer);
-    saveValue(this, true);
-  });
+  const key = 'value-' + input.dataset.itemId;
+  const commit = () => saveQueue.now(key, () => saveValue(input, true));
+  input.addEventListener('input', () => saveQueue.later(key, () => saveValue(input, false), 700));
+  input.addEventListener('blur', commit);
   input.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') { e.preventDefault(); clearTimeout(valueTimer); saveValue(this, true); }
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
   });
 });
 
 // ── Measurements inputs ────────────────────────────────────────────────────
-let measurementsTimer = null;
 
 async function saveMeasurements(anyInput) {
   const itemId = anyInput.dataset.itemId;
@@ -403,22 +421,16 @@ async function saveMeasurements(anyInput) {
 }
 
 document.querySelectorAll('.measurement-input').forEach(input => {
-  input.addEventListener('input', function () {
-    clearTimeout(measurementsTimer);
-    measurementsTimer = setTimeout(() => saveMeasurements(this), 700);
-  });
-  input.addEventListener('blur', function () {
-    clearTimeout(measurementsTimer);
-    saveMeasurements(this);
-  });
+  const key = 'meas-' + input.dataset.itemId;
+  const commit = () => saveQueue.now(key, () => saveMeasurements(input));
+  input.addEventListener('input', () => saveQueue.later(key, () => saveMeasurements(input), 700));
+  input.addEventListener('blur', commit);
   input.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') { e.preventDefault(); clearTimeout(measurementsTimer); saveMeasurements(this); }
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
   });
 });
 
 // ── Installer rows (jeden lub kilku monterów na punkt checklisty) ──────────
-let installerTimer = null;
-
 function _installerRowTemplate() {
   const tpl = document.getElementById('installer-row-template');
   return tpl ? tpl.content.firstElementChild.cloneNode(true) : null;
@@ -471,11 +483,8 @@ function _bindInstallerRow(row) {
   const fault = row.querySelector('.installer-fault');
   const removeBtn = row.querySelector('.installer-row-remove');
   select.addEventListener('change', () => saveInstallers(itemId));
-  role.addEventListener('input', () => {
-    clearTimeout(installerTimer);
-    installerTimer = setTimeout(() => saveInstallers(itemId), 700);
-  });
-  role.addEventListener('blur', () => { clearTimeout(installerTimer); saveInstallers(itemId); });
+  role.addEventListener('input', () => saveQueue.later('inst-' + itemId, () => saveInstallers(itemId), 700));
+  role.addEventListener('blur', () => saveQueue.now('inst-' + itemId, () => saveInstallers(itemId)));
   if (fault) fault.addEventListener('change', () => saveInstallers(itemId));
   removeBtn.addEventListener('click', () => {
     const container = row.closest('.installer-rows');
@@ -500,20 +509,16 @@ document.querySelectorAll('.installer-row-add').forEach(btn => {
 });
 
 // ── Notes autosave ─────────────────────────────────────────────────────────
-let notesTimer = null;
 document.querySelectorAll('.item-notes').forEach(textarea => {
-  textarea.addEventListener('input', function () {
-    clearTimeout(notesTimer);
-    notesTimer = setTimeout(async () => {
-      const itemId = this.dataset.itemId;
-      await fetch(`/api/item/${itemId}/notes`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': _csrf() },
-        body: JSON.stringify({ notes: this.value }),
-      });
-    }, 900);
+  const key = 'notes-' + textarea.dataset.itemId;
+  const save = () => fetch(`/api/item/${textarea.dataset.itemId}/notes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': _csrf() },
+    body: JSON.stringify({ notes: textarea.value }),
   });
+  textarea.addEventListener('input', () => saveQueue.later(key, save, 900));
   textarea.addEventListener('blur', function () {
+    if (saveQueue.waiting.has(key)) saveQueue.now(key, save);
     if (pendingNgRow && pendingNgRow.contains(this) && this.value.trim()) {
       _checkNgUnlock(pendingNgRow);
     }

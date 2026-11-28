@@ -40,6 +40,14 @@ def _report(title='CZAS-1'):
         return r.id, item.id
 
 
+def _rate_all(rid):
+    """Ocenia wszystkie punkty (lista z brakami nie daje się zamknąć); nie dotyka odcinków czasu."""
+    with flask_app.app_context():
+        for item in ReportItem.query.filter_by(report_id=rid).all():
+            item.result = 'ok'
+        db.session.commit()
+
+
 def _sessions(rid):
     with flask_app.app_context():
         return [(s.started_at, s.ended_at, s.last_activity_at)
@@ -88,6 +96,7 @@ class TestOdcinki:
         rid, _ = _report()
         _open(client, rid)
         _age_open_session(rid, hours=20)
+        _rate_all(rid)
         _post(client, f'/checklist/{rid}/complete')
         with flask_app.app_context():
             r = db.session.get(Report, rid)
@@ -102,6 +111,7 @@ class TestOdcinki:
             s = ChecklistSession.query.filter_by(report_id=rid).first()
             s.last_activity_at = worktime.now() - timedelta(minutes=1)
             db.session.commit()
+        _rate_all(rid)
         _post(client, f'/checklist/{rid}/complete')
         with flask_app.app_context():
             assert 6 * 60 <= db.session.get(Report, rid).duration_seconds <= 8 * 60
@@ -307,7 +317,10 @@ class TestInneSciezkiZamykania:
     def test_wznowienie_raportu_zaczyna_od_zera(self, client):
         rid, _ = _report()
         _open(client, rid)
+        _rate_all(rid)
         _post(client, f'/checklist/{rid}/complete')
+        with flask_app.app_context():
+            assert db.session.get(Report, rid).status == 'completed'
         logout(client)
         login(client, 'super', 'Super1234!')
         _post(client, f'/reports/{rid}/reopen')

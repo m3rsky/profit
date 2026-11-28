@@ -884,6 +884,40 @@ def checklist_from_qr():
     })
 
 
+def _items_by_category(report):
+    """Punkty listy pogrupowane po kategoriach, w kolejności widocznej na ekranie."""
+    grouped = {}
+    for item in report.items.all():
+        if item.task is None or item.task.category is None:
+            continue
+        grouped.setdefault(item.task.category, []).append(item)
+    return grouped
+
+
+def _closing_gaps(report):
+    """Braki przed zamknięciem listy z przeglądarki. `blocking` wstrzymuje zamknięcie,
+    `warnings` (zdjęcia) można świadomie pominąć. DW nie wymaga komentarza."""
+    rows, number = [], 0
+    for category, items in _items_by_category(report).items():
+        for item in items:
+            number += 1
+            blocking, warnings = [], []
+            has_photo = any(True for _ in item.photos)
+            if item.result is None:
+                blocking.append('Brak oceny')
+            elif item.result == 'ng' and not (item.notes or '').strip():
+                blocking.append('NG bez adnotacji')
+            if not has_photo and item.result != 'na':
+                if item.task.requires_photo:
+                    warnings.append('Brak wymaganego zdjęcia')
+                elif item.result == 'ng':
+                    warnings.append('NG bez zdjęcia')
+            if blocking or warnings:
+                rows.append({'item_id': item.id, 'number': number, 'category': category.name,
+                             'title': item.task.title, 'blocking': blocking, 'warnings': warnings})
+    return rows
+
+
 @app.route('/checklist/<int:report_id>')
 @login_required
 def checklist_view(report_id):
@@ -903,12 +937,7 @@ def checklist_view(report_id):
         report.locked_at    = now
         worktime.open_session(report, now)
         db.session.commit()
-    items_by_category = {}
-    for item in report.items.all():
-        if item.task is None or item.task.category is None:
-            continue
-        cat = item.task.category
-        items_by_category.setdefault(cat, []).append(item)
+    items_by_category = _items_by_category(report)
     installers = Installer.query.filter_by(is_active=True).order_by(Installer.name).all()
     qar_categories = [c.name for c in QARCategory.query.filter_by(is_active=True)
                       .order_by(QARCategory.order, QARCategory.name).all()]
@@ -930,6 +959,11 @@ def complete_checklist(report_id):
     if (report.user_id != current_user.id and not current_user.can('kontrola_koncowa.edit')
             and not is_kontroler_report):
         abort(403)
+    if report.status != 'completed':
+        gaps = _closing_gaps(report)
+        blocked = any(g['blocking'] for g in gaps)
+        if blocked or (gaps and request.form.get('confirm_warnings') != '1'):
+            return render_template('checklist_gaps.html', report=report, gaps=gaps, blocked=blocked)
     if is_kontroler_report and report.user_id != current_user.id:
         report.user_id = current_user.id
     now_utc = datetime.now(UTC)

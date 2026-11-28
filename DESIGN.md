@@ -75,6 +75,7 @@ Czcionka systemowa: `'Segoe UI', system-ui, -apple-system, sans-serif`. Bez czci
 - Jedna kolumna, najważniejsza czynność bez szukania.
 - Widać postęp, na przykład "Ocenione 1 z 3".
 - Gdy czegoś brakuje, komunikat mówi czego i pozwala przejść do tego miejsca.
+- W kreatorze wielu punktów postęp pokazuje pasek punktów (jeden segment to jeden punkt), a skok do punktu odbywa się z listy "Przegląd" ze słownym stanem każdego punktu.
 
 ## 7. Teksty
 

@@ -837,6 +837,18 @@ body.dark .badge-warning  { box-shadow: 0 0 8px rgba(251,191,36,.15); }
 }
 
 /* ── NG — wymagana adnotacja ───────────────────────────────────────────────── */
+/* Ekran braków przed zamknięciem listy */
+.gaps { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.gaps-list { list-style: none; padding: 0; margin: 0; }
+.gaps-row { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 12px 16px; border-top: 1px solid var(--border); }
+.gaps-row:first-child { border-top: none; }
+.gaps-title { font-weight: 600; }
+.gaps-row .rs { display: flex; white-space: normal; }
+.gaps-row .btn, .gaps-actions .btn { min-height: 48px; justify-content: center; }
+.gaps-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.gaps-actions > * { flex: 1 1 220px; }
+.gaps-actions form .btn { width: 100%; }
+
 .ng-note-required .item-notes {
   border-color: var(--error) !important;
   box-shadow: 0 0 0 3px rgba(192, 57, 43, 0.12);
@@ -2689,34 +2701,6 @@ body.login-page { background: #eef4fc; }
   body.wizard-mode .upload-zone { margin-top: 4px; }
   body.wizard-mode .item-notes  { min-height: 72px; }
 
-  /* ── DW mode: przyciski na górze, foto, poszerzone pole notatki ── */
-  body.wizard-mode .checklist-item.wizard-dw .item-description,
-  body.wizard-mode .checklist-item.wizard-dw .requires-photo-hint { display: none; }
-
-  body.wizard-mode .checklist-item.wizard-dw .item-title {
-    order: 1;
-    font-size: 0.858rem;
-    font-weight: 500;
-    color: var(--text-muted);
-  }
-
-  body.wizard-mode .checklist-item.wizard-dw .result-buttons {
-    order: 2;
-    margin-top: 0 !important;
-    padding-top: 0 !important;
-  }
-
-  body.wizard-mode .checklist-item.wizard-dw .photo-thumbs { order: 3; }
-  body.wizard-mode .checklist-item.wizard-dw .upload-zone  { order: 4; }
-
-  body.wizard-mode .checklist-item.wizard-dw .item-notes {
-    order: 5;
-    flex: 1;
-    min-height: 140px;
-    border-color: #d97706 !important;
-    resize: none;
-  }
-
   body.wizard-mode .item-body {
     display: flex;
     flex-direction: column;
@@ -2726,11 +2710,7 @@ body.login-page { background: #eef4fc; }
     /* height ustawiane przez JS w show() */
   }
 
-  body.wizard-mode .result-buttons,
-  body.wizard-mode .value-row {
-    margin-top: auto;
-    padding-top: 16px;
-  }
+  body.wizard-mode .item-body > * { flex-shrink: 0; }
 }
 
 /* ════════════════════════════════════════════════════════════════

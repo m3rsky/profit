@@ -12,8 +12,7 @@
   </div>
   <div class="page-header-actions checklist-actions">
     {% if report.status == 'in_progress' %}
-    <form method="post" action="{{ url_for('complete_checklist', report_id=report.id) }}"
->
+    <form method="post" action="{{ url_for('complete_checklist', report_id=report.id) }}" data-close-report>
       {{ csrf_input() }}
       <button type="submit" class="btn btn-success"><i class="bi bi-check-circle-fill"></i> Zamknij raport</button>
     </form>
@@ -81,11 +80,20 @@
   </div>
   {% endif %}
   <div class="wizard-progress-row">
-    <span class="wizard-counter"><span id="w-idx">1</span>&nbsp;/&nbsp;<span id="w-total">?</span></span>
-    <div class="wizard-bar-wrap"><div class="wizard-bar-fill" id="w-fill"></div></div>
-    <span class="wizard-pct" id="w-pct">0%</span>
+    <span class="wizard-counter">Punkt <span id="w-idx">1</span> z <span id="w-total">?</span></span>
+    <span class="wizard-cat-label" id="w-cat"></span>
+    <button type="button" class="btn btn-outline wizard-overview-btn" id="w-overview" aria-haspopup="dialog">Przegląd</button>
   </div>
-  <div class="wizard-cat-label" id="w-cat"></div>
+  <div class="wizard-strip" id="w-strip" role="img" aria-label="Postęp kontroli"></div>
+</div>
+<div class="wizard-sheet" id="w-sheet" role="dialog" aria-modal="true" aria-labelledby="w-sheet-title" hidden>
+  <div class="wizard-sheet-box">
+    <div class="wizard-sheet-head">
+      <h2 class="wizard-sheet-title" id="w-sheet-title">Przegląd punktów</h2>
+      <button type="button" class="btn btn-outline" id="w-sheet-close">Zamknij</button>
+    </div>
+    <ol class="wizard-sheet-list" id="w-sheet-list"></ol>
+  </div>
 </div>
 {% endif %}
 <template id="installer-row-template">
@@ -110,7 +118,7 @@
     <small>{{ items | selectattr('is_checked') | list | length }}/{{ items | length }}</small>
   </div>
   {% for item in items %}
-  <div class="checklist-item {% if item.result == 'ok' %}result-ok{% elif item.result == 'ng' %}result-ng{% endif %}" id="item-{{ item.id }}" data-item-id="{{ item.id }}">
+  <div class="checklist-item {% if item.result %}result-{{ item.result }}{% endif %}" id="item-{{ item.id }}" data-item-id="{{ item.id }}">
     <div class="item-body">
       <div class="item-title">{{ item.task.title }}</div>
       {% if item.task.description %}
@@ -256,7 +264,7 @@
                   data-item-id="{{ item.id }}" data-result="na">N/A</button>
           <button type="button" class="btn-result btn-dw {% if item.result == 'dw' %}active{% endif %}"
                   data-item-id="{{ item.id }}" data-result="dw"
-                  title="Dopuszczenie Warunkowe – wymagany komentarz.">DW</button>
+                  title="Dopuszczenie Warunkowe">DW</button>
         </div>
         {% endif %}
       {% else %}
@@ -362,11 +370,11 @@
 {% endfor %}
 {% if dw_items %}
 <div class="dw-section">
-  <div class="dw-section-title"><i class="bi bi-exclamation-triangle-fill"></i> Dopuszczenia Warunkowe (DW) — wymagają monitorowania</div>
+  <div class="dw-section-title"><i class="bi bi-exclamation-triangle-fill"></i> Dopuszczenia Warunkowe (DW), wymagają monitorowania</div>
   {% for item in dw_items %}
   <div class="dw-item">
     <div class="dw-item-title">{{ item.task.title }}</div>
-    {% if item.notes %}<div class="dw-item-note"><i class="bi bi-chat-text"></i> {{ item.notes }}</div>{% else %}<div class="dw-item-note text-danger">⚠ Brak komentarza — dodaj uzasadnienie!</div>{% endif %}
+    {% if item.notes %}<div class="dw-item-note"><i class="bi bi-chat-text"></i> {{ item.notes }}</div>{% endif %}
   </div>
   {% endfor %}
 </div>
@@ -382,7 +390,7 @@
     {% if s.dw %}<span class="rs-dw">DW: {{ s.dw }}</span>{% endif %}
     <span class="rs-total">/ {{ s.total }}</span>
   </div>
-  <form method="post" action="{{ url_for('complete_checklist', report_id=report.id) }}">
+  <form method="post" action="{{ url_for('complete_checklist', report_id=report.id) }}" data-close-report>
     {{ csrf_input() }}
     <button type="submit" class="btn btn-success btn-close-report">
       <i class="bi bi-check-circle-fill"></i> Zamknij raport
@@ -572,15 +580,16 @@ document.querySelectorAll('.batch-progress-fill[data-pct]').forEach(function (el
 
   const wIdx   = document.getElementById('w-idx');
   const wTotal = document.getElementById('w-total');
-  const wFill  = document.getElementById('w-fill');
-  const wPct   = document.getElementById('w-pct');
+  const wStrip = document.getElementById('w-strip');
+  const wSheet = document.getElementById('w-sheet');
+  const wList  = document.getElementById('w-sheet-list');
+  const wOpen  = document.getElementById('w-overview');
+  const wClose = document.getElementById('w-sheet-close');
   const wCat   = document.getElementById('w-cat');
   const wPrev  = document.getElementById('w-prev');
   const wNext  = document.getElementById('w-next');
 
   wTotal.textContent = allItems.length;
-
-  let dwObserver = null;
 
   let current = allItems.findIndex(function (i) {
     return !i.el.classList.contains('result-ok')
@@ -589,65 +598,83 @@ document.querySelectorAll('.batch-progress-fill[data-pct]').forEach(function (el
         && !i.el.classList.contains('result-dw');
   });
   if (current < 0) current = 0;
+  const linked = allItems.findIndex(function (i) { return '#' + i.el.id === window.location.hash; });
+  if (linked >= 0) current = linked;
 
-  function countAnswered() {
-    return allItems.filter(function (i) {
-      return i.el.classList.contains('result-ok')
-          || i.el.classList.contains('result-ng')
-          || i.el.classList.contains('result-na')
-          || i.el.classList.contains('result-dw');
-    }).length;
+  const STATES = {
+    ok: ['OK', 'rs-ok', 'bi-check2-circle'],
+    ng: ['NG', 'rs-ng', 'bi-x-circle'],
+    na: ['N/A', 'rs-muted', 'bi-dash-circle'],
+    dw: ['DW', 'rs-warn', 'bi-exclamation-triangle'],
+  };
+
+  function stateOf(el) {
+    return Object.keys(STATES).find(function (k) { return el.classList.contains('result-' + k); }) || '';
   }
 
-  function calcBodyHeight() {
-    const mobileHdr = document.querySelector('.mobile-header');
-    const mhH = mobileHdr ? mobileHdr.offsetHeight : 0;
-    const whH = wHeader.offsetHeight;
-    const wnH = wNav.offsetHeight;
-    // 24 = padding-top of wizard-active item
-    return window.innerHeight - mhH - whH - wnH - 24;
+  // Pasek punktów: jeden segment to jeden punkt.
+  function renderStrip() {
+    let rated = 0;
+    wStrip.replaceChildren.apply(wStrip, allItems.map(function (i, n) {
+      const seg = document.createElement('span');
+      const state = stateOf(i.el);
+      if (state) rated++;
+      seg.className = 'wizard-seg' + (state ? ' is-' + state : '') + (n === current ? ' is-current' : '');
+      return seg;
+    }));
+    wStrip.setAttribute('aria-label', 'Ocenione ' + rated + ' z ' + allItems.length + ' punktów');
   }
 
-  function applyDwLayout(itemEl, isDW) {
-    itemEl.classList.toggle('wizard-dw', isDW);
-    if (isDW) {
-      const notes = itemEl.querySelector('.item-notes');
-      if (notes) setTimeout(function () { notes.focus(); }, 150);
-    }
+  function openSheet() {
+    wList.replaceChildren.apply(wList, allItems.map(function (i, n) {
+      const li = document.createElement('li');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'wizard-sheet-row' + (n === current ? ' is-current' : '');
+      const title = document.createElement('span');
+      title.textContent = (n + 1) + '. ' + i.el.querySelector('.item-title').textContent.trim();
+      const mark = document.createElement('span');
+      const state = STATES[stateOf(i.el)] || ['Brak oceny', 'rs-info', 'bi-circle'];
+      mark.className = 'rs ' + state[1];
+      const icon = document.createElement('i');
+      icon.className = 'bi ' + state[2];
+      mark.append(icon, ' ' + state[0]);
+      btn.append(title, mark);
+      btn.addEventListener('click', function () { closeSheet(); current = n; show(current); });
+      li.appendChild(btn);
+      return li;
+    }));
+    wSheet.hidden = false;
+    wClose.focus();
+    const active = wList.querySelector('.is-current');
+    if (active) active.scrollIntoView({ block: 'center' });
+  }
+
+  function closeSheet() { wSheet.hidden = true; wOpen.focus(); }
+
+  wOpen.addEventListener('click', openSheet);
+  wClose.addEventListener('click', closeSheet);
+  wSheet.addEventListener('click', function (e) { if (e.target === wSheet) closeSheet(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !wSheet.hidden) closeSheet(); });
+
+  const stripObserver = new MutationObserver(renderStrip);
+  allItems.forEach(function (i) { stripObserver.observe(i.el, { attributes: true, attributeFilter: ['class'] }); });
+
+  function fitBody() {
+    const body = allItems[current] && allItems[current].el.querySelector('.item-body');
+    if (!body) return;
+    const free = wNav.getBoundingClientRect().top - body.getBoundingClientRect().top - 24;
+    body.style.height = Math.max(free, 200) + 'px';
+    body.style.overflowY = 'auto';
   }
 
   function show(idx) {
-    if (dwObserver) { dwObserver.disconnect(); dwObserver = null; }
-
-    allItems.forEach(function (i) {
-      i.el.classList.remove('wizard-active', 'wizard-dw');
-    });
+    allItems.forEach(function (i) { i.el.classList.remove('wizard-active'); });
     allItems[idx].el.classList.add('wizard-active');
-
-    // Przywróć DW layout jeśli item ma już wynik DW (np. nawigacja wstecz)
-    applyDwLayout(allItems[idx].el, allItems[idx].el.classList.contains('result-dw'));
-
-    // height (nie minHeight) tworzy "definite size" — margin-top:auto działa poprawnie
-    const body = allItems[idx].el.querySelector('.item-body');
-    if (body) {
-      body.style.height = Math.max(calcBodyHeight(), 200) + 'px';
-      body.style.overflowY = 'auto';
-    }
-
-    // Obserwuj zmianę wyniku na DW lub cofnięcie DW
-    const itemEl = allItems[idx].el;
-    dwObserver = new MutationObserver(function () {
-      applyDwLayout(itemEl, itemEl.classList.contains('result-dw'));
-    });
-    dwObserver.observe(itemEl, { attributes: true, attributeFilter: ['class'] });
-
     wIdx.textContent = idx + 1;
     wCat.textContent = allItems[idx].cat;
 
-    const pct = Math.round((countAnswered() / allItems.length) * 100);
-    wFill.style.width = pct + '%';
-    wPct.textContent = pct + '%';
-
+    renderStrip();
     wPrev.disabled = idx === 0;
 
     const isLast = idx === allItems.length - 1;
@@ -657,15 +684,11 @@ document.querySelectorAll('.batch-progress-fill[data-pct]').forEach(function (el
     wNext.className = 'btn wizard-btn-next ' + (isLast ? 'btn-success' : 'btn-primary');
 
     window.scrollTo(0, 0);
+    fitBody();
   }
 
   window.addEventListener('resize', function () {
-    if (!document.body.classList.contains('wizard-mode')) return;
-    const body = allItems[current] && allItems[current].el.querySelector('.item-body');
-    if (body) {
-      body.style.height = Math.max(calcBodyHeight(), 200) + 'px';
-      body.style.overflowY = 'auto';
-    }
+    if (document.body.classList.contains('wizard-mode')) fitBody();
   });
 
   document.body.classList.add('wizard-mode');
@@ -675,9 +698,6 @@ document.querySelectorAll('.batch-progress-fill[data-pct]').forEach(function (el
   window.scrollToNextItem = function (row) {
     const idx = allItems.findIndex(function (i) { return i.el === row; });
     setTimeout(function () {
-      const pct = Math.round((countAnswered() / allItems.length) * 100);
-      wFill.style.width = pct + '%';
-      wPct.textContent = pct + '%';
       if (idx >= 0 && idx < allItems.length - 1) {
         current = idx + 1;
         show(current);
@@ -704,8 +724,7 @@ document.querySelectorAll('.batch-progress-fill[data-pct]').forEach(function (el
     } else {
       const closeForm = document.querySelector('.btn-close-report')?.closest('form');
       if (closeForm) {
-        closeForm.onsubmit = null;
-        closeForm.submit();
+        closeForm.requestSubmit();
       }
     }
   });

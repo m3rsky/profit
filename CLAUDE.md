@@ -243,6 +243,17 @@ Naprawa zawyżonych czasów kontroli (np. 17 do 40 godzin w statystykach): odcin
 
 ---
 
+## Kontrola Końcowa: zamykanie listy i kreator na telefonie (od 2026-11-28)
+
+- **Reguły zamykania z przeglądarki** (`_closing_gaps` w `app.py`, ekran `templates/checklist_gaps.html`): **blokują** nieoceniony punkt i NG bez adnotacji (także przy próbie z potwierdzeniem). **Ostrzegają** NG bez zdjęcia i brak wymaganego zdjęcia (nie dotyczy N/A), listę można świadomie zamknąć przyciskiem "Zamknij bez zdjęć" (`confirm_warnings=1`). To decyzja użytkownika: czasem zamknięcie bez zdjęcia jest pożądane, nie zamieniaj ostrzeżeń w blokadę bez jego zgody.
+- **DW** jest rzadko używane, ale zostaje. Nie wymaga komentarza i nie daje ostrzeżeń.
+- Reguły nie obejmują zamykania przez `/api/v1` ani aplikację desktopową.
+- **Zapisy pól** idą przez `saveQueue` w `static/js/app.js` (osobny licznik na pole). Formularze zamykające mają `data-close-report` i przed wysłaniem czekają na `saveQueue.flush()`. Nowe pole z opóźnionym zapisem dodawaj przez `saveQueue`.
+- **Kreator na telefonie** (`templates/checklist.html`, style na końcu `erp-design.css`): pasek punktów (jeden segment to jeden punkt), okno "Przegląd" do skoku, odpowiedzi przy dole ekranu, cele dotyku min. 48 px. Odnośnik `#item-<id>` otwiera wskazany punkt.
+- Testy: `tests/test_zamykanie_listy.py`.
+
+---
+
 ## Moduł "Lista produkcyjna" (`/produkcja`)
 
 Wdrożony 2026-10-13. Wczytuje ręcznie plik Excel z listą produkcyjną (wszystkie niepuste arkusze, także ukryte), pozwala go przeglądać i edytować w aplikacji, dodawać i usuwać zlecenia, tworzyć z nich listy kontrolne i wpisywać pracowników w kolumny etapów skanem QR.

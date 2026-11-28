@@ -14,7 +14,9 @@
 .kz-okng { display:flex; gap:.4rem; margin:.5rem 0 0 2.1rem; }
 .kz-cb { flex:1; display:flex; align-items:center; justify-content:center; min-height:48px; border-radius:9px;
   border:2px solid var(--border,#cbd5e1); cursor:pointer; font-weight:700; user-select:none; }
-.kz-cb input { display:none; }
+.kz-cb { position:relative; }
+.kz-cb input { position:absolute; opacity:0; width:1px; height:1px; }
+.kz-cb:focus-within { outline:3px solid var(--erp-blue,#1257A8); outline-offset:2px; }
 .kz-cb--ok:has(input:checked) { border-color:var(--ok-border,#16a34a); background:var(--ok-bg,#dcfce7); color:var(--ok-text,#166534); }
 .kz-cb--ng:has(input:checked) { border-color:var(--danger-text,#b91c1c); background:var(--danger-bg,#fee2e2); color:var(--danger-text,#b91c1c); }
 .kz-measure-in { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; margin:.5rem 0 0 2.1rem; }
@@ -28,6 +30,13 @@
 .kz-save { display:flex; gap:.6rem; flex-wrap:wrap; }
 .kz-save .btn { flex:1; min-height:48px; }
 .kz-chain { display:flex; gap:.5rem; flex-wrap:wrap; }
+.kz-chain:empty { display:none; }
+.kz-danger { margin-top:2rem; padding-top:1rem; border-top:1px solid var(--border,#e2e8f0); }
+.kz-danger .btn { min-height:48px; background:transparent !important; color:var(--danger-text,#B3261E) !important; border-color:var(--danger-text,#B3261E) !important; }
+@media (max-width: 768px) {
+  .kz-wrap .page-header .page-header-actions { flex-direction:row; }
+  .kz-wrap .page-header .page-header-actions .btn { flex:1; min-height:48px; padding:8px !important; }
+}
 </style>
 {% endblock %}
 
@@ -73,7 +82,7 @@
   </div>
   {% endif %}
 
-  <div class="kz-chain">
+  <div class="kz-chain">{% if rec.previous or rec.followup %}
     {% if rec.previous %}
     <a class="btn btn-outline btn-sm" href="{{ url_for('kontrola.view_record', record_id=rec.previous.id) }}">
       <i class="bi bi-arrow-left-short"></i> Kontrola wstępna</a>
@@ -82,7 +91,7 @@
     <a class="btn btn-outline btn-sm" href="{{ url_for('kontrola.view_record', record_id=rec.followup.id) }}">
       Kontrola sprawdzająca <i class="bi bi-arrow-right-short"></i></a>
     {% endif %}
-  </div>
+  {% endif %}</div>
 
   <form method="post" autocomplete="off">
     {{ csrf_input() }}
@@ -175,7 +184,7 @@
       </button>
       <button type="submit" name="action" value="complete" class="btn btn-primary">
         <i class="bi bi-check2-all"></i> Zakończ kontrolę
-        <span class="text-muted" style="font-size:0.858rem;">({{ rec.rated_count }}/{{ rec.results|length }})</span>
+        <span>(ocenione {{ rec.rated_count }} z {{ rec.results|length }})</span>
       </button>
     </div>
     {% endif %}
@@ -207,7 +216,7 @@
   {% endif %}
 
   {% if can('kontrola_etapowa.delete') %}
-  <form method="post" action="{{ url_for('kontrola.delete_record', record_id=rec.id) }}">
+  <form method="post" class="kz-danger" action="{{ url_for('kontrola.delete_record', record_id=rec.id) }}">
     {{ csrf_input() }}
     <button type="submit" class="btn btn-danger btn-sm"
             data-confirm="Usunąć kontrolę ZO {{ rec.zo_number }} razem z kontrolą sprawdzającą? Raporty QAR zostają.">

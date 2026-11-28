@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Przed zamknięciem{% endblock %}
+{% block content %}
+{% set to_fill = gaps | selectattr('blocking') | list %}
+{% set only_warn = gaps | rejectattr('blocking') | list %}
+{% macro gap_rows(rows) %}
+  <ul class="gaps-list">
+    {% for g in rows %}
+    <li class="gaps-row">
+      <div>
+        <div class="gaps-title">{{ g.number }}. {{ g.title }}</div>
+        <small class="text-muted">{{ g.category }}</small>
+        {% for text in g.blocking %}<span class="rs rs-ng"><i class="bi bi-x-circle"></i> {{ text }}</span>{% endfor %}
+        {% for text in g.warnings %}<span class="rs rs-warn"><i class="bi bi-camera"></i> {{ text }}</span>{% endfor %}
+      </div>
+      <a class="btn btn-outline" href="{{ url_for('checklist_view', report_id=report.id) }}#item-{{ g.item_id }}"
+         aria-label="Przejdź do punktu {{ g.number }}">Przejdź</a>
+    </li>
+    {% endfor %}
+  </ul>
+{% endmacro %}
+
+<div class="gaps">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Przed zamknięciem</h1>
+      <small class="text-muted">{{ report.title }}</small>
+    </div>
+  </div>
+
+  {% if blocked %}
+  <div class="alert alert-warning">Nie można jeszcze zamknąć listy. Uzupełnij punkty z sekcji "Do uzupełnienia".</div>
+  <section class="card">
+    <div class="card-header">Do uzupełnienia ({{ to_fill|length }})</div>
+    {{ gap_rows(to_fill) }}
+  </section>
+  {% else %}
+  <div class="alert alert-warning">Brakuje zdjęć. Możesz je dodać albo zamknąć listę bez nich.</div>
+  {% endif %}
+
+  {% if only_warn %}
+  <section class="card">
+    <div class="card-header">Brakujące zdjęcia ({{ only_warn|length }})</div>
+    {{ gap_rows(only_warn) }}
+  </section>
+  {% endif %}
+
+  <div class="gaps-actions">
+    <a class="btn {% if blocked %}btn-primary{% else %}btn-outline{% endif %}"
+       href="{{ url_for('checklist_view', report_id=report.id) }}{% if to_fill %}#item-{{ to_fill[0].item_id }}{% endif %}">Wróć do kontroli</a>
+    {% if not blocked %}
+    <form method="post" action="{{ url_for('complete_checklist', report_id=report.id) }}">
+      {{ csrf_input() }}
+      <input type="hidden" name="confirm_warnings" value="1">
+      <button type="submit" class="btn btn-success">Zamknij bez zdjęć</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
